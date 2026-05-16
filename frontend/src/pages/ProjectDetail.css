@@ -1,0 +1,73 @@
+/**
+ * CSS styles for Project Detail page.
+ */
+
+.project-detail {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.back-link {
+  color: #4a90d9;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+.detail-header h1 {
+  font-size: 2rem;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.description {
+  color: #666;
+  margin: 0;
+}
+
+.documents-list {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.documents-list h2 {
+  margin-top: 0;
+  color: #1a1a2e;
+  font-size: 1.25rem;
+}
+
+.document-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.document-item:last-child {
+  border-bottom: none;
+}
+
+.document-item a {
+  color: #4a90d9;
+  text-decoration: none;
+}
+
+.document-item a:hover {
+  text-decoration: underline;
+}

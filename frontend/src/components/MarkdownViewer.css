@@ -1,0 +1,69 @@
+/**
+ * CSS styles for Markdown Viewer component.
+ */
+
+.markdown-viewer {
+  padding: 1rem;
+  line-height: 1.7;
+  color: #333;
+}
+
+.markdown-viewer h1,
+.markdown-viewer h2,
+.markdown-viewer h3 {
+  color: #1a1a2e;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.markdown-viewer h1 { font-size: 2rem; }
+.markdown-viewer h2 { font-size: 1.5rem; }
+.markdown-viewer h3 { font-size: 1.25rem; }
+
+.markdown-viewer p {
+  margin-bottom: 1rem;
+}
+
+.markdown-viewer a.wiki-link {
+  color: #4a90d9;
+  text-decoration: none;
+  border-bottom: 1px dashed #4a90d9;
+}
+
+.markdown-viewer a.wiki-link:hover {
+  color: #357abd;
+  border-bottom-style: solid;
+}
+
+.markdown-viewer code {
+  background: #f4f4f4;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+
+.markdown-viewer pre {
+  background: #1a1a2e;
+  color: #e0e0e0;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.markdown-viewer pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-viewer hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 1.5rem 0;
+}
+
+.empty-content {
+  color: #888;
+  font-style: italic;
+}

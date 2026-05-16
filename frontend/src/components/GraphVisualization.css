@@ -1,0 +1,56 @@
+/**
+ * CSS styles for Graph Visualization component.
+ */
+
+.graph-visualization {
+  padding: 2rem;
+}
+
+.graph-header h2 {
+  font-size: 1.5rem;
+  color: #1a1a2e;
+  margin: 0 0 0.25rem;
+}
+
+.graph-subtitle {
+  color: #6b7280;
+  margin: 0;
+}
+
+.graph-container {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  margin-top: 1rem;
+}
+
+.graph-svg {
+  width: 100%;
+  height: auto;
+}
+
+.graph-edge {
+  stroke: #d1d5db;
+  stroke-width: 2;
+}
+
+.graph-node-group {
+  cursor: pointer;
+}
+
+.graph-node {
+  fill: #4f46e5;
+  transition: fill 0.2s;
+}
+
+.graph-node:hover {
+  fill: #4338ca;
+}
+
+.graph-node-label {
+  fill: white;
+  font-size: 11px;
+  font-family: system-ui, -apple-system, sans-serif;
+  pointer-events: none;
+}
