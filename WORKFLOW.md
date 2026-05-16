@@ -63,6 +63,14 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ---
 
+## 8. Send Discord Notification
+
+- After completing all previous steps, send a completion message via Discord using the MCP tool.
+- Post the message to the **`wiki4ai`** channel on the **`keepees server`**.
+- The message should summarize what was accomplished (story ID, subject, key changes made).
+
+---
+
 ## Taiga User Story Status Reference
 
 | Status Name | Integer ID | Description |
@@ -86,3 +94,4 @@ This document defines the standard workflow for all agents working on tasks (Use
 | 5 | Write & run tests (if applicable) | — |
 | 6 | Commit with English message, push to `main` | — |
 | 7 | Append description + set status to Done in Taiga | `48` |
+| 8 | Send Discord notification to #wiki4ai on keepees server | — |
