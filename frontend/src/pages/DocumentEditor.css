@@ -6,31 +6,91 @@
   display: flex;
   flex-direction: column;
   height: calc(100vh - 60px);
+  background: #fafafa;
 }
 
+/* Header with title and actions */
 .editor-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 1rem 2rem;
+  gap: 1rem;
+  padding: 0.75rem 2rem;
   border-bottom: 1px solid #e0e0e0;
   background: white;
 }
 
-.editor-header h1 {
-  font-size: 1.5rem;
+.editor-title-input {
+  flex: 1;
+  font-size: 1.25rem;
+  font-weight: 600;
   color: #1a1a2e;
-  margin: 0;
+  border: none;
+  outline: none;
+  padding: 0.5rem;
+  background: transparent;
+}
+
+.editor-title-input::placeholder {
+  color: #aaa;
+  font-weight: normal;
 }
 
 .editor-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
 }
 
+/* View mode toggle button */
+.view-mode-btn.active {
+  background-color: #4a90d9 !important;
+  color: white !important;
+}
+
+/* Save status indicator */
+.save-status {
+  padding: 0.25rem 1rem;
+  text-align: center;
+  font-size: 0.875rem;
+  background: #f0f0f0;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.save-status.saved {
+  background: #d4edda;
+  color: #155724;
+}
+
+.save-status.error {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Editor body layout */
 .editor-body {
   flex: 1;
   display: flex;
+  overflow: hidden;
+}
+
+/* View mode variants */
+.view-mode-edit .editor-pane {
+  width: 100%;
+}
+
+.view-mode-preview .preview-pane {
+  width: 100%;
+}
+
+.view-mode-split .editor-pane,
+.view-mode-split .preview-pane {
+  width: 50%;
+}
+
+/* Editor pane */
+.editor-pane {
+  display: flex;
+  border-right: 1px solid #e0e0e0;
   overflow: hidden;
 }
 
@@ -44,11 +104,179 @@
   font-size: 1rem;
   line-height: 1.6;
   outline: none;
+  background: white;
 }
 
-.preview-container {
+.markdown-input:focus {
+  box-shadow: inset 0 0 0 2px #4a90d9;
+}
+
+/* Preview pane */
+.preview-pane {
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
   background: white;
+}
+
+.empty-preview {
+  color: #aaa;
+  font-style: italic;
+  text-align: center;
+  margin-top: 4rem;
+}
+
+/* Loading indicator */
+.editor-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 60px);
+  font-size: 1.25rem;
+  color: #666;
+}
+
+/* Button styles */
+.btn-primary {
+  padding: 0.5rem 1rem;
+  background-color: #4a90d9;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #357abd;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary.saving {
+  animation: pulse 1.5s infinite;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  background-color: #f0f0f0;
+  color: #333;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover {
+  background-color: #e0e0e0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Markdown preview styles */
+.preview-pane h1,
+.preview-pane h2,
+.preview-pane h3,
+.preview-pane h4,
+.preview-pane h5,
+.preview-pane h6 {
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  color: #1a1a2e;
+}
+
+.preview-pane p {
+  margin-bottom: 1rem;
+  line-height: 1.7;
+}
+
+.preview-pane code {
+  background-color: #f4f4f4;
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.9em;
+}
+
+.preview-pane pre {
+  background-color: #f4f4f4;
+  padding: 1rem;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.preview-pane pre code {
+  background-color: transparent;
+  padding: 0;
+}
+
+.preview-pane blockquote {
+  border-left: 4px solid #4a90d9;
+  margin: 1rem 0;
+  padding: 0.5rem 1rem;
+  color: #666;
+  background-color: #f8f9fa;
+}
+
+.preview-pane ul,
+.preview-pane ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+.preview-pane li {
+  margin-bottom: 0.5rem;
+}
+
+.preview-pane a {
+  color: #4a90d9;
+  text-decoration: none;
+}
+
+.preview-pane a:hover {
+  text-decoration: underline;
+}
+
+.preview-pane hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: 2rem 0;
+}
+
+.preview-pane img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .editor-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+  }
+
+  .editor-actions {
+    justify-content: space-between;
+  }
+
+  .view-mode-split .editor-pane,
+  .view-mode-split .preview-pane {
+    width: 100%;
+    height: 50%;
+    flex-direction: column;
+  }
+
+  .view-mode-split .editor-body {
+    flex-direction: column;
+  }
 }
