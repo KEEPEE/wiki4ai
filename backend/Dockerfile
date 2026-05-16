@@ -1,8 +1,9 @@
-# Backend Dockerfile — Spring Boot multi-stage build
+# Backend Dockerfile — Spring Boot multi-stage build with Maven wrapper
 FROM eclipse-temurin:21-jdk AS builder
 WORKDIR /app
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
+RUN apt-get update && apt-get install -y maven && \
+    mvn dependency:go-offline -B
 COPY src ./src
 RUN mvn clean package -DskipTests
 
