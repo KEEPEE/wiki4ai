@@ -1,5 +1,6 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
@@ -61,6 +62,17 @@ public class DocumentController {
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
         Long projectId = 1L; // Will be resolved via service layer in production
         return ResponseEntity.ok(documentService.getDocument(projectId, docSlug));
+    }
+
+    @Operation(summary = "Obsah dokumentu s renderovaným markdownom", description = "Vráti dokument s renderovaným HTML obsahom a prepojenými wiki odkazmi.")
+    @ApiResponse(responseCode = "200", description = "Obsah dokumentu úspešne načítaný")
+    @ApiResponse(responseCode = "404", description = "Dokument s daným slugom nebol nájdený")
+    @GetMapping("/{docSlug}/content")
+    public ResponseEntity<DocumentContentDTO> getContent(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
+        Long projectId = 1L; // Will be resolved via service layer in production
+        return ResponseEntity.ok(documentService.getDocumentContent(projectId, docSlug));
     }
 
     @Operation(summary = "Aktualizácia dokumentu", description = "Aktualizuje existujúci dokument podľa slugu.")

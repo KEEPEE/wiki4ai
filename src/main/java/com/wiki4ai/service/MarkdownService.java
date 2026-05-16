@@ -31,6 +31,36 @@ public class MarkdownService {
     }
 
     /**
+     * Converts markdown content to HTML with wiki links replaced by proper anchor tags.
+     * This is a convenience method that combines render() and replaceWikiLinks().
+     * Wiki-style links [[Document]] are converted to <a href="/projects/{projectSlug}/docs/{docSlug}">Document</a>.
+     *
+     * @param markdownContent the raw markdown string
+     * @param projectSlug the project slug for URL generation
+     * @param docSlugMap a map of document titles (case-insensitive) to their slugs
+     * @return the rendered HTML with wiki links replaced by anchor tags
+     */
+    public String renderWithWikiLinks(String markdownContent, String projectSlug, Map<String, String> docSlugMap) {
+        if (markdownContent == null || markdownContent.isBlank()) {
+            return "";
+        }
+
+        // Build slug-to-URL map from the document slugs
+        Map<String, String> slugToUrl = new java.util.HashMap<>();
+        for (Map.Entry<String, String> entry : docSlugMap.entrySet()) {
+            String url = "/projects/" + projectSlug + "/docs/" + entry.getValue();
+            // Store with lowercase key for case-insensitive lookup
+            slugToUrl.put(entry.getKey().toLowerCase(), url);
+        }
+
+        // First render markdown to HTML (preserving wiki links as [[...]])
+        String html = render(markdownContent);
+
+        // Then replace wiki links with proper anchor tags
+        return replaceWikiLinks(html, slugToUrl);
+    }
+
+    /**
      * Converts markdown content to HTML.
      * Supports standard markdown features including headings, paragraphs, lists, code blocks,
      * bold/italic text, links, and blockquotes.

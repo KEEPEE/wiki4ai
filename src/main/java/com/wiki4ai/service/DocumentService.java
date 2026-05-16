@@ -1,5 +1,6 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -26,6 +28,7 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final ProjectRepository projectRepository;
+    private final MarkdownService markdownService;
 
     /**
      * Get all documents in a project.
@@ -272,6 +275,48 @@ public class DocumentService {
                 .stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get document content with rendered HTML, extracted wiki links, and linked documents.
+     * Returns the full document content processed through markdown rendering with wiki link replacement.
+     *
+     * @param projectId the project ID
+     * @param slug      the document slug
+     * @return DocumentContentDTO with rendered HTML and link information
+     * @throws EntityNotFoundException if document not found or doesn't belong to project
+     */
+    public DocumentContentDTO getDocumentContent(Long projectId, String slug) {
+        Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Document not found with slug '" + slug + "' in project " + projectId));
+
+        // Extract wiki links from raw content
+        List<String> wikiLinks = markdownService.extractWikiLinks(document.getContent());
+
+        // Build a map of document titles to slugs for wiki link URL resolution
+        Map<String, String> titleToSlug = documentRepository.findByProjectId(projectId).stream()
+                .collect(Collectors.toMap(
+                        d -> d.getTitle().toLowerCase(),
+                        Document::getSlug,
+                        (existing, replacement) -> existing
+                ));
+
+        // Render markdown with wiki links replaced by proper anchor tags
+        String htmlContent = markdownService.renderWithWikiLinks(document.getContent(), "", titleToSlug);
+
+        // Get linked documents as DTOs
+        List<DocumentDTO> linkedDocuments = document.getLinkedDocuments().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+
+        return new DocumentContentDTO(
+                document.getId(),
+                document.getTitle(),
+                htmlContent,
+                wikiLinks,
+                linkedDocuments
+        );
     }
 
     /**

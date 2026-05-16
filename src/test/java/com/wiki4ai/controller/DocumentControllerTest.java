@@ -1,6 +1,7 @@
 package com.wiki4ai.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
@@ -520,6 +521,79 @@ class DocumentControllerTest {
             mockMvc.perform(get("/api/v1/projects/test-project/documents/non-existent/links"))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.message").value("Document not found with id: 1"));
+        }
+    }
+
+    // ==================== GET DOCUMENT CONTENT TESTS ====================
+
+    @Nested
+    @DisplayName("GET /api/v1/projects/{projectSlug}/documents/{docSlug}/content - Get document content with rendered markdown")
+    class GetDocumentContentTests {
+
+        private DocumentContentDTO createSampleContentDto() {
+            return new DocumentContentDTO(
+                    1L,
+                    "Test Document",
+                    "<h1>Hello World</h1>\n<p>This is a test document.</p>",
+                    List.of("Introduction", "API Reference"),
+                    List.of(DocumentDTO.builder().id(5L).title("Linked Doc").build())
+            );
+        }
+
+        @Test
+        @DisplayName("Should return 200 with rendered content, wiki links and linked documents")
+        void shouldReturnContentSuccessfully() throws Exception {
+            // given
+            DocumentContentDTO contentDto = createSampleContentDto();
+            given(documentService.getDocumentContent(eq(1L), eq("test-document"))).willReturn(contentDto);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/content"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.title").value("Test Document"))
+                    .andExpect(jsonPath("$.htmlContent").exists())
+                    .andExpect(jsonPath("$.wikiLinks").isArray())
+                    .andExpect(jsonPath("$.wikiLinks[0]").value("Introduction"))
+                    .andExpect(jsonPath("$.wikiLinks[1]").value("API Reference"))
+                    .andExpect(jsonPath("$.linkedDocuments").isArray())
+                    .andExpect(jsonPath("$.linkedDocuments[0].id").value(5));
+
+            verify(documentService).getDocumentContent(eq(1L), eq("test-document"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when document not found")
+        void shouldReturnNotFoundWhenNotExists() throws Exception {
+            // given
+            given(documentService.getDocumentContent(eq(1L), eq("non-existent")))
+                    .willThrow(new EntityNotFoundException(
+                            "Document not found with slug 'non-existent' in project 1"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/non-existent/content"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Document not found with slug 'non-existent' in project 1"));
+        }
+
+        @Test
+        @DisplayName("Should return content with empty wiki links when no wiki references exist")
+        void shouldReturnEmptyWikiLinks() throws Exception {
+            // given
+            DocumentContentDTO contentDto = new DocumentContentDTO(
+                    2L,
+                    "Simple Doc",
+                    "<h1>Simple</h1>\n<p>No wiki links here.</p>",
+                    List.of(),
+                    List.of()
+            );
+            given(documentService.getDocumentContent(eq(1L), eq("simple-doc"))).willReturn(contentDto);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/simple-doc/content"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.wikiLinks").isArray())
+                    .andExpect(jsonPath("$.wikiLinks.length()").value(0));
         }
     }
 
