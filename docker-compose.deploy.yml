@@ -1,0 +1,38 @@
+services:
+  backend:
+    image: git.keepee.duckdns.org/dockerimages/wiki4ai/backend:<IMAGE_TAG>
+    container_name: wiki4ai-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/wiki4ai
+      - SPRING_DATASOURCE_USERNAME=wiki4ai
+      - SPRING_DATASOURCE_PASSWORD=wiki4ai
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    image: git.keepee.duckdns.org/dockerimages/wiki4ai/frontend:<IMAGE_TAG>
+    container_name: wiki4ai-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: wiki4ai-db
+    environment:
+      POSTGRES_DB: wiki4ai
+      POSTGRES_USER: wiki4ai
+      POSTGRES_PASSWORD: wiki4ai
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgdata:
