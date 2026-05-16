@@ -75,6 +75,13 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Flexmark Markdown Parser -->
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-all</artifactId>
+            <version>0.64.8</version>
+        </dependency>
+
         <!-- Testing -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
