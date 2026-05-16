@@ -6,18 +6,18 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ## 1. Pick a Story
 
-- Query the **wiki4ai** Taiga project for User Stories with status **`new`** or **`ready`**.
+- Query the **wiki4ai** Taiga project for User Stories with status **`New`** or **`Ready`**.
 - Select one story to work on.
 
-> **NOTE — Status values are STRINGS, not integers.**  
-> Always use string values when updating story statuses via the API: `"new"`, `"ready"`, `"in progress"`, `"done"`. Do NOT pass integer status IDs.
+> **NOTE — Status values are INTEGER IDs, not strings.**  
+> Always use integer status IDs when updating story statuses via the API: `44` (New), `45` (Ready), `46` (In progress), `47` (Ready for test), `48` (Done). Do NOT pass string values.
 
 ---
 
-## 2. Set Status to `in progress`
+## 2. Set Status to `In progress`
 
-- Update the chosen story's status from `new` / `ready` → **`in progress`**.
-- Use string values only (see note above).
+- Update the chosen story's status from `New` / `Ready` → **`In progress`** (status ID: **`46`**).
+- Use integer status IDs only (see note above).
 
 ---
 
@@ -58,19 +58,31 @@ This document defines the standard workflow for all agents working on tasks (Use
 - Open the same User Story in Taiga and update it:
   - **Append** an implementation description (do NOT delete existing content).
   - Describe what was implemented, how it was done, and any relevant details.
-- Change the story status to **`done`**.
-- Again, use string values for the status (`"done"`), not integers.
+- Change the story status to **`Done`** (status ID: **`48`**).
+- Use integer status IDs for the status (`48`), not strings.
+
+---
+
+## Taiga User Story Status Reference
+
+| Status Name | Integer ID | Description |
+|-------------|------------|-------------|
+| New | 44 | Default initial state |
+| Ready | 45 | Story is ready to be worked on |
+| In progress | 46 | Currently being implemented |
+| Ready for test | 47 | Implementation complete, awaiting testing |
+| Done | 48 | Completed and verified |
 
 ---
 
 ## Summary Checklist
 
-| Step | Action | Status Value (string) |
-|------|--------|-----------------------|
-| 1 | Pick a `new` or `ready` story from Taiga wiki4ai | — |
-| 2 | Set status to in progress | `"in progress"` |
+| Step | Action | Status Value (integer ID) |
+|------|--------|---------------------------|
+| 1 | Pick a `New` or `Ready` story from Taiga wiki4ai | — |
+| 2 | Set status to In progress | `46` |
 | 3 | Implement the story (install tools as needed) | — |
 | 4 | Build / compile project | — |
 | 5 | Write & run tests (if applicable) | — |
 | 6 | Commit with English message, push to `main` | — |
-| 7 | Append description + set status to done in Taiga | `"done"` |
+| 7 | Append description + set status to Done in Taiga | `48` |
