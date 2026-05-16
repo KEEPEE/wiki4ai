@@ -1,6 +1,8 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectUpdateDTO;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,64 +19,60 @@ import java.util.List;
 /**
  * REST Controller for Project CRUD operations.
  * Provides endpoints for managing wiki projects with Swagger documentation.
+ * All endpoints are versioned under /api/v1/projects.
  */
 @RestController
-@RequestMapping("/api/projects")
+@RequestMapping("/api/v1/projects")
 @RequiredArgsConstructor
-@Tag(name = "Project", description = "API for managing Wiki Projects")
+@Tag(name = "Projects", description = "API pre správu projektov/topikov")
 public class ProjectController {
 
     private final ProjectService projectService;
 
-    @Operation(summary = "Get all projects", description = "Returns a list of all wiki projects ordered by creation date.")
-    @ApiResponse(responseCode = "200", description = "List of projects retrieved successfully")
+    @Operation(summary = "Zoznam všetkých projektov", description = "Vráti zoznam všetkých wiki projektov zoradených podľa dátumu vytvorenia.")
+    @ApiResponse(responseCode = "200", description = "Zoznam projektov úspešne načítaný")
     @GetMapping
     public ResponseEntity<List<ProjectDTO>> getAllProjects() {
         return ResponseEntity.ok(projectService.getAllProjects());
     }
 
-    @Operation(summary = "Get project by ID", description = "Returns a single project by its ID.")
-    @ApiResponse(responseCode = "200", description = "Project retrieved successfully")
-    @ApiResponse(responseCode = "404", description = "Project not found")
-    @GetMapping("/{id}")
-    public ResponseEntity<ProjectDTO> getProjectById(
-            @Parameter(description = "Project ID") @PathVariable Long id) {
-        return ResponseEntity.ok(projectService.getProjectById(id));
-    }
-
-    @Operation(summary = "Get project by slug", description = "Returns a single project by its URL-friendly slug.")
-    @ApiResponse(responseCode = "200", description = "Project retrieved successfully")
-    @ApiResponse(responseCode = "404", description = "Project not found")
-    @GetMapping("/slug/{slug}")
-    public ResponseEntity<ProjectDTO> getProjectBySlug(
-            @Parameter(description = "Project slug") @PathVariable String slug) {
+    @Operation(summary = "Detail projektu podľa slugu", description = "Vráti detail projektu na základe jeho URL-friendly slugu.")
+    @ApiResponse(responseCode = "200", description = "Projekt úspešne načítaný")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @GetMapping("/{slug}")
+    public ResponseEntity<ProjectDTO> getProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug) {
         return ResponseEntity.ok(projectService.getProjectBySlug(slug));
     }
 
-    @Operation(summary = "Create a new project", description = "Creates a new wiki project.")
-    @ApiResponse(responseCode = "201", description = "Project created successfully")
+    @Operation(summary = "Vytvorenie nového projektu", description = "Vytvorí nový wiki projekt.")
+    @ApiResponse(responseCode = "201", description = "Projekt úspešne vytvorený")
+    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error)")
+    @ApiResponse(responseCode = "409", description = "Projekt s rovnakým názvom už existuje")
     @PostMapping
-    public ResponseEntity<ProjectDTO> createProject(@Valid @RequestBody ProjectDTO dto) {
+    public ResponseEntity<ProjectDTO> createProject(@Valid @RequestBody ProjectCreateDTO dto) {
         ProjectDTO created = projectService.createProject(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Update a project", description = "Updates an existing project by ID.")
-    @ApiResponse(responseCode = "200", description = "Project updated successfully")
-    @ApiResponse(responseCode = "404", description = "Project not found")
-    @PutMapping("/{id}")
+    @Operation(summary = "Aktualizácia projektu", description = "Aktualizuje existujúci projekt podľa slugu.")
+    @ApiResponse(responseCode = "200", description = "Projekt úspešne aktualizovaný")
+    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error)")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @PutMapping("/{slug}")
     public ResponseEntity<ProjectDTO> updateProject(
-            @Parameter(description = "Project ID") @PathVariable Long id,
-            @Valid @RequestBody ProjectDTO dto) {
-        return ResponseEntity.ok(projectService.updateProject(id, dto));
+            @Parameter(description = "Slug projektu") @PathVariable String slug,
+            @Valid @RequestBody ProjectUpdateDTO dto) {
+        return ResponseEntity.ok(projectService.updateProjectBySlug(slug, dto));
     }
 
-    @Operation(summary = "Delete a project", description = "Deletes a project by ID.")
-    @ApiResponse(responseCode = "204", description = "Project deleted successfully")
-    @ApiResponse(responseCode = "404", description = "Project not found")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProject(@Parameter(description = "Project ID") @PathVariable Long id) {
-        projectService.deleteProject(id);
+    @Operation(summary = "Vymazanie projektu", description = "Vymaže projekt podľa slugu.")
+    @ApiResponse(responseCode = "204", description = "Projekt úspešne vymazaný")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @DeleteMapping("/{slug}")
+    public ResponseEntity<Void> deleteProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug) {
+        projectService.deleteProjectBySlug(slug);
         return ResponseEntity.noContent().build();
     }
 }

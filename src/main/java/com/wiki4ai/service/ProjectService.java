@@ -1,6 +1,8 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectUpdateDTO;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -82,7 +84,7 @@ public class ProjectService {
     }
 
     /**
-     * Update an existing project.
+     * Update an existing project by ID.
      *
      * @param id  the project ID
      * @param dto the updated project data
@@ -93,6 +95,26 @@ public class ProjectService {
     public ProjectDTO updateProject(Long id, ProjectDTO dto) {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
+
+        project.setName(dto.getName());
+        project.setDescription(dto.getDescription());
+
+        Project saved = projectRepository.save(project);
+        return convertToDTO(saved);
+    }
+
+    /**
+     * Update an existing project by slug.
+     *
+     * @param slug the project slug
+     * @param dto  the updated project data
+     * @return updated ProjectDTO
+     * @throws EntityNotFoundException if project not found
+     */
+    @Transactional
+    public ProjectDTO updateProjectBySlug(String slug, ProjectUpdateDTO dto) {
+        Project project = projectRepository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
@@ -113,6 +135,41 @@ public class ProjectService {
             throw new EntityNotFoundException("Project not found with id: " + id);
         }
         projectRepository.deleteById(id);
+    }
+
+    /**
+     * Delete a project by slug.
+     *
+     * @param slug the project slug
+     * @throws EntityNotFoundException if project not found
+     */
+    @Transactional
+    public void deleteProjectBySlug(String slug) {
+        Project project = projectRepository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+        projectRepository.delete(project);
+    }
+
+    /**
+     * Create a new project from ProjectCreateDTO.
+     *
+     * @param dto the project creation data transfer object
+     * @return created ProjectDTO
+     */
+    @Transactional
+    public ProjectDTO createProject(ProjectCreateDTO dto) {
+        // Validate uniqueness of name
+        if (projectRepository.existsByName(dto.getName())) {
+            throw new IllegalArgumentException("A project with this name already exists");
+        }
+
+        Project project = Project.builder()
+                .name(dto.getName())
+                .description(dto.getDescription())
+                .build();
+
+        Project saved = projectRepository.save(project);
+        return convertToDTO(saved);
     }
 
     /**
