@@ -10,6 +10,8 @@ import { useDocuments } from '../hooks/useDocuments';
 import type { CreateDocumentDto } from '../types/document';
 import './ProjectDetail.css';
 
+type TabType = 'documents' | 'graph';
+
 const ProjectDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -23,6 +25,7 @@ const ProjectDetail: React.FC = () => {
     isDeleting,
   } = useDocuments(slug ?? '');
 
+  const [activeTab, setActiveTab] = useState<TabType>('documents');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
@@ -87,13 +90,30 @@ const ProjectDetail: React.FC = () => {
       <header className="detail-header">
         <h1>{project.name}</h1>
         {project.description && <p className="description">{project.description}</p>}
-        <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary">
+        <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" disabled={activeTab !== 'documents'}>
           + Nový dokument
         </button>
       </header>
 
+      {/* Tabs Navigation */}
+      <div className="tabs">
+        <button
+          className={`tab ${activeTab === 'documents' ? 'active' : ''}`}
+          onClick={() => setActiveTab('documents')}
+        >
+          Dokumenty ({documents.length})
+        </button>
+        <Link
+          to={`/projects/${slug}/graph`}
+          className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
+          onClick={() => setActiveTab('graph')}
+        >
+          Graf
+        </Link>
+      </div>
+
       {/* Create Document Form */}
-      {showCreateForm && (
+      {showCreateForm && activeTab === 'documents' && (
         <form onSubmit={(e) => { e.preventDefault(); handleCreateDocument(); }} className="create-form">
           <input
             type="text"
@@ -116,37 +136,50 @@ const ProjectDetail: React.FC = () => {
       )}
 
       {/* Documents List */}
-      <div className="documents-list">
-        <h2>Dokumenty ({documents.length})</h2>
+      {activeTab === 'documents' && (
+        <div className="documents-list">
+          <h2>Dokumenty ({documents.length})</h2>
 
-        {loadingDocuments ? (
-          <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
-        ) : documents.length === 0 ? (
-          <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
-        ) : (
-          <ul className="document-items">
-            {documents.map((doc) => (
-              <li key={doc.id} className="document-item">
-                <div className="doc-info" onClick={() => handleViewDocument(doc.title.toLowerCase().replace(/\s+/g, '-'))}>
-                  <span className="doc-title">{doc.title}</span>
-                  <span className="doc-slug">@{doc.title.toLowerCase().replace(/\s+/g, '-')}</span>
-                </div>
-                <div className="doc-meta">
-                  <span className="doc-date">{formatDate(doc.updatedAt)}</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.title.toLowerCase().replace(/\s+/g, '-')); }}
-                    className="btn-delete"
-                    disabled={isDeleting}
-                    title="Vymazať dokument"
-                  >
-                    &times;
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+          {loadingDocuments ? (
+            <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
+          ) : documents.length === 0 ? (
+            <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
+          ) : (
+            <ul className="document-items">
+              {documents.map((doc) => (
+                <li key={doc.id} className="document-item">
+                  <div className="doc-info" onClick={() => handleViewDocument(doc.title.toLowerCase().replace(/\s+/g, '-'))}>
+                    <span className="doc-title">{doc.title}</span>
+                    <span className="doc-slug">@{doc.title.toLowerCase().replace(/\s+/g, '-')}</span>
+                  </div>
+                  <div className="doc-meta">
+                    <span className="doc-date">{formatDate(doc.updatedAt)}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.title.toLowerCase().replace(/\s+/g, '-')); }}
+                      className="btn-delete"
+                      disabled={isDeleting}
+                      title="Vymazať dokument"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Graph Tab Content */}
+      {activeTab === 'graph' && (
+        <Link to={`/projects/${slug}/graph`} className="graph-redirect">
+          <div className="graph-preview">
+            <h2>Document Graph</h2>
+            <p>View the interactive graph visualization of document connections.</p>
+            <span className="btn-primary">Open Graph View &rarr;</span>
+          </div>
+        </Link>
+      )}
     </div>
   );
 };

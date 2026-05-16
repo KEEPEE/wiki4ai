@@ -1,0 +1,55 @@
+/**
+ * CSS styles for GraphView component with react-force-graph.
+ */
+
+.graph-view {
+  padding: 1rem;
+}
+
+.graph-header h2 {
+  font-size: 1.5rem;
+  color: #1a1a2e;
+  margin: 0 0 0.25rem;
+}
+
+.graph-subtitle {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.graph-container {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  margin-top: 1rem;
+  height: 600px;
+  position: relative;
+}
+
+.graph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  color: #6b7280;
+}
+
+.graph-empty p {
+  margin: 0;
+}
+
+.graph-empty .hint {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  max-width: 400px;
+  text-align: center;
+}
+
+/* Force graph canvas styling */
+.graph-container canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
