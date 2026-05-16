@@ -12,12 +12,12 @@ export interface Document {
   updatedAt: string;
 }
 
-export interface DocumentDTO {
-  id?: number;
+export interface CreateDocumentDto {
   title: string;
   content?: string;
-  projectId: number;
-  linkedDocuments?: number[];
-  createdAt?: string;
-  updatedAt?: string;
+}
+
+export interface UpdateDocumentDto {
+  title: string;
+  content?: string;
 }

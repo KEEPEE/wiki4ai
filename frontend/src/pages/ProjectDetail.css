@@ -8,6 +8,33 @@
   padding: 2rem;
 }
 
+/* Breadcrumb Navigation */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.breadcrumb a {
+  color: #4a90d9;
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb .separator {
+  color: #888;
+}
+
+.breadcrumb .current {
+  color: #333;
+  font-weight: 500;
+}
+
 .detail-header {
   display: flex;
   flex-direction: column;
@@ -51,23 +78,89 @@
   font-size: 1.25rem;
 }
 
+/* Document Items List */
+.document-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
 .document-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.15s;
 }
 
 .document-item:last-child {
   border-bottom: none;
 }
 
-.document-item a {
+.document-item:hover {
+  background-color: #fafafa;
+}
+
+.doc-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+  flex: 1;
+}
+
+.doc-title {
   color: #4a90d9;
+  font-weight: 500;
   text-decoration: none;
 }
 
-.document-item a:hover {
+.doc-info:hover .doc-title {
   text-decoration: underline;
+}
+
+.doc-slug {
+  font-size: 0.8rem;
+  color: #888;
+  font-family: monospace;
+}
+
+.doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.doc-date {
+  font-size: 0.85rem;
+  color: #999;
+  white-space: nowrap;
+}
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 1.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  transition: color 0.15s, background-color 0.15s;
+}
+
+.btn-delete:hover:not(:disabled) {
+  color: #e74c3c;
+  background-color: #fdf0ef;
+}
+
+.btn-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
 }

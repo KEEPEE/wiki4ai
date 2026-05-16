@@ -1,89 +1,64 @@
 /**
- * API service for Document operations.
+ * API service for Document operations using project slugs.
  * Handles all HTTP requests to the backend document endpoints.
  */
 
-import type { Document, DocumentDTO } from '../types/document';
+import type { Document, CreateDocumentDto, UpdateDocumentDto } from '../types/document';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
-class DocumentApiService {
+export const documentApi = {
   /**
-   * Get all documents in a project.
+   * Get all documents in a project by slug.
    */
-  async getDocumentsByProject(projectId: number): Promise<Document[]> {
-    const response = await fetch(`${API_BASE_URL}/documents/project/${projectId}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch documents for project ${projectId}: ${response.statusText}`);
-    }
-    return response.json();
-  }
-
-  /**
-   * Get a single document by ID.
-   */
-  async getDocumentById(id: number): Promise<Document> {
-    const response = await fetch(`${API_BASE_URL}/documents/${id}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch document ${id}: ${response.statusText}`);
-    }
-    return response.json();
-  }
+  getByProject: (projectSlug: string): Promise<Document[]> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents`).then((res) => {
+      if (!res.ok) throw new Error(`Failed to fetch documents for project ${projectSlug}: ${res.statusText}`);
+      return res.json();
+    }),
 
   /**
    * Create a new document in a project.
    */
-  async createDocument(projectId: number, dto: DocumentDTO): Promise<Document> {
-    const response = await fetch(`${API_BASE_URL}/documents/project/${projectId}`, {
+  create: (projectSlug: string, data: CreateDocumentDto): Promise<Document> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create document: ${response.statusText}`);
-    }
-    return response.json();
-  }
+      body: JSON.stringify(data),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`Failed to create document: ${res.statusText}`);
+      return res.json();
+    }),
+
+  /**
+   * Get a single document by project slug and document slug.
+   */
+  get: (projectSlug: string, docSlug: string): Promise<Document> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`).then((res) => {
+      if (!res.ok) throw new Error(`Failed to fetch document ${docSlug}: ${res.statusText}`);
+      return res.json();
+    }),
 
   /**
    * Update an existing document.
    */
-  async updateDocument(id: number, dto: DocumentDTO): Promise<Document> {
-    const response = await fetch(`${API_BASE_URL}/documents/${id}`, {
+  update: (projectSlug: string, docSlug: string, data: UpdateDocumentDto): Promise<Document> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update document ${id}: ${response.statusText}`);
-    }
-    return response.json();
-  }
+      body: JSON.stringify(data),
+    }).then((res) => {
+      if (!res.ok) throw new Error(`Failed to update document ${docSlug}: ${res.statusText}`);
+      return res.json();
+    }),
 
   /**
    * Delete a document.
    */
-  async deleteDocument(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/documents/${id}`, {
+  delete: (projectSlug: string, docSlug: string): Promise<void> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`, {
       method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete document ${id}: ${response.statusText}`);
-    }
-  }
-
-  /**
-   * Search documents by keyword within a project.
-   */
-  async searchDocuments(projectId: number, keyword: string): Promise<Document[]> {
-    const response = await fetch(
-      `${API_BASE_URL}/documents/project/${projectId}/search?keyword=${encodeURIComponent(keyword)}`
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to search documents: ${response.statusText}`);
-    }
-    return response.json();
-  }
-}
-
-export const documentApi = new DocumentApiService();
+    }).then((res) => {
+      if (!res.ok && res.status !== 204) throw new Error(`Failed to delete document ${docSlug}: ${res.statusText}`);
+    }),
+};
