@@ -13,27 +13,6 @@ const queryClient = new QueryClient({
   },
 })
 
-// Error boundary component to catch rendering errors
-function ErrorFallback({ error }: { error: Error }) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-red-50 p-8">
-      <div className="max-w-md text-center">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Application Error</h1>
-        <p className="text-gray-700 mb-4">Something went wrong while loading the application.</p>
-        <div className="bg-white p-4 rounded-lg border border-red-200 text-left overflow-auto max-h-64">
-          <pre className="text-sm text-red-800 whitespace-pre-wrap">{error.message}</pre>
-        </div>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-        >
-          Reload Page
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // Loading fallback component
 function LoadingFallback() {
   return (
