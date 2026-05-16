@@ -83,10 +83,9 @@ deploy-to-server:
     - echo "Tagging frontend image as latest..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest"
     # Stop old containers and deploy with compose
-    - echo "Stopping old llm-wiki containers..."
-    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker stop llm-wiki-backend llm-wiki-frontend || true"
-    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker rm llm-wiki-backend llm-wiki-frontend || true"
     - echo "Stopping old wiki4ai containers..."
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker stop wiki4ai-backend wiki4ai-frontend || true"
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker rm wiki4ai-backend wiki4ai-frontend || true"
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose down || true"
     - echo "Starting new wiki4ai stack..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose up -d"
