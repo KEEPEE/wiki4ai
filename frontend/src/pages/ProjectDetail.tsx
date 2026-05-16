@@ -10,14 +10,14 @@ import './ProjectDetail.css';
 
 const ProjectDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { projects, loading, error } = useProjects();
+  const { projects, isLoading, error } = useProjects();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
   const project = projects.find((p) => p.slug === slug);
 
-  if (loading) return <div className="project-detail">Loading...</div>;
-  if (error) return <div className="project-detail error">{error}</div>;
+  if (isLoading) return <div className="project-detail">Loading...</div>;
+  if (error) return <div className="project-detail error">Error: {error.message}</div>;
   if (!project) return <div className="project-detail">Project not found.</div>;
 
   const handleCreateDocument = async () => {

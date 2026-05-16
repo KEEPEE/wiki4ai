@@ -1,61 +1,58 @@
 /**
- * Custom React hook for managing projects.
- * Provides project fetching, creation, update, and deletion functionality.
+ * Custom React hook for managing projects using TanStack Query.
+ * Provides project fetching, creation, update, and deletion with automatic cache management.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectDTO } from '../types/project';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { ProjectDTO } from '../types/project';
 import { projectApi } from '../services/projectApi';
 
-interface UseProjectsReturn {
-  projects: Project[];
-  loading: boolean;
-  error: string | null;
-  fetchProjects: () => Promise<void>;
-  createProject: (dto: ProjectDTO) => Promise<Project>;
-  updateProject: (id: number, dto: ProjectDTO) => Promise<Project>;
-  deleteProject: (id: number) => Promise<void>;
-}
+const PROJECTS_QUERY_KEY = ['projects'] as const;
 
-export function useProjects(): UseProjectsReturn {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useProjects() {
+  const queryClient = useQueryClient();
 
-  const fetchProjects = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await projectApi.getAllProjects();
-      setProjects(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch projects');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Fetch all projects using React Query
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey: PROJECTS_QUERY_KEY,
+    queryFn: () => projectApi.getAllProjects(),
+  });
 
-  const createProject = useCallback(async (dto: ProjectDTO): Promise<Project> => {
-    const newProject = await projectApi.createProject(dto);
-    setProjects(prev => [newProject, ...prev]);
-    return newProject;
-  }, []);
+  // Create project mutation with cache invalidation
+  const createMutation = useMutation({
+    mutationFn: (dto: ProjectDTO) => projectApi.createProject(dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+    },
+  });
 
-  const updateProject = useCallback(async (id: number, dto: ProjectDTO): Promise<Project> => {
-    const updated = await projectApi.updateProject(id, dto);
-    setProjects(prev => prev.map(p => (p.id === id ? updated : p)));
-    return updated;
-  }, []);
+  // Update project mutation with cache invalidation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, dto }: { id: number; dto: ProjectDTO }) =>
+      projectApi.updateProject(id, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+    },
+  });
 
-  const deleteProject = useCallback(async (id: number): Promise<void> => {
-    await projectApi.deleteProject(id);
-    setProjects(prev => prev.filter(p => p.id !== id));
-  }, []);
+  // Delete project mutation with cache invalidation
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => projectApi.deleteProject(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+    },
+  });
 
-  // Auto-fetch on mount
-  useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
-
-  return { projects, loading, error, fetchProjects, createProject, updateProject, deleteProject };
+  return {
+    projects: data ?? [],
+    isLoading,
+    error,
+    refetch,
+    createProject: createMutation.mutateAsync,
+    updateProject: updateMutation.mutateAsync,
+    deleteProject: deleteMutation.mutateAsync,
+    isCreating: createMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    isDeleting: deleteMutation.isPending,
+  };
 }

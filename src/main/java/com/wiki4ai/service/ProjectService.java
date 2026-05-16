@@ -190,6 +190,7 @@ public class ProjectService {
                 .name(project.getName())
                 .description(project.getDescription())
                 .slug(project.getSlug())
+                .documentCount(project.getDocuments() != null ? project.getDocuments().size() : 0)
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
                 .build();

@@ -28,6 +28,8 @@ public class ProjectDTO {
 
     private String slug;
 
+    private int documentCount;
+
     private java.time.LocalDateTime createdAt;
 
     private java.time.LocalDateTime updatedAt;

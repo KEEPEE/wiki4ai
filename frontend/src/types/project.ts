@@ -7,6 +7,7 @@ export interface Project {
   name: string;
   description: string | null;
   slug: string;
+  documentCount: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -16,6 +17,7 @@ export interface ProjectDTO {
   name: string;
   description?: string;
   slug?: string;
+  documentCount?: number;
   createdAt?: string;
   updatedAt?: string;
 }

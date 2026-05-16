@@ -102,7 +102,7 @@ function NewProjectModal({ isOpen, onClose, onCreate }: NewProjectModalProps) {
 }
 
 export default function Sidebar() {
-  const { projects, loading, createProject } = useProjects()
+  const { projects, isLoading, createProject } = useProjects()
   const location = useLocation()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -198,7 +198,7 @@ export default function Sidebar() {
                 </svg>
               </button>
             </div>
-            {loading ? (
+            {isLoading ? (
               <p className="px-3 text-sm text-gray-400">Loading...</p>
             ) : projects.length === 0 ? (
               <div className="text-center py-6">
