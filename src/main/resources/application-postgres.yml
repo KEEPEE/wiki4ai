@@ -1,0 +1,20 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/wiki4ai
+    username: wiki4ai
+    password: wiki4ai
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+logging:
+  level:
+    com.wiki4ai: INFO
+    org.springframework.web: INFO

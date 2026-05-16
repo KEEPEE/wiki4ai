@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: wiki4ai-backend
+  
+  # Default profile uses H2 for development
+  datasource:
+    url: jdbc:h2:mem:wiki4ai;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: 
+    driver-class-name: org.h2.Driver
+  
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# Actuator endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.wiki4ai: INFO
+    org.springframework.web: INFO
