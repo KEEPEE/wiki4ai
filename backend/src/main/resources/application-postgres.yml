@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/wiki4ai
+    url: jdbc:postgresql://db:5432/wiki4ai
     username: wiki4ai
     password: wiki4ai
     driver-class-name: org.postgresql.Driver
