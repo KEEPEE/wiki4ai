@@ -7,7 +7,7 @@ stages:
 
 variables:
   DOCKER_BUILDKIT: "1"
-  IMAGE_REGISTRY: git.keepee.duckdns.org/dockerimages/wiki4ai
+  IMAGE_REGISTRY: git.keepee.duckdns.org/services/wiki4ai
   SERVER_IP: "192.168.77.177"
   SERVER_USER: "keepee"
   BACKEND_IMAGE_NAME: "backend"

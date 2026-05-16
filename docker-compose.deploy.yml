@@ -1,6 +1,6 @@
 services:
   backend:
-    image: git.keepee.duckdns.org/dockerimages/wiki4ai/backend:<IMAGE_TAG>
+    image: git.keepee.duckdns.org/services/wiki4ai/backend:<IMAGE_TAG>
     container_name: wiki4ai-backend
     ports:
       - "8080:8080"
@@ -15,7 +15,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    image: git.keepee.duckdns.org/dockerimages/wiki4ai/frontend:<IMAGE_TAG>
+    image: git.keepee.duckdns.org/services/wiki4ai/frontend:<IMAGE_TAG>
     container_name: wiki4ai-frontend
     ports:
       - "3000:80"
