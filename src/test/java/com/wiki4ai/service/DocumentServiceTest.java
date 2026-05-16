@@ -1,6 +1,8 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
@@ -44,7 +46,7 @@ class DocumentServiceTest {
     private Project testProject;
     private Document sourceDocument;
     private Document targetDocument;
-    private DocumentDTO validDocumentDto;
+    private DocumentCreateDTO validDocumentDto;
 
     @BeforeEach
     void setUp() {
@@ -79,10 +81,9 @@ class DocumentServiceTest {
                 .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
                 .build();
 
-        validDocumentDto = DocumentDTO.builder()
+        validDocumentDto = DocumentCreateDTO.builder()
                 .title("New Document")
                 .content("Some content here")
-                .projectId(1L)
                 .build();
     }
 
@@ -253,7 +254,7 @@ class DocumentServiceTest {
             when(documentRepository.findByProjectIdAndTitle(1L, "Existing Title"))
                     .thenReturn(Optional.of(sourceDocument));
 
-            DocumentDTO duplicateDto = DocumentDTO.builder()
+            DocumentCreateDTO duplicateDto = DocumentCreateDTO.builder()
                     .title("Existing Title")
                     .content("Content")
                     .build();
@@ -275,7 +276,7 @@ class DocumentServiceTest {
         @DisplayName("Should update an existing document and return updated DTO")
         void shouldUpdateExistingDocument() {
             // given
-            DocumentDTO updateDto = DocumentDTO.builder()
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
                     .title("Updated Title")
                     .content("Updated content")
                     .build();
@@ -308,7 +309,7 @@ class DocumentServiceTest {
         void shouldThrowWhenUpdatingNonExistent() {
             // given
             when(documentRepository.findById(99L)).thenReturn(Optional.empty());
-            DocumentDTO updateDto = DocumentDTO.builder().title("New").build();
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().title("New").build();
 
             // when & then
             assertThatThrownBy(() -> documentService.updateDocument(99L, updateDto))
@@ -325,7 +326,7 @@ class DocumentServiceTest {
         @DisplayName("Should update document by slug within project")
         void shouldUpdateDocumentBySlug() {
             // given
-            DocumentDTO updateDto = DocumentDTO.builder()
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
                     .title("Updated Title")
                     .content("New content here")
                     .build();
@@ -357,7 +358,7 @@ class DocumentServiceTest {
         @DisplayName("Should throw EntityNotFoundException when document not found by slug")
         void shouldThrowWhenNotFoundBySlug() {
             // given
-            DocumentDTO updateDto = DocumentDTO.builder().title("New").build();
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().title("New").build();
             when(documentRepository.findBySlugAndProjectId("non-existent", 1L))
                     .thenReturn(Optional.empty());
 
@@ -495,11 +496,11 @@ class DocumentServiceTest {
             });
 
             // when
-            Document result = documentService.addLink(1L, 2L);
+            DocumentDTO result = documentService.addLink(1L, 2L);
 
             // then
             assertThat(result).isNotNull();
-            assertThat(result.getLinkedDocuments()).contains(targetDocument);
+            assertThat(result.getLinkedDocuments()).containsExactly(2L);
         }
 
         @Test

@@ -1,6 +1,8 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
@@ -76,7 +78,7 @@ public class DocumentService {
      * @return created DocumentDTO
      */
     @Transactional
-    public DocumentDTO createDocument(Long projectId, DocumentDTO dto) {
+    public DocumentDTO createDocument(Long projectId, DocumentCreateDTO dto) {
         // Validate that the project exists
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
@@ -106,7 +108,7 @@ public class DocumentService {
      * @throws EntityNotFoundException if document not found
      */
     @Transactional
-    public DocumentDTO updateDocument(Long id, DocumentDTO dto) {
+    public DocumentDTO updateDocument(Long id, DocumentUpdateDTO dto) {
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
 
@@ -128,7 +130,7 @@ public class DocumentService {
      * @throws EntityNotFoundException if document not found or doesn't belong to project
      */
     @Transactional
-    public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentDTO dto) {
+    public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentUpdateDTO dto) {
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
@@ -195,7 +197,7 @@ public class DocumentService {
      * @throws EntityNotFoundException if either document not found or they don't belong to same project
      */
     @Transactional
-    public Document addLink(Long sourceDocId, Long targetDocId) {
+    public DocumentDTO addLink(Long sourceDocId, Long targetDocId) {
         // Validate documents exist
         Document source = documentRepository.findById(sourceDocId)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -225,7 +227,8 @@ public class DocumentService {
         }
 
         source.addLinkedDocument(target);
-        return documentRepository.save(source);
+        Document saved = documentRepository.save(source);
+        return convertToDTO(saved);
     }
 
     /**
