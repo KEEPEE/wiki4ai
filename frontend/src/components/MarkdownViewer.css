@@ -8,29 +8,30 @@
   color: #333;
 }
 
-.markdown-viewer h1,
-.markdown-viewer h2,
-.markdown-viewer h3 {
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
   color: #1a1a2e;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
 
-.markdown-viewer h1 { font-size: 2rem; }
-.markdown-viewer h2 { font-size: 1.5rem; }
-.markdown-viewer h3 { font-size: 1.25rem; }
+.markdown-content h1 { font-size: 2rem; }
+.markdown-content h2 { font-size: 1.5rem; }
+.markdown-content h3 { font-size: 1.25rem; }
 
-.markdown-viewer p {
+.markdown-content p {
   margin-bottom: 1rem;
 }
 
-.markdown-viewer a.wiki-link {
+.markdown-content a.wiki-link {
   color: #4a90d9;
   text-decoration: none;
   border-bottom: 1px dashed #4a90d9;
+  cursor: pointer;
 }
 
-.markdown-viewer a.wiki-link:hover {
+.markdown-content a.wiki-link:hover {
   color: #357abd;
   border-bottom-style: solid;
 }
@@ -63,7 +64,62 @@
   margin: 1.5rem 0;
 }
 
+.markdown-viewer blockquote {
+  border-left: 4px solid #4a90d9;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  background: #f8f9fa;
+  color: #555;
+}
+
+.markdown-viewer ul,
+.markdown-viewer ol {
+  margin-bottom: 1rem;
+  padding-left: 2rem;
+}
+
+.markdown-viewer li {
+  margin-bottom: 0.25rem;
+}
+
 .empty-content {
   color: #888;
   font-style: italic;
+}
+
+/* Links section */
+.links-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  background: #f0f7ff;
+  border-radius: 8px;
+  border: 1px solid #d0e3f7;
+}
+
+.links-section h3 {
+  font-size: 1.1rem;
+  color: #1a1a2e;
+  margin-bottom: 0.75rem;
+}
+
+.links-section ul {
+  list-style: none;
+  padding-left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.links-section li a.wiki-link {
+  display: inline-block;
+  padding: 0.25rem 0.75rem;
+  background: #ffffff;
+  border-radius: 4px;
+  border: 1px solid #c0d8f0;
+  font-size: 0.9rem;
+}
+
+.links-section li a.wiki-link:hover {
+  background: #e3f0ff;
+  border-color: #4a90d9;
 }

@@ -7,6 +7,12 @@ import type { Document, CreateDocumentDto, UpdateDocumentDto } from '../types/do
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
+export interface DocumentContentResponse {
+  title: string;
+  content: string;
+  wikiLinks: string[];
+}
+
 export const documentApi = {
   /**
    * Get all documents in a project by slug.
@@ -36,6 +42,16 @@ export const documentApi = {
   get: (projectSlug: string, docSlug: string): Promise<Document> =>
     fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`).then((res) => {
       if (!res.ok) throw new Error(`Failed to fetch document ${docSlug}: ${res.statusText}`);
+      return res.json();
+    }),
+
+  /**
+   * Get document content with rendered markdown and extracted wiki links.
+   * Endpoint: GET /projects/:slug/documents/:docSlug/content
+   */
+  getContent: (projectSlug: string, docSlug: string): Promise<DocumentContentResponse> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/content`).then((res) => {
+      if (!res.ok) throw new Error(`Failed to fetch document content ${docSlug}: ${res.statusText}`);
       return res.json();
     }),
 

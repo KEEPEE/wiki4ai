@@ -1,0 +1,146 @@
+/**
+ * CSS styles for Document Viewer page.
+ */
+
+.document-viewer {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb {
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.breadcrumb ol {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: 0.5rem;
+}
+
+.breadcrumb li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.breadcrumb li:not(:last-child)::after {
+  content: '/';
+  color: #999;
+}
+
+.breadcrumb a {
+  color: #4a90d9;
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb li.current {
+  color: #666;
+  font-weight: 500;
+}
+
+/* Document Header */
+.document-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.document-header h1 {
+  font-size: 2rem;
+  color: #1a1a2e;
+  margin: 0;
+}
+
+.document-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Document Content */
+.document-content {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading & Error States */
+.loading-indicator {
+  text-align: center;
+  padding: 3rem;
+  color: #888;
+  font-style: italic;
+}
+
+.error-message {
+  padding: 2rem;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.error-message p {
+  color: #dc2626;
+  margin-bottom: 1rem;
+}
+
+/* Button Styles */
+.btn-primary,
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: #4a90d9;
+  color: white;
+  border: none;
+}
+
+.btn-primary:hover {
+  background: #357abd;
+}
+
+.btn-secondary {
+  background: #ffffff;
+  color: #666;
+  border: 1px solid #d0d0d0;
+}
+
+.btn-secondary:hover {
+  background: #f5f5f5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .document-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .document-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .breadcrumb ol {
+    flex-wrap: wrap;
+  }
+}
