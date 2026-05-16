@@ -2,9 +2,9 @@ package com.wiki4ai.repository;
 
 import com.wiki4ai.model.Project;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -31,10 +31,17 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     boolean existsByName(String name);
 
     /**
+     * Check if a project with the given slug already exists.
+     *
+     * @param slug the project slug
+     * @return true if a project with this slug exists
+     */
+    boolean existsBySlug(String slug);
+
+    /**
      * Find all projects ordered by creation date (newest first).
      *
      * @return list of projects sorted by createdAt descending
      */
-    @Query("SELECT p FROM Project p ORDER BY p.createdAt DESC")
-    java.util.List<Project> findAllOrderByCreatedAtDesc();
+    List<Project> findAllByOrderByCreatedAtDesc();
 }

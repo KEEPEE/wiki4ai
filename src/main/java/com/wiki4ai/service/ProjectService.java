@@ -26,7 +26,7 @@ public class ProjectService {
      * Get all projects ordered by creation date (newest first).
      */
     public List<ProjectDTO> getAllProjects() {
-        return projectRepository.findAllOrderByCreatedAtDesc()
+        return projectRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());

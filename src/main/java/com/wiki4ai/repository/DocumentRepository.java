@@ -16,6 +16,23 @@ import java.util.Optional;
 public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     /**
+     * Find a document by its slug within a specific project.
+     *
+     * @param slug      the document slug
+     * @param projectId the project ID
+     * @return Optional containing the document if found
+     */
+    Optional<Document> findBySlugAndProjectId(String slug, Long projectId);
+
+    /**
+     * Find all documents belonging to a specific project, ordered by update date (newest first).
+     *
+     * @param projectId the project ID
+     * @return list of documents in the project sorted by updatedAt descending
+     */
+    List<Document> findByProjectIdOrderByUpdatedAtDesc(Long projectId);
+
+    /**
      * Find all documents belonging to a specific project.
      *
      * @param projectId the project ID
