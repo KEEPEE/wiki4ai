@@ -14,7 +14,7 @@ import sys
 from typing import Optional
 
 try:
-    from fastmcp import FastMCP, Settings
+    from fastmcp import FastMCP
 except ImportError:
     print("ERROR: fastmcp is required. Install with: pip install fastmcp")
     sys.exit(1)
@@ -272,14 +272,10 @@ def create_mcp_server() -> FastMCP:
 
     mcp = FastMCP(
         "wiki4ai",
-        settings=Settings(
-            name="Wiki4AI",
-            version="1.0.0",
-            description=(
-                "MCP server for Wiki4AI — a markdown-based wiki system with projects, "
-                "documents, and inter-document linking. Supports full CRUD operations on "
-                "projects and documents, content rendering, and link management."
-            ),
+        description=(
+            "MCP server for Wiki4AI — a markdown-based wiki system with projects, "
+            "documents, and inter-document linking. Supports full CRUD operations on "
+            "projects and documents, content rendering, and link management."
         ),
     )
 
