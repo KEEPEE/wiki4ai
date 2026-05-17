@@ -17,8 +17,8 @@ COPY mcp-server/mcp_server.py .
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8091/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8095/health')" || exit 1
 
-EXPOSE 8091
+EXPOSE 8095
 
-CMD ["python", "mcp_server.py", "--base-url=http://wiki4ai-backend:8080/api", "--transport=sse", "--port=8091"]
+CMD ["python", "mcp_server.py", "--base-url=http://wiki4ai-backend:8080/api", "--transport=sse", "--port=8095"]
