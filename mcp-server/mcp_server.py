@@ -272,32 +272,16 @@ def create_mcp_server() -> FastMCP:
 
     mcp = FastMCP("wiki4ai")
 
-    # ── Health Tools ────────────────────────────────────────────────────────
-    mcp.add_tool(health_check, name="health_check", description=health_check.__doc__)
-
-    # ── Project Tools ───────────────────────────────────────────────────────
-    mcp.add_tool(list_projects, name="list_projects", description=list_projects.__doc__)
-    mcp.add_tool(get_project, name="get_project", description=get_project.__doc__)
-    mcp.add_tool(create_project, name="create_project", description=create_project.__doc__)
-    mcp.add_tool(update_project, name="update_project", description=update_project.__doc__)
-    mcp.add_tool(delete_project, name="delete_project", description=delete_project.__doc__)
-
-    # ── Document Tools ──────────────────────────────────────────────────────
-    mcp.add_tool(list_documents, name="list_documents", description=list_documents.__doc__)
-    mcp.add_tool(create_document, name="create_document", description=create_document.__doc__)
-    mcp.add_tool(get_document, name="get_document", description=get_document.__doc__)
-    mcp.add_tool(update_document, name="update_document", description=update_document.__doc__)
-    mcp.add_tool(delete_document, name="delete_document", description=delete_document.__doc__)
-    mcp.add_tool(
-        get_document_content,
-        name="get_document_content",
-        description=get_document_content.__doc__,
-    )
-
-    # ── Link Management Tools ───────────────────────────────────────────────
-    mcp.add_tool(add_link, name="add_link", description=add_link.__doc__)
-    mcp.add_tool(remove_link, name="remove_link", description=remove_link.__doc__)
-    mcp.add_tool(get_links, name="get_links", description=get_links.__doc__)
+    # Register tools - fastmcp >= 2.12.0 uses @mcp.tool decorator pattern
+    # For pre-defined functions, use the tool() method as a decorator wrapper
+    for func in [
+        health_check,
+        list_projects, get_project, create_project, update_project, delete_project,
+        list_documents, create_document, get_document, update_document,
+        delete_document, get_document_content,
+        add_link, remove_link, get_links,
+    ]:
+        mcp.tool()(func)
 
     return mcp
 
