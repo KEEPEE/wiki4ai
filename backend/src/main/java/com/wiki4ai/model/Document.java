@@ -17,7 +17,9 @@ import java.util.Objects;
  * A document contains markdown content and can link to other documents via [[Document]] syntax.
  */
 @Entity
-@Table(name = "documents")
+@Table(name = "documents", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"project_id", "slug"})
+})
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -34,7 +36,7 @@ public class Document {
     @Column(name = "content", columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "slug", nullable = false, unique = true)
+    @Column(name = "slug", nullable = false)
     private String slug;
 
     @ManyToOne(fetch = FetchType.LAZY)
