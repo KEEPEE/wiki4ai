@@ -1,8 +1,8 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Ensure SVG icons don't overflow their containers */
-svg {
+/* Prevent SVGs from overflowing only when they don't have explicit dimensions */
+svg:not([class*="w-"]):not([class*="h-"]) {
   max-width: 100%;
   height: auto;
 }
