@@ -270,14 +270,7 @@ def get_links(project_slug: str, doc_slug: str) -> list[dict]:
 def create_mcp_server() -> FastMCP:
     """Create and configure the Wiki4AI MCP server with all tools."""
 
-    mcp = FastMCP(
-        "wiki4ai",
-        description=(
-            "MCP server for Wiki4AI — a markdown-based wiki system with projects, "
-            "documents, and inter-document linking. Supports full CRUD operations on "
-            "projects and documents, content rendering, and link management."
-        ),
-    )
+    mcp = FastMCP("wiki4ai")
 
     # ── Health Tools ────────────────────────────────────────────────────────
     mcp.add_tool(health_check, name="health_check", description=health_check.__doc__)
