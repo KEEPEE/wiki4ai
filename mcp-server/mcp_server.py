@@ -1,0 +1,352 @@
+"""
+Wiki4AI MCP Server
+==================
+MCP (Model Context Protocol) server that exposes Wiki4AI REST API as tools.
+
+Usage:
+  python mcp_server.py --base-url http://localhost:8080/api
+
+Connect your AI agent to this server via stdio or SSE transport.
+"""
+
+import argparse
+import sys
+from typing import Optional
+
+try:
+    from fastmcp import FastMCP, Settings
+except ImportError:
+    print("ERROR: fastmcp is required. Install with: pip install fastmcp")
+    sys.exit(1)
+
+# ─── Configuration ────────────────────────────────────────────────────────────
+
+DEFAULT_BASE_URL = "http://localhost:8080/api"
+
+# Global base URL (set via CLI argument or environment variable)
+BASE_URL: str = DEFAULT_BASE_URL
+
+
+def set_base_url(url: str):
+    """Set the backend API base URL."""
+    global BASE_URL
+    if not url.endswith("/"):
+        url += "/"
+    BASE_URL = url
+
+
+# ─── HTTP Client (no external deps beyond stdlib) ─────────────────────────────
+
+import json as _json
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+
+
+def _api_request(method: str, path: str, body: Optional[dict] = None) -> dict:
+    """Make an HTTP request to the Wiki4AI backend API."""
+    url = BASE_URL + path.lstrip("/")
+    data = _json.dumps(body).encode("utf-8") if body else None
+    headers = {"Content-Type": "application/json"}
+
+    req = Request(url, data=data, headers=headers, method=method)
+
+    try:
+        with urlopen(req, timeout=30) as resp:
+            content = resp.read().decode("utf-8")
+            return _json.loads(content) if content else {}
+    except HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        raise MCPToolError(
+            f"API Error {e.code}: {error_body}",
+            status_code=e.code,
+            details=_json.loads(error_body) if error_body else None,
+        )
+    except URLError as e:
+        raise MCPToolError(f"Connection failed to {url}: {e.reason}")
+
+
+class MCPToolError(Exception):
+    """Custom exception for MCP tool errors."""
+
+    def __init__(self, message: str, status_code: int = 0, details=None):
+        self.message = message
+        self.status_code = status_code
+        self.details = details
+        super().__init__(message)
+
+
+# ─── Health Tools ─────────────────────────────────────────────────────────────
+
+def health_check() -> dict:
+    """Check if the Wiki4AI backend is healthy and running."""
+    return _api_request("GET", "/health")
+
+
+# ─── Project Tools ────────────────────────────────────────────────────────────
+
+def list_projects() -> list[dict]:
+    """List all wiki projects. Returns a list of project objects with id, name, slug, description, documentCount, createdAt, updatedAt."""
+    return _api_request("GET", "/v1/projects")
+
+
+def get_project(slug: str) -> dict:
+    """Get a specific project by its URL-friendly slug.
+
+    Args:
+        slug: The URL-friendly slug of the project (e.g., 'python', 'machine-learning')
+    """
+    return _api_request("GET", f"/v1/projects/{slug}")
+
+
+def create_project(name: str, description: Optional[str] = None) -> dict:
+    """Create a new wiki project.
+
+    Args:
+        name: The name of the project (required, max 255 chars)
+        description: An optional description of the project (max 1000 chars)
+    """
+    body = {"name": name}
+    if description:
+        body["description"] = description
+    return _api_request("POST", "/v1/projects", body)
+
+
+def update_project(slug: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
+    """Update an existing project by its slug.
+
+    Args:
+        slug: The URL-friendly slug of the project to update (required)
+        name: New name for the project (optional, max 255 chars)
+        description: New description for the project (optional, max 1000 chars)
+    """
+    body = {}
+    if name is not None:
+        body["name"] = name
+    if description is not None:
+        body["description"] = description
+    return _api_request("PUT", f"/v1/projects/{slug}", body)
+
+
+def delete_project(slug: str) -> dict:
+    """Delete a project by its slug.
+
+    Args:
+        slug: The URL-friendly slug of the project to delete (required)
+
+    Returns:
+        Confirmation message on success
+    """
+    _api_request("DELETE", f"/v1/projects/{slug}")
+    return {"message": f"Project '{slug}' deleted successfully"}
+
+
+# ─── Document Tools ───────────────────────────────────────────────────────────
+
+def list_documents(project_slug: str) -> list[dict]:
+    """List all documents in a project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+    """
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents")
+
+
+def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:
+    """Create a new wiki document within a project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        title: The title of the document (required)
+        content: Markdown content for the document (optional)
+    """
+    body = {"title": title}
+    if content is not None:
+        body["content"] = content
+    return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
+
+
+def get_document(project_slug: str, doc_slug: str) -> dict:
+    """Get a specific document by its slug within a project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The URL-friendly slug of the document (required)
+    """
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
+
+
+def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
+    """Update an existing document by its slug within a project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The URL-friendly slug of the document to update (required)
+        title: New title for the document (optional)
+        content: New markdown content for the document (optional)
+    """
+    body = {}
+    if title is not None:
+        body["title"] = title
+    if content is not None:
+        body["content"] = content
+    return _api_request("PUT", f"/v1/projects/{project_slug}/documents/{doc_slug}", body)
+
+
+def delete_document(project_slug: str, doc_slug: str) -> dict:
+    """Delete a document by its slug within a project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The URL-friendly slug of the document to delete (required)
+
+    Returns:
+        Confirmation message on success
+    """
+    _api_request("DELETE", f"/v1/projects/{project_slug}/documents/{doc_slug}")
+    return {"message": f"Document '{doc_slug}' deleted successfully"}
+
+
+def get_document_content(project_slug: str, doc_slug: str) -> dict:
+    """Get a document's content with rendered HTML and extracted wiki links.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The URL-friendly slug of the document (required)
+
+    Returns:
+        Document content including id, title, htmlContent (rendered markdown),
+        wikiLinks (extracted [[WikiLink]] titles), and linkedDocuments.
+    """
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/content")
+
+
+# ─── Link Management Tools ────────────────────────────────────────────────────
+
+def add_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
+    """Add a wiki link from one document to another within the same project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The source document's slug (required)
+        target_document_id: The ID of the target document to link to (required)
+
+    Returns:
+        Updated source document with the new link included
+    """
+    body = {"targetDocumentId": target_document_id}
+    return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/links", body)
+
+
+def remove_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
+    """Remove a wiki link between two documents within the same project.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The source document's slug (required)
+        target_document_id: The ID of the target document to unlink from (required)
+
+    Returns:
+        Confirmation message on success
+    """
+    _api_request("DELETE", f"/v1/projects/{project_slug}/documents/{doc_slug}/links/{target_document_id}")
+    return {"message": f"Link removed: '{doc_slug}' → document {target_document_id}"}
+
+
+def get_links(project_slug: str, doc_slug: str) -> list[dict]:
+    """Get all documents that a specific document links to.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The source document's slug (required)
+
+    Returns:
+        List of linked document objects
+    """
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/links")
+
+
+# ─── MCP Server Setup ────────────────────────────────────────────────────────
+
+def create_mcp_server() -> FastMCP:
+    """Create and configure the Wiki4AI MCP server with all tools."""
+
+    mcp = FastMCP(
+        "wiki4ai",
+        settings=Settings(
+            name="Wiki4AI",
+            version="1.0.0",
+            description=(
+                "MCP server for Wiki4AI — a markdown-based wiki system with projects, "
+                "documents, and inter-document linking. Supports full CRUD operations on "
+                "projects and documents, content rendering, and link management."
+            ),
+        ),
+    )
+
+    # ── Health Tools ────────────────────────────────────────────────────────
+    mcp.add_tool(health_check, name="health_check", description=health_check.__doc__)
+
+    # ── Project Tools ───────────────────────────────────────────────────────
+    mcp.add_tool(list_projects, name="list_projects", description=list_projects.__doc__)
+    mcp.add_tool(get_project, name="get_project", description=get_project.__doc__)
+    mcp.add_tool(create_project, name="create_project", description=create_project.__doc__)
+    mcp.add_tool(update_project, name="update_project", description=update_project.__doc__)
+    mcp.add_tool(delete_project, name="delete_project", description=delete_project.__doc__)
+
+    # ── Document Tools ──────────────────────────────────────────────────────
+    mcp.add_tool(list_documents, name="list_documents", description=list_documents.__doc__)
+    mcp.add_tool(create_document, name="create_document", description=create_document.__doc__)
+    mcp.add_tool(get_document, name="get_document", description=get_document.__doc__)
+    mcp.add_tool(update_document, name="update_document", description=update_document.__doc__)
+    mcp.add_tool(delete_document, name="delete_document", description=delete_document.__doc__)
+    mcp.add_tool(
+        get_document_content,
+        name="get_document_content",
+        description=get_document_content.__doc__,
+    )
+
+    # ── Link Management Tools ───────────────────────────────────────────────
+    mcp.add_tool(add_link, name="add_link", description=add_link.__doc__)
+    mcp.add_tool(remove_link, name="remove_link", description=remove_link.__doc__)
+    mcp.add_tool(get_links, name="get_links", description=get_links.__doc__)
+
+    return mcp
+
+
+# ─── Main Entry Point ────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(description="Wiki4AI MCP Server")
+    parser.add_argument(
+        "--base-url",
+        default=DEFAULT_BASE_URL,
+        help=f"Base URL of the Wiki4AI backend API (default: {DEFAULT_BASE_URL})",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse"],
+        default="stdio",
+        help="Transport mode: stdio (default) or sse for HTTP server",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8090,
+        help="Port for SSE transport (default: 8090)",
+    )
+
+    args = parser.parse_args()
+    set_base_url(args.base_url)
+
+    mcp = create_mcp_server()
+
+    if args.transport == "sse":
+        print(f"Starting Wiki4AI MCP server on port {args.port} (SSE mode)...")
+        mcp.run(transport="sse", host="0.0.0.0", port=args.port)
+    else:
+        print("Starting Wiki4AI MCP server (stdio mode)...")
+        mcp.run()
+
+
+if __name__ == "__main__":
+    main()

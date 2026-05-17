@@ -24,6 +24,17 @@ services:
       - backend
     restart: unless-stopped
 
+  mcp-server:
+    image: git.keepee.duckdns.org/services/wiki4ai/mcp:<IMAGE_TAG>
+    container_name: wiki4ai-mcp
+    ports:
+      - "8090:8090"
+    environment:
+      - MCP_BASE_URL=http://wiki4ai-backend:8080/api
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     container_name: wiki4ai-db

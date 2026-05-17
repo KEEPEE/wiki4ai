@@ -1,5 +1,5 @@
 # wiki4ai - CI/CD Pipeline
-# Build Docker images (backend + frontend) and push to GitLab Registry, then deploy to server
+# Build Docker images (backend + frontend + mcp) and push to GitLab Registry, then deploy to server
 
 stages:
   - build_and_push
@@ -12,6 +12,7 @@ variables:
   SERVER_USER: "keepee"
   BACKEND_IMAGE_NAME: "backend"
   FRONTEND_IMAGE_NAME: "frontend"
+  MCP_IMAGE_NAME: "mcp"
 
 # ── Build and push Docker images to GitLab Registry ────────────────────────────
 
@@ -51,6 +52,24 @@ build-frontend:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
+build-mcp:
+  stage: build_and_push
+  image: docker:29
+  tags:
+    - docker
+  services:
+    - docker:dind
+  timeout: 30m
+  script:
+    - echo "Building MCP server Docker image..."
+    - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
+    - docker build --no-cache --progress=plain -f ./Dockerfile.mcp -t ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker tag ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
+    - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
 # ── Deploy to server 192.168.77.177 ───────────────────────────────────────────
 
 deploy-to-server:
@@ -60,6 +79,7 @@ deploy-to-server:
   needs:
     - build-backend
     - build-frontend
+    - build-mcp
   script:
     - echo "Deploying to server ${SERVER_IP}..."
     - apk add --no-cache openssh-client sshpass
@@ -74,18 +94,25 @@ deploy-to-server:
     # Login to GitLab registry on server and pull new images
     - echo "Logging into GitLab registry on server..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} git.keepee.duckdns.org"
+    # Pull and tag backend image
     - echo "Pulling new backend image from GitLab registry..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
     - echo "Tagging backend image as latest..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:latest"
+    # Pull and tag frontend image
     - echo "Pulling new frontend image from GitLab registry..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
     - echo "Tagging frontend image as latest..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest"
+    # Pull and tag MCP image
+    - echo "Pulling new MCP server image from GitLab registry..."
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - echo "Tagging MCP image as latest..."
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest"
     # Stop old containers and deploy with compose
     - echo "Stopping old wiki4ai containers..."
-    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker stop wiki4ai-backend wiki4ai-frontend || true"
-    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker rm wiki4ai-backend wiki4ai-frontend || true"
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker stop wiki4ai-backend wiki4ai-frontend wiki4ai-mcp || true"
+    - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker rm wiki4ai-backend wiki4ai-frontend wiki4ai-mcp || true"
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose down || true"
     - echo "Starting new wiki4ai stack..."
     - sshpass -p 540413 ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose up -d"
