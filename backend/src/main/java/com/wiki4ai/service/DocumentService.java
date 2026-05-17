@@ -173,6 +173,7 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
         documentRepository.delete(document);
+        documentRepository.flush(); // Ensure deletion is persisted immediately
     }
 
     /**
@@ -330,6 +331,7 @@ public class DocumentService {
         return DocumentDTO.builder()
                 .id(document.getId())
                 .title(document.getTitle())
+                .slug(document.getSlug())
                 .content(document.getContent())
                 .projectId(document.getProject().getId())
                 .linkedDocuments(linkedDocIds)

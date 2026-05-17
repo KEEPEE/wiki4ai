@@ -23,6 +23,8 @@ public class DocumentDTO {
     @NotBlank(message = "Document title is required")
     private String title;
 
+    private String slug;
+
     private String content;
 
     private Long projectId;

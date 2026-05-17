@@ -5,7 +5,9 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
+import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.service.DocumentService;
+import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -30,6 +32,23 @@ import java.util.List;
 public class DocumentController {
 
     private final DocumentService documentService;
+    private final ProjectService projectService;
+
+    /**
+     * Resolve projectId from projectSlug.
+     */
+    private Long resolveProjectId(String projectSlug) {
+        ProjectDTO project = projectService.getProjectBySlug(projectSlug);
+        return project.getId();
+    }
+
+    /**
+     * Resolve source document ID from docSlug within a project.
+     */
+    private Long resolveSourceDocId(String projectSlug, String docSlug) {
+        DocumentDTO doc = documentService.getDocument(resolveProjectId(projectSlug), docSlug);
+        return doc.getId();
+    }
 
     @Operation(summary = "Vytvorenie nového dokumentu", description = "Vytvorí nový dokument v rámci projektu.")
     @ApiResponse(responseCode = "201", description = "Dokument úspešne vytvorený")
@@ -38,8 +57,7 @@ public class DocumentController {
     public ResponseEntity<DocumentDTO> createDocument(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Valid @RequestBody DocumentCreateDTO dto) {
-        // TODO: resolve projectId from projectSlug - for now use a placeholder
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         DocumentDTO created = documentService.createDocument(projectId, dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
@@ -49,7 +67,7 @@ public class DocumentController {
     @GetMapping
     public ResponseEntity<List<DocumentDTO>> getDocuments(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug) {
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         return ResponseEntity.ok(documentService.getDocumentsByProject(projectId));
     }
 
@@ -60,7 +78,7 @@ public class DocumentController {
     public ResponseEntity<DocumentDTO> getDocument(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         return ResponseEntity.ok(documentService.getDocument(projectId, docSlug));
     }
 
@@ -71,7 +89,7 @@ public class DocumentController {
     public ResponseEntity<DocumentContentDTO> getContent(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         return ResponseEntity.ok(documentService.getDocumentContent(projectId, docSlug));
     }
 
@@ -83,7 +101,7 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Valid @RequestBody DocumentUpdateDTO dto) {
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         return ResponseEntity.ok(documentService.updateDocumentBySlug(projectId, docSlug, dto));
     }
 
@@ -94,7 +112,7 @@ public class DocumentController {
     public ResponseEntity<Void> deleteDocument(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        Long projectId = 1L; // Will be resolved via service layer in production
+        Long projectId = resolveProjectId(projectSlug);
         documentService.deleteDocumentBySlug(projectId, docSlug);
         return ResponseEntity.noContent().build();
     }
@@ -106,10 +124,10 @@ public class DocumentController {
     @ApiResponse(responseCode = "404", description = "Dokument nebol nájdený")
     @PostMapping("/{docSlug}/links")
     public ResponseEntity<DocumentDTO> addLink(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Valid @RequestBody LinkCreateDTO dto) {
-        // TODO: resolve projectId from projectSlug - for now use a placeholder
-        Long sourceDocId = 1L; // Will be resolved via service layer in production
+        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
         DocumentDTO updated = documentService.addLink(sourceDocId, dto.getTargetDocumentId());
         return ResponseEntity.ok(updated);
     }
@@ -119,10 +137,10 @@ public class DocumentController {
     @ApiResponse(responseCode = "404", description = "Dokument nebol nájdený alebo prepojenie neexistuje")
     @DeleteMapping("/{docSlug}/links/{targetDocId}")
     public ResponseEntity<Void> removeLink(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Parameter(description = "ID cieľového dokumentu") @PathVariable Long targetDocId) {
-        // TODO: resolve projectId from projectSlug - for now use a placeholder
-        Long sourceDocId = 1L; // Will be resolved via service layer in production
+        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
         documentService.removeLink(sourceDocId, targetDocId);
         return ResponseEntity.noContent().build();
     }
@@ -132,9 +150,9 @@ public class DocumentController {
     @ApiResponse(responseCode = "404", description = "Dokument nebol nájdený")
     @GetMapping("/{docSlug}/links")
     public ResponseEntity<List<DocumentDTO>> getLinks(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        // TODO: resolve projectId from projectSlug - for now use a placeholder
-        Long sourceDocId = 1L; // Will be resolved via service layer in production
+        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
         return ResponseEntity.ok(documentService.getLinkedDocuments(sourceDocId));
     }
 }

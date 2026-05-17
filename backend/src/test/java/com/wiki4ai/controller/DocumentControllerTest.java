@@ -6,7 +6,9 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
+import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.service.DocumentService;
+import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -45,13 +47,23 @@ class DocumentControllerTest {
     @MockBean
     private DocumentService documentService;
 
+    @MockBean
+    private ProjectService projectService;
+
     private final LocalDateTime now = LocalDateTime.of(2024, 5, 16, 10, 0);
+
+    // Helper to mock project resolution for any slug
+    private void mockProjectResolution(String slug) {
+        given(projectService.getProjectBySlug(slug))
+                .willReturn(ProjectDTO.builder().id(1L).slug(slug).name("Test Project").build());
+    }
 
     private DocumentDTO createSampleDocument() {
         return DocumentDTO.builder()
                 .id(1L)
                 .title("Test Document")
                 .content("# Hello World\nThis is a test document.")
+                .slug("test-document")
                 .projectId(1L)
                 .linkedDocuments(List.of())
                 .createdAt(now)
@@ -83,11 +95,13 @@ class DocumentControllerTest {
         @DisplayName("Should return 201 with created document details")
         void shouldCreateDocumentSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentCreateDTO createDto = createSampleCreateDto();
             DocumentDTO created = DocumentDTO.builder()
                     .id(2L)
                     .title("New Document")
                     .content("# New Content\nThis is new content.")
+                    .slug("new-document")
                     .projectId(1L)
                     .linkedDocuments(List.of())
                     .createdAt(now)
@@ -133,6 +147,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with list of documents")
         void shouldReturnAllDocuments() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
             given(documentService.getDocumentsByProject(1L)).willReturn(List.of(doc));
 
@@ -148,6 +163,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with empty list when no documents exist")
         void shouldReturnEmptyList() throws Exception {
             // given
+            mockProjectResolution("test-project");
             given(documentService.getDocumentsByProject(1L)).willReturn(List.of());
 
             // when & then
@@ -167,6 +183,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with document details when found")
         void shouldReturnDocumentWhenFound() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
             given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(doc);
 
@@ -181,6 +198,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when document not found")
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
             given(documentService.getDocument(eq(1L), eq("non-existent")))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
@@ -202,11 +220,13 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with updated document details")
         void shouldUpdateDocumentSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentUpdateDTO updateDto = createSampleUpdateDto();
             DocumentDTO updated = DocumentDTO.builder()
                     .id(1L)
                     .title("Updated Document")
                     .content("# Updated Content\nThis is updated content.")
+                    .slug("updated-document")
                     .projectId(1L)
                     .linkedDocuments(List.of())
                     .createdAt(now)
@@ -231,6 +251,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when document not found")
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentUpdateDTO updateDto = createSampleUpdateDto();
             given(documentService.updateDocumentBySlug(eq(1L), eq("non-existent"), any(DocumentUpdateDTO.class)))
                     .willThrow(new EntityNotFoundException(
@@ -269,6 +290,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 204 when document deleted successfully")
         void shouldDeleteDocumentSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
             doNothing().when(documentService).deleteDocumentBySlug(1L, "test-document");
 
             // when & then
@@ -282,6 +304,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when document not found")
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
             doThrow(new EntityNotFoundException(
                     "Document not found with slug 'non-existent' in project 1"))
                     .when(documentService).deleteDocumentBySlug(eq(1L), eq("non-existent"));
@@ -303,6 +326,9 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with updated document when link added successfully")
         void shouldAddLinkSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
@@ -311,6 +337,7 @@ class DocumentControllerTest {
                     .id(1L)
                     .title("Test Document")
                     .content("# Hello World")
+                    .slug("test-document")
                     .projectId(1L)
                     .linkedDocuments(List.of(5L))
                     .createdAt(now)
@@ -348,25 +375,28 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when source document not found")
         void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            given(documentService.getDocument(eq(1L), eq("test-document")))
+                    .willThrow(new EntityNotFoundException("Document not found with slug 'test-document' in project 1"));
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
-
-            given(documentService.addLink(eq(1L), eq(5L)))
-                    .willThrow(new EntityNotFoundException("Source document not found with id: 1"));
 
             // when & then
             mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/links")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(linkDto)))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.message").value("Source document not found with id: 1"));
+                    .andExpect(jsonPath("$.message").value("Document not found with slug 'test-document' in project 1"));
         }
 
         @Test
         @DisplayName("Should return 409 when link already exists")
         void shouldReturnConflictWhenLinkAlreadyExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
@@ -386,6 +416,9 @@ class DocumentControllerTest {
         @DisplayName("Should return 409 when documents belong to different projects")
         void shouldReturnConflictWhenDifferentProjects() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
@@ -407,6 +440,9 @@ class DocumentControllerTest {
         @DisplayName("Should return 409 when trying to link document to itself")
         void shouldReturnConflictWhenSelfLink() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(1L)
                     .build();
@@ -433,6 +469,9 @@ class DocumentControllerTest {
         @DisplayName("Should return 204 when link removed successfully")
         void shouldRemoveLinkSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             doNothing().when(documentService).removeLink(1L, 5L);
 
             // when & then
@@ -446,19 +485,23 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when source document not found")
         void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
             // given
-            doThrow(new EntityNotFoundException("Source document not found with id: 1"))
-                    .when(documentService).removeLink(eq(1L), eq(5L));
+            mockProjectResolution("test-project");
+            given(documentService.getDocument(eq(1L), eq("test-document")))
+                    .willThrow(new EntityNotFoundException("Document not found with slug 'test-document' in project 1"));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/test-document/links/5"))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.message").value("Source document not found with id: 1"));
+                    .andExpect(jsonPath("$.message").value("Document not found with slug 'test-document' in project 1"));
         }
 
         @Test
         @DisplayName("Should return 409 when link does not exist")
         void shouldReturnConflictWhenLinkDoesNotExist() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             doThrow(new IllegalArgumentException("Link does not exist between these documents"))
                     .when(documentService).removeLink(eq(1L), eq(5L));
 
@@ -479,10 +522,14 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with list of linked documents")
         void shouldReturnLinkedDocuments() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             DocumentDTO linkedDoc = DocumentDTO.builder()
                     .id(5L)
                     .title("Linked Document")
                     .content("# Linked Content")
+                    .slug("linked-document")
                     .projectId(1L)
                     .linkedDocuments(List.of())
                     .createdAt(now)
@@ -502,6 +549,9 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with empty list when no links exist")
         void shouldReturnEmptyListWhenNoLinks() throws Exception {
             // given
+            mockProjectResolution("test-project");
+            DocumentDTO sourceDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
             given(documentService.getLinkedDocuments(1L)).willReturn(List.of());
 
             // when & then
@@ -514,13 +564,14 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when document not found")
         void shouldReturnNotFoundWhenDocNotExists() throws Exception {
             // given
-            given(documentService.getLinkedDocuments(1L))
-                    .willThrow(new EntityNotFoundException("Document not found with id: 1"));
+            mockProjectResolution("test-project");
+            given(documentService.getDocument(eq(1L), eq("non-existent")))
+                    .willThrow(new EntityNotFoundException("Document not found with slug 'non-existent' in project 1"));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/non-existent/links"))
                     .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.message").value("Document not found with id: 1"));
+                    .andExpect(jsonPath("$.message").value("Document not found with slug 'non-existent' in project 1"));
         }
     }
 
@@ -544,6 +595,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 200 with rendered content, wiki links and linked documents")
         void shouldReturnContentSuccessfully() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentContentDTO contentDto = createSampleContentDto();
             given(documentService.getDocumentContent(eq(1L), eq("test-document"))).willReturn(contentDto);
 
@@ -566,6 +618,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when document not found")
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
+            mockProjectResolution("test-project");
             given(documentService.getDocumentContent(eq(1L), eq("non-existent")))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
@@ -580,6 +633,7 @@ class DocumentControllerTest {
         @DisplayName("Should return content with empty wiki links when no wiki references exist")
         void shouldReturnEmptyWikiLinks() throws Exception {
             // given
+            mockProjectResolution("test-project");
             DocumentContentDTO contentDto = new DocumentContentDTO(
                     2L,
                     "Simple Doc",
@@ -606,6 +660,7 @@ class DocumentControllerTest {
         @Test
         @DisplayName("Controller should have proper Tag annotation")
         void shouldHaveTagAnnotation() throws Exception {
+            mockProjectResolution("test-project");
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
                     .andExpect(status().isOk()); // Will fail if controller not registered
         }
@@ -613,6 +668,7 @@ class DocumentControllerTest {
         @Test
         @DisplayName("All CRUD endpoints should be properly mapped")
         void shouldHaveAllEndpointsMapped() throws Exception {
+            mockProjectResolution("test-project");
             // Verify that all endpoints are properly mapped by checking status codes
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
                     .andExpect(status().isOk());
