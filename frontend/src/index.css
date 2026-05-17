@@ -1,12 +1,8 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Ensure SVG icons are properly sized */
+/* Ensure SVG icons don't overflow their containers */
 svg {
   max-width: 100%;
-}
-
-svg[fill="none"][stroke="currentColor"] {
-  width: auto;
   height: auto;
 }
