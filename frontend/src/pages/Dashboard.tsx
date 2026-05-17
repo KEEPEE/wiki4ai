@@ -58,14 +58,29 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // Stats calculation
+  const totalDocs = projects.reduce((sum, p) => sum + (p.documentCount || 0), 0);
+
   return (
     <div className="dashboard">
-      <header className="dashboard-header">
+      {/* Hero Section */}
+      <section className="hero-section">
         <h1>Wiki4AI Projects</h1>
-        <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary">
-          {showCreateForm ? 'Cancel' : '+ New Project'}
-        </button>
-      </header>
+        <p className="hero-subtitle">Manage and organize your AI documentation projects</p>
+        {projects.length > 0 && (
+          <div className="stats-row">
+            <div className="stat-item">
+              <span className="stat-number">{projects.length}</span>
+              <span className="stat-label">Projects</span>
+            </div>
+            <div className="stat-divider" />
+            <div className="stat-item">
+              <span className="stat-number">{totalDocs}</span>
+              <span className="stat-label">Documents</span>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Create Project Form */}
       {showCreateForm && (
@@ -86,10 +101,22 @@ const Dashboard: React.FC = () => {
             rows={3}
           />
           {createError && <p className="error">{createError}</p>}
-          <button type="submit" className="btn-primary" disabled={isCreating}>
-            {isCreating ? 'Creating...' : 'Create'}
-          </button>
+          <div className="form-actions">
+            <button type="submit" className="btn-primary" disabled={isCreating}>
+              {isCreating ? 'Creating...' : 'Create'}
+            </button>
+            <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
+              Cancel
+            </button>
+          </div>
         </form>
+      )}
+
+      {/* Action Button */}
+      {!showCreateForm && (
+        <button onClick={() => setShowCreateForm(true)} className="btn-create-new">
+          + New Project
+        </button>
       )}
 
       {/* Loading State */}
@@ -114,14 +141,17 @@ const Dashboard: React.FC = () => {
       {!isLoading && (
         <div className="projects-grid">
           {projects.length === 0 ? (
-            <p className="empty-state">
-              No projects yet.{' '}
+            <div className="empty-state">
+              <svg className="empty-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <p className="empty-text">No projects yet.</p>
               {!showCreateForm && (
                 <button onClick={() => setShowCreateForm(true)} className="btn-primary">
                   Create your first project!
                 </button>
               )}
-            </p>
+            </div>
           ) : (
             projects.map((project) => (
               <div

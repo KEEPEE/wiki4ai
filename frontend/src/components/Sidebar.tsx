@@ -156,11 +156,11 @@ export default function Sidebar() {
       >
         {/* Logo / Brand */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <Link to="/" className="flex items-center gap-2" onClick={() => setIsMobileMenuOpen(false)}>
-            <svg className="w-6 h-6 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <Link to="/" className="flex items-center gap-3" onClick={() => setIsMobileMenuOpen(false)}>
+            <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">Wiki4AI</span>
+            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400 truncate">Wiki4AI</span>
           </Link>
         </div>
 
@@ -169,18 +169,16 @@ export default function Sidebar() {
           <Link
             to="/"
             onClick={() => setIsMobileMenuOpen(false)}
-            className={`block px-3 py-2 rounded-md text-sm font-medium mb-2 transition-colors ${
+            className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium mb-2 transition-colors ${
               location.pathname === '/'
                 ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
                 : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Dashboard
-            </span>
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Dashboard
           </Link>
 
           <div className="mt-4">
