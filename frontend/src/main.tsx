@@ -25,6 +25,17 @@ function LoadingFallback() {
   )
 }
 
+// Global error handler to catch any unhandled errors
+window.addEventListener('error', (e) => {
+  console.error('Global error caught:', e.error || e.message)
+})
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled promise rejection:', e.reason)
+})
+
+console.log('🚀 Wiki4AI: Starting application...')
+console.log('📍 Current URL:', window.location.href)
+
 try {
   const rootElement = document.getElementById('root')
   
@@ -32,8 +43,10 @@ try {
     throw new Error('Root element #root not found in DOM')
   }
 
+  console.log('✅ Root element found, creating React root...')
   const root = createRoot(rootElement)
   
+  console.log('🎨 Rendering App component...')
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
