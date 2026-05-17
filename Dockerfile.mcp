@@ -15,9 +15,9 @@ COPY --from=builder /install /usr/local
 # Copy MCP server files
 COPY mcp-server/mcp_server.py .
 
-# Health check
+# Health check - verify MCP server port is listening (fastmcp SSE doesn't have /health endpoint)
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8095/health')" || exit 1
+    CMD python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('localhost', 8095)); s.close()" || exit 1
 
 EXPOSE 8095
 
