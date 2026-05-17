@@ -64,10 +64,11 @@ public class Project {
     }
 
     /**
-     * Set the project name. Slug is preserved to maintain stable URLs.
+     * Set the project name and auto-generate slug from it.
      */
     public void setName(String name) {
         this.name = name;
+        this.slug = generateSlug(name);
     }
 
     /**

@@ -75,10 +75,11 @@ public class Document {
     }
 
     /**
-     * Set the document title. Slug is preserved to maintain stable URLs.
+     * Set the document title and auto-generate slug from it.
      */
     public void setTitle(String title) {
         this.title = title;
+        this.slug = generateSlug(title);
     }
 
     /**
