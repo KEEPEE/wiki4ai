@@ -4,7 +4,7 @@ import { useProjects } from '../hooks/useProjects'
 
 interface SidebarProps {
   isOpen: boolean
-  onToggle: () => void
+  onClose: () => void
 }
 
 interface NewProjectModalProps {
@@ -140,7 +140,7 @@ function NewProjectModal({ isOpen, onClose, onCreate }: NewProjectModalProps) {
   )
 }
 
-export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { projects, isLoading, createProject } = useProjects()
   const location = useLocation()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -157,31 +157,24 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
     await createProject({ name, description })
   }, [createProject])
 
+  // Always close sidebar after navigation/action
   const handleClose = useCallback(() => {
-    onToggle()
-  }, [onToggle])
+    onClose()
+  }, [onClose])
 
   return (
     <>
-      {/* Mobile overlay backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onToggle}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar panel */}
+      {/* Sidebar panel - fixed overlay, hidden by default */}
       <aside
         className={`
+          fixed inset-y-0 left-0 z-50
           w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
           flex flex-col flex-shrink-0 h-full
-          transition-all duration-300 ease-in-out
-          ${isOpen ? 'overflow-y-auto' : 'overflow-hidden'}
+          transition-transform duration-300 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        {/* Header with toggle */}
+        {/* Header with close button */}
         <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
           <Link
             to="/"
@@ -195,17 +188,12 @@ export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
           </Link>
           <button
             type="button"
-            onClick={onToggle}
+            onClick={handleClose}
             className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label={isOpen ? 'Zavrieť menu' : 'Otvoriť menu'}
-            aria-expanded={isOpen}
+            aria-label="Zavrieť menu"
           >
             <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              )}
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
