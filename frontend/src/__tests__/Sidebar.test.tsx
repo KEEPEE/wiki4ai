@@ -42,7 +42,7 @@ describe('Sidebar', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
     })
@@ -53,8 +53,8 @@ describe('Sidebar', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const onToggle = vi.fn()
-      renderWithProviders(<Sidebar isOpen={true} onToggle={onToggle} />)
+      const onClose = vi.fn()
+      renderWithProviders(<Sidebar isOpen={true} onClose={onClose} />)
 
       const user = userEvent.setup()
       await user.click(screen.getByText('Dashboard'))
@@ -72,7 +72,7 @@ describe('Sidebar', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // Slovak text "Projekty"
       expect(screen.getByText('Projekty')).toBeInTheDocument()
@@ -84,7 +84,7 @@ describe('Sidebar', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // Even with no projects, the "Projekty" header is always shown (it's outside the conditional)
       expect(screen.getByText('Projekty')).toBeInTheDocument()
@@ -96,7 +96,7 @@ describe('Sidebar', () => {
         projects: [], isLoading: true, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // Slovak loading text "Načítavam..."
       expect(screen.getByText(/Načítavam/)).toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('Sidebar', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       expect(screen.getByText('Alpha Project')).toBeInTheDocument()
       expect(screen.getByText('Beta Project')).toBeInTheDocument()
@@ -131,7 +131,7 @@ describe('Sidebar', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       const user = userEvent.setup()
       await user.click(screen.getByRole('link', { name: /Click Me/ }))
@@ -145,7 +145,7 @@ describe('Sidebar', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // The new project button has aria-label="Vytvoriť nový projekt" and title="Nový projekt"
       expect(screen.getByRole('button', { name: /Vytvoriť nový projekt/ })).toBeInTheDocument()
@@ -157,7 +157,7 @@ describe('Sidebar', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       const user = userEvent.setup()
       await user.click(screen.getByRole('button', { name: /Vytvoriť nový projekt/ }))
@@ -178,7 +178,7 @@ describe('Sidebar', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // Dashboard link should be active on root route
       expect(screen.getByText('Dashboard')).toBeInTheDocument()
@@ -196,53 +196,56 @@ describe('Sidebar', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
       // Check that projects list container exists with proper overflow styling
       expect(screen.getByText('Projekty')).toBeInTheDocument()
     })
   })
 
-  describe('Toggle behavior', () => {
-    it('should call onToggle when close button is clicked', async () => {
+  describe('Close behavior', () => {
+    it('should call onClose when close button is clicked', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const onToggle = vi.fn()
-      renderWithProviders(<Sidebar isOpen={true} onToggle={onToggle} />)
+      const onClose = vi.fn()
+      renderWithProviders(<Sidebar isOpen={true} onClose={onClose} />)
 
       const user = userEvent.setup()
-      // Click the toggle button (hamburger/X icon in header)
-      const toggleButton = screen.getByRole('button', { name: /Zavrieť menu/ })
-      await user.click(toggleButton)
+      // Click the close button (X icon in header)
+      const closeButton = screen.getByRole('button', { name: /Zavrieť menu/ })
+      await user.click(closeButton)
 
-      expect(onToggle).toHaveBeenCalledTimes(1)
+      expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('should show open menu aria-label when sidebar is closed', async () => {
+    it('should call onClose when navigating via Dashboard link', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={false} onToggle={vi.fn()} />)
+      const onClose = vi.fn()
+      renderWithProviders(<Sidebar isOpen={true} onClose={onClose} />)
 
-      const toggleButton = screen.getByRole('button', { name: /Otvoriť menu/ })
-      expect(toggleButton).toBeInTheDocument()
+      const user = userEvent.setup()
+      await user.click(screen.getByText('Dashboard'))
+
+      expect(onClose).toHaveBeenCalledTimes(1)
     })
 
-    it('should show close menu aria-label when sidebar is open', async () => {
+    it('should have close button with correct aria-label', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      renderWithProviders(<Sidebar isOpen={true} onToggle={vi.fn()} />)
+      renderWithProviders(<Sidebar isOpen={true} onClose={vi.fn()} />)
 
-      const toggleButton = screen.getByRole('button', { name: /Zavrieť menu/ })
-      expect(toggleButton).toBeInTheDocument()
+      const closeButton = screen.getByRole('button', { name: /Zavrieť menu/ })
+      expect(closeButton).toBeInTheDocument()
     })
   })
 })
