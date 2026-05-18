@@ -265,6 +265,26 @@ def get_links(project_slug: str, doc_slug: str) -> list[dict]:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/links")
 
 
+# ─── Search Tools ─────────────────────────────────────────────────────────────
+
+def search_documents(project_slug: str, keyword: str) -> list[dict]:
+    """Search for documents within a project by keyword.
+
+    Searches document titles and content for the given keyword and returns
+    matching documents. The keyword must be at least 2 characters long.
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        keyword: The search keyword to find in document titles and content (min 2 chars)
+
+    Returns:
+        List of matching document objects with id, title, slug, excerpt, createdAt, updatedAt
+    """
+    from urllib.parse import quote_plus as _quote_plus
+    encoded_keyword = _quote_plus(keyword.strip())
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents/search?keyword={encoded_keyword}")
+
+
 # ─── MCP Server Setup ────────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
@@ -280,6 +300,7 @@ def create_mcp_server() -> FastMCP:
         list_documents, create_document, get_document, update_document,
         delete_document, get_document_content,
         add_link, remove_link, get_links,
+        search_documents,
     ]:
         mcp.tool()(func)
 
