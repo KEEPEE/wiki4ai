@@ -19,7 +19,7 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar - always hidden by default, slides in on toggle (all screen sizes) */}
+      {/* Sidebar - hidden by default, slides in when hamburger is clicked */}
       <Sidebar isOpen={isSidebarOpen} onClose={handleCloseSidebar} />
 
       {/* Overlay backdrop - shown when sidebar is open */}
@@ -33,37 +33,30 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col">
-        {/* Top bar with hamburger button - always visible on mobile */}
-        <div className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center lg:hidden">
+        {/* Unified top bar - visible on all screen sizes */}
+        <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center gap-3">
+          {/* Hamburger button - always visible */}
           <button
             type="button"
             onClick={handleToggleSidebar}
-            className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Otvoriť menu"
-          >
-            <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="ml-3 text-sm font-semibold text-gray-700 dark:text-gray-300">Wiki4AI</span>
-        </div>
-
-        {/* Desktop hamburger button - always visible in top left corner */}
-        <div className="hidden lg:block sticky top-0 z-30 p-2">
-          <button
-            type="button"
-            onClick={handleToggleSidebar}
-            className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
             aria-label={isSidebarOpen ? 'Zavrieť menu' : 'Otvoriť menu'}
           >
             <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              {isSidebarOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
             </svg>
           </button>
-        </div>
+
+          {/* Brand */}
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0">Wiki4AI</span>
+        </header>
 
         {/* Page content */}
-        <div className="flex-1 max-w-7xl mx-auto w-full">
+        <div className="flex-1 max-w-7xl mx-auto w-full p-4">
           {children || <Outlet />}
         </div>
       </main>
