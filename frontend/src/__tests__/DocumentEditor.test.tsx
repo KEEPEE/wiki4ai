@@ -52,7 +52,7 @@ describe('DocumentEditor', () => {
   describe('Loading state', () => {
     it('should show loading indicator when editing existing document', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.get).mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ title: 'Test', content: '# Hello' }), 100)))
+      vi.mocked(documentApi.get).mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({ id: 1, title: 'Test', content: '# Hello', projectId: 1, createdAt: '', updatedAt: '' }), 100)))
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
@@ -68,7 +68,7 @@ describe('DocumentEditor', () => {
   describe('Edit existing document', () => {
     it('should load and display existing document content', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.get).mockResolvedValue({ title: 'Existing Doc', content: '# Existing Content' })
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Existing Doc', content: '# Existing Content', projectId: 1, createdAt: '', updatedAt: '' })
 
       const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
 
@@ -88,7 +88,7 @@ describe('DocumentEditor', () => {
   describe('Save functionality', () => {
     it('should show save button after document loads', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.get).mockResolvedValue({ title: 'Test Doc', content: '# Content' })
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
@@ -104,7 +104,7 @@ describe('DocumentEditor', () => {
 
     it('should call updateDocument when saving existing document', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.get).mockResolvedValue({ title: 'Existing Doc', content: '# Content' })
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Existing Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
 
       const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
 
@@ -129,7 +129,7 @@ describe('DocumentEditor', () => {
   describe('Back button', () => {
     it('should navigate back when back button is clicked', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.get).mockResolvedValue({ title: 'Test Doc', content: '# Content' })
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
