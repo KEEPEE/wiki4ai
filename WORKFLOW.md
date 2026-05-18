@@ -53,7 +53,20 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ---
 
-## 7. Update Taiga Story
+## 7. Verify Pipeline
+
+- After pushing to `main`, run the dedicated pipeline check script:
+  ```bash
+  bash scripts/check_pipeline.sh
+  ```
+- This script polls the GitLab API and waits up to **45 minutes** for the latest pipeline to finish.
+- It reports all job statuses and, on failure, fetches and prints the full trace log of each failed job with error lines highlighted.
+- **If the pipeline fails**, analyse the printed logs, fix the root cause in code, commit the fix, push again, and re-run this script until the pipeline passes (`exit 0`).
+- Only proceed to the next step once the script confirms `🎉 Pipeline completed successfully!`.
+
+---
+
+## 8. Update Taiga Story
 
 - Open the same User Story in Taiga and update it:
   - **Append** an implementation description (do NOT delete existing content).
@@ -63,7 +76,7 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ---
 
-## 8. Send Discord Notification
+## 9. Send Discord Notification
 
 - After completing all previous steps, send a completion message via Discord using the MCP tool.
 - Post the message to the **`wiki4ai`** channel on the **`keepees server`**.
@@ -93,5 +106,6 @@ This document defines the standard workflow for all agents working on tasks (Use
 | 4 | Build / compile project | — |
 | 5 | Write & run tests (if applicable) | — |
 | 6 | Commit with English message, push to `main` | — |
-| 7 | Append description + set status to Done in Taiga | `48` |
-| 8 | Send Discord notification to #wiki4ai on keepees server | — |
+| 7 | Run `bash scripts/check_pipeline.sh` and wait for success | — |
+| 8 | Append description + set status to Done in Taiga | `48` |
+| 9 | Send Discord notification to #wiki4ai on keepees server | — |
