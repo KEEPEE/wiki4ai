@@ -2,20 +2,13 @@
  * Tests for Layout component
  */
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Layout from '../components/Layout'
 
-// Mock the Sidebar to avoid fetching issues in layout tests
-vi.mock('../components/Sidebar', () => ({
-  default: function MockSidebar() {
-    return <div data-testid="mock-sidebar">Mocked Sidebar</div>
-  },
-}))
-
 describe('Layout', () => {
-  it('should render sidebar and main content area', () => {
+  it('should render main content area without sidebar', () => {
     render(
       <MemoryRouter>
         <Routes>
