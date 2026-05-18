@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import ProjectDetail from './pages/ProjectDetail'
+import ProjectSettings from './pages/ProjectSettings'
 
 // Lazy-load components that have heavy dependencies (e.g., react-force-graph requires AFRAME)
 const GraphViewPage = lazy(() => import('./pages/GraphViewPage'))
@@ -16,6 +17,8 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Dashboard />} />
           <Route path="projects/:slug" element={<ProjectDetail />} />
+          {/* Project Settings - edit project name, description and delete */}
+          <Route path="projects/:slug/settings" element={<ProjectSettings />} />
           {/* Graph Visualization - shows document connections as a force-directed graph */}
           <Route
             path="projects/:slug/graph"
