@@ -22,6 +22,7 @@ from mcp_server import (
     search_documents,
     get_backlinks,
     batch_create_documents,
+    import_document,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -125,6 +126,19 @@ def mock_batch_input_documents():
         {"title": "Second Document", "content": "# Second\nContent of second doc"},
         {"title": "Third Document"},  # no content
     ]
+
+
+@pytest.fixture
+def mock_import_document_response():
+    """Sample import document API response (DocumentDTO)."""
+    return {
+        "id": 42,
+        "title": "Imported Document",
+        "slug": "imported-document",
+        "projectId": 7,
+        "createdAt": "2026-05-18T20:00:00Z",
+        "updatedAt": "2026-05-18T20:00:00Z",
+    }
 
 
 # ─── Tests: search_documents API call ──────────────────────────────────────
@@ -436,6 +450,100 @@ class TestBatchCreateDocumentsResponseFormat:
         assert len(result) == 0
 
 
+# ─── Tests: import_document API call ──────────────────────────────────────
+
+class TestImportDocumentAPICall:
+    """Tests that import_document calls the correct API endpoint."""
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint(self, mock_urlopen, mock_import_document_response):
+        """import_document calls POST /v1/projects/{slug}/documents with title and content."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        import_document("my-project", "My Title", "# Hello\nSome markdown content")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "/v1/projects/my-project/documents" in str(request.full_url)
+        assert request.method == "POST"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_title_and_content_in_body(self, mock_urlopen, mock_import_document_response):
+        """import_document sends both title and content in the JSON body."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        import_document("my-project", "My Title", "# Hello\nSome content here")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["title"] == "My Title"
+        assert body["content"] == "# Hello\nSome content here"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_content_with_special_characters(self, mock_urlopen, mock_import_document_response):
+        """import_document correctly sends content with special characters."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        content = "# Title\nLine 1\n\n- bullet one\n- bullet two\n\n```python\nprint('hello')\n```"
+        import_document("my-project", "Special Doc", content)
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["content"] == content
+
+
+# ─── Tests: import_document response format ──────────────────────────────
+
+class TestImportDocumentResponseFormat:
+    """Tests that import_document returns correct data format."""
+
+    @patch("mcp_server.urlopen")
+    def test_returns_dict(self, mock_urlopen, mock_import_document_response):
+        """import_document returns a dict (DocumentDTO)."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = import_document("my-project", "Title", "# Content")
+
+        assert isinstance(result, dict)
+
+    @patch("mcp_server.urlopen")
+    def test_returns_document_dto_fields(self, mock_urlopen, mock_import_document_response):
+        """import_document returns a dict with expected DocumentDTO fields."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = import_document("my-project", "Title", "# Content")
+
+        assert "id" in result
+        assert "title" in result
+        assert "slug" in result
+        assert "projectId" in result
+        assert "createdAt" in result
+        assert "updatedAt" in result
+
+    @patch("mcp_server.urlopen")
+    def test_returns_correct_title(self, mock_urlopen, mock_import_document_response):
+        """import_document returns the correct title in the response."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_import_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = import_document("my-project", "Imported Document", "# Content")
+
+        assert result["title"] == "Imported Document"
+
+
 # ─── Tests: MCP Server Registration ──────────────────────────────────────
 
 class TestMCPServerRegistration:
@@ -458,6 +566,7 @@ class TestMCPServerRegistration:
             "delete_document", "get_document_content",
             "add_link", "remove_link", "get_links", "get_backlinks",
             "search_documents",
+            "import_document",
         ]
 
         # FastMCP 2.x stores tools in _tool_manager or similar internal structure
