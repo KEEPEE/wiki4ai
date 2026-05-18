@@ -651,6 +651,141 @@ class DocumentControllerTest {
         }
     }
 
+    // ==================== SEARCH DOCUMENTS TESTS ====================
+
+    @Nested
+    @DisplayName("GET /api/v1/projects/{projectSlug}/documents/search - Search documents by keyword")
+    class SearchDocumentsTests {
+
+        @Test
+        @DisplayName("Should return 200 with matching documents when valid keyword is provided")
+        void shouldReturnMatchingDocuments() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO doc1 = DocumentDTO.builder()
+                    .id(1L)
+                    .title("Spring Boot Guide")
+                    .content("# Spring Boot\nLearn about Spring Boot framework.")
+                    .slug("spring-boot-guide")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            DocumentDTO doc2 = DocumentDTO.builder()
+                    .id(3L)
+                    .title("Spring Security Docs")
+                    .content("# Spring Security\nConfigure security in Spring Boot.")
+                    .slug("spring-security-docs")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.searchDocuments(eq(1L), eq("Spring"))).willReturn(List.of(doc1, doc2));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", "Spring"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].title").value("Spring Boot Guide"))
+                    .andExpect(jsonPath("$[1].title").value("Spring Security Docs"));
+
+            verify(documentService).searchDocuments(eq(1L), eq("Spring"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with empty list when no documents match")
+        void shouldReturnEmptyListWhenNoMatches() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            given(documentService.searchDocuments(eq(1L), eq("nonexistent"))).willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", "nonexistent"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when keyword is empty")
+        void shouldReturnBadRequestWhenKeywordEmpty() throws Exception {
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", ""))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when keyword is too short (1 character)")
+        void shouldReturnBadRequestWhenKeywordTooShort() throws Exception {
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", "a"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when keyword parameter is missing")
+        void shouldReturnBadRequestWhenKeywordMissing() throws Exception {
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project does not exist")
+        void shouldReturnNotFoundWhenProjectNotExists() throws Exception {
+            // given
+            given(projectService.getProjectBySlug("non-existent-project"))
+                    .willThrow(new EntityNotFoundException("Project not found with slug 'non-existent-project'"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/non-existent-project/documents/search")
+                            .param("keyword", "test"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Project not found with slug 'non-existent-project'"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 when keyword is exactly 2 characters (minimum valid)")
+        void shouldAcceptMinimumLengthKeyword() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO doc = createSampleDocument();
+            given(documentService.searchDocuments(eq(1L), eq("He"))).willReturn(List.of(doc));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", "He"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].title").value("Test Document"));
+
+            verify(documentService).searchDocuments(eq(1L), eq("He"));
+        }
+
+        @Test
+        @DisplayName("Should trim whitespace from keyword before searching")
+        void shouldTrimKeywordWhitespace() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO doc = createSampleDocument();
+            given(documentService.searchDocuments(eq(1L), eq("Spring"))).willReturn(List.of(doc));
+
+            // when & then - keyword has leading/trailing spaces
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
+                            .param("keyword", "  Spring  "))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1));
+
+            verify(documentService).searchDocuments(eq(1L), eq("Spring"));
+        }
+    }
+
     // ==================== SWAGGER/OPENAPI ANNOTATIONS TESTS ====================
 
     @Nested
