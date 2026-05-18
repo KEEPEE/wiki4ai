@@ -103,4 +103,14 @@ export const documentApi = {
       return res.json();
     });
   },
+
+  /**
+   * Get backlinks - documents that link TO a specific document.
+   * Endpoint: GET /projects/:slug/documents/:docSlug/backlinks
+   */
+  getBacklinks: (projectSlug: string, docSlug: string): Promise<Document[]> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/backlinks`).then((res) => {
+      if (!res.ok) throw new Error(`Failed to fetch backlinks for ${docSlug}: ${res.statusText}`);
+      return res.json();
+    }),
 };

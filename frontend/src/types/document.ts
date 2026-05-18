@@ -5,6 +5,7 @@
 export interface Document {
   id: number;
   title: string;
+  slug?: string;
   content: string | null;
   projectId: number;
   linkedDocuments?: number[];
