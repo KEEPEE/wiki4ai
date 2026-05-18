@@ -233,6 +233,14 @@ const ProjectDetail: React.FC = () => {
           >
             📁 Import file
           </button>
+          <Link
+            to={`/projects/${slug}/settings`}
+            className="btn-secondary btn-settings"
+            data-testid="settings-link"
+            title="Project settings"
+          >
+            ⚙️ Settings
+          </Link>
         </div>
       </header>
 

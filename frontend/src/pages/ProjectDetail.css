@@ -21,6 +21,18 @@
   font-size: 0.9rem;
 }
 
+.btn-settings {
+  font-size: 0.9rem;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-settings:hover {
+  text-decoration: none;
+}
+
 /* Upload Progress Bar */
 .upload-progress-container {
   position: relative;
