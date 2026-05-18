@@ -1,4 +1,5 @@
 import { Outlet } from 'react-router-dom'
+import { useState, useCallback } from 'react'
 import Sidebar from './Sidebar'
 
 interface LayoutProps {
@@ -6,10 +7,16 @@ interface LayoutProps {
 }
 
 export default function Layout({ children }: LayoutProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+
+  const handleToggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev)
+  }, [])
+
   return (
-    <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Sidebar - fixed on mobile, flex child on desktop */}
-      <Sidebar />
+    <div className={`flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden ${isSidebarOpen ? 'lg:flex' : ''}`}>
+      {/* Sidebar - controlled by toggle state */}
+      <Sidebar isOpen={isSidebarOpen} onToggle={handleToggleSidebar} />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">

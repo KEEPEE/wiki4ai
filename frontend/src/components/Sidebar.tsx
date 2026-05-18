@@ -2,6 +2,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { useState, useCallback } from 'react'
 import { useProjects } from '../hooks/useProjects'
 
+interface SidebarProps {
+  isOpen: boolean
+  onToggle: () => void
+}
+
 interface NewProjectModalProps {
   isOpen: boolean
   onClose: () => void
@@ -50,7 +55,7 @@ function NewProjectModal({ isOpen, onClose, onCreate }: NewProjectModalProps) {
     >
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-      
+
       {/* Modal */}
       <div className="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 transform transition-all">
         <div className="p-6">
@@ -69,7 +74,7 @@ function NewProjectModal({ isOpen, onClose, onCreate }: NewProjectModalProps) {
               </svg>
             </button>
           </div>
-          
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="project-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -135,11 +140,10 @@ function NewProjectModal({ isOpen, onClose, onCreate }: NewProjectModalProps) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onToggle }: SidebarProps) {
   const { projects, isLoading, createProject } = useProjects()
   const location = useLocation()
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   // Determine active project from URL path
   const getActiveProjectSlug = (): string | null => {
@@ -153,75 +157,69 @@ export default function Sidebar() {
     await createProject({ name, description })
   }, [createProject])
 
-  const handleMobileMenuToggle = useCallback(() => {
-    setIsMobileMenuOpen(prev => !prev)
-  }, [])
-
-  const handleMobileMenuClose = useCallback(() => {
-    setIsMobileMenuOpen(false)
-  }, [])
+  const handleClose = useCallback(() => {
+    onToggle()
+  }, [onToggle])
 
   return (
     <>
-      {/* Mobile menu button */}
-      <button
-        type="button"
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-white dark:bg-gray-800 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-        onClick={handleMobileMenuToggle}
-        aria-label={isMobileMenuOpen ? 'Zavrieť menu' : 'Otvoriť menu'}
-        aria-expanded={isMobileMenuOpen}
-      >
-        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          {isMobileMenuOpen ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          )}
-        </svg>
-      </button>
-
-      {/* Mobile overlay */}
-      {isMobileMenuOpen && (
+      {/* Mobile overlay backdrop */}
+      {isOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-40 backdrop-blur-sm"
-          onClick={handleMobileMenuClose}
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={onToggle}
           aria-hidden="true"
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar panel */}
       <aside
         className={`
-          w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col flex-shrink-0
-          fixed inset-y-0 left-0 h-full z-40 lg:static lg:z-auto
-          transform transition-transform duration-300 ease-in-out
-          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700
+          flex flex-col flex-shrink-0 h-full
+          transition-all duration-300 ease-in-out
+          ${isOpen ? 'overflow-y-auto' : 'overflow-hidden'}
         `}
       >
-        {/* Logo / Brand */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <Link 
-            to="/" 
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity" 
-            onClick={handleMobileMenuClose}
+        {/* Header with toggle */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+          <Link
+            to="/"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+            onClick={handleClose}
           >
             <svg width="24" height="24" className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
             <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">Wiki4AI</span>
           </Link>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            aria-label={isOpen ? 'Zavrieť menu' : 'Otvoriť menu'}
+            aria-expanded={isOpen}
+          >
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {isOpen ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              )}
+            </svg>
+          </button>
         </div>
 
         {/* Navigation - scrollable area */}
-        <nav 
-          className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-4 min-h-0" 
-          role="navigation" 
+        <nav
+          className="flex-1 overflow-y-auto overflow-x-hidden p-3 space-y-4 min-h-0"
+          role="navigation"
           aria-label="Hlavná navigácia"
         >
           {/* Dashboard link */}
           <Link
             to="/"
-            onClick={handleMobileMenuClose}
+            onClick={handleClose}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
               location.pathname === '/' || location.pathname === ''
                 ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
@@ -251,7 +249,7 @@ export default function Sidebar() {
                 </svg>
               </button>
             </div>
-            
+
             {isLoading ? (
               <div className="px-3 py-2">
                 <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -281,7 +279,7 @@ export default function Sidebar() {
                   <li key={project.id}>
                     <Link
                       to={`/projects/${project.slug}`}
-                      onClick={handleMobileMenuClose}
+                      onClick={handleClose}
                       className={`block px-3 py-2 rounded-lg text-sm truncate transition-colors ${
                         activeSlug === project.slug
                           ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 font-medium'
