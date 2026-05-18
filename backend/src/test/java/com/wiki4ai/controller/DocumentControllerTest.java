@@ -6,6 +6,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
+import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
@@ -21,6 +22,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -1098,6 +1100,166 @@ class DocumentControllerTest {
                             .file(file))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.title").value("Special Document"));
+        }
+    }
+
+    // ==================== MOVE DOCUMENT TESTS ====================
+
+    @Nested
+    @DisplayName("POST /api/v1/projects/{projectSlug}/documents/{docSlug}/move - Move document to another project")
+    class MoveDocumentTests {
+
+        private MoveRequestDTO createMoveDto(String targetProjectSlug) {
+            return MoveRequestDTO.builder()
+                    .targetProjectSlug(targetProjectSlug)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should return 200 with updated document when moved successfully")
+        void shouldMoveDocumentSuccessfully() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MoveRequestDTO moveDto = createMoveDto("target-project");
+
+            DocumentDTO movedDoc = DocumentDTO.builder()
+                    .id(1L)
+                    .title("Test Document")
+                    .content("# Hello World\nThis is a test document.")
+                    .slug("test-document")
+                    .projectId(2L) // new project ID after move
+                    .linkedDocuments(new ArrayList<>()) // links cleared
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project")))
+                    .willReturn(movedDoc);
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.title").value("Test Document"))
+                    .andExpect(jsonPath("$.projectId").value(2))
+                    .andExpect(jsonPath("$.linkedDocuments").isArray())
+                    .andExpect(jsonPath("$.linkedDocuments.length()").value(0));
+
+            verify(documentService).moveDocument(eq(1L), eq("test-document"), eq("target-project"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when validation fails (missing targetProjectSlug)")
+        void shouldReturnBadRequestWhenTargetSlugMissing() throws Exception {
+            // given
+            MoveRequestDTO invalidDto = MoveRequestDTO.builder().build();
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.targetProjectSlug").exists());
+        }
+
+        @Test
+        @DisplayName("Should return 404 when source document not found")
+        void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MoveRequestDTO moveDto = createMoveDto("target-project");
+
+            given(documentService.moveDocument(eq(1L), eq("non-existent"), eq("target-project")))
+                    .willThrow(new EntityNotFoundException(
+                            "Document not found with slug 'non-existent' in project 1"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/non-existent/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Document not found with slug 'non-existent' in project 1"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when target project not found")
+        void shouldReturnNotFoundWhenTargetProjectNotExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MoveRequestDTO moveDto = createMoveDto("non-existent-project");
+
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("non-existent-project")))
+                    .willThrow(new EntityNotFoundException(
+                            "Target project not found with slug: non-existent-project"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Target project not found with slug: non-existent-project"));
+        }
+
+        @Test
+        @DisplayName("Should return 409 when moving to the same project")
+        void shouldReturnConflictWhenSameProject() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MoveRequestDTO moveDto = createMoveDto("test-project");
+
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("test-project")))
+                    .willThrow(new IllegalArgumentException(
+                            "Cannot move document to the same project it already belongs to"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value(
+                            "Cannot move document to the same project it already belongs to"));
+        }
+
+        @Test
+        @DisplayName("Should return 409 when title already exists in target project")
+        void shouldReturnConflictWhenTitleExistsInTarget() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MoveRequestDTO moveDto = createMoveDto("target-project");
+
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project")))
+                    .willThrow(new IllegalArgumentException(
+                            "A document with this title already exists in the target project"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value(
+                            "A document with this title already exists in the target project"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when source project not found")
+        void shouldReturnNotFoundWhenSourceProjectNotExists() throws Exception {
+            // given
+            given(projectService.getProjectBySlug("non-existent-project"))
+                    .willThrow(new EntityNotFoundException(
+                            "Project not found with slug 'non-existent-project'"));
+            MoveRequestDTO moveDto = createMoveDto("target-project");
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/non-existent-project/documents/test-document/move")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Project not found with slug 'non-existent-project'"));
         }
     }
 }

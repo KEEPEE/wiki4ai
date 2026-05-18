@@ -403,6 +403,61 @@ public class DocumentService {
     }
 
     /**
+     * Move a document from its current project to a target project.
+     * Changes the document's project reference and removes all cross-project links.
+     * Validates that both projects exist, they are different, and title is unique in the target project.
+     *
+     * @param sourceProjectId   the ID of the source project (where the document currently lives)
+     * @param slug              the document slug
+     * @param targetProjectSlug the slug of the target project to move the document into
+     * @return updated DocumentDTO with new project assignment
+     * @throws EntityNotFoundException if source document, source project, or target project not found
+     * @throws IllegalArgumentException if source and target are the same project
+     *                                  or title already exists in target project
+     */
+    @Transactional
+    public DocumentDTO moveDocument(Long sourceProjectId, String slug, String targetProjectSlug) {
+        // Find the document in the source project
+        Document document = documentRepository.findBySlugAndProjectId(slug, sourceProjectId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Document not found with slug '" + slug + "' in project " + sourceProjectId));
+
+        // Find the target project by slug
+        Project targetProject = projectRepository.findBySlug(targetProjectSlug)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Target project not found with slug: " + targetProjectSlug));
+
+        // Cannot move to the same project
+        if (sourceProjectId.equals(targetProject.getId())) {
+            throw new IllegalArgumentException(
+                    "Cannot move document to the same project it already belongs to");
+        }
+
+        // Check title uniqueness in target project
+        if (documentRepository.findByProjectIdAndTitle(targetProject.getId(), document.getTitle()).isPresent()) {
+            throw new IllegalArgumentException(
+                    "A document with this title already exists in the target project");
+        }
+
+        // Remove all links — they become cross-project after the move
+        document.getLinkedDocuments().clear();
+
+        // Also remove incoming links from documents still in the source project
+        List<Document> backlinkers = documentRepository.findByLinkedDocumentsId(document.getId());
+        for (Document backlinker : backlinkers) {
+            if (backlinker.getProject().getId().equals(sourceProjectId)) {
+                backlinker.removeLinkedDocument(document);
+                documentRepository.save(backlinker);
+            }
+        }
+
+        // Assign to target project
+        document.setProject(targetProject);
+        Document saved = documentRepository.save(document);
+        return convertToDTO(saved);
+    }
+
+    /**
      * Convert Document entity to DTO.
      */
     private DocumentDTO convertToDTO(Document document) {

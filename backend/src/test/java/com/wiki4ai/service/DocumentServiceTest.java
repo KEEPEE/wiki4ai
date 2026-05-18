@@ -3,6 +3,7 @@ package com.wiki4ai.service;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
@@ -956,6 +957,185 @@ class DocumentServiceTest {
 
             // then
             assertThat(result.getTitle()).isEqualTo("Full Guide");
+        }
+    }
+
+    @Nested
+    @DisplayName("moveDocument")
+    class MoveDocumentTests {
+
+        private Project targetProject;
+
+        @BeforeEach
+        void setUpTargetProject() {
+            targetProject = Project.builder()
+                    .id(2L)
+                    .name("Target Project")
+                    .description("A target project for moving documents")
+                    .slug("target-project")
+                    .createdAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should move document to target project successfully")
+        void shouldMoveDocumentToTargetProject() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.findByLinkedDocumentsId(1L)).thenReturn(List.of());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(doc.getId())
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug(doc.getSlug())
+                        .project(targetProject)
+                        .linkedDocuments(new ArrayList<>())
+                        .createdAt(doc.getCreatedAt())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.moveDocument(1L, "source-document", "target-project");
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getProjectId()).isEqualTo(2L);
+            assertThat(result.getLinkedDocuments()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when source document not found")
+        void shouldThrowWhenSourceDocumentNotFound() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("non-existent", 1L))
+                    .thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.moveDocument(1L, "non-existent", "target-project"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Document not found with slug 'non-existent' in project 1");
+
+            verify(projectRepository, never()).findBySlug(any());
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when target project not found")
+        void shouldThrowWhenTargetProjectNotFound() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("non-existent-project"))
+                    .thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.moveDocument(1L, "source-document", "non-existent-project"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Target project not found with slug: non-existent-project");
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when moving to the same project")
+        void shouldThrowWhenSameProject() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("test-project"))
+                    .thenReturn(Optional.of(testProject));
+
+            // when & then
+            assertThatThrownBy(() -> documentService.moveDocument(1L, "source-document", "test-project"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Cannot move document to the same project");
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when title already exists in target project")
+        void shouldThrowWhenTitleExistsInTarget() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document"))
+                    .thenReturn(Optional.of(targetDocument));
+
+            // when & then
+            assertThatThrownBy(() -> documentService.moveDocument(1L, "source-document", "target-project"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("A document with this title already exists in the target project");
+        }
+
+        @Test
+        @DisplayName("Should remove cross-project backlinks from source project documents")
+        void shouldRemoveCrossProjectBacklinks() {
+            // given — a document in source project that links to our moving document
+            Document backlinker = Document.builder()
+                    .id(3L)
+                    .title("Backlinker Doc")
+                    .content("Content [[Source Document]]")
+                    .slug("backlinker-doc")
+                    .project(testProject) // same as source project (1L)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            backlinker.addLinkedDocument(sourceDocument);
+
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.findByLinkedDocumentsId(1L)).thenReturn(List.of(backlinker));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            documentService.moveDocument(1L, "source-document", "target-project");
+
+            // then — backlinker should no longer link to sourceDocument
+            assertThat(backlinker.getLinkedDocuments()).doesNotContain(sourceDocument);
+        }
+
+        @Test
+        @DisplayName("Should preserve backlinks from documents in the target project")
+        void shouldPreserveBacklinksFromTargetProject() {
+            // given — a document in target project that links to our moving document
+            Document targetBacklinker = Document.builder()
+                    .id(4L)
+                    .title("Target Backlinker")
+                    .content("Content [[Source Document]]")
+                    .slug("target-backlinker")
+                    .project(targetProject) // target project (2L)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            targetBacklinker.addLinkedDocument(sourceDocument);
+
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.findByLinkedDocumentsId(1L)).thenReturn(List.of(targetBacklinker));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            documentService.moveDocument(1L, "source-document", "target-project");
+
+            // then — target backlinker should still link to sourceDocument (same project after move)
+            assertThat(targetBacklinker.getLinkedDocuments()).contains(sourceDocument);
         }
     }
 }
