@@ -6,6 +6,112 @@
   max-width: 1000px;
   margin: 0 auto;
   padding: 2rem;
+  position: relative;
+}
+
+/* Header Actions - buttons row */
+.header-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.btn-import {
+  font-size: 0.9rem;
+}
+
+/* Upload Progress Bar */
+.upload-progress-container {
+  position: relative;
+  margin-bottom: 1rem;
+  background: #e5e7eb;
+  border-radius: 6px;
+  overflow: hidden;
+  height: 28px;
+  display: flex;
+  align-items: center;
+}
+
+.upload-progress-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  transition: width 0.3s ease;
+  border-radius: 6px;
+}
+
+.upload-progress-text {
+  position: relative;
+  z-index: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  text-align: center;
+}
+
+/* Upload Error */
+.upload-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.dismiss-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  cursor: pointer;
+  font-size: 1.25rem;
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+
+.dismiss-btn:hover {
+  color: #b91c1c;
+}
+
+/* Drag & Drop Overlay */
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(79, 70, 229, 0.15);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.drag-overlay p {
+  background: white;
+  padding: 2rem 3rem;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #4f46e5;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Drag Over State */
+.project-detail.drag-over {
+  outline: 3px dashed #4f46e5;
+  outline-offset: -3px;
 }
 
 /* Breadcrumb Navigation */

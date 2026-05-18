@@ -87,4 +87,20 @@ export const documentApi = {
       if (!res.ok) throw new Error(`Failed to search documents: ${res.statusText}`);
       return res.json();
     }),
+
+  /**
+   * Upload a .md file as a new document.
+   * Endpoint: POST /projects/:slug/documents/upload (multipart/form-data)
+   */
+  upload: (projectSlug: string, file: File): Promise<Document> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/upload`, {
+      method: 'POST',
+      body: formData,
+    }).then((res) => {
+      if (!res.ok) throw new Error(`Failed to upload document: ${res.statusText}`);
+      return res.json();
+    });
+  },
 };
