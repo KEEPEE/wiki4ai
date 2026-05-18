@@ -7,13 +7,15 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar with project navigation */}
+    <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Sidebar - fixed on mobile, flex child on desktop */}
       <Sidebar />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-auto p-4 sm:p-6 lg:pl-72">
-        {children || <Outlet />}
+      <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+        <div className="max-w-7xl mx-auto w-full">
+          {children || <Outlet />}
+        </div>
       </main>
     </div>
   )
