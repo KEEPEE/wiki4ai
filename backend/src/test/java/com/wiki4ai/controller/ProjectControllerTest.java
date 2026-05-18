@@ -307,6 +307,134 @@ class ProjectControllerTest {
         }
     }
 
+    // ── ID-based endpoint tests ──────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("GET /api/v1/projects/by-id/{id} - Get project by ID")
+    class GetProjectByIdTests {
+
+        @Test
+        @DisplayName("Should return 200 with project details when found by ID")
+        void shouldReturnProjectWhenFoundById() throws Exception {
+            // given
+            ProjectDTO project = createSampleProject();
+            given(projectService.getProjectById(1L)).willReturn(project);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/by-id/1"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("Test Project"))
+                    .andExpect(jsonPath("$.id").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project not found by ID")
+        void shouldReturnNotFoundWhenNotExistsById() throws Exception {
+            // given
+            given(projectService.getProjectById(999L))
+                    .willThrow(new EntityNotFoundException("Project not found with id: 999"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/by-id/999"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Project not found with id: 999"));
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/projects/by-id/{id} - Update a project by ID")
+    class UpdateProjectByIdTests {
+
+        @Test
+        @DisplayName("Should return 200 with updated project details when found by ID")
+        void shouldUpdateProjectSuccessfullyById() throws Exception {
+            // given
+            ProjectUpdateDTO updateDto = createSampleUpdateDto();
+            ProjectDTO updated = ProjectDTO.builder()
+                    .id(1L)
+                    .name("Updated Project")
+                    .description("Updated description")
+                    .slug("test-project")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(projectService.updateProjectById(eq(1L), any(ProjectUpdateDTO.class)))
+                    .willReturn(updated);
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/by-id/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.name").value("Updated Project"))
+                    .andExpect(jsonPath("$.description").value("Updated description"));
+
+            verify(projectService).updateProjectById(eq(1L), any(ProjectUpdateDTO.class));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project not found by ID")
+        void shouldReturnNotFoundWhenNotExistsById() throws Exception {
+            // given
+            ProjectUpdateDTO updateDto = createSampleUpdateDto();
+            given(projectService.updateProjectById(eq(999L), any(ProjectUpdateDTO.class)))
+                    .willThrow(new EntityNotFoundException("Project not found with id: 999"));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/by-id/999")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Project not found with id: 999"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when validation fails")
+        void shouldReturnBadRequestWhenValidationFailsById() throws Exception {
+            // given
+            ProjectUpdateDTO invalidDto = ProjectUpdateDTO.builder().build();
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/by-id/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(invalidDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors.name").exists());
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/projects/by-id/{id} - Delete a project by ID")
+    class DeleteProjectByIdTests {
+
+        @Test
+        @DisplayName("Should return 204 when project deleted successfully by ID")
+        void shouldDeleteProjectSuccessfullyById() throws Exception {
+            // given
+            doNothing().when(projectService).deleteProject(1L);
+
+            // when & then
+            mockMvc.perform(delete("/api/v1/projects/by-id/1"))
+                    .andExpect(status().isNoContent());
+
+            verify(projectService).deleteProject(1L);
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project not found by ID")
+        void shouldReturnNotFoundWhenNotExistsById() throws Exception {
+            // given
+            doThrow(new EntityNotFoundException("Project not found with id: 999"))
+                    .when(projectService).deleteProject(999L);
+
+            // when & then
+            mockMvc.perform(delete("/api/v1/projects/by-id/999"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Project not found with id: 999"));
+        }
+    }
+
     @Nested
     @DisplayName("Swagger/OpenAPI annotations")
     class SwaggerAnnotationsTests {

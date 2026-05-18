@@ -75,4 +75,36 @@ public class ProjectController {
         projectService.deleteProjectBySlug(slug);
         return ResponseEntity.noContent().build();
     }
+
+    // ── ID-based endpoints (for frontend compatibility) ──────────────────────
+
+    @Operation(summary = "Detail projektu podľa ID", description = "Vráti detail projektu na základe jeho číselného ID.")
+    @ApiResponse(responseCode = "200", description = "Projekt úspešne načítaný")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným ID nebol nájdený")
+    @GetMapping("/by-id/{id}")
+    public ResponseEntity<ProjectDTO> getProjectById(
+            @Parameter(description = "ID projektu") @PathVariable Long id) {
+        return ResponseEntity.ok(projectService.getProjectById(id));
+    }
+
+    @Operation(summary = "Aktualizácia projektu podľa ID", description = "Aktualizuje existujúci projekt podľa číselného ID.")
+    @ApiResponse(responseCode = "200", description = "Projekt úspešne aktualizovaný")
+    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error)")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným ID nebol nájdený")
+    @PutMapping("/by-id/{id}")
+    public ResponseEntity<ProjectDTO> updateProjectById(
+            @Parameter(description = "ID projektu") @PathVariable Long id,
+            @Valid @RequestBody ProjectUpdateDTO dto) {
+        return ResponseEntity.ok(projectService.updateProjectById(id, dto));
+    }
+
+    @Operation(summary = "Vymazanie projektu podľa ID", description = "Vymaže projekt podľa číselného ID.")
+    @ApiResponse(responseCode = "204", description = "Projekt úspešne vymazaný")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným ID nebol nájdený")
+    @DeleteMapping("/by-id/{id}")
+    public ResponseEntity<Void> deleteProjectById(
+            @Parameter(description = "ID projektu") @PathVariable Long id) {
+        projectService.deleteProject(id);
+        return ResponseEntity.noContent().build();
+    }
 }

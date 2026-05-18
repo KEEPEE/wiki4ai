@@ -23,7 +23,7 @@ class ProjectApiService {
    * Get a single project by ID.
    */
   async getProjectById(id: number): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects/${id}`);
+    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`);
     if (!response.ok) {
       throw new Error(`Failed to fetch project ${id}: ${response.statusText}`);
     }
@@ -60,7 +60,7 @@ class ProjectApiService {
    * Update an existing project.
    */
   async updateProject(id: number, dto: ProjectDTO): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(dto),
@@ -75,7 +75,7 @@ class ProjectApiService {
    * Delete a project.
    */
   async deleteProject(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/projects/${id}`, {
+    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`, {
       method: 'DELETE',
     });
     if (!response.ok) {

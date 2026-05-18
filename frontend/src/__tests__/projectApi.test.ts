@@ -42,6 +42,22 @@ describe('projectApi', () => {
     })
   })
 
+  describe('getProjectById', () => {
+    it('should return project from API using by-id route', async () => {
+      const mockResponse = { id: 1, name: 'Project 1', slug: 'project-1', description: null, documentCount: 3, createdAt: '', updatedAt: '' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      })
+
+      const result = await projectApi.getProjectById(1)
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1')
+      expect(result).toEqual(mockResponse)
+    })
+  })
+
   describe('createProject', () => {
     it('should create project via POST request', async () => {
       const mockResponse = { id: 1, name: 'New Project', slug: 'new-project' }
@@ -63,7 +79,7 @@ describe('projectApi', () => {
   })
 
   describe('updateProject', () => {
-    it('should update project via PUT request', async () => {
+    it('should update project via PUT request with by-id route', async () => {
       const mockResponse = { id: 1, name: 'Updated Project', slug: 'updated-project' }
 
       mockFetch.mockResolvedValueOnce({
@@ -73,7 +89,7 @@ describe('projectApi', () => {
 
       const result = await projectApi.updateProject(1, { name: 'Updated Project' })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/1', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Updated Project' }),
@@ -83,7 +99,7 @@ describe('projectApi', () => {
   })
 
   describe('deleteProject', () => {
-    it('should delete project via DELETE request', async () => {
+    it('should delete project via DELETE request with by-id route', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({}),
@@ -91,7 +107,7 @@ describe('projectApi', () => {
 
       await projectApi.deleteProject(1)
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/1', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1', {
         method: 'DELETE',
       })
     })
