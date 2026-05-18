@@ -82,6 +82,17 @@ class ProjectApiService {
       throw new Error(`Failed to delete project ${id}: ${response.statusText}`);
     }
   }
+
+  /**
+   * Export a project as a ZIP archive.
+   */
+  async exportProject(slug: string): Promise<Blob> {
+    const response = await fetch(`${API_BASE_URL}/projects/${slug}/export`);
+    if (!response.ok) {
+      throw new Error(`Failed to export project ${slug}: ${response.statusText}`);
+    }
+    return response.blob();
+  }
 }
 
 export const projectApi = new ProjectApiService();

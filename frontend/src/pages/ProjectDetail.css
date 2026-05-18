@@ -33,6 +33,15 @@
   text-decoration: none;
 }
 
+.btn-export {
+  font-size: 0.9rem;
+}
+
+.btn-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Upload Progress Bar */
 .upload-progress-container {
   position: relative;

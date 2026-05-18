@@ -8,6 +8,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
+import { projectApi } from '../services/projectApi';
 import type { CreateDocumentDto } from '../types/document';
 import './ProjectDetail.css';
 
@@ -48,6 +49,9 @@ const ProjectDetail: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // Export state
+  const [isExporting, setIsExporting] = useState(false);
 
   // Find the project by slug
   const project = projects.find((p) => p.slug === slug);
@@ -130,6 +134,28 @@ const ProjectDetail: React.FC = () => {
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
+  };
+
+  // Export handler
+  const handleExport = async () => {
+    if (!slug || isExporting) return;
+    setIsExporting(true);
+    try {
+      const blob = await projectApi.exportProject(slug);
+      // Create a download link and trigger it
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${slug}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to export project');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Drag & drop handlers
@@ -232,6 +258,15 @@ const ProjectDetail: React.FC = () => {
             title="Import .md file"
           >
             📁 Import file
+          </button>
+          <button
+            onClick={handleExport}
+            className="btn-secondary btn-export"
+            disabled={isExporting}
+            data-testid="export-button"
+            title="Export project as ZIP"
+          >
+            {isExporting ? '⏳ Exporting...' : '📦 Export'}
           </button>
           <Link
             to={`/projects/${slug}/settings`}
