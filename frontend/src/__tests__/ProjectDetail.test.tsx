@@ -19,6 +19,12 @@ vi.mock('../hooks/useDocuments', () => ({
   useSearchDocuments: vi.fn(),
 }))
 
+vi.mock('../services/projectApi', () => ({
+  projectApi: {
+    exportProject: vi.fn(),
+  },
+}))
+
 function renderWithProviders(ui: React.ReactElement, { route = '/projects/test-project' } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -585,6 +591,151 @@ describe('ProjectDetail', () => {
       await waitFor(() => {
         expect(screen.getByText('Project Settings')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Export', () => {
+    it('should render export button on Project Detail page', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('export-button')).toBeInTheDocument()
+      })
+    })
+
+    it('should have correct export button text', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Export/)).toBeInTheDocument()
+      })
+    })
+
+    it('should call export API and trigger download when export button is clicked', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      const { projectApi } = await import('../services/projectApi')
+      vi.mocked(projectApi.exportProject).mockResolvedValue(new Blob(['test zip content'], { type: 'application/zip' }))
+
+      renderWithProviders(<ProjectDetail />)
+
+      const user = userEvent.setup()
+
+      const exportButton = await waitFor(() => screen.getByTestId('export-button'))
+      expect(exportButton).toBeInTheDocument()
+
+      // Mock URL.createObjectURL and URL.revokeObjectURL
+      const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('mock-url')
+      const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(vi.fn())
+
+      await user.click(exportButton)
+
+      await waitFor(() => {
+        expect(projectApi.exportProject).toHaveBeenCalledWith('test-project')
+      }, { timeout: 3000 })
+
+      // Verify download was triggered via anchor element
+      await waitFor(() => {
+        expect(createObjectUrlSpy).toHaveBeenCalled()
+      }, { timeout: 3000 })
+
+      createObjectUrlSpy.mockRestore()
+      revokeObjectUrlSpy.mockRestore()
+    })
+
+    it('should show loading state while exporting', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      const { projectApi } = await import('../services/projectApi')
+
+      // Create a deferred promise to control when export resolves
+      let resolveExport: (() => void) | undefined
+      const pendingPromise = new Promise<Blob>((resolve) => {
+        resolveExport = () => resolve(new Blob(['test'], { type: 'application/zip' }))
+      })
+      vi.mocked(projectApi.exportProject).mockReturnValue(pendingPromise)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const user = userEvent.setup()
+
+      const exportButton = await waitFor(() => screen.getByTestId('export-button'))
+      expect(exportButton).toHaveTextContent(/Export/)
+
+      await user.click(exportButton)
+
+      // Button should show loading text immediately after click
+      await waitFor(() => {
+        expect(screen.getByTestId('export-button')).toHaveTextContent(/Exporting/)
+        expect(screen.getByTestId('export-button')).toBeDisabled()
+      }, { timeout: 3000 })
+
+      // Resolve the promise to clean up
+      resolveExport?.()
     })
   })
 })
