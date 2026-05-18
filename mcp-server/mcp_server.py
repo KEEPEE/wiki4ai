@@ -165,6 +165,31 @@ def create_document(project_slug: str, title: str, content: Optional[str] = None
     return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
 
 
+def batch_create_documents(project_slug: str, documents: list[dict]) -> list[dict]:
+    """Create multiple wiki documents within a project in a single call.
+
+    Each document dict should have:
+        - title (str, required): The title of the document
+        - content (str, optional): Markdown content for the document
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        documents: List of document dicts with 'title' and optional 'content' keys
+
+    Returns:
+        List of created DocumentDTO objects, one per input document.
+        Each contains id, title, slug, projectId, createdAt, updatedAt.
+    """
+    results = []
+    for doc in documents:
+        body = {"title": doc["title"]}
+        if "content" in doc and doc["content"] is not None:
+            body["content"] = doc["content"]
+        created = _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
+        results.append(created)
+    return results
+
+
 def get_document(project_slug: str, doc_slug: str) -> dict:
     """Get a specific document by its slug within a project.
 
@@ -310,7 +335,7 @@ def create_mcp_server() -> FastMCP:
     for func in [
         health_check,
         list_projects, get_project, create_project, update_project, delete_project,
-        list_documents, create_document, get_document, update_document,
+        list_documents, create_document, batch_create_documents, get_document, update_document,
         delete_document, get_document_content,
         add_link, remove_link, get_links, get_backlinks,
         search_documents,
