@@ -16,6 +16,7 @@ vi.mock('../hooks/useProjects', () => ({
 
 vi.mock('../hooks/useDocuments', () => ({
   useDocuments: vi.fn(),
+  useSearchDocuments: vi.fn(),
 }))
 
 function renderWithProviders(ui: React.ReactElement, { route = '/projects/test-project' } = {}) {
@@ -50,9 +51,12 @@ describe('ProjectDetail', () => {
         projects: [], isLoading: true, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: true, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -68,9 +72,12 @@ describe('ProjectDetail', () => {
         projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -92,9 +99,12 @@ describe('ProjectDetail', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -116,9 +126,12 @@ describe('ProjectDetail', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -145,9 +158,12 @@ describe('ProjectDetail', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: mockDocuments, isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -169,9 +185,12 @@ describe('ProjectDetail', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -193,9 +212,12 @@ describe('ProjectDetail', () => {
         projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any)
 
-      const { useDocuments } = await import('../hooks/useDocuments')
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
         documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
       } as any)
 
       renderWithProviders(<ProjectDetail />)
@@ -207,6 +229,139 @@ describe('ProjectDetail', () => {
       })
 
       await user.click(screen.getByText('+ Nový dokument'))
+    })
+  })
+
+  describe('Search documents', () => {
+    it('should render search input in Project Detail page', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('document-search-input')).toBeInTheDocument()
+      })
+    })
+
+    it('should have correct placeholder text', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const searchInput = await waitFor(() => screen.getByTestId('document-search-input'))
+      expect(searchInput).toHaveAttribute('placeholder', 'Search documents...')
+    })
+
+    it('should show loading state during search', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      // Simulate searching state with hasSearched=true and isLoading=true
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: true, hasSearched: true,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Searching/)).toBeInTheDocument()
+      })
+    })
+
+    it('should show "No documents match your search" when no results', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      // Simulate search completed with no results
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: true,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/No documents match your search/)).toBeInTheDocument()
+      })
+    })
+
+    it('should display search results when search returns matches', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const mockSearchResults = [
+        { id: 1, title: 'Matching Doc', content: '', projectId: 1, createdAt: '', updatedAt: '2024-01-01' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      // Simulate search completed with results
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: mockSearchResults, isLoading: false, hasSearched: true,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Matching Doc')).toBeInTheDocument()
+      })
     })
   })
 })

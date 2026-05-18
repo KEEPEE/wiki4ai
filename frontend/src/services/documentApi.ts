@@ -77,4 +77,14 @@ export const documentApi = {
     }).then((res) => {
       if (!res.ok && res.status !== 204) throw new Error(`Failed to delete document ${docSlug}: ${res.statusText}`);
     }),
+
+  /**
+   * Search documents in a project by keyword.
+   * Endpoint: GET /projects/:slug/documents/search?keyword={keyword}
+   */
+  search: (projectSlug: string, keyword: string): Promise<Document[]> =>
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/search?keyword=${encodeURIComponent(keyword)}`).then((res) => {
+      if (!res.ok) throw new Error(`Failed to search documents: ${res.statusText}`);
+      return res.json();
+    }),
 };
