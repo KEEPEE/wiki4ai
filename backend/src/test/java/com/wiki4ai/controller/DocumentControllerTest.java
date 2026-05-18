@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -820,6 +821,205 @@ class DocumentControllerTest {
 
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/test-doc"))
                     .andExpect(status().isNoContent());
+        }
+    }
+
+    // ==================== UPLOAD DOCUMENT TESTS ====================
+
+    @Nested
+    @DisplayName("POST /api/v1/projects/{projectSlug}/documents/upload - Upload markdown file")
+    class UploadDocumentTests {
+
+        @Test
+        @DisplayName("Should return 201 with created document when uploading valid .md file")
+        void shouldUploadMdFileSuccessfully() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String fileContent = "# My Uploaded Document\nThis is the content.";
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "My Uploaded Document.md",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    fileContent.getBytes()
+            );
+
+            DocumentDTO created = DocumentDTO.builder()
+                    .id(10L)
+                    .title("My Uploaded Document")
+                    .content(fileContent)
+                    .slug("my-uploaded-document")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent)))
+                    .willReturn(created);
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(10))
+                    .andExpect(jsonPath("$.title").value("My Uploaded Document"))
+                    .andExpect(jsonPath("$.slug").value("my-uploaded-document"));
+
+            verify(documentService).uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent));
+        }
+
+        @Test
+        @DisplayName("Should return 201 when uploading valid .markdown file")
+        void shouldUploadMarkdownFileSuccessfully() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String fileContent = "# API Reference\nFull API docs.";
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "API Reference.markdown",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    fileContent.getBytes()
+            );
+
+            DocumentDTO created = DocumentDTO.builder()
+                    .id(11L)
+                    .title("API Reference")
+                    .content(fileContent)
+                    .slug("api-reference")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent)))
+                    .willReturn(created);
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.title").value("API Reference"));
+
+            verify(documentService).uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when uploading invalid file format (.txt)")
+        void shouldRejectInvalidFileFormat() throws Exception {
+            // given
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "notes.txt",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    "Some text content".getBytes()
+            );
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            "Invalid file format. Only .md and .markdown files are allowed."));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when uploading invalid file format (.pdf)")
+        void shouldRejectPdfFile() throws Exception {
+            // given
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "document.pdf",
+                    MediaType.APPLICATION_PDF_VALUE,
+                    "%PDF-1.4 fake pdf content".getBytes()
+            );
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            "Invalid file format. Only .md and .markdown files are allowed."));
+        }
+
+        @Test
+        @DisplayName("Should return 409 when document with same title already exists")
+        void shouldReturnConflictWhenTitleExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "Existing Document.md",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    "# Existing".getBytes()
+            );
+
+            given(documentService.uploadDocument(eq(1L), eq("Existing Document.md"), any()))
+                    .willThrow(new IllegalArgumentException(
+                            "A document with this title already exists in the project"));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.message").value(
+                            "A document with this title already exists in the project"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project does not exist")
+        void shouldReturnNotFoundWhenProjectNotExists() throws Exception {
+            // given
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "New Doc.md",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    "# New".getBytes()
+            );
+
+            given(projectService.getProjectBySlug("non-existent-project"))
+                    .willThrow(new EntityNotFoundException("Project not found with slug 'non-existent-project'"));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/non-existent-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Project not found with slug 'non-existent-project'"));
+        }
+
+        @Test
+        @DisplayName("Should handle file content with special characters and UTF-8 encoding")
+        void shouldHandleUtf8Content() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String fileContent = "# Special document\nContent with unicode: hello world.";
+            MockMultipartFile file = new MockMultipartFile(
+                    "file",
+                    "Special Document.md",
+                    MediaType.TEXT_PLAIN_VALUE,
+                    fileContent.getBytes()
+            );
+
+            DocumentDTO created = DocumentDTO.builder()
+                    .id(12L)
+                    .title("Special Document")
+                    .content(fileContent)
+                    .slug("special-document")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.uploadDocument(eq(1L), eq("Special Document.md"), eq(fileContent)))
+                    .willReturn(created);
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/projects/test-project/documents/upload")
+                            .file(file))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.title").value("Special Document"));
         }
     }
 }

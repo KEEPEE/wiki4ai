@@ -15,9 +15,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -175,5 +180,48 @@ public class DocumentController {
         Long projectId = resolveProjectId(projectSlug);
         List<DocumentDTO> results = documentService.searchDocuments(projectId, keyword.trim());
         return ResponseEntity.ok(results);
+    }
+
+    // ==================== Upload Endpoint ====================
+
+    @Operation(summary = "Upload markdown súbor", description = "Nahraje .md alebo .markdown súbor a vytvorí z neho dokument v projekte.")
+    @ApiResponse(responseCode = "201", description = "Dokument úspešne vytvorený z nahraného súboru")
+    @ApiResponse(responseCode = "400", description = "Neplatný formát súboru (len .md a .markdown)")
+    @ApiResponse(responseCode = "409", description = "Dokument s rovnakým názvom už existuje v projekte")
+    @ApiResponse(responseCode = "413", description = "Súbor je príliš veľký (max 5MB)")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<DocumentDTO> uploadDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Markdown súbor (.md alebo .markdown)") @RequestParam("file") MultipartFile file) throws IOException {
+
+        // Validate file extension
+        String filename = file.getOriginalFilename();
+        if (!isValidMarkdownFile(filename)) {
+            throw new IllegalArgumentException(
+                    "Invalid file format. Only .md and .markdown files are allowed.");
+        }
+
+        Long projectId = resolveProjectId(projectSlug);
+
+        // Read file content as text
+        String content = new String(file.getBytes(), StandardCharsets.UTF_8);
+
+        DocumentDTO created = documentService.uploadDocument(projectId, filename, content);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /**
+     * Check if the given filename has a valid markdown extension (.md or .markdown).
+     */
+    private boolean isValidMarkdownFile(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return false;
+        }
+        int lastDot = filename.lastIndexOf('.');
+        if (lastDot <= 0) {
+            return false;
+        }
+        String extension = filename.substring(lastDot + 1).toLowerCase();
+        return "md".equals(extension) || "markdown".equals(extension);
     }
 }

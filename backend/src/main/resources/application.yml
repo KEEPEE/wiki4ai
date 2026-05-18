@@ -5,6 +5,11 @@ spring:
   application:
     name: wiki4ai-backend
   
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+  
   # Default profile uses H2 for development
   datasource:
     url: jdbc:h2:mem:wiki4ai;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
