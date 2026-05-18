@@ -3,10 +3,11 @@
  * Displays a rendered markdown document with wiki-style links and breadcrumb navigation.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
 import { documentApi } from '../services/documentApi';
+import type { Document } from '../types/document';
 import './DocumentViewer.css';
 
 interface DocumentViewerProps {
@@ -23,33 +24,47 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [wikiLinks, setWikiLinks] = useState<string[]>([]);
+  const [backlinks, setBacklinks] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadDocument = useCallback(async () => {
     if (!projectSlug || !docSlug) return;
 
-    const loadDocument = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await documentApi.getContent(projectSlug, docSlug);
-        setTitle(data.title);
-        setContent(data.content);
-        setWikiLinks(data.wikiLinks || []);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load document';
-        setError(message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await documentApi.getContent(projectSlug, docSlug);
+      setTitle(data.title);
+      setContent(data.content);
+      setWikiLinks(data.wikiLinks || []);
 
-    loadDocument();
+      // Fetch backlinks in parallel after content loads
+      try {
+        const backlinkDocs = await documentApi.getBacklinks(projectSlug, docSlug);
+        setBacklinks(backlinkDocs);
+      } catch {
+        // Silently ignore backlink errors - non-critical feature
+        setBacklinks([]);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load document';
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, [projectSlug, docSlug]);
+
+  useEffect(() => {
+    loadDocument();
+  }, [loadDocument]);
 
   const handleLinkClick = (linkSlug: string) => {
     navigate(`/projects/${projectSlug}/documents/${linkSlug}`);
+  };
+
+  const handleBacklinkClick = (backlinkDoc: Document) => {
+    navigate(`/projects/${projectSlug}/documents/${backlinkDoc.slug || backlinkDoc.title.toLowerCase()}`);
   };
 
   const handleEdit = () => {
@@ -114,6 +129,28 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       <div className="document-content">
         <MarkdownViewer content={content} wikiLinks={wikiLinks} onLinkClick={handleLinkClick} />
       </div>
+
+      {/* Backlinks Section - Linked from */}
+      <section className="backlinks-section" aria-label="Linked from">
+        <h3>🔗 Linked from ({backlinks.length})</h3>
+        {backlinks.length > 0 ? (
+          <ul className="backlinks-list">
+            {backlinks.map((doc) => (
+              <li key={doc.id} className="backlink-item">
+                <button
+                  className="backlink-link"
+                  onClick={() => handleBacklinkClick(doc)}
+                  type="button"
+                >
+                  {doc.title}
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="no-backlinks">No documents link to this page</p>
+        )}
+      </section>
     </div>
   );
 };
