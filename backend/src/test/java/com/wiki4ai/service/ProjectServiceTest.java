@@ -1,7 +1,9 @@
 package com.wiki4ai.service;
 
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
+import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,9 +15,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,6 +37,9 @@ class ProjectServiceTest {
 
     @Mock
     private ProjectRepository projectRepository;
+
+    @Mock
+    private DocumentRepository documentRepository;
 
     @InjectMocks
     private ProjectService projectService;
@@ -368,6 +377,131 @@ class ProjectServiceTest {
             // then
             assertThat(result).isNotNull();
             assertThat(result.getDescription()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("exportProjectAsZip")
+    class ExportProjectAsZipTests {
+
+        @Test
+        @DisplayName("Should create ZIP with all documents when project has documents")
+        void shouldCreateZipWithDocuments() throws Exception {
+            // given
+            Project project = existingProject;
+            Document doc1 = Document.builder()
+                    .id(1L)
+                    .title("First Doc")
+                    .slug("first-doc")
+                    .content("# First Document\n\nSome content here.")
+                    .project(project)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            Document doc2 = Document.builder()
+                    .id(2L)
+                    .title("Second Doc")
+                    .slug("second-doc")
+                    .content("# Second Document\n\nMore content.")
+                    .project(project)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            when(projectRepository.findBySlug("existing-project")).thenReturn(Optional.of(project));
+            when(documentRepository.findByProjectId(1L)).thenReturn(List.of(doc1, doc2));
+
+            // when
+            byte[] zipData = projectService.exportProjectAsZip("existing-project");
+
+            // then
+            assertThat(zipData).isNotEmpty();
+
+            // Verify ZIP contents
+            try (ZipInputStream zis = new ZipInputStream(new java.io.ByteArrayInputStream(zipData))) {
+                ZipEntry entry;
+                int docCount = 0;
+                while ((entry = zis.getNextEntry()) != null) {
+                    docCount++;
+                    if ("first-doc.md".equals(entry.getName())) {
+                        String content = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
+                        assertThat(content).contains("First Document");
+                    } else if ("second-doc.md".equals(entry.getName())) {
+                        String content = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
+                        assertThat(content).contains("Second Document");
+                    }
+                    zis.closeEntry();
+                }
+                assertThat(docCount).isEqualTo(2);
+            }
+        }
+
+        @Test
+        @DisplayName("Should create empty ZIP when project has no documents")
+        void shouldCreateEmptyZipForProjectWithoutDocuments() throws Exception {
+            // given
+            Project project = existingProject;
+            when(projectRepository.findBySlug("existing-project")).thenReturn(Optional.of(project));
+            when(documentRepository.findByProjectId(1L)).thenReturn(Collections.emptyList());
+
+            // when
+            byte[] zipData = projectService.exportProjectAsZip("existing-project");
+
+            // then
+            assertThat(zipData).isNotEmpty(); // ZIP file header is always present
+
+            // Verify empty ZIP (no entries)
+            try (ZipInputStream zis = new ZipInputStream(new java.io.ByteArrayInputStream(zipData))) {
+                ZipEntry entry = zis.getNextEntry();
+                assertThat(entry).isNull(); // No entries in the ZIP
+            }
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when project not found")
+        void shouldThrowWhenProjectNotFound() {
+            // given
+            when(projectRepository.findBySlug("non-existent")).thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> projectService.exportProjectAsZip("non-existent"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Project not found with slug: non-existent");
+
+            verify(documentRepository, never()).findByProjectId(any());
+        }
+
+        @Test
+        @DisplayName("Should handle document with null content gracefully")
+        void shouldHandleNullContentDocument() throws Exception {
+            // given
+            Project project = existingProject;
+            Document docWithNullContent = Document.builder()
+                    .id(1L)
+                    .title("Empty Doc")
+                    .slug("empty-doc")
+                    .content(null)
+                    .project(project)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            when(projectRepository.findBySlug("existing-project")).thenReturn(Optional.of(project));
+            when(documentRepository.findByProjectId(1L)).thenReturn(List.of(docWithNullContent));
+
+            // when
+            byte[] zipData = projectService.exportProjectAsZip("existing-project");
+
+            // then
+            assertThat(zipData).isNotEmpty();
+
+            try (ZipInputStream zis = new ZipInputStream(new java.io.ByteArrayInputStream(zipData))) {
+                ZipEntry entry = zis.getNextEntry();
+                assertThat(entry).isNotNull();
+                assertThat(entry.getName()).isEqualTo("empty-doc.md");
+                String content = new String(zis.readAllBytes(), StandardCharsets.UTF_8);
+                assertThat(content).isEmpty(); // null content becomes empty string
+            }
         }
     }
 }

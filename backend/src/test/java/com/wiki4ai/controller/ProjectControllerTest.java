@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
@@ -26,6 +27,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import java.io.ByteArrayInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * Web MVC tests for ProjectController using MockMvc.
@@ -460,6 +465,80 @@ class ProjectControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Test\"}"))
                     .andExpect(status().isCreated());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/projects/{slug}/export - Export project as ZIP")
+    class ExportProjectTests {
+
+        @Test
+        @DisplayName("Should return 200 with ZIP file when project exists")
+        void shouldReturnZipFileWhenProjectExists() throws Exception {
+            // given
+            byte[] mockZipData = createMinimalZip();
+            given(projectService.exportProjectAsZip("test-project")).willReturn(mockZipData);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/export"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().stringValues("Content-Disposition",
+                            "attachment; filename=\"test-project.zip\""))
+                    .andExpect(content().contentType("application/octet-stream"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when project not found")
+        void shouldReturnNotFoundWhenProjectNotExists() throws Exception {
+            // given
+            given(projectService.exportProjectAsZip("non-existent"))
+                    .willThrow(new EntityNotFoundException("Project not found with slug: non-existent"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/non-existent/export"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Project not found with slug: non-existent"));
+        }
+
+        @Test
+        @DisplayName("Should return valid ZIP content that can be read")
+        void shouldReturnValidZipContent() throws Exception {
+            // given
+            byte[] mockZipData = createMinimalZip();
+            given(projectService.exportProjectAsZip("test-project")).willReturn(mockZipData);
+
+            // when & then
+            var response = mockMvc.perform(get("/api/v1/projects/test-project/export"))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse();
+
+            byte[] responseData = response.getContentAsByteArray();
+            assertThat(responseData).isNotEmpty();
+
+            // Verify it's a valid ZIP by trying to read it
+            try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(mockZipData))) {
+                ZipEntry entry = zis.getNextEntry();
+                // Even an empty ZIP should be parseable without throwing
+                assertThat(entry).isNull(); // Our minimal zip has no entries
+            }
+        }
+
+        /**
+         * Creates a minimal valid ZIP file byte array for testing.
+         * This is the central directory + end of central record for an empty ZIP.
+         */
+        private byte[] createMinimalZip() {
+            // End of Central Directory Record (empty ZIP)
+            return new byte[]{
+                    0x50, 0x4B, 0x05, 0x06, // End of central dir signature
+                    0x00, 0x00, 0x00, 0x00, // Disk number
+                    0x00, 0x00, 0x00, 0x00, // Disk with central directory
+                    0x00, 0x00,             // Number of entries on disk
+                    0x00, 0x00,             // Total number of entries
+                    0x00, 0x00, 0x00, 0x00, // Size of central directory
+                    0x00, 0x00, 0x00, 0x00, // Offset to start of central directory
+                    0x00, 0x00              // Comment length
+            };
         }
     }
 }

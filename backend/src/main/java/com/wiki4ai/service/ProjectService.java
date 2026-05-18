@@ -3,14 +3,20 @@ package com.wiki4ai.service;
 import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
+import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
+import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +29,7 @@ import java.util.stream.Collectors;
 public class ProjectService {
 
     private final ProjectRepository projectRepository;
+    private final DocumentRepository documentRepository;
 
     /**
      * Get all projects ordered by creation date (newest first).
@@ -190,6 +197,37 @@ public class ProjectService {
 
         Project saved = projectRepository.save(project);
         return convertToDTO(saved);
+    }
+
+    /**
+     * Export all documents of a project as a ZIP archive.
+     * Each document is stored as {slug}.md with its raw markdown content.
+     * The ZIP filename is {project-slug}.zip.
+     *
+     * @param slug the project slug
+     * @return byte array containing the ZIP file
+     * @throws EntityNotFoundException if project not found
+     */
+    public byte[] exportProjectAsZip(String slug) {
+        Project project = projectRepository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+
+        List<Document> documents = documentRepository.findByProjectId(project.getId());
+
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream();
+             ZipOutputStream zos = new ZipOutputStream(baos)) {
+            for (Document doc : documents) {
+                String entryName = doc.getSlug() + ".md";
+                zos.putNextEntry(new ZipEntry(entryName));
+                String content = doc.getContent() != null ? doc.getContent() : "";
+                zos.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+            zos.finish();
+            return baos.toByteArray();
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to create ZIP archive for project: " + slug, e);
+        }
     }
 
     /**

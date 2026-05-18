@@ -10,7 +10,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -74,6 +77,23 @@ public class ProjectController {
             @Parameter(description = "Slug projektu") @PathVariable String slug) {
         projectService.deleteProjectBySlug(slug);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Export projektu ako ZIP", description = "Exportuje všetky dokumenty projektu ako ZIP archív s .md súbormi.")
+    @ApiResponse(responseCode = "200", description = "ZIP archív úspešne vytvorený")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @GetMapping(value = "/{slug}/export", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    public ResponseEntity<ByteArrayResource> exportProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug) {
+        byte[] zipData = projectService.exportProjectAsZip(slug);
+        ByteArrayResource resource = new ByteArrayResource(zipData);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + slug + ".zip\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .contentLength(zipData.length)
+                .body(resource);
     }
 
     // ── ID-based endpoints (for frontend compatibility) ──────────────────────
