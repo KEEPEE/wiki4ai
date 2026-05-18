@@ -5,6 +5,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +42,16 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
      * @return list of documents in the project
      */
     List<Document> findByProjectId(Long projectId);
+
+    /**
+     * Find paginated documents belonging to a specific project, ordered by update date (newest first).
+     * Used for paginated API responses when a project has many documents.
+     *
+     * @param projectId the project ID
+     * @param pageable  pagination parameters (page number, page size, sort)
+     * @return Page of documents with metadata (totalElements, totalPages, etc.)
+     */
+    Page<Document> findByProjectIdOrderByUpdatedAtDesc(Long projectId, Pageable pageable);
 
     /**
      * Find a document by its title within a specific project.

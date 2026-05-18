@@ -13,6 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -41,6 +44,19 @@ public class DocumentService {
                 .stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Get paginated documents in a project, ordered by update date (newest first).
+     * Returns a Page with metadata including totalElements, totalPages, numberOfElements, etc.
+     *
+     * @param projectId the project ID
+     * @param pageable  pagination parameters (page number, page size, sort)
+     * @return Page of DocumentDTOs with full pagination metadata
+     */
+    public Page<DocumentDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable) {
+        return documentRepository.findByProjectIdOrderByUpdatedAtDesc(projectId, pageable)
+                .map(this::convertToDTO);
     }
 
     /**
