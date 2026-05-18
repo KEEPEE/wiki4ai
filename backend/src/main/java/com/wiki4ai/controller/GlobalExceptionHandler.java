@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -63,8 +64,8 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Handle illegal argument exceptions (e.g., duplicate name).
-     * Returns 409 Conflict with a descriptive message.
+     * Handle illegal argument exceptions (e.g., duplicate name, invalid file format).
+     * Returns 409 Conflict for business rule violations or 400 Bad Request for validation errors.
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(
@@ -72,11 +73,35 @@ public class GlobalExceptionHandler {
 
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now().toString());
-        body.put("status", HttpStatus.CONFLICT.value());
-        body.put("error", "Conflict");
+
+        // Distinguish between validation errors (400) and business rule violations (409)
+        if (ex.getMessage() != null && ex.getMessage().contains("Invalid file format")) {
+            body.put("status", HttpStatus.BAD_REQUEST.value());
+            body.put("error", "Bad Request");
+        } else {
+            body.put("status", HttpStatus.CONFLICT.value());
+            body.put("error", "Conflict");
+        }
         body.put("message", ex.getMessage());
 
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+        return ResponseEntity.status((Integer) body.get("status")).body(body);
+    }
+
+    /**
+     * Handle max upload size exceeded exceptions.
+     * Returns 413 Payload Too Large with a descriptive message.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(
+            MaxUploadSizeExceededException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
+        body.put("error", "Payload Too Large");
+        body.put("message", "File size exceeds the maximum allowed size of 5MB");
+
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
     }
 
     /**

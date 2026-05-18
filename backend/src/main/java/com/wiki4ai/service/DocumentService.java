@@ -191,6 +191,68 @@ public class DocumentService {
     }
 
     /**
+     * Upload a markdown file and create a document from it.
+     * The filename (without extension) is used as the document title.
+     * The file content is used as the document content.
+     *
+     * @param projectId the parent project ID
+     * @param filename  the original filename of the uploaded file
+     * @param content   the raw text content of the file
+     * @return created DocumentDTO
+     * @throws IllegalArgumentException if title already exists in the project
+     */
+    @Transactional
+    public DocumentDTO uploadDocument(Long projectId, String filename, String content) {
+        // Extract title from filename (remove .md or .markdown extension)
+        String title = extractTitleFromFilename(filename);
+
+        // Validate that the project exists
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
+
+        // Validate title uniqueness within project
+        if (documentRepository.findByProjectIdAndTitle(projectId, title).isPresent()) {
+            throw new IllegalArgumentException(
+                    "A document with this title already exists in the project");
+        }
+
+        Document document = Document.builder()
+                .title(title)
+                .content(content)
+                .project(project)
+                .build();
+
+        Document saved = documentRepository.save(document);
+        return convertToDTO(saved);
+    }
+
+    /**
+     * Extract a document title from an uploaded filename.
+     * Removes the file extension (.md or .markdown) and returns the base name.
+     * If the filename has no recognized extension, the full filename is returned as-is.
+     *
+     * @param filename the original filename (e.g. "My Document.md")
+     * @return the extracted title (e.g. "My Document")
+     */
+    public static String extractTitleFromFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "";
+        }
+
+        String name = filename;
+        int lastDot = name.lastIndexOf('.');
+        if (lastDot > 0) {
+            String extension = name.substring(lastDot + 1).toLowerCase();
+            if ("md".equals(extension) || "markdown".equals(extension)) {
+                name = name.substring(0, lastDot);
+            }
+        }
+
+        // Trim whitespace from the result
+        return name.trim();
+    }
+
+    /**
      * Add a link between two documents.
      * Validates that both documents exist and belong to the same project.
      * Prevents self-linking and duplicate links.

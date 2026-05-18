@@ -723,4 +723,165 @@ class DocumentServiceTest {
             assertThat(result.getLinkedDocuments()).isEmpty();
         }
     }
+
+    @Nested
+    @DisplayName("extractTitleFromFilename (static)")
+    class ExtractTitleFromFilenameTests {
+
+        @Test
+        @DisplayName("Should extract title from .md filename")
+        void shouldExtractTitleFromMdFile() {
+            assertThat(DocumentService.extractTitleFromFilename("My Document.md"))
+                    .isEqualTo("My Document");
+        }
+
+        @Test
+        @DisplayName("Should extract title from .markdown filename")
+        void shouldExtractTitleFromMarkdownFile() {
+            assertThat(DocumentService.extractTitleFromFilename("API Reference.markdown"))
+                    .isEqualTo("API Reference");
+        }
+
+        @Test
+        @DisplayName("Should return full filename when extension is not recognized")
+        void shouldReturnFullFilenameForUnknownExtension() {
+            assertThat(DocumentService.extractTitleFromFilename("notes.txt"))
+                    .isEqualTo("notes.txt");
+        }
+
+        @Test
+        @DisplayName("Should handle filename with no extension")
+        void shouldHandleNoExtension() {
+            assertThat(DocumentService.extractTitleFromFilename("README"))
+                    .isEqualTo("README");
+        }
+
+        @Test
+        @DisplayName("Should trim whitespace from extracted title")
+        void shouldTrimWhitespace() {
+            // trim() removes leading and trailing whitespace from the final result
+            assertThat(DocumentService.extractTitleFromFilename("  My Doc  .md"))
+                    .isEqualTo("My Doc");
+        }
+
+        @Test
+        @DisplayName("Should return empty string for null filename")
+        void shouldReturnEmptyForNull() {
+            assertThat(DocumentService.extractTitleFromFilename(null))
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should return empty string for blank filename")
+        void shouldReturnEmptyForBlank() {
+            assertThat(DocumentService.extractTitleFromFilename("   "))
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should handle uppercase .MD extension")
+        void shouldHandleUppercaseExtension() {
+            assertThat(DocumentService.extractTitleFromFilename("My Document.MD"))
+                    .isEqualTo("My Document");
+        }
+
+        @Test
+        @DisplayName("Should handle mixed case .Markdown extension")
+        void shouldHandleMixedCaseExtension() {
+            assertThat(DocumentService.extractTitleFromFilename("Notes.Markdown"))
+                    .isEqualTo("Notes");
+        }
+    }
+
+    @Nested
+    @DisplayName("uploadDocument")
+    class UploadDocumentTests {
+
+        @Test
+        @DisplayName("Should create document from uploaded file with title extracted from filename")
+        void shouldCreateDocumentFromUpload() {
+            // given
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
+            when(documentRepository.findByProjectIdAndTitle(1L, "My Guide"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(5L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("my-guide")
+                        .project(testProject)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.uploadDocument(1L, "My Guide.md", "# My Guide\nContent here");
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("My Guide");
+            assertThat(result.getContent()).isEqualTo("# My Guide\nContent here");
+            assertThat(result.getProjectId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when project does not exist")
+        void shouldThrowWhenProjectNotFound() {
+            // given
+            when(projectRepository.findById(99L)).thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.uploadDocument(99L, "test.md", "content"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Project not found with id: 99");
+
+            verify(documentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should throw IllegalArgumentException when title already exists")
+        void shouldThrowWhenTitleExists() {
+            // given
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
+            when(documentRepository.findByProjectIdAndTitle(1L, "Existing"))
+                    .thenReturn(Optional.of(sourceDocument));
+
+            // when & then
+            assertThatThrownBy(() -> documentService.uploadDocument(1L, "Existing.md", "content"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("A document with this title already exists in the project");
+
+            verify(documentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("Should handle .markdown extension correctly")
+        void shouldHandleMarkdownExtension() {
+            // given
+            when(projectRepository.findById(1L)).thenReturn(Optional.of(testProject));
+            when(documentRepository.findByProjectIdAndTitle(1L, "Full Guide"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(6L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("full-guide")
+                        .project(testProject)
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.uploadDocument(1L, "Full Guide.markdown", "# Full");
+
+            // then
+            assertThat(result.getTitle()).isEqualTo("Full Guide");
+        }
+    }
 }
