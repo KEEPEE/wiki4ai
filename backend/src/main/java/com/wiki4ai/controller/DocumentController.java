@@ -155,4 +155,25 @@ public class DocumentController {
         Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
         return ResponseEntity.ok(documentService.getLinkedDocuments(sourceDocId));
     }
+
+    // ==================== Search Endpoint ====================
+
+    @Operation(summary = "Vyhľadávanie dokumentov v projekte", description = "Vyhľadá dokumenty podľa kľúčového slova v obsahu v rámci projektu.")
+    @ApiResponse(responseCode = "200", description = "Výsledky vyhľadávania úspešne vrátené")
+    @ApiResponse(responseCode = "400", description = "Neplatný keyword (musí byť aspoň 2 znaky)")
+    @ApiResponse(responseCode = "404", description = "Projekt nebol nájdený")
+    @GetMapping("/search")
+    public ResponseEntity<List<DocumentDTO>> searchDocuments(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Kľúčové slovo na vyhľadávanie (min. 2 znaky)") @RequestParam(required = false) String keyword) {
+
+        // Validate keyword - must be at least 2 characters
+        if (keyword == null || keyword.trim().length() < 2) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        Long projectId = resolveProjectId(projectSlug);
+        List<DocumentDTO> results = documentService.searchDocuments(projectId, keyword.trim());
+        return ResponseEntity.ok(results);
+    }
 }
