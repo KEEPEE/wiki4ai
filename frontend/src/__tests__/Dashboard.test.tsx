@@ -717,4 +717,214 @@ describe('Dashboard', () => {
       expect(screen.getByTestId('delete-modal')).toBeInTheDocument()
     })
   })
+
+  describe('Search/filter functionality', () => {
+    const mockProjects = [
+      { id: 1, name: 'Project Alpha', slug: 'project-alpha', description: 'A testing framework project', documentCount: 5, createdAt: '', updatedAt: '' },
+      { id: 2, name: 'Project Beta', slug: 'project-beta', description: 'Backend API service', documentCount: 3, createdAt: '', updatedAt: '' },
+      { id: 3, name: 'Gamma Docs', slug: 'gamma-docs', description: null, documentCount: 10, createdAt: '', updatedAt: '' },
+    ]
+
+    it('should render search input when projects exist', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      const searchInput = screen.getByTestId('search-input')
+      expect(searchInput).toBeInTheDocument()
+      expect(searchInput).toHaveAttribute('placeholder', 'Search projects...')
+    })
+
+    it('should not render search input when no projects exist', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
+    })
+
+    it('should filter projects by name when typing in search input (case-insensitive)', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Type "alpha" in search input (case-insensitive match)
+      await user.type(screen.getByTestId('search-input'), 'ALPHA')
+
+      // Wait for debounce + re-render
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+        expect(screen.queryByText('Project Beta')).not.toBeInTheDocument()
+        expect(screen.queryByText('Gamma Docs')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+    })
+
+    it('should filter projects by description when typing in search input', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Type "backend" which matches Project Beta's description
+      await user.type(screen.getByTestId('search-input'), 'backend')
+
+      // Wait for debounce + re-render
+      await waitFor(() => {
+        expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument()
+        expect(screen.getByText('Project Beta')).toBeInTheDocument()
+        expect(screen.queryByText('Gamma Docs')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+    })
+
+    it('should show results count when searching', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Type "project" which matches Project Alpha and Project Beta (by name)
+      await user.type(screen.getByTestId('search-input'), 'project')
+
+      // Results count should show after debounce
+      await waitFor(() => {
+        const resultsCount = screen.getByTestId('results-count')
+        expect(resultsCount).toHaveTextContent('Showing 2 of 3 projects')
+      }, { timeout: 1000 })
+    })
+
+    it('should not show results count when search is empty', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // No results count when search is empty
+      expect(screen.queryByTestId('results-count')).not.toBeInTheDocument()
+    })
+
+    it('should show "No projects match your search" when no results', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Type something that doesn't match anything
+      await user.type(screen.getByTestId('search-input'), 'xyznonexistent')
+
+      // Empty state should show after debounce
+      await waitFor(() => {
+        expect(screen.getByText('No projects match your search')).toBeInTheDocument()
+      }, { timeout: 1000 })
+    })
+
+    it('should clear search when clear button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Type something to filter
+      await user.type(screen.getByTestId('search-input'), 'alpha')
+
+      await waitFor(() => {
+        expect(screen.queryByText('Project Beta')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+
+      // Click clear button
+      await user.click(screen.getByTestId('search-clear-button'))
+
+      // All projects should be visible again immediately (no debounce needed for clearing)
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+        expect(screen.getByText('Project Beta')).toBeInTheDocument()
+        expect(screen.getByText('Gamma Docs')).toBeInTheDocument()
+      }, { timeout: 1000 })
+
+      // Search input should be empty
+      expect(screen.getByTestId('search-input')).toHaveValue('')
+    })
+
+    it('should show clear button only when search has content', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Clear button should not be visible when search is empty
+      expect(screen.queryByTestId('search-clear-button')).not.toBeInTheDocument()
+
+      // Type something to show clear button
+      await user.type(screen.getByTestId('search-input'), 'a')
+
+      // Clear button should appear
+      await waitFor(() => {
+        expect(screen.getByTestId('search-clear-button')).toBeInTheDocument()
+      })
+    })
+  })
 })

@@ -4,9 +4,10 @@
  * Uses React Query (TanStack Query) for data fetching and cache management.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
+import { useDebounce } from '../hooks/useDebounce';
 import type { ProjectDTO } from '../types/project';
 import './Dashboard.css';
 
@@ -195,6 +196,10 @@ const Dashboard: React.FC = () => {
   // Delete state
   const [deletingProject, setDeletingProject] = useState<{ id: number; name: string } | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+
   // Toast state
   const [toasts, setToasts] = useState<Toast[]>([]);
   let toastIdCounter = 0;
@@ -282,6 +287,19 @@ const Dashboard: React.FC = () => {
   // Stats calculation
   const totalDocs = projects.reduce((sum, p) => sum + (p.documentCount || 0), 0);
 
+  // Filtered projects based on search query
+  const filteredProjects = useMemo(() => {
+    if (!debouncedSearchQuery.trim()) {
+      return projects;
+    }
+    const query = debouncedSearchQuery.toLowerCase().trim();
+    return projects.filter((p) => {
+      const nameMatch = p.name.toLowerCase().includes(query);
+      const descMatch = (p.description || '').toLowerCase().includes(query);
+      return nameMatch || descMatch;
+    });
+  }, [projects, debouncedSearchQuery]);
+
   return (
     <div className="dashboard">
       {/* Toast Notifications */}
@@ -343,6 +361,41 @@ const Dashboard: React.FC = () => {
         </button>
       )}
 
+      {/* Search Bar */}
+      {projects.length > 0 && (
+        <div className="search-bar">
+          <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Search projects..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            data-testid="search-input"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="search-clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              data-testid="search-clear-button"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Results Count */}
+      {projects.length > 0 && debouncedSearchQuery.trim() && (
+        <p className="results-count" data-testid="results-count">
+          Showing {filteredProjects.length} of {projects.length} projects
+        </p>
+      )}
+
       {/* Loading State */}
       {isLoading && (
         <div className="loading-state">
@@ -376,8 +429,15 @@ const Dashboard: React.FC = () => {
                 </button>
               )}
             </div>
+          ) : filteredProjects.length === 0 ? (
+            <div className="empty-state">
+              <svg style={{ width: 64, height: 64 }} className="text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="empty-text">No projects match your search</p>
+            </div>
           ) : (
-            projects.map((project) => (
+            filteredProjects.map((project) => (
               <div
                 key={project.id}
                 className="project-card"
