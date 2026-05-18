@@ -265,6 +265,19 @@ def get_links(project_slug: str, doc_slug: str) -> list[dict]:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/links")
 
 
+def get_backlinks(project_slug: str, doc_slug: str) -> list[dict]:
+    """Get all documents that link to a specific document (backlinks).
+
+    Args:
+        project_slug: The URL-friendly slug of the project (required)
+        doc_slug: The target document's slug (required)
+
+    Returns:
+        List of document objects that reference the given document via wiki links
+    """
+    return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/backlinks")
+
+
 # ─── Search Tools ─────────────────────────────────────────────────────────────
 
 def search_documents(project_slug: str, keyword: str) -> list[dict]:
@@ -299,7 +312,7 @@ def create_mcp_server() -> FastMCP:
         list_projects, get_project, create_project, update_project, delete_project,
         list_documents, create_document, get_document, update_document,
         delete_document, get_document_content,
-        add_link, remove_link, get_links,
+        add_link, remove_link, get_links, get_backlinks,
         search_documents,
     ]:
         mcp.tool()(func)
