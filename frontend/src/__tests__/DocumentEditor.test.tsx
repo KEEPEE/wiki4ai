@@ -56,8 +56,8 @@ describe('DocumentEditor', () => {
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<DocumentEditor />)
 
@@ -74,8 +74,8 @@ describe('DocumentEditor', () => {
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<DocumentEditor />)
 
@@ -92,8 +92,8 @@ describe('DocumentEditor', () => {
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<DocumentEditor />)
 
@@ -110,8 +110,8 @@ describe('DocumentEditor', () => {
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<DocumentEditor />)
 
@@ -133,8 +133,8 @@ describe('DocumentEditor', () => {
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<DocumentEditor />)
 

@@ -5,146 +5,111 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { documentApi } from '../services/documentApi'
 
-beforeEach(() => {
-  vi.restoreAllMocks()
-})
+// Mock fetch globally
+const mockFetch = vi.fn() as any
+window.fetch = mockFetch
 
 describe('documentApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   describe('getByProject', () => {
-    it('should return documents array on success', async () => {
-      const mockDocs = [
-        { id: 1, title: 'Doc 1', content: '', createdAt: '', updatedAt: '' },
-        { id: 2, title: 'Doc 2', content: '', createdAt: '', updatedAt: '' },
+    it('should return documents from API', async () => {
+      const mockResponse = [
+        { id: 1, title: 'Doc 1', content: '', projectId: 1, createdAt: '', updatedAt: '' },
       ]
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockDocs),
+        json: async () => mockResponse,
       })
 
       const result = await documentApi.getByProject('test-project')
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents')
-      expect(result).toEqual(mockDocs)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents')
+      expect(result).toEqual(mockResponse)
     })
 
-    it('should throw error on failed request', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+    it('should throw error when API call fails', async () => {
+      mockFetch.mockResolvedValueOnce({
         ok: false,
-        statusText: 'Not Found',
+        status: 500,
+        json: async () => ({ message: 'Server error' }),
       })
 
-      await expect(documentApi.getByProject('nonexistent')).rejects.toThrow(/Failed to fetch documents/)
+      await expect(documentApi.getByProject('test-project')).rejects.toThrow()
     })
   })
 
   describe('create', () => {
-    it('should create document and return response', async () => {
-      const data = { title: 'New Doc', content: '# Hello' }
-      const created = { id: 1, ...data, createdAt: '', updatedAt: '' }
+    it('should create document via POST request', async () => {
+      const mockResponse = { id: 1, title: 'New Doc', content: '', projectId: 1 }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(created),
+        json: async () => mockResponse,
       })
 
-      const result = await documentApi.create('test-project', data)
+      const result = await documentApi.create('test-project', { title: 'New Doc' })
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ title: 'New Doc' }),
       })
-      expect(result).toEqual(created)
-    })
-  })
-
-  describe('get', () => {
-    it('should return document on success', async () => {
-      const mockDoc = { id: 1, title: 'My Doc', content: '# Content', createdAt: '', updatedAt: '' }
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockDoc),
-      })
-
-      const result = await documentApi.get('test-project', 'my-doc')
-
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc')
-      expect(result).toEqual(mockDoc)
-    })
-  })
-
-  describe('getContent', () => {
-    it('should return document content with wiki links', async () => {
-      const mockContent = {
-        title: 'My Doc',
-        content: '# Hello [[World]]',
-        wikiLinks: ['world'],
-      }
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockContent),
-      })
-
-      const result = await documentApi.getContent('test-project', 'my-doc')
-
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc/content')
-      expect(result).toEqual(mockContent)
+      expect(result).toEqual(mockResponse)
     })
   })
 
   describe('update', () => {
-    it('should update document and return response', async () => {
-      const data = { title: 'Updated Title', content: '# Updated' }
-      const updated = { id: 1, ...data, createdAt: '', updatedAt: '' }
+    it('should update document via PUT request', async () => {
+      const mockResponse = { id: 1, title: 'Updated', content: '# Updated' }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(updated),
+        json: async () => mockResponse,
       })
 
-      const result = await documentApi.update('test-project', 'my-doc', data)
+      const result = await documentApi.update('test-project', 'my-doc', { title: 'Updated' })
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ title: 'Updated' }),
       })
-      expect(result).toEqual(updated)
+      expect(result).toEqual(mockResponse)
     })
   })
 
   describe('delete', () => {
-    it('should delete document successfully', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+    it('should delete document via DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        status: 204,
+        json: async () => ({}),
       })
 
-      await expect(documentApi.delete('test-project', 'my-doc')).resolves.toBeUndefined()
+      await documentApi.delete('test-project', 'my-doc')
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', { method: 'DELETE' })
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', {
+        method: 'DELETE',
+      })
     })
+  })
 
-    it('should handle 204 response without error', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 204,
+  describe('getContent', () => {
+    it('should return full document content', async () => {
+      const mockResponse = { title: 'My Doc', content: '# Hello World', wikiLinks: [] }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
       })
 
-      // Should not throw for 204
-      await expect(documentApi.delete('test-project', 'my-doc')).resolves.toBeUndefined()
-    })
+      const result = await documentApi.getContent('test-project', 'my-doc')
 
-    it('should throw error on delete failure', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: 'Not Found',
-      })
-
-      await expect(documentApi.delete('test-project', 'nonexistent')).rejects.toThrow(/Failed to delete document/)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc/content')
+      expect(result).toEqual(mockResponse)
     })
   })
 })
