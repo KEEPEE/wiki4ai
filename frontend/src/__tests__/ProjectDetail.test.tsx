@@ -31,6 +31,7 @@ function renderWithProviders(ui: React.ReactElement, { route = '/projects/test-p
       <MemoryRouter initialEntries={[route]}>
         <Routes>
           <Route path="/projects/:slug" element={ui} />
+          <Route path="/projects/:slug/settings" element={<div>Project Settings</div>} />
           <Route path="/projects/:slug/documents/new" element={<div>New Document</div>} />
           <Route path="/" element={<div>Dashboard</div>} />
         </Routes>
@@ -520,6 +521,69 @@ describe('ProjectDetail', () => {
       await waitFor(() => {
         const importButton = screen.getByTestId('import-file-button')
         expect(importButton).toBeDisabled()
+      })
+    })
+  })
+
+  describe('Settings link', () => {
+    it('should render settings link in Project Detail header', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        const settingsLink = screen.getByTestId('settings-link')
+        expect(settingsLink).toBeInTheDocument()
+      })
+    })
+
+    it('should navigate to /projects/:slug/settings when settings link is clicked', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        const settingsLink = screen.getByTestId('settings-link')
+        expect(settingsLink).toHaveAttribute('href', '/projects/test-project/settings')
+      })
+
+      const settingsLink = screen.getByTestId('settings-link')
+      await user.click(settingsLink)
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Settings')).toBeInTheDocument()
       })
     })
   })
