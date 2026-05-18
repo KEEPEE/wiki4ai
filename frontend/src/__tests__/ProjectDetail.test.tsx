@@ -364,4 +364,163 @@ describe('ProjectDetail', () => {
       })
     })
   })
+
+  describe('Import file', () => {
+    const getMockHooks = (overrides: any = {}) => ({
+      useProjectsReturn: {
+        projects: [{ id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' }],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+        createProject: vi.fn(),
+        updateProject: vi.fn(),
+        deleteProject: vi.fn(),
+        isCreating: false,
+        isUpdating: false,
+        isDeleting: false,
+      },
+      useDocumentsReturn: {
+        documents: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+        createDocument: vi.fn(),
+        updateDocument: vi.fn(),
+        deleteDocument: vi.fn(),
+        uploadDocument: vi.fn().mockResolvedValue({ id: 99, title: 'Imported', content: '', projectId: 1, createdAt: '', updatedAt: '' }),
+        isCreating: false,
+        isUpdating: false,
+        isDeleting: false,
+        isUploading: false,
+        ...overrides.docsOverrides,
+      },
+      useSearchDocumentsReturn: {
+        searchResults: [],
+        isLoading: false,
+        hasSearched: false,
+      },
+    })
+
+    it('should render import file button on Project Detail page', async () => {
+      const mocks = getMockHooks()
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue(mocks.useProjectsReturn as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue(mocks.useDocumentsReturn as any)
+      vi.mocked(useSearchDocuments).mockReturnValue(mocks.useSearchDocumentsReturn as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('import-file-button')).toBeInTheDocument()
+      })
+    })
+
+    it('should render import button with correct text', async () => {
+      const mocks = getMockHooks()
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue(mocks.useProjectsReturn as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue(mocks.useDocumentsReturn as any)
+      vi.mocked(useSearchDocuments).mockReturnValue(mocks.useSearchDocumentsReturn as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/Import file/)).toBeInTheDocument()
+      })
+    })
+
+    it('should have hidden file input with correct accept attribute', async () => {
+      const mocks = getMockHooks()
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue(mocks.useProjectsReturn as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue(mocks.useDocumentsReturn as any)
+      vi.mocked(useSearchDocuments).mockReturnValue(mocks.useSearchDocumentsReturn as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const fileInput = await waitFor(() => screen.getByTestId('import-file-input'))
+      expect(fileInput).toHaveAttribute('accept', '.md,.markdown')
+    })
+
+    it('should call upload API when a valid .md file is selected', async () => {
+      const uploadMock = vi.fn().mockResolvedValue({ id: 99, title: 'test.md', content: '', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mocks = getMockHooks({
+        docsOverrides: {
+          uploadDocument: uploadMock,
+        },
+      })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue(mocks.useProjectsReturn as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue(mocks.useDocumentsReturn as any)
+      vi.mocked(useSearchDocuments).mockReturnValue(mocks.useSearchDocumentsReturn as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const user = userEvent.setup()
+
+      // Click the import button to trigger file input
+      const importButton = await waitFor(() => screen.getByTestId('import-file-button'))
+      await user.click(importButton)
+
+      // Get the hidden file input and simulate file selection
+      const fileInput = screen.getByTestId('import-file-input') as HTMLInputElement
+
+      // Create a mock File object
+      const mockFile = new File(['# Test Document\n\nThis is test content.'], 'test.md', { type: 'text/markdown' })
+
+      // Mock the files property on the input element
+      Object.defineProperty(fileInput, 'files', {
+        value: [mockFile],
+        writable: true,
+        configurable: true,
+      })
+
+      // Dispatch change event to trigger the handler
+      fileInput.dispatchEvent(new Event('change', { bubbles: true }))
+
+      // Give the component time to process the upload
+      await waitFor(() => {
+        expect(uploadMock).toHaveBeenCalledWith(mockFile)
+      }, { timeout: 3000 })
+    })
+
+    it('should show upload progress bar during upload', async () => {
+      const mocks = getMockHooks({
+        docsOverrides: {
+          isUploading: true,
+        },
+      })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue(mocks.useProjectsReturn as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        ...mocks.useDocumentsReturn,
+        isUploading: true,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue(mocks.useSearchDocumentsReturn as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      // The import button should be disabled during upload
+      await waitFor(() => {
+        const importButton = screen.getByTestId('import-file-button')
+        expect(importButton).toBeDisabled()
+      })
+    })
+  })
 })

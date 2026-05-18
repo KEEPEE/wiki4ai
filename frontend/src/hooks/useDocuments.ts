@@ -45,6 +45,14 @@ export function useDocuments(projectSlug: string) {
     },
   });
 
+  // Upload document mutation with cache invalidation
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => documentApi.upload(projectSlug, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+    },
+  });
+
   return {
     documents: data ?? [],
     isLoading,
@@ -53,9 +61,11 @@ export function useDocuments(projectSlug: string) {
     createDocument: createMutation.mutateAsync,
     updateDocument: updateMutation.mutateAsync,
     deleteDocument: deleteMutation.mutateAsync,
+    uploadDocument: uploadMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+    isUploading: uploadMutation.isPending,
   };
 }
 

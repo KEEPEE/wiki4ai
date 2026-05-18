@@ -3,7 +3,7 @@
  * Displays a list of documents within a project with the option to create new ones.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
@@ -13,17 +13,22 @@ import './ProjectDetail.css';
 
 type TabType = 'documents' | 'graph';
 
+const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
+
 const ProjectDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { projects, isLoading: loadingProjects } = useProjects();
   const {
     documents,
     isLoading: loadingDocuments,
     createDocument,
     deleteDocument,
+    uploadDocument,
     isCreating,
     isDeleting,
+    isUploading,
   } = useDocuments(slug ?? '');
 
   // Search state
@@ -38,6 +43,11 @@ const ProjectDetail: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+
+  // Upload state
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Find the project by slug
   const project = projects.find((p) => p.slug === slug);
@@ -75,6 +85,88 @@ const ProjectDetail: React.FC = () => {
     navigate(`/projects/${slug}/documents/${docSlug}`);
   };
 
+  // Upload handlers
+  const isValidMarkdownFile = (file: File): boolean => {
+    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+    return ALLOWED_EXTENSIONS.includes(ext);
+  };
+
+  const handleUpload = async (file: File) => {
+    if (!slug) return;
+    setUploadError(null);
+    setUploadProgress(0);
+
+    // Simulate progress since fetch doesn't support upload progress natively
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => Math.min(prev + 10, 90));
+    }, 200);
+
+    try {
+      await uploadDocument(file);
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      // Reset progress after a short delay
+      setTimeout(() => setUploadProgress(0), 1500);
+    } catch (err) {
+      clearInterval(progressInterval);
+      setUploadProgress(0);
+      setUploadError(err instanceof Error ? err.message : 'Failed to upload file');
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!isValidMarkdownFile(file)) {
+      setUploadError('Please select a .md or .markdown file');
+      return;
+    }
+
+    handleUpload(file);
+    // Reset input so the same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Drag & drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = files[0];
+    if (!isValidMarkdownFile(file)) {
+      setUploadError('Please drop a .md or .markdown file');
+      return;
+    }
+
+    handleUpload(file);
+  }, [slug, isUploading]);
+
   const formatDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
@@ -91,7 +183,33 @@ const ProjectDetail: React.FC = () => {
   };
 
   return (
-    <div className="project-detail">
+    <div
+      className={`project-detail${isDragOver ? ' drag-over' : ''}`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Drag & Drop Overlay */}
+      {isDragOver && (
+        <div className="drag-overlay">
+          <p>📁 Drop your .md file here</p>
+        </div>
+      )}
+
+      {/* Hidden File Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".md,.markdown"
+        onChange={handleFileSelect}
+        className="hidden-file-input"
+        data-testid="import-file-input"
+        aria-hidden="true"
+        tabIndex={-1}
+        style={{ display: 'none' }}
+      />
+
       {/* Breadcrumb Navigation */}
       <nav className="breadcrumb" aria-label="Breadcrumb">
         <Link to="/">Dashboard</Link>
@@ -102,10 +220,37 @@ const ProjectDetail: React.FC = () => {
       <header className="detail-header">
         <h1>{project.name}</h1>
         {project.description && <p className="description">{project.description}</p>}
-        <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" disabled={activeTab !== 'documents'}>
-          + Nový dokument
-        </button>
+        <div className="header-actions">
+          <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" disabled={activeTab !== 'documents'}>
+            + Nový dokument
+          </button>
+          <button
+            onClick={handleImportClick}
+            className="btn-secondary btn-import"
+            disabled={isUploading || activeTab !== 'documents'}
+            data-testid="import-file-button"
+            title="Import .md file"
+          >
+            📁 Import file
+          </button>
+        </div>
       </header>
+
+      {/* Upload Progress Bar */}
+      {uploadProgress > 0 && (
+        <div className="upload-progress-container">
+          <div className="upload-progress-bar" style={{ width: `${uploadProgress}%` }} />
+          <span className="upload-progress-text">{uploadProgress === 100 ? '✓ Uploaded!' : `Uploading... ${uploadProgress}%`}</span>
+        </div>
+      )}
+
+      {/* Upload Error */}
+      {uploadError && (
+        <div className="upload-error" data-testid="upload-error">
+          {uploadError}
+          <button onClick={() => setUploadError(null)} className="dismiss-btn">&times;</button>
+        </div>
+      )}
 
       {/* Tabs Navigation */}
       <div className="tabs">
