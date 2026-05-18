@@ -124,6 +124,26 @@ public class ProjectService {
     }
 
     /**
+     * Update an existing project by ID.
+     *
+     * @param id  the project ID
+     * @param dto the updated project data (ProjectUpdateDTO)
+     * @return updated ProjectDTO
+     * @throws EntityNotFoundException if project not found
+     */
+    @Transactional
+    public ProjectDTO updateProjectById(Long id, ProjectUpdateDTO dto) {
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
+
+        project.setName(dto.getName());
+        project.setDescription(dto.getDescription());
+
+        Project saved = projectRepository.save(project);
+        return convertToDTO(saved);
+    }
+
+    /**
      * Delete a project by ID.
      *
      * @param id the project ID
