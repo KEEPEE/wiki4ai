@@ -576,6 +576,84 @@ class DocumentControllerTest {
         }
     }
 
+    // ==================== GET BACKLINKS TESTS ====================
+
+    @Nested
+    @DisplayName("GET /api/v1/projects/{projectSlug}/documents/{docSlug}/backlinks - Get backlinks (reverse links)")
+    class GetBacklinksTests {
+
+        @Test
+        @DisplayName("Should return 200 with list of documents that link to the target document")
+        void shouldReturnBacklinks() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO targetDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(targetDoc);
+
+            DocumentDTO backlinkA = DocumentDTO.builder()
+                    .id(3L)
+                    .title("Backlink A")
+                    .content("# Backlink A content [[Test Document]]")
+                    .slug("backlink-a")
+                    .projectId(1L)
+                    .linkedDocuments(List.of(1L))
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            DocumentDTO backlinkB = DocumentDTO.builder()
+                    .id(4L)
+                    .title("Backlink B")
+                    .content("# Backlink B content [[Test Document]]")
+                    .slug("backlink-b")
+                    .projectId(1L)
+                    .linkedDocuments(List.of(1L))
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.getBacklinks(1L)).willReturn(List.of(backlinkA, backlinkB));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/backlinks"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].title").value("Backlink A"))
+                    .andExpect(jsonPath("$[1].title").value("Backlink B"));
+
+            verify(documentService).getBacklinks(1L);
+        }
+
+        @Test
+        @DisplayName("Should return 200 with empty list when no documents link to the target")
+        void shouldReturnEmptyListWhenNoBacklinks() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO isolatedDoc = createSampleDocument();
+            given(documentService.getDocument(eq(1L), eq("isolated-document"))).willReturn(isolatedDoc);
+            given(documentService.getBacklinks(1L)).willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/isolated-document/backlinks"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when target document not found")
+        void shouldReturnNotFoundWhenDocNotExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            given(documentService.getDocument(eq(1L), eq("non-existent")))
+                    .willThrow(new EntityNotFoundException("Document not found with slug 'non-existent' in project 1"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/non-existent/backlinks"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value("Document not found with slug 'non-existent' in project 1"));
+        }
+    }
+
     // ==================== GET DOCUMENT CONTENT TESTS ====================
 
     @Nested

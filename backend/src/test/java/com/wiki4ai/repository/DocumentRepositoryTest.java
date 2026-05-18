@@ -207,4 +207,71 @@ class DocumentRepositoryTest {
         // then
         assertThat(documentRepository.findById(id)).isEmpty();
     }
+
+    @Test
+    @DisplayName("Should find documents that link to a target document (backlinks)")
+    void shouldFindByLinkedDocumentsId() {
+        // given
+        Project project = createAndSaveProject("Wiki", "wiki");
+        Document targetDoc = documentRepository.save(Document.builder()
+                .title("Target Doc")
+                .content("# Target")
+                .slug("target-doc")
+                .project(project)
+                .build());
+
+        // Doc A links to target
+        Document docA = documentRepository.save(Document.builder()
+                .title("Doc A")
+                .content("# Doc A [[Target Doc]]")
+                .slug("doc-a")
+                .project(project)
+                .build());
+        docA.addLinkedDocument(targetDoc);
+        documentRepository.save(docA);
+
+        // Doc B links to target
+        Document docB = documentRepository.save(Document.builder()
+                .title("Doc B")
+                .content("# Doc B [[Target Doc]]")
+                .slug("doc-b")
+                .project(project)
+                .build());
+        docB.addLinkedDocument(targetDoc);
+        documentRepository.save(docB);
+
+        // Doc C does NOT link to target
+        documentRepository.save(Document.builder()
+                .title("Doc C")
+                .content("# Doc C - no links")
+                .slug("doc-c")
+                .project(project)
+                .build());
+
+        // when
+        List<Document> backlinks = documentRepository.findByLinkedDocumentsId(targetDoc.getId());
+
+        // then
+        assertThat(backlinks).hasSize(2);
+        assertThat(backlinks.stream().map(Document::getTitle)).containsExactlyInAnyOrder("Doc A", "Doc B");
+    }
+
+    @Test
+    @DisplayName("Should return empty list when no documents link to the target")
+    void shouldReturnEmptyWhenNoBacklinks() {
+        // given
+        Project project = createAndSaveProject("Wiki", "wiki");
+        Document isolatedDoc = documentRepository.save(Document.builder()
+                .title("Isolated Doc")
+                .content("# No one links here")
+                .slug("isolated-doc")
+                .project(project)
+                .build());
+
+        // when
+        List<Document> backlinks = documentRepository.findByLinkedDocumentsId(isolatedDoc.getId());
+
+        // then
+        assertThat(backlinks).isEmpty();
+    }
 }

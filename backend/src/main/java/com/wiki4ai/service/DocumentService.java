@@ -341,6 +341,26 @@ public class DocumentService {
     }
 
     /**
+     * Get all documents that link TO a specific document (backlinks/reverse links).
+     * Returns documents where the given document appears in their linkedDocuments collection.
+     * Validates that the target document exists before querying backlinks.
+     *
+     * @param docId the document ID to find backlinks for
+     * @return list of DocumentDTOs that have a link pointing to this document
+     * @throws EntityNotFoundException if the target document not found
+     */
+    public List<DocumentDTO> getBacklinks(Long docId) {
+        // Validate that the target document exists
+        documentRepository.findById(docId)
+                .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + docId));
+
+        return documentRepository.findByLinkedDocumentsId(docId)
+                .stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get document content with rendered HTML, extracted wiki links, and linked documents.
      * Returns the full document content processed through markdown rendering with wiki link replacement.
      *
