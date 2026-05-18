@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from mcp_server import (
     search_documents,
     get_backlinks,
+    batch_create_documents,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -83,6 +84,47 @@ def mock_backlinks_response():
 def mock_empty_backlinks_response():
     """Empty backlinks response."""
     return []
+
+
+@pytest.fixture
+def mock_batch_create_responses():
+    """Sample batch create document responses."""
+    return [
+        {
+            "id": 10,
+            "title": "First Document",
+            "slug": "first-document",
+            "projectId": 5,
+            "createdAt": "2026-05-18T14:00:00Z",
+            "updatedAt": "2026-05-18T14:00:00Z",
+        },
+        {
+            "id": 11,
+            "title": "Second Document",
+            "slug": "second-document",
+            "projectId": 5,
+            "createdAt": "2026-05-18T14:00:01Z",
+            "updatedAt": "2026-05-18T14:00:01Z",
+        },
+        {
+            "id": 12,
+            "title": "Third Document",
+            "slug": "third-document",
+            "projectId": 5,
+            "createdAt": "2026-05-18T14:00:02Z",
+            "updatedAt": "2026-05-18T14:00:02Z",
+        },
+    ]
+
+
+@pytest.fixture
+def mock_batch_input_documents():
+    """Sample input documents for batch creation."""
+    return [
+        {"title": "First Document", "content": "# First\nContent of first doc"},
+        {"title": "Second Document", "content": "# Second\nContent of second doc"},
+        {"title": "Third Document"},  # no content
+    ]
 
 
 # ─── Tests: search_documents API call ──────────────────────────────────────
@@ -265,6 +307,135 @@ class TestGetBacklinksResponseFormat:
         assert len(result) == 0
 
 
+# ─── Tests: batch_create_documents API calls ──────────────────────────────
+
+class TestBatchCreateDocumentsAPICalls:
+    """Tests that batch_create_documents calls the correct API endpoint for each document."""
+
+    @patch("mcp_server.urlopen")
+    def test_calls_api_for_each_document(self, mock_urlopen, mock_batch_input_documents, mock_batch_create_responses):
+        """batch_create_documents calls POST /v1/projects/{slug}/documents for each document in the list."""
+        # Create a separate mock response for each call
+        mock_resp = MagicMock()
+        for i, resp_data in enumerate(mock_batch_create_responses):
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = batch_create_documents("my-project", mock_batch_input_documents)
+
+        # Verify API was called 3 times (once per document)
+        assert mock_urlopen.call_count == 3
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint(self, mock_urlopen, mock_batch_input_documents, mock_batch_create_responses):
+        """batch_create_documents calls the correct endpoint path."""
+        mock_resp = MagicMock()
+        for resp_data in mock_batch_create_responses:
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        batch_create_documents("my-project", mock_batch_input_documents)
+
+        # Check that each call went to the correct endpoint
+        for call_args in mock_urlopen.call_args_list:
+            request = call_args[0][0]
+            assert "/v1/projects/my-project/documents" in str(request.full_url)
+
+    @patch("mcp_server.urlopen")
+    def test_sends_correct_json_body_with_content(self, mock_urlopen, mock_batch_create_responses):
+        """batch_create_documents sends title and content in the request body."""
+        mock_resp = MagicMock()
+        for resp_data in mock_batch_create_responses:
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        docs = [{"title": "Test Doc", "content": "# Test Content"}]
+        batch_create_documents("my-project", docs)
+
+        call_args = mock_urlopen.call_args_list[0]
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["title"] == "Test Doc"
+        assert body["content"] == "# Test Content"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_body_without_content_when_not_provided(self, mock_urlopen, mock_batch_create_responses):
+        """batch_create_documents omits content field when not provided in input."""
+        mock_resp = MagicMock()
+        for resp_data in mock_batch_create_responses:
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        docs = [{"title": "No Content Doc"}]
+        batch_create_documents("my-project", docs)
+
+        call_args = mock_urlopen.call_args_list[0]
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["title"] == "No Content Doc"
+        assert "content" not in body
+
+
+# ─── Tests: batch_create_documents response format ──────────────────────
+
+class TestBatchCreateDocumentsResponseFormat:
+    """Tests that batch_create_documents returns correct data format."""
+
+    @patch("mcp_server.urlopen")
+    def test_returns_list_of_dicts(self, mock_urlopen, mock_batch_input_documents, mock_batch_create_responses):
+        """batch_create_documents returns a list of created document dicts."""
+        mock_resp = MagicMock()
+        for resp_data in mock_batch_create_responses:
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = batch_create_documents("my-project", mock_batch_input_documents)
+
+        assert isinstance(result, list)
+        assert len(result) == 3
+        assert all(isinstance(doc, dict) for doc in result)
+
+    @patch("mcp_server.urlopen")
+    def test_returns_correct_number_of_results(self, mock_urlopen, mock_batch_create_responses):
+        """batch_create_documents returns exactly as many results as input documents."""
+        mock_resp = MagicMock()
+        single_response = {"id": 1, "title": "Doc", "slug": "doc", "projectId": 5}
+        for _ in range(5):
+            mock_resp.read.return_value = json.dumps(single_response).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        docs = [{"title": f"Doc {i}"} for i in range(5)]
+        result = batch_create_documents("my-project", docs)
+
+        assert len(result) == 5
+
+    @patch("mcp_server.urlopen")
+    def test_returns_document_fields(self, mock_urlopen, mock_batch_input_documents, mock_batch_create_responses):
+        """Each created document has expected fields."""
+        mock_resp = MagicMock()
+        for resp_data in mock_batch_create_responses:
+            mock_resp.read.return_value = json.dumps(resp_data).encode("utf-8")
+            mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = batch_create_documents("my-project", mock_batch_input_documents)
+
+        doc = result[0]
+        assert "id" in doc
+        assert "title" in doc
+        assert "slug" in doc
+        assert "projectId" in doc
+        assert "createdAt" in doc
+        assert "updatedAt" in doc
+
+    @patch("mcp_server.urlopen")
+    def test_returns_empty_list_for_empty_input(self, mock_urlopen):
+        """batch_create_documents returns empty list when input is empty."""
+        result = batch_create_documents("my-project", [])
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+
 # ─── Tests: MCP Server Registration ──────────────────────────────────────
 
 class TestMCPServerRegistration:
@@ -283,7 +454,7 @@ class TestMCPServerRegistration:
         expected_tools = [
             "health_check",
             "list_projects", "get_project", "create_project", "update_project", "delete_project",
-            "list_documents", "create_document", "get_document", "update_document",
+            "list_documents", "create_document", "batch_create_documents", "get_document", "update_document",
             "delete_document", "get_document_content",
             "add_link", "remove_link", "get_links", "get_backlinks",
             "search_documents",
