@@ -328,9 +328,43 @@
   background: #e5e7eb;
 }
 
-/* ── Edit Button on Card ─────────────────────────────────────── */
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Edit & Delete Buttons on Card ───────────────────────────── */
 
 .edit-button {
+  position: absolute;
+  top: 0.75rem;
+  right: 2.75rem;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s, background-color 0.2s, transform 0.1s;
+  z-index: 2;
+  line-height: 1;
+}
+
+.delete-button {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
@@ -350,7 +384,8 @@
   position: relative;
 }
 
-.project-card:hover .edit-button {
+.project-card:hover .edit-button,
+.project-card:hover .delete-button {
   opacity: 1;
 }
 
@@ -359,7 +394,14 @@
   transform: scale(1.1);
 }
 
-.edit-button:focus-visible {
+.delete-button:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  transform: scale(1.1);
+}
+
+.edit-button:focus-visible,
+.delete-button:focus-visible {
   outline: 2px solid #4f46e5;
   outline-offset: 2px;
   opacity: 1;
@@ -436,6 +478,22 @@
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
   padding-right: 2rem;
+}
+
+.delete-warning {
+  color: #374151;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 1.25rem 0;
+}
+
+.delete-warning strong {
+  color: #dc2626;
+}
+
+.form-actions-delete {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
 }
 
 .modal-content label {
@@ -564,8 +622,9 @@
     width: 100%;
   }
 
-  /* Always show edit button on mobile */
-  .edit-button {
+  /* Always show edit and delete buttons on mobile */
+  .edit-button,
+  .delete-button {
     opacity: 1;
   }
 

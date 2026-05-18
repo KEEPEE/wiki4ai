@@ -37,6 +37,61 @@ const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => voi
   );
 };
 
+/** Delete Confirmation Dialog component */
+interface DeleteConfirmationDialogProps {
+  project: { id: number; name: string };
+  onConfirm: (id: number) => Promise<void>;
+  onCancel: () => void;
+  isDeleting: boolean;
+}
+
+const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ project, onConfirm, onCancel, isDeleting }) => {
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirm = async () => {
+    setDeleteError(null);
+    try {
+      await onConfirm(project.id);
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete project');
+    }
+  };
+
+  // Handle backdrop click to close
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="delete-modal">
+      <div className="modal-content modal-delete" role="dialog" aria-labelledby="delete-modal-title">
+        <button type="button" className="modal-close" onClick={onCancel} aria-label="Close modal">×</button>
+        <h3 id="delete-modal-title" data-testid="delete-modal-title">Delete Project</h3>
+        <p className="delete-warning" data-testid="delete-warning-text">
+          Are you sure you want to delete project &ldquo;<strong>{project.name}</strong>&rdquo;? All documents will be permanently removed.
+        </p>
+        {deleteError && <p className="error">{deleteError}</p>}
+        <div className="form-actions form-actions-delete">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="btn-danger"
+            disabled={isDeleting}
+            data-testid="delete-confirm-button"
+          >
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+          <button type="button" onClick={onCancel} className="btn-secondary" data-testid="delete-cancel-button">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /** Edit Project Modal component */
 interface EditProjectModalProps {
   project: { id: number; name: string; description: string | null };
@@ -123,8 +178,10 @@ const Dashboard: React.FC = () => {
     error,
     createProject,
     updateProject,
+    deleteProject: deleteProjectMutation,
     isCreating,
     isUpdating,
+    isDeleting,
   } = useProjects();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -134,6 +191,9 @@ const Dashboard: React.FC = () => {
 
   // Edit state
   const [editingProject, setEditingProject] = useState<{ id: number; name: string; description: string | null } | null>(null);
+
+  // Delete state
+  const [deletingProject, setDeletingProject] = useState<{ id: number; name: string } | null>(null);
 
   // Toast state
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -169,6 +229,22 @@ const Dashboard: React.FC = () => {
 
   const handleCancelEdit = () => {
     setEditingProject(null);
+  };
+
+  // Delete handlers
+  const handleDeleteClick = (e: React.MouseEvent, project: { id: number; name: string }) => {
+    e.stopPropagation(); // Prevent card navigation
+    setDeletingProject(project);
+  };
+
+  const handleConfirmDelete = async (id: number) => {
+    await deleteProjectMutation(id);
+    setDeletingProject(null);
+    addToast('Project deleted successfully', 'success');
+  };
+
+  const handleCancelDelete = () => {
+    setDeletingProject(null);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -323,6 +399,15 @@ const Dashboard: React.FC = () => {
                 >
                   ✏️
                 </button>
+                <button
+                  type="button"
+                  className="delete-button"
+                  onClick={(e) => handleDeleteClick(e, project)}
+                  aria-label={`Delete ${project.name}`}
+                  data-testid={`delete-button-${project.id}`}
+                >
+                  🗑️
+                </button>
                 <div className="card-header">
                   <h3>{project.name}</h3>
                   <span className="badge">{project.documentCount} docs</span>
@@ -351,6 +436,16 @@ const Dashboard: React.FC = () => {
           onSave={handleSaveEdit}
           onCancel={handleCancelEdit}
           isSaving={isUpdating}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deletingProject && (
+        <DeleteConfirmationDialog
+          project={deletingProject}
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+          isDeleting={isDeleting}
         />
       )}
     </div>
