@@ -323,6 +323,26 @@ def search_documents(project_slug: str, keyword: str) -> list[dict]:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/search?keyword={encoded_keyword}")
 
 
+# ─── Import Tools ─────────────────────────────────────────────────────────────
+
+def import_document(project_slug: str, title: str, content: str) -> dict:
+    """Import a document from raw markdown content string into a project.
+
+    Useful when an AI agent has markdown content in memory and wants to
+    import it directly into the wiki without going through file upload.
+
+    Args:
+        project_slug: The URL-friendly slug of the target project (required)
+        title: The title of the document to create (required)
+        content: The raw markdown content for the document (required)
+
+    Returns:
+        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
+    """
+    body = {"title": title, "content": content}
+    return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
+
+
 # ─── MCP Server Setup ────────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
@@ -339,6 +359,7 @@ def create_mcp_server() -> FastMCP:
         delete_document, get_document_content,
         add_link, remove_link, get_links, get_backlinks,
         search_documents,
+        import_document,
     ]:
         mcp.tool()(func)
 
