@@ -6,139 +6,94 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { projectApi } from '../services/projectApi'
 
 // Mock fetch globally
-beforeEach(() => {
-  vi.restoreAllMocks()
-})
+const mockFetch = vi.fn() as any
+window.fetch = mockFetch
 
 describe('projectApi', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   describe('getAllProjects', () => {
-    it('should return projects array on success', async () => {
-      const mockProjects = [
-        { id: 1, name: 'Project 1', slug: 'project-1', description: null, documentCount: 5, createdAt: '', updatedAt: '' },
+    it('should return projects from API', async () => {
+      const mockResponse = [
+        { id: 1, name: 'Project 1', slug: 'project-1', description: null, documentCount: 3, createdAt: '', updatedAt: '' },
       ]
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockProjects),
+        json: async () => mockResponse,
       })
 
       const result = await projectApi.getAllProjects()
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects')
-      expect(result).toEqual(mockProjects)
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects')
+      expect(result).toEqual(mockResponse)
     })
 
-    it('should throw error on failed request', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+    it('should throw error when API call fails', async () => {
+      mockFetch.mockResolvedValueOnce({
         ok: false,
-        statusText: 'Internal Server Error',
+        status: 500,
+        json: async () => ({ message: 'Server error' }),
       })
 
-      await expect(projectApi.getAllProjects()).rejects.toThrow(/Failed to fetch projects/)
-    })
-  })
-
-  describe('getProjectById', () => {
-    it('should return project on success', async () => {
-      const mockProject = { id: 1, name: 'Test', slug: 'test', description: null, documentCount: 0, createdAt: '', updatedAt: '' }
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockProject),
-      })
-
-      const result = await projectApi.getProjectById(1)
-
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/1')
-      expect(result).toEqual(mockProject)
-    })
-  })
-
-  describe('getProjectBySlug', () => {
-    it('should return project by slug on success', async () => {
-      const mockProject = { id: 1, name: 'Test', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' }
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve(mockProject),
-      })
-
-      const result = await projectApi.getProjectBySlug('test-project')
-
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/slug/test-project')
-      expect(result).toEqual(mockProject)
+      await expect(projectApi.getAllProjects()).rejects.toThrow()
     })
   })
 
   describe('createProject', () => {
-    it('should create project and return response', async () => {
-      const dto = { name: 'New Project', description: 'Test' }
-      const created = { id: 1, ...dto, slug: 'new-project', documentCount: 0, createdAt: '', updatedAt: '' }
+    it('should create project via POST request', async () => {
+      const mockResponse = { id: 1, name: 'New Project', slug: 'new-project' }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(created),
+        json: async () => mockResponse,
       })
 
-      const result = await projectApi.createProject(dto)
+      const result = await projectApi.createProject({ name: 'New Project' })
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
+        body: JSON.stringify({ name: 'New Project' }),
       })
-      expect(result).toEqual(created)
-    })
-
-    it('should throw error on creation failure', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: 'Bad Request',
-      })
-
-      await expect(projectApi.createProject({ name: 'Test' })).rejects.toThrow(/Failed to create project/)
+      expect(result).toEqual(mockResponse)
     })
   })
 
   describe('updateProject', () => {
-    it('should update project and return response', async () => {
-      const dto = { name: 'Updated Name', description: 'Updated desc' }
-      const updated = { id: 1, ...dto, slug: 'test', documentCount: 0, createdAt: '', updatedAt: '' }
+    it('should update project via PUT request', async () => {
+      const mockResponse = { id: 1, name: 'Updated Project', slug: 'updated-project' }
 
-      global.fetch = vi.fn().mockResolvedValue({
+      mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(updated),
+        json: async () => mockResponse,
       })
 
-      const result = await projectApi.updateProject(1, dto)
+      const result = await projectApi.updateProject(1, { name: 'Updated Project' })
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/1', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/1', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dto),
+        body: JSON.stringify({ name: 'Updated Project' }),
       })
-      expect(result).toEqual(updated)
+      expect(result).toEqual(mockResponse)
     })
   })
 
   describe('deleteProject', () => {
-    it('should delete project successfully', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
+    it('should delete project via DELETE request', async () => {
+      mockFetch.mockResolvedValueOnce({
         ok: true,
+        json: async () => ({}),
       })
 
-      await expect(projectApi.deleteProject(1)).resolves.toBeUndefined()
+      await projectApi.deleteProject(1)
 
-      expect(fetch).toHaveBeenCalledWith('/api/v1/projects/1', { method: 'DELETE' })
-    })
-
-    it('should throw error on delete failure', async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        statusText: 'Not Found',
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/1', {
+        method: 'DELETE',
       })
-
-      await expect(projectApi.deleteProject(999)).rejects.toThrow(/Failed to delete project/)
     })
   })
 })

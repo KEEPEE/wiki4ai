@@ -36,8 +36,8 @@ describe('useDocuments', () => {
   describe('Fetching documents', () => {
     it('should fetch and return documents on mount', async () => {
       const mockDocs = [
-        { id: 1, title: 'Doc 1', content: '', createdAt: '', updatedAt: '' },
-        { id: 2, title: 'Doc 2', content: '', createdAt: '', updatedAt: '' },
+        { id: 1, title: 'Doc 1', content: '', projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 2, title: 'Doc 2', content: '', projectId: 1, createdAt: '', updatedAt: '' },
       ]
 
       const { documentApi } = await import('../services/documentApi')
@@ -65,7 +65,7 @@ describe('useDocuments', () => {
 
   describe('Create document', () => {
     it('should create document and invalidate cache', async () => {
-      const mockDoc = { id: 1, title: 'New Doc', content: '', createdAt: '', updatedAt: '' }
+      const mockDoc = { id: 1, title: 'New Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' }
 
       const { documentApi } = await import('../services/documentApi')
       vi.mocked(documentApi.getByProject).mockResolvedValue([])
@@ -83,7 +83,7 @@ describe('useDocuments', () => {
 
   describe('Update document', () => {
     it('should update document and invalidate cache', async () => {
-      const mockDoc = { id: 1, title: 'Updated', content: '# Updated', createdAt: '', updatedAt: '' }
+      const mockDoc = { id: 1, title: 'Updated', content: '# Updated', projectId: 1, createdAt: '', updatedAt: '' }
 
       const { documentApi } = await import('../services/documentApi')
       vi.mocked(documentApi.getByProject).mockResolvedValue([])

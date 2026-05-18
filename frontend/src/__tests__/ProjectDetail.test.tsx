@@ -47,13 +47,13 @@ describe('ProjectDetail', () => {
     it('should show loading spinner when projects are loading', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: [], isLoading: true, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: [], isLoading: true, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: true, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: true, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -65,13 +65,13 @@ describe('ProjectDetail', () => {
     it('should show error when project is not found', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: [], isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -89,13 +89,13 @@ describe('ProjectDetail', () => {
 
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -113,13 +113,13 @@ describe('ProjectDetail', () => {
 
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -136,19 +136,19 @@ describe('ProjectDetail', () => {
       ]
 
       const mockDocuments = [
-        { id: 1, title: 'Doc 1', content: '', createdAt: '', updatedAt: '' },
-        { id: 2, title: 'Doc 2', content: '', createdAt: '', updatedAt: '' },
+        { id: 1, title: 'Doc 1', content: '', projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 2, title: 'Doc 2', content: '', projectId: 1, createdAt: '', updatedAt: '' },
       ]
 
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: mockDocuments, isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: mockDocuments, isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -166,13 +166,13 @@ describe('ProjectDetail', () => {
 
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
@@ -190,13 +190,13 @@ describe('ProjectDetail', () => {
 
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       const { useDocuments } = await import('../hooks/useDocuments')
       vi.mocked(useDocuments).mockReturnValue({
-        documents: [], isLoading: false, createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      })
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
 
       renderWithProviders(<ProjectDetail />)
 
