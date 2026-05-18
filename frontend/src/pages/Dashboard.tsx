@@ -4,11 +4,116 @@
  * Uses React Query (TanStack Query) for data fetching and cache management.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import type { ProjectDTO } from '../types/project';
 import './Dashboard.css';
+
+/** Toast notification component */
+interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'error';
+}
+
+const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => void }> = ({ toasts, onDismiss }) => {
+  return (
+    <div className="toast-container" data-testid="toast-container">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`toast toast-${toast.type}`} role="alert">
+          <span>{toast.message}</span>
+          <button
+            type="button"
+            className="toast-dismiss"
+            onClick={() => onDismiss(toast.id)}
+            aria-label="Dismiss notification"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+/** Edit Project Modal component */
+interface EditProjectModalProps {
+  project: { id: number; name: string; description: string | null };
+  onSave: (id: number, dto: ProjectDTO) => Promise<void>;
+  onCancel: () => void;
+  isSaving: boolean;
+}
+
+const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, onCancel, isSaving }) => {
+  const [editName, setEditName] = useState(project.name);
+  const [editDescription, setEditDescription] = useState(project.description || '');
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+
+    setSaveError(null);
+    try {
+      const dto: ProjectDTO = {
+        name: editName.trim(),
+        description: editDescription.trim() || undefined,
+      };
+      await onSave(project.id, dto);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to update project');
+    }
+  };
+
+  // Handle backdrop click to close
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="edit-modal">
+      <div className="modal-content" role="dialog" aria-labelledby="edit-modal-title">
+        <button type="button" className="modal-close" onClick={onCancel} aria-label="Close modal">×</button>
+        <h3 id="edit-modal-title">Edit Project</h3>
+        <form onSubmit={handleSave}>
+          <label htmlFor="edit-name">Project Name</label>
+          <input
+            id="edit-name"
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            required
+            autoFocus
+            data-testid="edit-name-input"
+          />
+
+          <label htmlFor="edit-description">Description</label>
+          <textarea
+            id="edit-description"
+            value={editDescription}
+            onChange={(e) => setEditDescription(e.target.value)}
+            rows={3}
+            data-testid="edit-description-input"
+          />
+
+          {saveError && <p className="error">{saveError}</p>}
+
+          <div className="form-actions">
+            <button type="submit" className="btn-primary" disabled={isSaving} data-testid="edit-save-button">
+              {isSaving ? 'Saving...' : 'Save'}
+            </button>
+            <button type="button" onClick={onCancel} className="btn-secondary" data-testid="edit-cancel-button">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +122,9 @@ const Dashboard: React.FC = () => {
     isLoading,
     error,
     createProject,
+    updateProject,
     isCreating,
+    isUpdating,
   } = useProjects();
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -25,8 +132,43 @@ const Dashboard: React.FC = () => {
   const [newDescription, setNewDescription] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
 
+  // Edit state
+  const [editingProject, setEditingProject] = useState<{ id: number; name: string; description: string | null } | null>(null);
+
+  // Toast state
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  let toastIdCounter = 0;
+
+  const addToast = useCallback((message: string, type: 'success' | 'error') => {
+    const id = ++toastIdCounter;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  }, []);
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   const handleCardClick = (slug: string) => {
     navigate(`/projects/${slug}`);
+  };
+
+  const handleEditClick = (e: React.MouseEvent, project: { id: number; name: string; description: string | null }) => {
+    e.stopPropagation(); // Prevent card navigation
+    setEditingProject(project);
+  };
+
+  const handleSaveEdit = async (id: number, dto: ProjectDTO) => {
+    await updateProject({ id, dto });
+    setEditingProject(null);
+    addToast('Project updated successfully', 'success');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingProject(null);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -40,8 +182,11 @@ const Dashboard: React.FC = () => {
       setNewName('');
       setNewDescription('');
       setShowCreateForm(false);
+      addToast('Project created successfully', 'success');
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create project');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create project';
+      setCreateError(errorMsg);
+      addToast(errorMsg, 'error');
     }
   };
 
@@ -63,6 +208,9 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard">
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Hero Section */}
       <section className="hero-section">
         <h1>Wiki4AI Projects</h1>
@@ -166,6 +314,15 @@ const Dashboard: React.FC = () => {
                   }
                 }}
               >
+                <button
+                  type="button"
+                  className="edit-button"
+                  onClick={(e) => handleEditClick(e, project)}
+                  aria-label={`Edit ${project.name}`}
+                  data-testid={`edit-button-${project.id}`}
+                >
+                  ✏️
+                </button>
                 <div className="card-header">
                   <h3>{project.name}</h3>
                   <span className="badge">{project.documentCount} docs</span>
@@ -185,6 +342,16 @@ const Dashboard: React.FC = () => {
             ))
           )}
         </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <EditProjectModal
+          project={editingProject}
+          onSave={handleSaveEdit}
+          onCancel={handleCancelEdit}
+          isSaving={isUpdating}
+        />
       )}
     </div>
   );

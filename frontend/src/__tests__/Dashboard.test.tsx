@@ -209,8 +209,9 @@ describe('Dashboard', () => {
       await user.click(screen.getByText('Create'))
 
       await waitFor(() => {
-        // Component renders error as <p class="error"> not an alert role
-        expect(screen.getByText(/Network error/)).toBeInTheDocument()
+        // Error appears both inline in the form and as a toast notification
+        const errorElements = screen.getAllByText(/Network error/)
+        expect(errorElements.length).toBeGreaterThanOrEqual(1)
       })
     })
 
@@ -251,6 +252,265 @@ describe('Dashboard', () => {
 
       // When isCreating=true, the button shows "Creating..." and is disabled
       expect(screen.getByText('Creating...')).toBeInTheDocument()
+    })
+  })
+
+  describe('Edit project functionality', () => {
+    const mockProjects = [
+      { id: 1, name: 'Project Alpha', slug: 'project-alpha', description: 'Original description', documentCount: 5, createdAt: '', updatedAt: '' },
+      { id: 2, name: 'Project Beta', slug: 'project-beta', description: null, documentCount: 3, createdAt: '', updatedAt: '' },
+    ]
+
+    it('should render edit button on each project card', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Check edit buttons exist for each project
+      const editButton1 = screen.getByTestId('edit-button-1')
+      const editButton2 = screen.getByTestId('edit-button-2')
+      
+      expect(editButton1).toBeInTheDocument()
+      expect(editButton2).toBeInTheDocument()
+    })
+
+    it('should open edit modal with pre-filled values when edit button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Click edit button for first project
+      await user.click(screen.getByTestId('edit-button-1'))
+
+      // Modal should be visible
+      expect(screen.getByTestId('edit-modal')).toBeInTheDocument()
+      
+      // Form fields should be pre-filled with project data
+      const nameInput = screen.getByTestId('edit-name-input')
+      const descriptionInput = screen.getByTestId('edit-description-input')
+      
+      expect(nameInput).toHaveValue('Project Alpha')
+      expect(descriptionInput).toHaveValue('Original description')
+    })
+
+    it('should open edit modal with empty description for null description', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Beta')).toBeInTheDocument()
+      })
+
+      // Click edit button for second project (null description)
+      await user.click(screen.getByTestId('edit-button-2'))
+
+      expect(screen.getByTestId('edit-modal')).toBeInTheDocument()
+      
+      const nameInput = screen.getByTestId('edit-name-input')
+      const descriptionInput = screen.getByTestId('edit-description-input')
+      
+      expect(nameInput).toHaveValue('Project Beta')
+      expect(descriptionInput).toHaveValue('')
+    })
+
+    it('should call updateProject with correct params when form is submitted', async () => {
+      const mockUpdateProject = vi.fn().mockResolvedValue({
+        id: 1, name: 'Updated Name', slug: 'project-alpha', description: 'New description', documentCount: 5, createdAt: '', updatedAt: ''
+      })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: mockUpdateProject, deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open edit modal
+      await user.click(screen.getByTestId('edit-button-1'))
+
+      // Update the name and description
+      const nameInput = screen.getByTestId('edit-name-input')
+      const descriptionInput = screen.getByTestId('edit-description-input')
+      
+      await user.clear(nameInput)
+      await user.type(nameInput, 'Updated Name')
+      
+      await user.clear(descriptionInput)
+      await user.type(descriptionInput, 'New description')
+
+      // Click save
+      await user.click(screen.getByTestId('edit-save-button'))
+
+      expect(mockUpdateProject).toHaveBeenCalledWith({
+        id: 1,
+        dto: { name: 'Updated Name', description: 'New description' },
+      })
+    })
+
+    it('should close modal and show success toast after successful update', async () => {
+      const mockUpdateProject = vi.fn().mockResolvedValue({
+        id: 1, name: 'Updated Name', slug: 'project-alpha', description: 'New desc', documentCount: 5, createdAt: '', updatedAt: ''
+      })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: mockUpdateProject, deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open edit modal and save
+      await user.click(screen.getByTestId('edit-button-1'))
+      
+      const nameInput = screen.getByTestId('edit-name-input')
+      await user.clear(nameInput)
+      await user.type(nameInput, 'Updated Name')
+
+      await user.click(screen.getByTestId('edit-save-button'))
+
+      // Modal should close after successful update
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-modal')).not.toBeInTheDocument()
+      })
+
+      // Success toast should appear
+      expect(screen.getByText(/Project updated successfully/)).toBeInTheDocument()
+    })
+
+    it('should close modal when cancel button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open edit modal
+      await user.click(screen.getByTestId('edit-button-1'))
+      expect(screen.getByTestId('edit-modal')).toBeInTheDocument()
+
+      // Click cancel
+      await user.click(screen.getByTestId('edit-cancel-button'))
+
+      // Modal should close
+      expect(screen.queryByTestId('edit-modal')).not.toBeInTheDocument()
+    })
+
+    it('should show loading state while saving', async () => {
+      const mockUpdateProject = vi.fn().mockResolvedValue({
+        id: 1, name: 'Updated Name', slug: 'project-alpha', description: 'New desc', documentCount: 5, createdAt: '', updatedAt: ''
+      })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: mockUpdateProject, deleteProject: vi.fn(), isCreating: false, isUpdating: true, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open edit modal
+      await user.click(screen.getByTestId('edit-button-1'))
+
+      // When isUpdating=true, the save button shows "Saving..." and is disabled
+      expect(screen.getByText('Saving...')).toBeInTheDocument()
+    })
+
+    it('should show error in modal when update fails', async () => {
+      const mockUpdateProject = vi.fn().mockRejectedValue(new Error('Server error'))
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: mockUpdateProject, deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open edit modal and try to save
+      await user.click(screen.getByTestId('edit-button-1'))
+      
+      const nameInput = screen.getByTestId('edit-name-input')
+      await user.clear(nameInput)
+      await user.type(nameInput, 'Updated Name')
+
+      await user.click(screen.getByTestId('edit-save-button'))
+
+      // Error should be displayed in the modal
+      await waitFor(() => {
+        expect(screen.getByText(/Server error/)).toBeInTheDocument()
+      })
+    })
+
+    it('should not navigate to project when edit button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Click edit button - should open modal, not navigate
+      await user.click(screen.getByTestId('edit-button-1'))
+
+      // Modal should be visible (proving navigation didn't happen)
+      expect(screen.getByTestId('edit-modal')).toBeInTheDocument()
     })
   })
 })
