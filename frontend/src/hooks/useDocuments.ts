@@ -1,6 +1,6 @@
 /**
  * Custom React hook for managing documents within a project using TanStack Query.
- * Provides document fetching, creation, update, and deletion with automatic cache management.
+ * Provides document fetching, creation, update, deletion and search with automatic cache management.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import type { CreateDocumentDto, UpdateDocumentDto } from '../types/document';
 import { documentApi } from '../services/documentApi';
 
 const DOCUMENTS_QUERY_KEY = (projectSlug: string) => ['documents', projectSlug] as const;
+const SEARCH_DOCUMENTS_QUERY_KEY = (projectSlug: string, keyword: string) => ['documents', 'search', projectSlug, keyword] as const;
 
 export function useDocuments(projectSlug: string) {
   const queryClient = useQueryClient();
@@ -55,5 +56,25 @@ export function useDocuments(projectSlug: string) {
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
+  };
+}
+
+/**
+ * Custom React hook for searching documents within a project.
+ * Returns search results and loading state based on the provided keyword.
+ */
+export function useSearchDocuments(projectSlug: string, keyword: string) {
+  const trimmedKeyword = keyword.trim();
+
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: SEARCH_DOCUMENTS_QUERY_KEY(projectSlug, trimmedKeyword),
+    queryFn: () => documentApi.search(projectSlug, trimmedKeyword),
+    enabled: !!projectSlug && trimmedKeyword.length > 0,
+  });
+
+  return {
+    searchResults: data ?? [],
+    isLoading: isLoading || isFetching,
+    hasSearched: trimmedKeyword.length > 0,
   };
 }

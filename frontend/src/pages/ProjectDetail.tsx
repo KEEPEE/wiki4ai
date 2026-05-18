@@ -6,7 +6,8 @@
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
-import { useDocuments } from '../hooks/useDocuments';
+import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
+import { useDebounce } from '../hooks/useDebounce';
 import type { CreateDocumentDto } from '../types/document';
 import './ProjectDetail.css';
 
@@ -25,6 +26,14 @@ const ProjectDetail: React.FC = () => {
     isDeleting,
   } = useDocuments(slug ?? '');
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const { searchResults, isLoading: searching, hasSearched } = useSearchDocuments(
+    slug ?? '',
+    debouncedSearchQuery,
+  );
+
   const [activeTab, setActiveTab] = useState<TabType>('documents');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -32,6 +41,9 @@ const ProjectDetail: React.FC = () => {
 
   // Find the project by slug
   const project = projects.find((p) => p.slug === slug);
+
+  // Determine which documents to display: search results if searching, otherwise all documents
+  const displayDocuments = hasSearched ? searchResults : documents;
 
   if (loadingProjects) return <div className="project-detail"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
   if (!project) return <div className="project-detail error">Project not found.</div>;
@@ -138,15 +150,42 @@ const ProjectDetail: React.FC = () => {
       {/* Documents List */}
       {activeTab === 'documents' && (
         <div className="documents-list">
-          <h2>Dokumenty ({documents.length})</h2>
+          <h2>Dokumenty ({hasSearched ? searchResults.length : documents.length})</h2>
 
-          {loadingDocuments ? (
+          {/* Search Bar */}
+          <div className="search-bar">
+            <input
+              type="text"
+              placeholder="Search documents..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+              data-testid="document-search-input"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="search-clear-btn"
+                aria-label="Clear search"
+                data-testid="clear-search-button"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+
+          {loadingDocuments && !hasSearched ? (
             <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
-          ) : documents.length === 0 ? (
+          ) : searching ? (
+            <div className="loading-state"><div className="spinner" /><p>Searching...</p></div>
+          ) : hasSearched && searchResults.length === 0 ? (
+            <p className="empty-state">No documents match your search</p>
+          ) : !hasSearched && displayDocuments.length === 0 ? (
             <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
           ) : (
             <ul className="document-items">
-              {documents.map((doc) => (
+              {displayDocuments.map((doc) => (
                 <li key={doc.id} className="document-item">
                   <div className="doc-info" onClick={() => handleViewDocument(doc.title.toLowerCase().replace(/\s+/g, '-'))}>
                     <span className="doc-title">{doc.title}</span>

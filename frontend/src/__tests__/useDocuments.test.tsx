@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
-import { useDocuments } from '../hooks/useDocuments'
+import { useDocuments, useSearchDocuments } from '../hooks/useDocuments'
 
 // Mock the documentApi module at the top level
 vi.mock('../services/documentApi', () => ({
@@ -15,6 +15,7 @@ vi.mock('../services/documentApi', () => ({
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
+    search: vi.fn(),
   },
 }))
 
@@ -113,5 +114,78 @@ describe('useDocuments', () => {
 
       expect(documentApi.delete).toHaveBeenCalledWith('test-project', 'my-doc')
     })
+  })
+})
+
+describe('useSearchDocuments', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('should search documents when keyword is provided', async () => {
+    const mockResults = [
+      { id: 1, title: 'Matching Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' },
+    ]
+
+    const { documentApi } = await import('../services/documentApi')
+    vi.mocked(documentApi.search).mockResolvedValue(mockResults)
+
+    const { result } = renderHook(() => useSearchDocuments('test-project', 'matching'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(documentApi.search).toHaveBeenCalledWith('test-project', 'matching')
+    expect(result.current.searchResults).toEqual(mockResults)
+    expect(result.current.hasSearched).toBe(true)
+  })
+
+  it('should not search when keyword is empty', async () => {
+    const { documentApi } = await import('../services/documentApi')
+    vi.mocked(documentApi.search).mockResolvedValue([])
+
+    renderHook(() => useSearchDocuments('test-project', ''), { wrapper })
+
+    // Should not call API for empty keyword
+    expect(documentApi.search).not.toHaveBeenCalled()
+  })
+
+  it('should not search when projectSlug is empty', async () => {
+    const { documentApi } = await import('../services/documentApi')
+    vi.mocked(documentApi.search).mockResolvedValue([])
+
+    renderHook(() => useSearchDocuments('', 'keyword'), { wrapper })
+
+    // Should not call API for empty slug
+    expect(documentApi.search).not.toHaveBeenCalled()
+  })
+
+  it('should trim whitespace from keyword', async () => {
+    const mockResults = [
+      { id: 1, title: 'Test Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' },
+    ]
+
+    const { documentApi } = await import('../services/documentApi')
+    vi.mocked(documentApi.search).mockResolvedValue(mockResults)
+
+    renderHook(() => useSearchDocuments('test-project', '  test  '), { wrapper })
+
+    // Should trim the keyword before searching
+    expect(documentApi.search).toHaveBeenCalledWith('test-project', 'test')
+  })
+
+  it('should return empty results when no matches found', async () => {
+    const { documentApi } = await import('../services/documentApi')
+    vi.mocked(documentApi.search).mockResolvedValue([])
+
+    const { result } = renderHook(() => useSearchDocuments('test-project', 'nonexistent'), { wrapper })
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false)
+    })
+
+    expect(result.current.searchResults).toEqual([])
+    expect(result.current.hasSearched).toBe(true)
   })
 })
