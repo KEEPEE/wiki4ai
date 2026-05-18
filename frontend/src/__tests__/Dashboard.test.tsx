@@ -513,4 +513,208 @@ describe('Dashboard', () => {
       expect(screen.getByTestId('edit-modal')).toBeInTheDocument()
     })
   })
+
+  describe('Delete project functionality', () => {
+    const mockProjects = [
+      { id: 1, name: 'Project Alpha', slug: 'project-alpha', description: 'Original description', documentCount: 5, createdAt: '', updatedAt: '' },
+      { id: 2, name: 'Project Beta', slug: 'project-beta', description: null, documentCount: 3, createdAt: '', updatedAt: '' },
+    ]
+
+    it('should render delete button on each project card', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Check delete buttons exist for each project
+      const deleteButton1 = screen.getByTestId('delete-button-1')
+      const deleteButton2 = screen.getByTestId('delete-button-2')
+
+      expect(deleteButton1).toBeInTheDocument()
+      expect(deleteButton2).toBeInTheDocument()
+    })
+
+    it('should open confirmation dialog when delete button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Click delete button for first project
+      await user.click(screen.getByTestId('delete-button-1'))
+
+      // Confirmation dialog should be visible
+      expect(screen.getByTestId('delete-modal')).toBeInTheDocument()
+
+      // Warning text should contain the project name
+      const warningText = screen.getByTestId('delete-warning-text')
+      expect(warningText).toHaveTextContent(/Project Alpha/)
+    })
+
+    it('should call deleteProject with correct ID when confirmed', async () => {
+      const mockDeleteProject = vi.fn().mockResolvedValue(undefined)
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: mockDeleteProject, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open delete confirmation dialog
+      await user.click(screen.getByTestId('delete-button-1'))
+
+      // Confirm deletion
+      await user.click(screen.getByTestId('delete-confirm-button'))
+
+      expect(mockDeleteProject).toHaveBeenCalledWith(1)
+    })
+
+    it('should close modal and show success toast after successful delete', async () => {
+      const mockDeleteProject = vi.fn().mockResolvedValue(undefined)
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: mockDeleteProject, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open delete confirmation dialog and confirm
+      await user.click(screen.getByTestId('delete-button-1'))
+      await user.click(screen.getByTestId('delete-confirm-button'))
+
+      // Modal should close after successful deletion
+      await waitFor(() => {
+        expect(screen.queryByTestId('delete-modal')).not.toBeInTheDocument()
+      })
+
+      // Success toast should appear
+      expect(screen.getByText(/Project deleted successfully/)).toBeInTheDocument()
+    })
+
+    it('should do nothing when cancel is clicked', async () => {
+      const mockDeleteProject = vi.fn().mockResolvedValue(undefined)
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: mockDeleteProject, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open delete confirmation dialog
+      await user.click(screen.getByTestId('delete-button-1'))
+      expect(screen.getByTestId('delete-modal')).toBeInTheDocument()
+
+      // Click cancel
+      await user.click(screen.getByTestId('delete-cancel-button'))
+
+      // Modal should close and deleteProject should NOT have been called
+      expect(screen.queryByTestId('delete-modal')).not.toBeInTheDocument()
+      expect(mockDeleteProject).not.toHaveBeenCalled()
+    })
+
+    it('should show loading state while deleting', async () => {
+      const mockDeleteProject = vi.fn().mockResolvedValue(undefined)
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: mockDeleteProject, isCreating: false, isUpdating: false, isDeleting: true,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open delete confirmation dialog
+      await user.click(screen.getByTestId('delete-button-1'))
+
+      // When isDeleting=true, the confirm button shows "Deleting..." and is disabled
+      expect(screen.getByText('Deleting...')).toBeInTheDocument()
+    })
+
+    it('should show error in modal when delete fails', async () => {
+      const mockDeleteProject = vi.fn().mockRejectedValue(new Error('Server error'))
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: mockDeleteProject, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Open delete confirmation dialog and confirm
+      await user.click(screen.getByTestId('delete-button-1'))
+      await user.click(screen.getByTestId('delete-confirm-button'))
+
+      // Error should be displayed in the modal
+      await waitFor(() => {
+        expect(screen.getByText(/Server error/)).toBeInTheDocument()
+      })
+    })
+
+    it('should not navigate to project when delete button is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByText('Project Alpha')).toBeInTheDocument()
+      })
+
+      // Click delete button - should open modal, not navigate
+      await user.click(screen.getByTestId('delete-button-1'))
+
+      // Modal should be visible (proving navigation didn't happen)
+      expect(screen.getByTestId('delete-modal')).toBeInTheDocument()
+    })
+  })
 })
