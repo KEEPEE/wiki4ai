@@ -17,6 +17,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -1136,6 +1140,86 @@ class DocumentServiceTest {
 
             // then — target backlinker should still link to sourceDocument (same project after move)
             assertThat(targetBacklinker.getLinkedDocuments()).contains(sourceDocument);
+        }
+    }
+
+    @Nested
+    @DisplayName("getDocumentsByProjectPaginated")
+    class GetDocumentsByProjectPaginatedTests {
+
+        @Test
+        @DisplayName("Should return paginated results with correct page metadata")
+        void shouldReturnPaginatedResults() {
+            // given
+            Document doc1 = Document.builder()
+                    .id(1L).title("Doc 1").content("Content 1").slug("doc-1")
+                    .project(testProject).linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                    .build();
+            Document doc2 = Document.builder()
+                    .id(2L).title("Doc 2").content("Content 2").slug("doc-2")
+                    .project(testProject).linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                    .build();
+            Page<Document> docPage = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(0, 10), 25);
+
+            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+                    .thenReturn(docPage);
+
+            // when
+            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 10));
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getContent()).hasSize(2);
+            assertThat(result.getTotalElements()).isEqualTo(25);
+            assertThat(result.getTotalPages()).isEqualTo(3);
+            assertThat(result.getNumber()).isEqualTo(0);
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getContent().get(0).getTitle()).isEqualTo("Doc 1");
+            assertThat(result.getContent().get(1).getTitle()).isEqualTo("Doc 2");
+        }
+
+        @Test
+        @DisplayName("Should return empty page when project has no documents")
+        void shouldReturnEmptyPageWhenNoDocuments() {
+            // given
+            Page<Document> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
+            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+                    .thenReturn(emptyPage);
+
+            // when
+            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 50));
+
+            // then
+            assertThat(result.getContent()).isEmpty();
+            assertThat(result.getTotalElements()).isEqualTo(0);
+            assertThat(result.getTotalPages()).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("Should return correct page when requesting page 1 with size 10")
+        void shouldReturnSecondPageWithCorrectSize() {
+            // given
+            Document doc = Document.builder()
+                    .id(11L).title("Doc 11").content("Content 11").slug("doc-11")
+                    .project(testProject).linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                    .build();
+            Page<Document> docPage = new PageImpl<>(List.of(doc), PageRequest.of(1, 10), 23);
+
+            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+                    .thenReturn(docPage);
+
+            // when
+            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(1, 10));
+
+            // then
+            assertThat(result.getContent()).hasSize(1);
+            assertThat(result.getNumber()).isEqualTo(1);
+            assertThat(result.getSize()).isEqualTo(10);
+            assertThat(result.getTotalElements()).isEqualTo(23);
+            assertThat(result.isFirst()).isFalse();
         }
     }
 }

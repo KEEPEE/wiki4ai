@@ -15,6 +15,10 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -68,13 +72,21 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Zoznam dokumentov v projekte", description = "Vráti zoznam všetkých dokumentov v rámci projektu.")
-    @ApiResponse(responseCode = "200", description = "Zoznam dokumentov úspešne načítaný")
+    @Operation(summary = "Zoznam dokumentov v projekte (paginovaný)", description = "Vráti paginovaný zoznam dokumentov v rámci projektu. Podporuje parametre page a size pre navigáciu medzi stránkami.")
+    @ApiResponse(responseCode = "200", description = "Paginovaný zoznam dokumentov úspešne načítaný")
     @GetMapping
-    public ResponseEntity<List<DocumentDTO>> getDocuments(
-            @Parameter(description = "Slug projektu") @PathVariable String projectSlug) {
+    public ResponseEntity<Page<DocumentDTO>> getDocuments(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Číslo stránky (0-indexed, default 0)") @RequestParam(required = false, defaultValue = "0") int page,
+            @Parameter(description = "Veľkosť stránky (default 50, max 100)") @RequestParam(required = false, defaultValue = "50") int size) {
+
         Long projectId = resolveProjectId(projectSlug);
-        return ResponseEntity.ok(documentService.getDocumentsByProject(projectId));
+
+        // Clamp size to reasonable bounds
+        int pageSize = Math.min(Math.max(size, 1), 100);
+        Pageable pageable = PageRequest.of(page, pageSize, Sort.by("updatedAt").descending());
+
+        return ResponseEntity.ok(documentService.getDocumentsByProjectPaginated(projectId, pageable));
     }
 
     @Operation(summary = "Detail dokumentu podľa slugu", description = "Vráti detail dokumentu na základe jeho URL-friendly slugu.")

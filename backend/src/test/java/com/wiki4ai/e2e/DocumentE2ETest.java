@@ -107,9 +107,15 @@ class DocumentE2ETest {
     private List<Map<String, Object>> getAllDocuments() {
         String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug);
         try {
-            ResponseEntity<Map[]> response = restTemplate.getForEntity(url, Map[].class);
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
             if (response.getBody() == null) return List.of();
-            return java.util.Arrays.asList(response.getBody());
+            Object contentObj = response.getBody().get("content");
+            if (contentObj instanceof List<?>) {
+                return ((List<?>) contentObj).stream()
+                        .map(obj -> (Map<String, Object>) obj)
+                        .toList();
+            }
+            return List.of();
         } catch (Exception e) {
             return List.of();
         }
