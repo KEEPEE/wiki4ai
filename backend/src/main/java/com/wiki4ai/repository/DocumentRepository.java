@@ -66,4 +66,14 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
      * @return document count
      */
     long countByProjectId(Long projectId);
+
+    /**
+     * Find all documents that link TO a specific target document (backlinks).
+     * Returns documents where the given target document is in their linkedDocuments collection.
+     *
+     * @param targetDocId the ID of the target document to find backlinks for
+     * @return list of documents that have a link pointing to the target document
+     */
+    @Query("SELECT d FROM Document d JOIN d.linkedDocuments ld WHERE ld.id = :targetDocId")
+    List<Document> findByLinkedDocumentsId(Long targetDocId);
 }

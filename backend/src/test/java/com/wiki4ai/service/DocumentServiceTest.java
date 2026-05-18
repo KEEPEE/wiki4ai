@@ -687,6 +687,80 @@ class DocumentServiceTest {
     }
 
     @Nested
+    @DisplayName("getBacklinks")
+    class GetBacklinksTests {
+
+        @Test
+        @DisplayName("Should return documents that link to the target document (backlinks)")
+        void shouldReturnBacklinks() {
+            // given — docA and docB both link to sourceDocument (target)
+            Document docA = Document.builder()
+                    .id(3L)
+                    .title("Doc A")
+                    .content("Content A")
+                    .slug("doc-a")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            docA.addLinkedDocument(sourceDocument);
+
+            Document docB = Document.builder()
+                    .id(4L)
+                    .title("Doc B")
+                    .content("Content B")
+                    .slug("doc-b")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            docB.addLinkedDocument(sourceDocument);
+
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.findByLinkedDocumentsId(1L)).thenReturn(List.of(docA, docB));
+
+            // when
+            List<DocumentDTO> result = documentService.getBacklinks(1L);
+
+            // then
+            assertThat(result).hasSize(2);
+            assertThat(result.get(0).getTitle()).isEqualTo("Doc A");
+            assertThat(result.get(1).getTitle()).isEqualTo("Doc B");
+        }
+
+        @Test
+        @DisplayName("Should return empty list when no documents link to the target")
+        void shouldReturnEmptyListWhenNoBacklinks() {
+            // given
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.findByLinkedDocumentsId(1L)).thenReturn(List.of());
+
+            // when
+            List<DocumentDTO> result = documentService.getBacklinks(1L);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when target document not found")
+        void shouldThrowWhenTargetNotFound() {
+            // given
+            when(documentRepository.findById(99L)).thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.getBacklinks(99L))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Document not found with id: 99");
+
+            // Repository backlink query should NOT be called if target doesn't exist
+            verify(documentRepository, never()).findByLinkedDocumentsId(any());
+        }
+    }
+
+    @Nested
     @DisplayName("convertToDTO")
     class ConvertToDtoTests {
 

@@ -161,6 +161,17 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.getLinkedDocuments(sourceDocId));
     }
 
+    @Operation(summary = "Backlinky dokumentu", description = "Vráti zoznam všetkých dokumentov, ktoré odkazujú NA daný dokument (reverse links).")
+    @ApiResponse(responseCode = "200", description = "Zoznam backlinkov úspešne načítaný")
+    @ApiResponse(responseCode = "404", description = "Dokument nebol nájdený")
+    @GetMapping("/{docSlug}/backlinks")
+    public ResponseEntity<List<DocumentDTO>> getBacklinks(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
+        Long targetDocId = resolveSourceDocId(projectSlug, docSlug);
+        return ResponseEntity.ok(documentService.getBacklinks(targetDocId));
+    }
+
     // ==================== Search Endpoint ====================
 
     @Operation(summary = "Vyhľadávanie dokumentov v projekte", description = "Vyhľadá dokumenty podľa kľúčového slova v obsahu v rámci projektu.")
