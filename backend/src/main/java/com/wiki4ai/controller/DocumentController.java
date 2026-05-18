@@ -5,6 +5,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
+import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
@@ -234,5 +235,22 @@ public class DocumentController {
         }
         String extension = filename.substring(lastDot + 1).toLowerCase();
         return "md".equals(extension) || "markdown".equals(extension);
+    }
+
+    // ==================== Move Document Endpoint ====================
+
+    @Operation(summary = "Presunúť dokument do iného projektu", description = "Presunie dokument z aktuálneho projektu do cieľového projektu. Všetky prepojenia sú odstránené.")
+    @ApiResponse(responseCode = "200", description = "Dokument úspešne presunutý")
+    @ApiResponse(responseCode = "404", description = "Dokument alebo cieľový projekt nebol nájdený")
+    @ApiResponse(responseCode = "409", description = "Dokument s rovnakým názvom už existuje v cieľovom projekte")
+    @PostMapping("/{docSlug}/move")
+    public ResponseEntity<DocumentDTO> moveDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
+            @Valid @RequestBody MoveRequestDTO dto) {
+
+        Long sourceProjectId = resolveProjectId(projectSlug);
+        DocumentDTO moved = documentService.moveDocument(sourceProjectId, docSlug, dto.getTargetProjectSlug());
+        return ResponseEntity.ok(moved);
     }
 }
