@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from mcp_server import (
     search_documents,
+    get_backlinks,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -61,6 +62,26 @@ def mock_search_response():
 @pytest.fixture
 def mock_empty_search_response():
     """Empty search results."""
+    return []
+
+
+@pytest.fixture
+def mock_backlinks_response():
+    """Sample backlinks API response."""
+    return [
+        {
+            "id": 3,
+            "title": "Advanced Python Topics",
+            "slug": "advanced-python-topics",
+            "createdAt": "2026-05-18T12:00:00Z",
+            "updatedAt": "2026-05-18T12:00:00Z",
+        },
+    ]
+
+
+@pytest.fixture
+def mock_empty_backlinks_response():
+    """Empty backlinks response."""
     return []
 
 
@@ -163,6 +184,87 @@ class TestSearchDocumentsResponseFormat:
         assert len(result) == 0
 
 
+# ─── Tests: get_backlinks API call ──────────────────────────────────────
+
+class TestGetBacklinksAPICall:
+    """Tests that get_backlinks calls the correct API endpoint."""
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint(self, mock_urlopen, mock_backlinks_response):
+        """get_backlinks calls GET /v1/projects/{slug}/documents/{doc_slug}/backlinks"""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_backlinks_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_backlinks("my-project", "getting-started-python")
+
+        # Verify the URL was called correctly
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "/backlinks" in str(request.full_url)
+        assert "getting-started-python" in str(request.full_url)
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint_with_special_slug(self, mock_urlopen, mock_backlinks_response):
+        """get_backlinks handles document slugs with special characters."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_backlinks_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_backlinks("my-project", "some-doc-with-dashes")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "some-doc-with-dashes" in str(request.full_url)
+
+
+# ─── Tests: get_backlinks response format ──────────────────────────────
+
+class TestGetBacklinksResponseFormat:
+    """Tests that get_backlinks returns correct data format."""
+
+    @patch("mcp_server.urlopen")
+    def test_returns_list_of_dicts(self, mock_urlopen, mock_backlinks_response):
+        """get_backlinks returns a list of document dicts."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_backlinks_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_backlinks("my-project", "getting-started-python")
+
+        assert isinstance(result, list)
+        assert len(result) == 1
+        assert all(isinstance(doc, dict) for doc in result)
+
+    @patch("mcp_server.urlopen")
+    def test_returns_document_fields(self, mock_urlopen, mock_backlinks_response):
+        """Each document in the result has expected fields."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_backlinks_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_backlinks("my-project", "getting-started-python")
+
+        doc = result[0]
+        assert "id" in doc
+        assert "title" in doc
+        assert "slug" in doc
+        assert "createdAt" in doc
+        assert "updatedAt" in doc
+
+    @patch("mcp_server.urlopen")
+    def test_returns_empty_list_for_no_backlinks(self, mock_urlopen, mock_empty_backlinks_response):
+        """get_backlinks returns empty list when no documents link to the target."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_empty_backlinks_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_backlinks("my-project", "orphan-document")
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+
 # ─── Tests: MCP Server Registration ──────────────────────────────────────
 
 class TestMCPServerRegistration:
@@ -183,7 +285,7 @@ class TestMCPServerRegistration:
             "list_projects", "get_project", "create_project", "update_project", "delete_project",
             "list_documents", "create_document", "get_document", "update_document",
             "delete_document", "get_document_content",
-            "add_link", "remove_link", "get_links",
+            "add_link", "remove_link", "get_links", "get_backlinks",
             "search_documents",
         ]
 
@@ -267,3 +369,15 @@ class TestExistingToolsSmokeTest:
 
         result = health_check()
         assert isinstance(result, dict)
+
+    @patch("mcp_server.urlopen")
+    def test_get_backlinks_still_works(self, mock_urlopen):
+        """get_backlinks tool still functions correctly."""
+        from mcp_server import get_backlinks as gb_func
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1, "title": "Ref Doc"}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = gb_func("test-project", "some-doc")
+        assert isinstance(result, list)
