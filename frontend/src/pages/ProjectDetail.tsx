@@ -9,6 +9,7 @@ import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
 import { projectApi } from '../services/projectApi';
+import { generateSlug } from '../utils/slugify';
 import type { CreateDocumentDto } from '../types/document';
 import './ProjectDetail.css';
 
@@ -374,7 +375,7 @@ const ProjectDetail: React.FC = () => {
           ) : (
             <ul className="document-items">
               {displayDocuments.map((doc) => {
-                const slug = doc.slug || doc.title.toLowerCase().replace(/\s+/g, '-');
+                const slug = doc.slug || generateSlug(doc.title);
                 return (
                   <li key={doc.id} className="document-item">
                     <div className="doc-info" onClick={() => handleViewDocument(slug)}>
