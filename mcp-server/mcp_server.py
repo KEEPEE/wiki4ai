@@ -361,6 +361,28 @@ def move_document(project_slug: str, doc_slug: str, target_project_slug: str) ->
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/move", body)
 
 
+def copy_document(project_slug: str, doc_slug: str, target_project_slug: Optional[str] = None) -> dict:
+    """Copy a document to another project (or within the same project).
+
+    Creates a duplicate of the specified document in the target project.
+    If target_project_slug is not provided, the document is copied within
+    the same source project.
+
+    Args:
+        project_slug: The URL-friendly slug of the source project (required)
+        doc_slug: The URL-friendly slug of the document to copy (required)
+        target_project_slug: The URL-friendly slug of the target project (optional).
+            If not provided, copies within the same project.
+
+    Returns:
+        New DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
+    """
+    body = {}
+    if target_project_slug is not None:
+        body["targetProjectSlug"] = target_project_slug
+    return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/copy", body)
+
+
 # ─── MCP Server Setup ────────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
@@ -379,6 +401,7 @@ def create_mcp_server() -> FastMCP:
         search_documents,
         import_document,
         move_document,
+        copy_document,
     ]:
         mcp.tool()(func)
 

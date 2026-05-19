@@ -24,6 +24,7 @@ from mcp_server import (
     batch_create_documents,
     import_document,
     move_document,
+    copy_document,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -152,6 +153,19 @@ def mock_move_document_response():
         "projectId": 9,
         "createdAt": "2026-05-18T20:00:00Z",
         "updatedAt": "2026-05-19T10:00:00Z",
+    }
+
+
+@pytest.fixture
+def mock_copy_document_response():
+    """Sample copy document API response (DocumentDTO - new copy)."""
+    return {
+        "id": 43,
+        "title": "Original Document",
+        "slug": "original-document-copy",
+        "projectId": 8,
+        "createdAt": "2026-05-19T08:00:00Z",
+        "updatedAt": "2026-05-19T08:00:00Z",
     }
 
 
@@ -652,6 +666,117 @@ class TestMoveDocumentResponseFormat:
         assert result["projectId"] == 9
 
 
+# ─── Tests: copy_document API call ──────────────────────────────────────
+
+class TestCopyDocumentAPICall:
+    """Tests that copy_document calls the correct API endpoint."""
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint_with_target(self, mock_urlopen, mock_copy_document_response):
+        """copy_document calls POST /v1/projects/{slug}/documents/{doc_slug}/copy with targetProjectSlug"""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        copy_document("source-project", "my-document", "target-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "/v1/projects/source-project/documents/my-document/copy" in str(request.full_url)
+        assert request.method == "POST"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_target_project_slug_in_body(self, mock_urlopen, mock_copy_document_response):
+        """copy_document sends targetProjectSlug in the JSON body when provided."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        copy_document("source-project", "my-document", "target-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["targetProjectSlug"] == "target-project"
+
+    @patch("mcp_server.urlopen")
+    def test_calls_copy_endpoint_without_target_project(self, mock_urlopen, mock_copy_document_response):
+        """copy_document calls the copy endpoint without targetProjectSlug when not provided."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        copy_document("my-project", "my-document")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "/v1/projects/my-project/documents/my-document/copy" in str(request.full_url)
+        assert request.method == "POST"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_no_body_without_target_project(self, mock_urlopen, mock_copy_document_response):
+        """copy_document sends no request body when targetProjectSlug is not provided.
+
+        Note: _api_request treats empty dict as falsy, so data=None is sent.
+        This is acceptable because the backend interprets missing body the same way.
+        """
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        copy_document("my-project", "my-document")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        # Empty dict {} is falsy in Python, so _api_request sends data=None
+        assert request.data is None
+
+
+# ─── Tests: copy_document response format ──────────────────────────────
+
+class TestCopyDocumentResponseFormat:
+    """Tests that copy_document returns correct data format."""
+
+    @patch("mcp_server.urlopen")
+    def test_returns_dict(self, mock_urlopen, mock_copy_document_response):
+        """copy_document returns a dict (DocumentDTO)."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = copy_document("source-project", "my-document", "target-project")
+
+        assert isinstance(result, dict)
+
+    @patch("mcp_server.urlopen")
+    def test_returns_document_dto_fields(self, mock_urlopen, mock_copy_document_response):
+        """copy_document returns a dict with expected DocumentDTO fields."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = copy_document("source-project", "my-document", "target-project")
+
+        assert "id" in result
+        assert "title" in result
+        assert "slug" in result
+        assert "projectId" in result
+        assert "createdAt" in result
+        assert "updatedAt" in result
+
+    @patch("mcp_server.urlopen")
+    def test_returns_new_document_id(self, mock_urlopen, mock_copy_document_response):
+        """copy_document returns a new document ID (different from original)."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_copy_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = copy_document("source-project", "my-document", "target-project")
+
+        # The response should have the new document ID (43 in our fixture)
+        assert result["id"] == 43
+
+
 # ─── Tests: MCP Server Registration ──────────────────────────────────────
 
 class TestMCPServerRegistration:
@@ -676,6 +801,7 @@ class TestMCPServerRegistration:
             "search_documents",
             "import_document",
             "move_document",
+            "copy_document",
         ]
 
         # FastMCP 2.x stores tools in _tool_manager or similar internal structure
