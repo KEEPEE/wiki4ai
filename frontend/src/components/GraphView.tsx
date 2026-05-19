@@ -169,10 +169,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
    */
   const drawNode = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
-      // Determine if we should show labels based on zoom level and toggle state
-      const zoomLevel = 1 / globalScale;
-      const minZoomForLabels = 0.6; // Show labels when zoomed in enough
-      const shouldShowLabels = showLabels && zoomLevel >= minZoomForLabels;
+      // When "Labels on" is active, labels are ALWAYS visible regardless of zoom.
+      // Previously there was a zoom-level threshold check that incorrectly hid labels
+      // when the user was zoomed in (high globalScale), which caused the bug where
+      // labels were invisible even with the toggle enabled.
+      const shouldShowLabels = showLabels;
 
       // Draw node circle
       const radius = Math.max(8, 6 / globalScale); // Scale radius with zoom
@@ -181,7 +182,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       ctx.fillStyle = node.color || '#4f46e5';
       ctx.fill();
 
-      // Draw label if conditions are met
+      // Draw label if toggle is on
       if (shouldShowLabels) {
         const fontSize = Math.max(8, 11 / globalScale); // Scale font with zoom
         ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
@@ -200,26 +201,34 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
         ctx.beginPath();
         // Rounded rectangle for the label background
-        const r = (fontSize + paddingY * 2) / 4; // corner radius
-        const x = node.x || 0 - pillWidth / 2;
-        const y = (node.y || 0) + radius + 3 / globalScale;
+        const cornerRadius = Math.min(pillHeight / 2, pillWidth / 4);
+        const px = (node.x || 0) - pillWidth / 2;
+        const py = (node.y || 0) + radius + 3 / globalScale;
 
-        ctx.moveTo(x + r, y);
-        ctx.lineTo(x + pillWidth - r, y);
-        ctx.quadraticCurveTo(x + pillWidth, y, x + pillWidth - r, y + r);
-        ctx.lineTo(x + r, y + pillHeight);
-        ctx.lineTo(x + pillWidth - r, y + pillHeight);
-        ctx.quadraticCurveTo(x + pillWidth - r, y + pillHeight + r, x + r, y + pillHeight + r);
-        ctx.lineTo(x + r, y + pillHeight);
-        ctx.lineTo(x + r, y + r);
-        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.moveTo(px + cornerRadius, py);
+        // Top edge
+        ctx.lineTo(px + pillWidth - cornerRadius, py);
+        // Top-right corner
+        ctx.quadraticCurveTo(px + pillWidth, py, px + pillWidth, py + cornerRadius);
+        // Right edge
+        ctx.lineTo(px + pillWidth, py + pillHeight - cornerRadius);
+        // Bottom-right corner
+        ctx.quadraticCurveTo(px + pillWidth, py + pillHeight, px + pillWidth - cornerRadius, py + pillHeight);
+        // Bottom edge
+        ctx.lineTo(px + cornerRadius, py + pillHeight);
+        // Bottom-left corner
+        ctx.quadraticCurveTo(px, py + pillHeight, px, py + pillHeight - cornerRadius);
+        // Left edge
+        ctx.lineTo(px, py + cornerRadius);
+        // Top-left corner
+        ctx.quadraticCurveTo(px, py, px + cornerRadius, py);
         ctx.closePath();
         ctx.fill();
 
         // Draw text on top of the background
         const textColor = '#1a1a2e';
         ctx.fillStyle = textColor;
-        ctx.fillText(label, node.x || 0, y + pillHeight / 2);
+        ctx.fillText(label, node.x || 0, py + pillHeight / 2);
       }
     },
     [showLabels],
