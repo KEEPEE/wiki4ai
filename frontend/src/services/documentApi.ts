@@ -16,11 +16,13 @@ export interface DocumentContentResponse {
 export const documentApi = {
   /**
    * Get all documents in a project by slug.
+   * Backend returns a Spring Data Page object with { content: Document[], ... }.
+   * We extract the .content array for frontend consumption.
    */
   getByProject: (projectSlug: string): Promise<Document[]> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents`).then((res) => {
+    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents?page=0&size=50`).then((res) => {
       if (!res.ok) throw new Error(`Failed to fetch documents for project ${projectSlug}: ${res.statusText}`);
-      return res.json();
+      return res.json().then((data) => (Array.isArray(data) ? data : data.content || []));
     }),
 
   /**
