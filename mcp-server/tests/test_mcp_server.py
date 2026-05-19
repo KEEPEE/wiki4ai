@@ -23,6 +23,7 @@ from mcp_server import (
     get_backlinks,
     batch_create_documents,
     import_document,
+    move_document,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -138,6 +139,19 @@ def mock_import_document_response():
         "projectId": 7,
         "createdAt": "2026-05-18T20:00:00Z",
         "updatedAt": "2026-05-18T20:00:00Z",
+    }
+
+
+@pytest.fixture
+def mock_move_document_response():
+    """Sample move document API response (DocumentDTO in new project)."""
+    return {
+        "id": 42,
+        "title": "Moved Document",
+        "slug": "moved-document",
+        "projectId": 9,
+        "createdAt": "2026-05-18T20:00:00Z",
+        "updatedAt": "2026-05-19T10:00:00Z",
     }
 
 
@@ -544,6 +558,100 @@ class TestImportDocumentResponseFormat:
         assert result["title"] == "Imported Document"
 
 
+# ─── Tests: move_document API call ──────────────────────────────────────
+
+class TestMoveDocumentAPICall:
+    """Tests that move_document calls the correct API endpoint."""
+
+    @patch("mcp_server.urlopen")
+    def test_calls_correct_endpoint(self, mock_urlopen, mock_move_document_response):
+        """move_document calls POST /v1/projects/{slug}/documents/{doc_slug}/move"""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        move_document("source-project", "my-document", "target-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "/v1/projects/source-project/documents/my-document/move" in str(request.full_url)
+        assert request.method == "POST"
+
+    @patch("mcp_server.urlopen")
+    def test_sends_target_project_slug_in_body(self, mock_urlopen, mock_move_document_response):
+        """move_document sends targetProjectSlug in the JSON body."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        move_document("source-project", "my-document", "target-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        body = json.loads(request.data.decode("utf-8"))
+        assert body["targetProjectSlug"] == "target-project"
+
+    @patch("mcp_server.urlopen")
+    def test_handles_special_chars_in_slugs(self, mock_urlopen, mock_move_document_response):
+        """move_document handles slugs with special characters correctly."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        move_document("my-wiki", "getting-started-guide", "archive-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        url_str = str(request.full_url)
+        assert "my-wiki" in url_str
+        assert "getting-started-guide" in url_str
+
+
+# ─── Tests: move_document response format ──────────────────────────────
+
+class TestMoveDocumentResponseFormat:
+    """Tests that move_document returns correct data format."""
+
+    @patch("mcp_server.urlopen")
+    def test_returns_dict(self, mock_urlopen, mock_move_document_response):
+        """move_document returns a dict (DocumentDTO)."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = move_document("source-project", "my-document", "target-project")
+
+        assert isinstance(result, dict)
+
+    @patch("mcp_server.urlopen")
+    def test_returns_document_dto_fields(self, mock_urlopen, mock_move_document_response):
+        """move_document returns a dict with expected DocumentDTO fields."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = move_document("source-project", "my-document", "target-project")
+
+        assert "id" in result
+        assert "title" in result
+        assert "slug" in result
+        assert "projectId" in result
+        assert "createdAt" in result
+        assert "updatedAt" in result
+
+    @patch("mcp_server.urlopen")
+    def test_returns_updated_project_id(self, mock_urlopen, mock_move_document_response):
+        """move_document returns the new project ID after move."""
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(mock_move_document_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = move_document("source-project", "my-document", "target-project")
+
+        # The response should have the target project ID (9 in our fixture)
+        assert result["projectId"] == 9
+
+
 # ─── Tests: MCP Server Registration ──────────────────────────────────────
 
 class TestMCPServerRegistration:
@@ -567,6 +675,7 @@ class TestMCPServerRegistration:
             "add_link", "remove_link", "get_links", "get_backlinks",
             "search_documents",
             "import_document",
+            "move_document",
         ]
 
         # FastMCP 2.x stores tools in _tool_manager or similar internal structure

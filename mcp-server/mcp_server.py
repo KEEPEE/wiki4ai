@@ -343,6 +343,24 @@ def import_document(project_slug: str, title: str, content: str) -> dict:
     return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
 
 
+def move_document(project_slug: str, doc_slug: str, target_project_slug: str) -> dict:
+    """Move a document from one project to another.
+
+    The document is removed from the source project and added to the target
+    project. All links within the source project are preserved where possible.
+
+    Args:
+        project_slug: The URL-friendly slug of the source project (required)
+        doc_slug: The URL-friendly slug of the document to move (required)
+        target_project_slug: The URL-friendly slug of the target project (required)
+
+    Returns:
+        Updated DocumentDTO in the new project with id, title, slug, projectId, createdAt, updatedAt
+    """
+    body = {"targetProjectSlug": target_project_slug}
+    return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/move", body)
+
+
 # ─── MCP Server Setup ────────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
@@ -360,6 +378,7 @@ def create_mcp_server() -> FastMCP:
         add_link, remove_link, get_links, get_backlinks,
         search_documents,
         import_document,
+        move_document,
     ]:
         mcp.tool()(func)
 
