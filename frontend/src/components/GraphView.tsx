@@ -189,8 +189,14 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       // At high zoom levels (zoomed in close), arrows become too small and disappear.
       // Once globalScale exceeds 8x, lock arrow size to a minimum so they stay visible.
       if (globalScale > 8) {
-        const minArrowLength = Math.max(arrowLength, 12);
+        const minArrowLength = Math.max(arrowLength, 20);
         arrowLength = minArrowLength;
+      }
+
+      // At very high zoom levels (zoomed in extremely close), arrows still shrink too much.
+      // Once globalScale exceeds 30x, use a fixed large size so arrows are always clearly visible.
+      if (globalScale > 30) {
+        arrowLength = Math.max(arrowLength, 28);
       }
 
       const arrowWidth = arrowLength * 0.5;
