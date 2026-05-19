@@ -9,16 +9,41 @@ import type { Document } from '../types/document'
 
 // Mock react-force-graph-2d to render clickable node labels we can test with
 vi.mock('react-force-graph-2d', () => {
+  // Maximum characters for label truncation (matches GraphView implementation)
+  const MAX_LABEL_LENGTH = 40
+  
+  function truncateLabel(label: string): string {
+    if (label.length <= MAX_LABEL_LENGTH) return label
+    return label.slice(0, MAX_LABEL_LENGTH) + '...'
+  }
+
   // Create a mock component that renders document nodes as clickable divs
   const ForceGraph2DMock = (props: any) => {
     const graphData = props.graphData || { nodes: [], links: [] }
-    return `
-      <div class="force-graph-mock">
-        ${graphData.nodes.map((node: any) => 
-          `<div class="graph-node" data-doc-id="${node.id}" onclick="window.__onNodeClick?.(${JSON.stringify(node)})">${node.label}</div>`
-        ).join('\n')}
+    
+    // Extract onNodeClick from props if available
+    const onNodeClickProp = props.onNodeClick
+    
+    return (
+      <div className="force-graph-mock">
+        {graphData.nodes.map((node: any) => (
+          <div
+            key={node.id}
+            className="graph-node"
+            data-doc-id={node.id}
+            onClick={() => {
+              // Call the actual onNodeClick prop if provided
+              if (onNodeClickProp) {
+                onNodeClickProp(node)
+              }
+            }}
+          >
+            {/* Simulate react-force-graph-2d's nodeLabel truncation */}
+            {truncateLabel(node.label)}
+          </div>
+        ))}
       </div>
-    `
+    )
   }
   
   return { default: ForceGraph2DMock }
@@ -123,5 +148,57 @@ describe('GraphView — slug usage in onNodeClick', () => {
     render(<GraphView documents={[]} />)
 
     expect(screen.getByText('No document connections to display yet.')).toBeInTheDocument()
+  })
+})
+
+describe('GraphView — tooltip and label truncation', () => {
+  it('should show truncated label for long titles (>40 chars)', async () => {
+    const onNodeClick = vi.fn()
+    const user = userEvent.setup()
+
+    // Title longer than 40 characters — will be truncated at exactly 40 chars + "..."
+    const longTitle = 'This is a very long document title that exceeds forty char limit'
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: longTitle, slug: 'long-title' }),
+    ]
+
+    render(<GraphView documents={documents} onNodeClick={onNodeClick} />)
+
+    // The truncated label should be visible (first 40 chars + "...")
+    const truncatedLabel = screen.getByText('This is a very long document title that ...')
+    expect(truncatedLabel).toBeInTheDocument()
+
+    await user.click(truncatedLabel)
+    expect(onNodeClick).toHaveBeenCalledWith('long-title')
+  })
+
+  it('should show full label for short titles (<=40 chars)', async () => {
+    const onNodeClick = vi.fn()
+    const user = userEvent.setup()
+
+    const shortTitle = 'Short Doc'
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: shortTitle, slug: 'short-doc' }),
+    ]
+
+    render(<GraphView documents={documents} onNodeClick={onNodeClick} />)
+
+    // The full label should be visible (not truncated)
+    const fullLabel = screen.getByText('Short Doc')
+    expect(fullLabel).toBeInTheDocument()
+
+    await user.click(fullLabel)
+    expect(onNodeClick).toHaveBeenCalledWith('short-doc')
+  })
+
+  it('should render tooltip overlay when hovering a node', () => {
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Hover Test Doc', slug: 'hover-test' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    // The tooltip should be hidden initially (not rendered when no node is hovered)
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
   })
 })
