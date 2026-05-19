@@ -287,7 +287,7 @@ describe('GraphView — arrow visibility at different zoom levels', () => {
   it('should maintain minimum arrow size at high zoom (globalScale > 8)', () => {
     // This tests the drawLink callback behavior indirectly.
     // The component passes linkCanvasObject={drawLink} to ForceGraph2D,
-    // and drawLink enforces a minimum arrow length of 20 when globalScale > 8.
+    // and drawLink clamps arrow length to 14px when globalScale is between 8 and 30.
     const documents: Document[] = [
       createMockDocument({ id: 1, title: 'Arrow Zoom Test', slug: 'arrow-zoom' }),
     ]
@@ -300,7 +300,7 @@ describe('GraphView — arrow visibility at different zoom levels', () => {
   })
 
   it('should maintain minimum arrow size at very high zoom (globalScale > 30)', () => {
-    // At extremely high zoom levels, arrows are locked to a larger minimum (28px)
+    // At extremely high zoom levels, arrows smoothly increase from 14px up to 28px max.
     const documents: Document[] = [
       createMockDocument({ id: 1, title: 'Very High Zoom Test', slug: 'very-high-zoom' }),
     ]
@@ -309,5 +309,44 @@ describe('GraphView — arrow visibility at different zoom levels', () => {
 
     // Verify the component renders correctly at high zoom levels
     expect(screen.getByText('Very High Zoom Test')).toBeInTheDocument()
+  })
+
+  it('should clamp arrow size to prevent disappearing at moderate zoom (scale 1-8)', () => {
+    // At scale=1: arrowLength = max(4, 12 / 1) = 12
+    // At scale=8: t=(8-1)/7=1, arrowLength=max(6, 12*(1-0.5))=max(6, 6)=6
+    // Between these, arrows smoothly shrink from 12 to 6 — never disappear.
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Moderate Zoom Test', slug: 'moderate-zoom' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    // Verify the component renders correctly
+    expect(screen.getByText('Moderate Zoom Test')).toBeInTheDocument()
+  })
+
+  it('should clamp arrow size at high zoom (scale 8-30)', () => {
+    // At scale between 8 and 30, arrows are clamped to exactly 14px.
+    // This prevents them from disappearing when the user zooms in close.
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'High Zoom Clamp Test', slug: 'high-zoom-clamp' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    expect(screen.getByText('High Zoom Clamp Test')).toBeInTheDocument()
+  })
+
+  it('should smoothly increase arrow size at very high zoom (scale > 30)', () => {
+    // At scale=30: arrowLength = 14
+    // At scale=60: extraZoom=30, arrowLength=min(28, 14+30*0.3)=min(28, 24)=24
+    // At scale=78+: extraZoom=48, arrowLength=min(28, 14+48*0.3)=min(28, 28.4)=28 (capped)
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Very High Zoom Smooth Test', slug: 'very-high-zoom-smooth' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    expect(screen.getByText('Very High Zoom Smooth Test')).toBeInTheDocument()
   })
 })

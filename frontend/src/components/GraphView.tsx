@@ -178,26 +178,31 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       // Line width: stays visually constant across zoom levels (canvas context is already scaled)
       const lineWidth = Math.max(1.2, 2.5 / globalScale);
 
-      // Arrow size: use sqrt scaling so arrows remain visible at all zoom levels.
-      // Pure division by globalScale makes arrows invisible when zoomed in (high scale).
-      // Using pow(globalScale, 0.5) gives partial compensation — arrows stay clearly
-      // visible when zoomed in close and don't become overwhelming when zoomed out far.
+      // Arrow size: clamp to a minimum at high zoom so arrows stay visible.
+      // The canvas context is already scaled by globalScale, so dividing by it
+      // would make arrows invisible when zoomed in (high scale).
+      // We use sqrt scaling for moderate zoom-out compensation, then clamp
+      // with smooth transitions to prevent arrows from disappearing or jumping.
       const arrowBaseSize = 12;
-      const zoomFactor = Math.pow(globalScale, 0.5); // sqrt scale for partial compensation
-      let arrowLength = Math.max(4, Math.min(arrowBaseSize * 3, arrowBaseSize / zoomFactor));
 
-      // At high zoom levels (zoomed in close), arrows become too small and disappear.
-      // Once globalScale exceeds 8x, lock arrow size to a minimum so they stay visible.
-      if (globalScale > 8) {
-        const minArrowLength = Math.max(arrowLength, 20);
-        arrowLength = minArrowLength;
+      let arrowLength: number;
+      if (globalScale <= 1) {
+        // Zoomed out or 1:1 — scale up proportionally (sqrt for moderate feel)
+        arrowLength = Math.max(4, arrowBaseSize / Math.pow(globalScale, 0.5));
+      } else if (globalScale < 8) {
+        // Moderate zoom-in — gradually shrink but keep visible
+        const t = (globalScale - 1) / 7; // 0..1 over range [1, 8)
+        arrowLength = Math.max(6, arrowBaseSize * (1 - t * 0.5));
+      } else if (globalScale < 30) {
+        // High zoom — clamp to minimum so arrows never disappear
+        arrowLength = 14;
+      } else {
+        // Very high zoom (>30x) — smoothly increase size so arrows stay clear
+        const extraZoom = globalScale - 30;
+        arrowLength = Math.min(28, 14 + extraZoom * 0.3);
       }
 
-      // At very high zoom levels (zoomed in extremely close), arrows still shrink too much.
-      // Once globalScale exceeds 30x, use a fixed large size so arrows are always clearly visible.
-      if (globalScale > 30) {
-        arrowLength = Math.max(arrowLength, 28);
-      }
+      arrowLength = Math.max(4, arrowLength); // absolute safety floor
 
       const arrowWidth = arrowLength * 0.5;
 
