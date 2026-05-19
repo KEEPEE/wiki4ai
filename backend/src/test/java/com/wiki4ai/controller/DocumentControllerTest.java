@@ -31,6 +31,7 @@ import org.springframework.data.domain.PageRequest;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -1311,6 +1312,165 @@ class DocumentControllerTest {
             mockMvc.perform(post("/api/v1/projects/non-existent-project/documents/test-document/move")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(moveDto)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Project not found with slug 'non-existent-project'"));
+        }
+    }
+
+    // ==================== COPY DOCUMENT TESTS ====================
+
+    @Nested
+    @DisplayName("POST /api/v1/projects/{projectSlug}/documents/{docSlug}/copy - Copy document to another project")
+    class CopyDocumentTests {
+
+        @Test
+        @DisplayName("Should return 201 with copied document when target project is specified")
+        void shouldCopyDocumentToTargetProject() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String requestBody = "{\"targetProjectSlug\": \"other-project\"}";
+
+            DocumentDTO copiedDoc = DocumentDTO.builder()
+                    .id(10L)
+                    .title("Test Document (copy)")
+                    .content("# Hello World\nThis is a test document.")
+                    .slug("test-document-copy")
+                    .projectId(2L) // new project ID
+                    .linkedDocuments(new ArrayList<>()) // no links copied
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("other-project")))
+                    .willReturn(copiedDoc);
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/copy")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(10))
+                    .andExpect(jsonPath("$.title").value("Test Document (copy)"))
+                    .andExpect(jsonPath("$.projectId").value(2))
+                    .andExpect(jsonPath("$.linkedDocuments.length()").value(0));
+
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), eq("other-project"));
+        }
+
+        @Test
+        @DisplayName("Should return 201 and copy to same project when no body is sent")
+        void shouldCopyToSameProjectWhenNoBody() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+
+            DocumentDTO copiedDoc = DocumentDTO.builder()
+                    .id(10L)
+                    .title("Test Document (copy)")
+                    .content("# Hello World\nThis is a test document.")
+                    .slug("test-document-copy")
+                    .projectId(1L) // same project
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull()))
+                    .willReturn(copiedDoc);
+
+            // when & then — no request body
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/copy")
+                            .contentType(MediaType.APPLICATION_JSON))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.title").value("Test Document (copy)"))
+                    .andExpect(jsonPath("$.projectId").value(1));
+
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull());
+        }
+
+        @Test
+        @DisplayName("Should return 201 and copy to same project when empty JSON body is sent")
+        void shouldCopyToSameProjectWhenEmptyBody() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+
+            DocumentDTO copiedDoc = DocumentDTO.builder()
+                    .id(10L)
+                    .title("Test Document (copy)")
+                    .content("# Hello World\nThis is a test document.")
+                    .slug("test-document-copy")
+                    .projectId(1L) // same project
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull()))
+                    .willReturn(copiedDoc);
+
+            // when & then — empty JSON object
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/copy")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.projectId").value(1));
+
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull());
+        }
+
+        @Test
+        @DisplayName("Should return 404 when source document not found")
+        void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String requestBody = "{\"targetProjectSlug\": \"other-project\"}";
+
+            given(documentService.copyDocument(eq(1L), eq("non-existent"), eq("other-project")))
+                    .willThrow(new EntityNotFoundException(
+                            "Document not found with slug 'non-existent' in project 1"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/non-existent/copy")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Document not found with slug 'non-existent' in project 1"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when target project not found")
+        void shouldReturnNotFoundWhenTargetProjectNotExists() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            String requestBody = "{\"targetProjectSlug\": \"non-existent-project\"}";
+
+            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("non-existent-project")))
+                    .willThrow(new EntityNotFoundException(
+                            "Target project not found with slug: non-existent-project"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/copy")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message").value(
+                            "Target project not found with slug: non-existent-project"));
+        }
+
+        @Test
+        @DisplayName("Should return 404 when source project not found")
+        void shouldReturnNotFoundWhenSourceProjectNotExists() throws Exception {
+            // given
+            given(projectService.getProjectBySlug("non-existent-project"))
+                    .willThrow(new EntityNotFoundException(
+                            "Project not found with slug 'non-existent-project'"));
+            String requestBody = "{\"targetProjectSlug\": \"other-project\"}";
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects/non-existent-project/documents/test-document/copy")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(requestBody))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.message").value(
                             "Project not found with slug 'non-existent-project'"));

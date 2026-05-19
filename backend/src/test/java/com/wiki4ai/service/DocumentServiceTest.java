@@ -1144,6 +1144,217 @@ class DocumentServiceTest {
     }
 
     @Nested
+    @DisplayName("copyDocument")
+    class CopyDocumentTests {
+
+        private Project targetProject;
+
+        @BeforeEach
+        void setUpTargetProject() {
+            targetProject = Project.builder()
+                    .id(2L)
+                    .name("Target Project")
+                    .description("A target project for copying documents")
+                    .slug("target-project")
+                    .createdAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should copy document to target project with '(copy)' suffix")
+        void shouldCopyDocumentToTargetProject() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document (copy)"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(10L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("source-document-copy")
+                        .project(targetProject)
+                        .linkedDocuments(new ArrayList<>())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.copyDocument(1L, "source-document", "target-project");
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document (copy)");
+            assertThat(result.getContent()).isEqualTo("Source content");
+            assertThat(result.getProjectId()).isEqualTo(2L);
+            assertThat(result.getLinkedDocuments()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should copy document to same project when targetProjectSlug is null")
+        void shouldCopyToSameProjectWhenTargetIsNull() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.findByProjectIdAndTitle(1L, "Source Document (copy)"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(10L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("source-document-copy")
+                        .project(testProject)
+                        .linkedDocuments(new ArrayList<>())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.copyDocument(1L, "source-document", null);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document (copy)");
+            assertThat(result.getProjectId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should copy document to same project when targetProjectSlug is blank")
+        void shouldCopyToSameProjectWhenTargetIsBlank() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.findByProjectIdAndTitle(1L, "Source Document (copy)"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(10L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("source-document-copy")
+                        .project(testProject)
+                        .linkedDocuments(new ArrayList<>())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.copyDocument(1L, "source-document", "  ");
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getProjectId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should increment suffix when '(copy)' already exists")
+        void shouldIncrementSuffixWhenCopyExists() {
+            // given — "Source Document (copy)" already exists, so it should try "(copy 2)"
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document (copy)"))
+                    .thenReturn(Optional.of(targetDocument)); // conflict
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document (copy 2)"))
+                    .thenReturn(Optional.empty()); // free
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(10L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("source-document-copy-2")
+                        .project(targetProject)
+                        .linkedDocuments(new ArrayList<>())
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.copyDocument(1L, "source-document", "target-project");
+
+            // then
+            assertThat(result.getTitle()).isEqualTo("Source Document (copy 2)");
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when source document not found")
+        void shouldThrowWhenSourceNotFound() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("non-existent", 1L))
+                    .thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.copyDocument(1L, "non-existent", "target-project"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Document not found with slug 'non-existent' in project 1");
+
+            verify(projectRepository, never()).findBySlug(any());
+        }
+
+        @Test
+        @DisplayName("Should throw EntityNotFoundException when target project not found")
+        void shouldThrowWhenTargetProjectNotFound() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("non-existent-project"))
+                    .thenReturn(Optional.empty());
+
+            // when & then
+            assertThatThrownBy(() -> documentService.copyDocument(1L, "source-document", "non-existent-project"))
+                    .isInstanceOf(EntityNotFoundException.class)
+                    .hasMessageContaining("Target project not found with slug: non-existent-project");
+        }
+
+        @Test
+        @DisplayName("Should NOT copy links from source document")
+        void shouldNotCopyLinks() {
+            // given — source has a link to targetDocument
+            sourceDocument.addLinkedDocument(targetDocument);
+
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(projectRepository.findBySlug("target-project"))
+                    .thenReturn(Optional.of(targetProject));
+            when(documentRepository.findByProjectIdAndTitle(2L, "Source Document (copy)"))
+                    .thenReturn(Optional.empty());
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> {
+                Document doc = invocation.getArgument(0);
+                return Document.builder()
+                        .id(10L)
+                        .title(doc.getTitle())
+                        .content(doc.getContent())
+                        .slug("source-document-copy")
+                        .project(targetProject)
+                        .linkedDocuments(new ArrayList<>()) // no links
+                        .createdAt(LocalDateTime.now())
+                        .updatedAt(LocalDateTime.now())
+                        .build();
+            });
+
+            // when
+            DocumentDTO result = documentService.copyDocument(1L, "source-document", "target-project");
+
+            // then
+            assertThat(result.getLinkedDocuments()).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("getDocumentsByProjectPaginated")
     class GetDocumentsByProjectPaginatedTests {
 

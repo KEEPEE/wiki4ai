@@ -474,6 +474,65 @@ public class DocumentService {
     }
 
     /**
+     * Copy a document to a target project (or the same project if no target specified).
+     * Creates a new document with title "{original-title} (copy)" and the same content.
+     * Links are NOT copied — they are specific to the source project context.
+     * If "{title} (copy)" already exists, appends incrementing suffix: "(copy 2)", "(copy 3)", etc.
+     *
+     * @param sourceProjectId   the ID of the source project (where the document currently lives)
+     * @param slug              the document slug
+     * @param targetProjectSlug optional slug of the target project; if null/blank, copies within source project
+     * @return newly created DocumentDTO in the target project
+     * @throws EntityNotFoundException if source document or target project not found
+     */
+    @Transactional
+    public DocumentDTO copyDocument(Long sourceProjectId, String slug, String targetProjectSlug) {
+        // Find the source document
+        Document source = documentRepository.findBySlugAndProjectId(slug, sourceProjectId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Document not found with slug '" + slug + "' in project " + sourceProjectId));
+
+        // Determine target project
+        Project targetProject;
+        if (targetProjectSlug == null || targetProjectSlug.isBlank()) {
+            targetProject = source.getProject();
+        } else {
+            targetProject = projectRepository.findBySlug(targetProjectSlug)
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Target project not found with slug: " + targetProjectSlug));
+        }
+
+        // Generate unique copy title: "{title} (copy)", "{title} (copy 2)", etc.
+        String copyTitle = generateUniqueCopyTitle(source.getTitle(), targetProject.getId());
+
+        // Create new document — same content, no links
+        Document copy = Document.builder()
+                .title(copyTitle)
+                .content(source.getContent())
+                .project(targetProject)
+                .build();
+
+        Document saved = documentRepository.save(copy);
+        return convertToDTO(saved);
+    }
+
+    /**
+     * Generate a unique copy title by appending " (copy)" or " (copy N)" to the original title.
+     * Checks for existing titles in the target project and increments until a free name is found.
+     */
+    private String generateUniqueCopyTitle(String originalTitle, Long targetProjectId) {
+        int suffix = 1;
+        String candidate = originalTitle + " (copy)";
+
+        while (documentRepository.findByProjectIdAndTitle(targetProjectId, candidate).isPresent()) {
+            suffix++;
+            candidate = originalTitle + " (copy " + suffix + ")";
+        }
+
+        return candidate;
+    }
+
+    /**
      * Convert Document entity to DTO.
      */
     private DocumentDTO convertToDTO(Document document) {
