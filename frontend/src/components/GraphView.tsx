@@ -175,14 +175,16 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       const tx = link.target.x;
       const ty = link.target.y;
 
-      // Line width stays relatively constant across zoom levels
+      // Line width: stays visually constant across zoom levels (canvas context is already scaled)
       const lineWidth = Math.max(1.2, 2.5 / globalScale);
 
-      // Arrow size: base 12px at 1x zoom, clamped to stay visible when zoomed out
-      // and not overwhelming when zoomed in. Scales inversely with zoom so arrows
-      // remain clearly visible at all zoom levels.
+      // Arrow size: use sqrt scaling so arrows remain visible at all zoom levels.
+      // Pure division by globalScale makes arrows invisible when zoomed in (high scale).
+      // Using pow(globalScale, 0.5) gives partial compensation — arrows stay clearly
+      // visible when zoomed in close and don't become overwhelming when zoomed out far.
       const arrowBaseSize = 12;
-      const arrowLength = Math.max(6, Math.min(arrowBaseSize * 3, arrowBaseSize / globalScale));
+      const zoomFactor = Math.pow(globalScale, 0.5); // sqrt scale for partial compensation
+      const arrowLength = Math.max(4, Math.min(arrowBaseSize * 3, arrowBaseSize / zoomFactor));
       const arrowWidth = arrowLength * 0.5;
 
       // Draw the connection line (shortened so it doesn't overlap the arrow)
