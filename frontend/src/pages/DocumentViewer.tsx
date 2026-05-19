@@ -64,7 +64,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   };
 
   const handleBacklinkClick = (backlinkDoc: Document) => {
-    navigate(`/projects/${projectSlug}/documents/${backlinkDoc.slug || backlinkDoc.title.toLowerCase()}`);
+    if (backlinkDoc.slug) {
+      navigate(`/projects/${projectSlug}/documents/${backlinkDoc.slug}`);
+    } else {
+      // Fallback: search for the document by title in the current project view
+      navigate(`/projects/${projectSlug}`);
+    }
   };
 
   const handleEdit = () => {

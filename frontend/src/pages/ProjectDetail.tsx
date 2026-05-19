@@ -373,25 +373,28 @@ const ProjectDetail: React.FC = () => {
             <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
           ) : (
             <ul className="document-items">
-              {displayDocuments.map((doc) => (
-                <li key={doc.id} className="document-item">
-                  <div className="doc-info" onClick={() => handleViewDocument(doc.title.toLowerCase().replace(/\s+/g, '-'))}>
-                    <span className="doc-title">{doc.title}</span>
-                    <span className="doc-slug">@{doc.title.toLowerCase().replace(/\s+/g, '-')}</span>
-                  </div>
-                  <div className="doc-meta">
-                    <span className="doc-date">{formatDate(doc.updatedAt)}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.title.toLowerCase().replace(/\s+/g, '-')); }}
-                      className="btn-delete"
-                      disabled={isDeleting}
-                      title="Vymazať dokument"
-                    >
-                      &times;
-                    </button>
-                  </div>
-                </li>
-              ))}
+              {displayDocuments.map((doc) => {
+                const slug = doc.slug || doc.title.toLowerCase().replace(/\s+/g, '-');
+                return (
+                  <li key={doc.id} className="document-item">
+                    <div className="doc-info" onClick={() => handleViewDocument(slug)}>
+                      <span className="doc-title">{doc.title}</span>
+                      <span className="doc-slug">@{slug}</span>
+                    </div>
+                    <div className="doc-meta">
+                      <span className="doc-date">{formatDate(doc.updatedAt)}</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(slug); }}
+                        className="btn-delete"
+                        disabled={isDeleting}
+                        title="Vymazať dokument"
+                      >
+                        &times;
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

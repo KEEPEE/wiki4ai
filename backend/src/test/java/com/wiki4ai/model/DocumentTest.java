@@ -94,6 +94,22 @@ class DocumentTest {
         void shouldCollapseMultipleHyphens() {
             assertThat(Document.generateSlug("a---b--c")).isEqualTo("a-b-c");
         }
+
+        @Test
+        @DisplayName("should transliterate Slovak diacritics to ASCII")
+        void shouldTransliterateSlovakDiacritics() {
+            assertThat(Document.generateSlug("Úvod do Wiki4AI")).isEqualTo("uvod-do-wiki4ai");
+            assertThat(Document.generateSlug("Špeciálne znaky")).isEqualTo("specialne-znaky");
+            assertThat(Document.generateSlug("Čeština ďakujem")).isEqualTo("cestina-dakujem");
+        }
+
+        @Test
+        @DisplayName("should transliterate diacritics and strip special chars for copied docs")
+        void shouldHandleCopiedDocumentTitles() {
+            // Simulates copy document title: "Úvod do Wiki4AI (copy)"
+            assertThat(Document.generateSlug("Úvod do Wiki4AI (copy)")).isEqualTo("uvod-do-wiki4ai-copy");
+            assertThat(Document.generateSlug("Názov (copy 2)")).isEqualTo("nazov-copy-2");
+        }
     }
 
     @Nested

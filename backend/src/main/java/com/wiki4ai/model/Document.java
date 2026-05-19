@@ -60,14 +60,31 @@ public class Document {
 
     /**
      * Generate a URL-friendly slug from the document title.
-     * Examples: "My Document" → "my-document", "Hello World!" → "hello-world"
+     * Transliterates diacritics (e.g., "ú" → "u") then strips remaining non-ASCII chars.
+     * Examples: "My Document" → "my-document", "Úvod do Wiki4AI" → "uvod-do-wiki4ai"
      */
     public static String generateSlug(String title) {
         if (title == null || title.isBlank()) {
             return "";
         }
-        return title.toLowerCase()
-                .replaceAll("[^a-z0-9\\s-]", "")
+        String slug = title.toLowerCase();
+        // Transliterate diacritics to ASCII equivalents
+        slug = slug.replaceAll("[áäàâ]", "a")
+                .replaceAll("č", "c")
+                .replaceAll("[ďđ]", "d")
+                .replaceAll("[éèêë]", "e")
+                .replaceAll("[íìîï]", "i")
+                .replaceAll("[ĺľ]", "l")
+                .replaceAll("ň", "n")
+                .replaceAll("[óòôöõ]", "o")
+                .replaceAll("ŕ", "r")
+                .replaceAll("š", "s")
+                .replaceAll("ť", "t")
+                .replaceAll("[úùûü]", "u")
+                .replaceAll("[ýỳÿ]", "y")
+                .replaceAll("ž", "z");
+        // Strip remaining non-ASCII, normalize spaces and dashes
+        return slug.replaceAll("[^a-z0-9\\s-]", "")
                 .replaceAll("\\s+", "-")
                 .replaceAll("-+", "-")
                 .trim()

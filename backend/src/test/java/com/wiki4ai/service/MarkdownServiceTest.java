@@ -568,6 +568,24 @@ class MarkdownServiceTest {
             String slug = MarkdownService.generateSlug("Ahoj Svet");
             assertThat(slug).isEqualTo("ahoj-svet");
         }
+
+        @Test
+        @DisplayName("Should transliterate Slovak diacritics to ASCII")
+        void shouldTransliterateSlovakDiacritics() {
+            // ú → u, á → a, etc.
+            assertThat(MarkdownService.generateSlug("Úvod do Wiki4AI")).isEqualTo("uvod-do-wiki4ai");
+            assertThat(MarkdownService.generateSlug("Ahoj Svet")).isEqualTo("ahoj-svet");
+            // Š→s, p→p, e→e, c→c, i→i, á→a, l→l, n→n, e→e  → "specialne"
+            assertThat(MarkdownService.generateSlug("Špeciálne znaky")).isEqualTo("specialne-znaky");
+        }
+
+        @Test
+        @DisplayName("Should transliterate diacritics and strip remaining special chars")
+        void shouldTransliterateAndStripSpecialChars() {
+            // Title with diacritics AND parentheses (like copied documents)
+            assertThat(MarkdownService.generateSlug("Úvod do Wiki4AI (copy)")).isEqualTo("uvod-do-wiki4ai-copy");
+            assertThat(MarkdownService.generateSlug("Názov (copy 2)")).isEqualTo("nazov-copy-2");
+        }
     }
 
     // ==================== Integration: render + extract + replace ====================
