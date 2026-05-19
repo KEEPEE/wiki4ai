@@ -56,9 +56,19 @@
   border-bottom: 1px solid #e0e0e0;
 }
 
+.save-status.saving {
+  background: #fff3cd;
+  color: #856404;
+}
+
 .save-status.saved {
   background: #d4edda;
   color: #155724;
+}
+
+.save-status.unsaved {
+  background: #ffe0cc;
+  color: #c05a00;
 }
 
 .save-status.error {
