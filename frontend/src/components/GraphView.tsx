@@ -3,12 +3,13 @@
  * Uses react-force-graph to display documents as nodes and their links as edges.
  * 
  * Features:
- * - Adaptive label rendering with truncation for long titles (>40 chars)
+ * - Permanent label rendering via nodeCanvasObject (labels always visible on canvas)
  * - Toggle between always-visible labels and hover-only labels (via tooltip)
+ * - Zoom-to-fit after simulation settles so all nodes are in viewport
  * - Tooltip overlay on node hover showing full document title
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
 import { generateSlug } from '../utils/slugify';
@@ -38,6 +39,8 @@ interface GraphNode {
   id: number;
   label: string;
   color: string;
+  x?: number;
+  y?: number;
 }
 
 interface GraphLink {
@@ -59,6 +62,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   const [hoveredNode, setHoveredNode] = useState<{ node: GraphNode } | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [showLabels, setShowLabels] = useState(true);
+  const graphRef = useRef<any>(null);
 
   const graphData = useMemo(() => {
     if (documents.length === 0) {
@@ -91,6 +95,17 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   const isEmpty = graphData.nodes.length === 0;
 
   /**
+   * After the force simulation settles, zoom to fit all nodes in viewport.
+   * This ensures no nodes appear off-screen.
+   */
+  const handleEngineStop = useCallback(() => {
+    if (graphRef.current && !isEmpty) {
+      // Use zoomToFit with padding so nodes are nicely centered and visible
+      graphRef.current.zoomToFit(400, 60);
+    }
+  }, [isEmpty]);
+
+  /**
    * Handle node hover — track the hovered node for tooltip rendering.
    */
   const handleNodeHover = (node: GraphNode | null) => {
@@ -116,6 +131,68 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       onNodeClick(slug);
     }
   };
+
+  /**
+   * Custom node canvas object — draws the node circle AND its label permanently.
+   * This replaces the default rendering so we can always show labels (or hide them).
+   */
+  const drawNode = useCallback(
+    (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      // Determine if we should show labels based on zoom level and toggle state
+      const zoomLevel = 1 / globalScale;
+      const minZoomForLabels = 0.6; // Show labels when zoomed in enough
+      const shouldShowLabels = showLabels && zoomLevel >= minZoomForLabels;
+
+      // Draw node circle
+      const radius = Math.max(8, 6 / globalScale); // Scale radius with zoom
+      ctx.beginPath();
+      ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = node.color || '#4f46e5';
+      ctx.fill();
+
+      // Draw label if conditions are met
+      if (shouldShowLabels) {
+        const fontSize = Math.max(8, 11 / globalScale); // Scale font with zoom
+        ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        const label = truncateLabel(node.label);
+        const textWidth = ctx.measureText(label).width;
+
+        // Background pill for readability
+        const paddingX = 4 / globalScale;
+        const paddingY = 2.5 / globalScale;
+        const pillWidth = textWidth + paddingX * 2;
+        const pillHeight = fontSize + paddingY * 2;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        ctx.beginPath();
+        // Rounded rectangle for the label background
+        const r = (fontSize + paddingY * 2) / 4; // corner radius
+        const x = node.x || 0 - pillWidth / 2;
+        const y = (node.y || 0) + radius + 3 / globalScale;
+
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + pillWidth - r, y);
+        ctx.quadraticCurveTo(x + pillWidth, y, x + pillWidth - r, y + r);
+        ctx.lineTo(x + r, y + pillHeight);
+        ctx.lineTo(x + pillWidth - r, y + pillHeight);
+        ctx.quadraticCurveTo(x + pillWidth - r, y + pillHeight + r, x + r, y + pillHeight + r);
+        ctx.lineTo(x + r, y + pillHeight);
+        ctx.lineTo(x + r, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw text on top of the background
+        const textColor = '#1a1a2e';
+        ctx.fillStyle = textColor;
+        ctx.fillText(label, node.x || 0, y + pillHeight / 2);
+      }
+    },
+    [showLabels],
+  );
 
   if (isEmpty) {
     return (
@@ -153,10 +230,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       </header>
       <div className="graph-container" onMouseMove={handleMouseMove}>
         <ForceGraph2D
+          ref={graphRef}
           graphData={graphData as any}
-          nodeLabel={showLabels ? ((node: GraphNode) => truncateLabel(node.label)) : undefined}
           nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
           nodeRelSize={6}
+          nodeCanvasObject={drawNode}
           linkColor={() => '#9ca3af'}
           linkWidth={1.5}
           backgroundColor="#fafafa"
@@ -165,6 +243,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           linkDirectionalArrowLength={3}
           linkDirectionalArrowRelPos={1}
           cooldownTicks={100}
+          onEngineStop={handleEngineStop}
         />
 
         {/* Tooltip overlay — positioned near the cursor when hovering a node */}
