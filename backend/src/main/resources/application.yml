@@ -74,3 +74,9 @@ logging:
   level:
     com.wiki4ai: INFO
     org.springframework.web: INFO
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET:your-secret-key-change-in-production}
+  expiration: 86400000  # 24 hours in ms
+  refreshExpiration: 604800000  # 7 days

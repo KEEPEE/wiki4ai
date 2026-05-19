@@ -1,5 +1,6 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,12 +21,16 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     private UserRepository userRepository;
+    private JwtUtil jwtUtil;
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
-        authService = new AuthService(userRepository);
+        jwtUtil = mock(JwtUtil.class);
+        when(jwtUtil.generateToken(anyString())).thenReturn("mock-access-token");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock-refresh-token");
+        authService = new AuthService(userRepository, jwtUtil);
     }
 
     @Nested
@@ -79,30 +84,35 @@ class AuthServiceTest {
     class TokenGenerationTests {
 
         @Test
-        @DisplayName("should generate access token with user id and username")
+        @DisplayName("should generate access token via JwtUtil")
         void shouldGenerateAccessToken() {
             String token = authService.generateAccessToken(1L, "testuser");
 
             assertThat(token).isNotNull();
-            assertThat(token).startsWith("eyJAI_access_token_1_testuser_");
+            verify(jwtUtil).generateToken("testuser");
         }
 
         @Test
-        @DisplayName("should generate refresh token with user id")
+        @DisplayName("should generate refresh token via JwtUtil")
         void shouldGenerateRefreshToken() {
+            User user = User.builder().id(42L).username("refreshuser").email("ref@test.com").password("$2a$10.hashed").build();
+            when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+
             String token = authService.generateRefreshToken(42L);
 
             assertThat(token).isNotNull();
-            assertThat(token).startsWith("refresh_42_");
+            verify(jwtUtil).generateRefreshToken("refreshuser");
         }
 
         @Test
-        @DisplayName("access tokens should be unique per call")
-        void accessTokensShouldBeUnique() {
+        @DisplayName("access tokens should delegate to JwtUtil")
+        void accessTokensShouldDelegateToJwtUtil() {
             String token1 = authService.generateAccessToken(1L, "user1");
             String token2 = authService.generateAccessToken(1L, "user1");
 
-            assertThat(token1).isNotEqualTo(token2); // UUID makes each unique
+            // Both call jwtUtil.generateToken with same username, so both return mock tokens
+            assertThat(token1).isEqualTo("mock-access-token");
+            assertThat(token2).isEqualTo("mock-access-token");
         }
     }
 
