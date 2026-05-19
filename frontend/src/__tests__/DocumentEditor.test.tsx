@@ -2,7 +2,7 @@
  * Tests for DocumentEditor page component
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -245,6 +245,107 @@ describe('DocumentEditor', () => {
         expect(screen.getByText('0 words')).toBeInTheDocument()
         expect(screen.getByText('0 characters')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Auto-save', () => {
+    it('should trigger auto-save after content change (debounced)', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Original Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      // Wait for document to load
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const textarea = screen.getByPlaceholderText(/Upravte markdown obsah/)
+
+      // Type new content — useDebounce mock returns value immediately,
+      // so debounced values change and auto-save effect fires
+      await user.type(textarea, ' additional text')
+
+      // Auto-save should have been triggered (debounce mocked as instant)
+      await waitFor(() => {
+        expect(mockUpdateDocument).toHaveBeenCalled()
+      }, { timeout: 3000 })
+    })
+
+    it('should transition status from Saving to Saved after auto-save', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Original Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      // Wait for document to load
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const textarea = screen.getByPlaceholderText(/Upravte markdown obsah/)
+
+      // Type new content — triggers unsaved → saving (auto-save) → saved
+      await user.type(textarea, ' new content')
+
+      // After debounce (instant in mock), auto-save fires and shows "saving" then "saved"
+      await waitFor(() => {
+        expect(screen.getByTestId('save-status')).toHaveTextContent(/Uložené/)
+      }, { timeout: 3000 })
+    })
+
+    it('should change status to Unsaved on content changes', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Original Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      // Make updateDocument resolve slowly so we can catch the unsaved state first
+      const mockUpdateDocument = vi.fn().mockImplementation(
+        () => new Promise(resolve => setTimeout(() => resolve(undefined), 5000))
+      )
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      // Wait for document to load
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const textarea = screen.getByPlaceholderText(/Upravte markdown obsah/)
+
+      // Type new content — this should show unsaved status because
+      // content differs from lastSavedContent (even though auto-save fires, API is slow)
+      await user.type(textarea, ' additional text')
+
+      // The save-status indicator should appear showing a non-idle state
+      await waitFor(() => {
+        const statusEl = screen.getByTestId('save-status')
+        expect(statusEl).toBeInTheDocument()
+        // Status should be either "saving" or "unsaved" (not idle)
+        const text = statusEl.textContent || ''
+        expect(text.includes('Ukladá sa') || text.includes('Neuložené')).toBe(true)
+      }, { timeout: 3000 })
     })
   })
 })

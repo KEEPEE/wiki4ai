@@ -48,8 +48,12 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const [content, setContent] = useState(initialContent);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'saving' | 'unsaved' | 'error'>('idle');
   const [viewMode, setViewMode] = useState<ViewMode>('split');
+
+  // Track last saved content to detect unsaved changes
+  const [lastSavedContent, setLastSavedContent] = useState(initialContent);
+  const [lastSavedTitle, setLastSavedTitle] = useState('');
 
   // React Query hooks for document management
   const { updateDocument, createDocument } = useDocuments(projectSlug || '');
@@ -68,6 +72,9 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         const doc = await documentApi.get(projectSlug, docSlug);
         setTitle(doc.title || '');
         setContent(doc.content || initialContent);
+        setLastSavedTitle(doc.title || '');
+        setLastSavedContent(doc.content || initialContent);
+        setSaveStatus('idle');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to load document';
         console.error('Error loading document:', message);
@@ -80,12 +87,23 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     loadDocument();
   }, [isEditing, projectSlug, docSlug, initialContent]);
 
+  // Detect unsaved changes: when content/title differs from last saved
+  useEffect(() => {
+    if (loading) return;
+    const hasUnsavedChanges =
+      content !== lastSavedContent || title !== lastSavedTitle;
+    if (hasUnsavedChanges && saveStatus === 'idle') {
+      setSaveStatus('unsaved');
+    }
+  }, [content, title, lastSavedContent, lastSavedTitle, loading, saveStatus]);
+
   // Auto-save debounced changes
   const handleAutoSave = useCallback(async () => {
     if (!projectSlug || !debouncedTitle.trim()) return;
 
     try {
       setSaving(true);
+      setSaveStatus('saving');
       if (isEditing) {
         await updateDocument({ docSlug: docSlug!, data: { title: debouncedTitle, content: debouncedContent } });
       } else {
@@ -93,6 +111,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         // Navigate to the newly created document's viewer
         navigate(`/projects/${projectSlug}/documents/${newDoc.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`);
       }
+      setLastSavedTitle(debouncedTitle);
+      setLastSavedContent(debouncedContent);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
@@ -103,19 +123,18 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     }
   }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate]);
 
-  // Trigger auto-save when debounced values change
+  // Trigger auto-save when debounced values change (2s after last keystroke)
   useEffect(() => {
-    if (debouncedContent !== content || debouncedTitle !== title) {
-      handleAutoSave();
-    }
-  }, [handleAutoSave, debouncedContent, debouncedTitle, content, title]);
+    if (!debouncedTitle.trim()) return;
+    handleAutoSave();
+  }, [handleAutoSave, debouncedContent, debouncedTitle]);
 
   const handleManualSave = async () => {
     if (!projectSlug || !title.trim()) return;
 
     try {
       setSaving(true);
-      setSaveStatus('idle');
+      setSaveStatus('saving');
       if (isEditing) {
         await updateDocument({ docSlug: docSlug!, data: { title, content } });
       } else {
@@ -123,6 +142,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         // Navigate to the newly created document's viewer
         navigate(`/projects/${projectSlug}/documents/${newDoc.title.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')}`);
       }
+      setLastSavedTitle(title);
+      setLastSavedContent(content);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
 
@@ -201,8 +222,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
 
       {/* Save status indicator */}
       {saveStatus !== 'idle' && (
-        <div className={`save-status ${saveStatus}`}>
-          {saveStatus === 'saved' ? '✓ Uložené' : saveStatus === 'error' ? '✗ Chyba pri ukladaní' : ''}
+        <div className={`save-status ${saveStatus}`} data-testid="save-status">
+          {saveStatus === 'saving' ? '⏳ Ukladá sa...' : saveStatus === 'saved' ? '✓ Uložené' : saveStatus === 'unsaved' ? '* Neuložené zmeny' : saveStatus === 'error' ? '✗ Chyba pri ukladaní' : ''}
         </div>
       )}
 
