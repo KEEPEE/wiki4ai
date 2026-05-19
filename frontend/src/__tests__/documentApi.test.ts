@@ -15,7 +15,30 @@ describe('documentApi', () => {
   })
 
   describe('getByProject', () => {
-    it('should return documents from API', async () => {
+    it('should return documents from paginated API response', async () => {
+      const mockDocuments = [
+        { id: 1, title: 'Doc 1', content: '', projectId: 1, createdAt: '', updatedAt: '' },
+      ]
+      // Backend returns Spring Data Page object with .content array
+      const paginatedResponse = {
+        content: mockDocuments,
+        pageable: { pageNumber: 0, pageSize: 50 },
+        totalElements: 1,
+        totalPages: 1,
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => paginatedResponse,
+      })
+
+      const result = await documentApi.getByProject('test-project')
+
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents?page=0&size=50')
+      expect(result).toEqual(mockDocuments)
+    })
+
+    it('should handle plain array response (backward compatibility)', async () => {
       const mockResponse = [
         { id: 1, title: 'Doc 1', content: '', projectId: 1, createdAt: '', updatedAt: '' },
       ]
@@ -27,7 +50,7 @@ describe('documentApi', () => {
 
       const result = await documentApi.getByProject('test-project')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents')
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents?page=0&size=50')
       expect(result).toEqual(mockResponse)
     })
 
