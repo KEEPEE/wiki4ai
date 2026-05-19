@@ -1,5 +1,6 @@
 /**
  * CSS styles for GraphView component with react-force-graph.
+ * Includes tooltip overlay and improved label readability.
  */
 
 .graph-view {
@@ -52,4 +53,57 @@
 .graph-container canvas {
   width: 100% !important;
   height: 100% !important;
+}
+
+/* ===== Tooltip overlay for node hover ===== */
+
+.graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1000;
+  transform: translate(-50%, -120%);
+  margin-top: -8px;
+  transition: opacity 0.15s ease;
+}
+
+.graph-tooltip-content {
+  background: #1a1a2e;
+  color: #ffffff;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-width: 320px;
+  white-space: nowrap;
+}
+
+.graph-tooltip-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #ffffff;
+}
+
+.graph-tooltip-truncated {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+/* Tooltip arrow (CSS triangle pointing down) */
+.graph-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: #1a1a2e;
+}
+
+/* ===== Node label styling (via react-force-graph-2d) ===== */
+
+.graph-container canvas {
+  /* Improve text rendering quality for labels */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

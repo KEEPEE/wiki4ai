@@ -1,9 +1,13 @@
 /**
  * GraphView component - Interactive force-directed graph visualization of document connections.
  * Uses react-force-graph to display documents as nodes and their links as edges.
+ * 
+ * Features:
+ * - Adaptive label rendering with truncation for long titles (>40 chars)
+ * - Tooltip overlay on node hover showing full document title
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
 import './GraphView.css';
@@ -25,6 +29,9 @@ const NODE_COLORS = [
   '#2563eb', // blue,
 ];
 
+// Maximum characters to show in the node label before truncating
+const MAX_LABEL_LENGTH = 40;
+
 interface GraphNode {
   id: number;
   label: string;
@@ -36,7 +43,20 @@ interface GraphLink {
   target: number | GraphNode;
 }
 
+/**
+ * Truncates a label to MAX_LABEL_LENGTH characters, adding "..." if needed.
+ */
+function truncateLabel(label: string): string {
+  if (label.length <= MAX_LABEL_LENGTH) {
+    return label;
+  }
+  return label.slice(0, MAX_LABEL_LENGTH) + '...';
+}
+
 const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
+  const [hoveredNode, setHoveredNode] = useState<{ node: GraphNode } | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
   const graphData = useMemo(() => {
     if (documents.length === 0) {
       return { nodes: [], links: [] };
@@ -67,6 +87,33 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
 
   const isEmpty = graphData.nodes.length === 0;
 
+  /**
+   * Handle node hover — track the hovered node for tooltip rendering.
+   */
+  const handleNodeHover = (node: GraphNode | null) => {
+    setHoveredNode(node ? { node } : null);
+  };
+
+  /**
+   * Track mouse position within graph container for tooltip positioning.
+   */
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  /**
+   * Handle node click — find the document and navigate using its actual slug.
+   */
+  const handleNodeClick = (node: GraphNode) => {
+    const docId = node.id;
+    const doc = documents.find((d) => d.id === docId);
+    if (doc && onNodeClick) {
+      const slug = doc.slug ?? doc.title.toLowerCase().replace(/\s+/g, '-');
+      onNodeClick(slug);
+    }
+  };
+
   if (isEmpty) {
     return (
       <div className="graph-view">
@@ -91,28 +138,41 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           {graphData.links.length !== 1 ? 's' : ''}
         </p>
       </header>
-      <div className="graph-container">
+      <div className="graph-container" onMouseMove={handleMouseMove}>
         <ForceGraph2D
           graphData={graphData as any}
-          nodeLabel="label"
+          nodeLabel={(node: GraphNode) => truncateLabel(node.label)}
           nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
           nodeRelSize={6}
           linkColor={() => '#9ca3af'}
           linkWidth={1.5}
           backgroundColor="#fafafa"
-          onNodeClick={(node: GraphNode) => {
-            const docId = node.id;
-            // Find the document and navigate using its actual slug
-            const doc = documents.find((d) => d.id === docId);
-            if (doc && onNodeClick) {
-              const slug = doc.slug ?? doc.title.toLowerCase().replace(/\s+/g, '-');
-              onNodeClick(slug);
-            }
-          }}
+          onNodeHover={handleNodeHover}
+          onNodeClick={handleNodeClick}
           linkDirectionalArrowLength={3}
           linkDirectionalArrowRelPos={1}
           cooldownTicks={100}
         />
+
+        {/* Tooltip overlay — positioned near the cursor when hovering a node */}
+        {hoveredNode && (
+          <div
+            className="graph-tooltip"
+            style={{
+              left: `${tooltipPos.x}px`,
+              top: `${tooltipPos.y}px`,
+            }}
+          >
+            <div className="graph-tooltip-content">
+              <div className="graph-tooltip-title">{hoveredNode.node.label}</div>
+              {hoveredNode.node.label.length > MAX_LABEL_LENGTH && (
+                <div className="graph-tooltip-truncated">
+                  {truncateLabel(hoveredNode.node.label)}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
