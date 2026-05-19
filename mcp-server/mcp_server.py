@@ -142,13 +142,20 @@ def delete_project(slug: str) -> dict:
 
 # ─── Document Tools ───────────────────────────────────────────────────────────
 
-def list_documents(project_slug: str) -> list[dict]:
-    """List all documents in a project.
+def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dict]:
+    """List documents in a project (paginated).
+
+    The backend returns a paginated response. This function extracts the
+    document list from the 'content' field of the pagination wrapper.
 
     Args:
         project_slug: The URL-friendly slug of the project (required)
+        page: Page number, 0-indexed (default: 0)
+        size: Number of documents per page, max 100 (default: 50)
     """
-    return _api_request("GET", f"/v1/projects/{project_slug}/documents")
+    response = _api_request("GET", f"/v1/projects/{project_slug}/documents?page={page}&size={size}")
+    # Backend returns a Spring Data Page object: {"content": [...], "totalElements": N, ...}
+    return response.get("content", [])
 
 
 def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:

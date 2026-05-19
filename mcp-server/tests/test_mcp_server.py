@@ -25,6 +25,7 @@ from mcp_server import (
     import_document,
     move_document,
     copy_document,
+    list_documents,
     create_mcp_server,
     _api_request,
     set_base_url,
@@ -844,6 +845,111 @@ class TestSearchDocumentsErrors:
         assert "404" in str(exc_info.value) or "Not Found" in str(exc_info.value)
 
 
+# ─── Tests: list_documents paginated response ──────────────────────────────
+
+class TestListDocumentsPaginatedResponse:
+    """Tests that list_documents correctly handles the Spring Data Page response."""
+
+    @patch("mcp_server.urlopen")
+    def test_extracts_content_from_page_response(self, mock_urlopen):
+        """list_documents extracts 'content' array from paginated backend response."""
+        from mcp_server import list_documents
+
+        page_response = {
+            "content": [
+                {"id": 1, "title": "Doc One", "slug": "doc-one"},
+                {"id": 2, "title": "Doc Two", "slug": "doc-two"},
+            ],
+            "totalElements": 2,
+            "totalPages": 1,
+            "number": 0,
+            "size": 50,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_documents("my-project")
+
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert result[0]["title"] == "Doc One"
+        assert result[1]["title"] == "Doc Two"
+
+    @patch("mcp_server.urlopen")
+    def test_returns_empty_list_for_empty_page(self, mock_urlopen):
+        """list_documents returns empty list when backend page has no content."""
+        from mcp_server import list_documents
+
+        page_response = {
+            "content": [],
+            "totalElements": 0,
+            "totalPages": 0,
+            "number": 0,
+            "size": 50,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_documents("empty-project")
+
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+    @patch("mcp_server.urlopen")
+    def test_passes_page_and_size_params(self, mock_urlopen):
+        """list_documents passes page and size query parameters to the backend."""
+        from mcp_server import list_documents
+
+        page_response = {
+            "content": [{"id": 3, "title": "Page 1 Doc", "slug": "page-1-doc"}],
+            "totalElements": 75,
+            "totalPages": 2,
+            "number": 1,
+            "size": 50,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_documents("my-project", page=1, size=25)
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        url_str = str(request.full_url)
+        assert "page=1" in url_str
+        assert "size=25" in url_str
+
+    @patch("mcp_server.urlopen")
+    def test_default_page_and_size_params(self, mock_urlopen):
+        """list_documents uses default page=0 and size=50."""
+        from mcp_server import list_documents
+
+        page_response = {
+            "content": [{"id": 1, "title": "Default Doc", "slug": "default-doc"}],
+            "totalElements": 1,
+            "totalPages": 1,
+            "number": 0,
+            "size": 50,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        list_documents("my-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        url_str = str(request.full_url)
+        assert "page=0" in url_str
+        assert "size=50" in url_str
+
+
 # ─── Smoke Tests: Existing Tools Still Work ──────────────────────────────
 
 class TestExistingToolsSmokeTest:
@@ -863,15 +969,26 @@ class TestExistingToolsSmokeTest:
 
     @patch("mcp_server.urlopen")
     def test_list_documents_still_works(self, mock_urlopen):
-        """list_documents tool still functions correctly."""
+        """list_documents tool still functions correctly with paginated response."""
         from mcp_server import list_documents
 
+        # Backend returns a Spring Data Page object, not a raw list
+        page_response = {
+            "content": [{"id": 1, "title": "Test Doc", "slug": "test-doc"}],
+            "totalElements": 1,
+            "totalPages": 1,
+            "number": 0,
+            "size": 50,
+        }
+
         mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps([{"id": 1, "title": "Test Doc"}]).encode("utf-8")
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_resp
 
         result = list_documents("test-project")
         assert isinstance(result, list)
+        assert len(result) == 1
+        assert result[0]["title"] == "Test Doc"
 
     @patch("mcp_server.urlopen")
     def test_health_check_still_works(self, mock_urlopen):
