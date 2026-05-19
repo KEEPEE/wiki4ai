@@ -21,6 +21,23 @@ interface DocumentEditorProps {
 
 const AUTO_SAVE_DELAY = 2000; // Auto-save every 2 seconds after changes
 
+/**
+ * Calculate the number of words in a text string.
+ * Words are defined as sequences of non-whitespace characters.
+ */
+function getWordCount(text: string): number {
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return 0;
+  return trimmed.split(/\s+/).length;
+}
+
+/**
+ * Calculate the number of characters in a text string.
+ */
+function getCharCount(text: string): number {
+  return text.length;
+}
+
 const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', onSave }) => {
   const { slug: projectSlug, docId: docSlug } = useParams<{ slug: string; docId: string }>();
   const navigate = useNavigate();
@@ -215,6 +232,12 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           </div>
         )}
       </div>
+
+      {/* Footer with word/character count */}
+      <footer className="editor-footer">
+        <span className="word-count">{getWordCount(content)} words</span>
+        <span className="char-count">{getCharCount(content)} characters</span>
+      </footer>
     </div>
   );
 };
