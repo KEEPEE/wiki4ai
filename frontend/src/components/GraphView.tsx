@@ -5,17 +5,8 @@
 
 import React, { useMemo } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+import type { Document } from '../types/document';
 import './GraphView.css';
-
-interface Document {
-  id: number;
-  title: string;
-  content?: string | null;
-  projectId: number;
-  linkedDocuments?: number[];
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface GraphViewProps {
   documents: Document[];
@@ -31,7 +22,7 @@ const NODE_COLORS = [
   '#dc2626', // red
   '#7c3aed', // violet
   '#db2777', // pink
-  '#2563eb', // blue
+  '#2563eb', // blue,
 ];
 
 interface GraphNode {
@@ -111,10 +102,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           backgroundColor="#fafafa"
           onNodeClick={(node: GraphNode) => {
             const docId = node.id;
-            // Find the document and navigate to it
+            // Find the document and navigate using its actual slug
             const doc = documents.find((d) => d.id === docId);
             if (doc && onNodeClick) {
-              onNodeClick(doc.title.toLowerCase().replace(/\s+/g, '-'));
+              const slug = doc.slug ?? doc.title.toLowerCase().replace(/\s+/g, '-');
+              onNodeClick(slug);
             }
           }}
           linkDirectionalArrowLength={3}
