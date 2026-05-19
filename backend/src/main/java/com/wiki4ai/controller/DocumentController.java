@@ -1,5 +1,6 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.CopyRequestDTO;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
@@ -264,5 +265,22 @@ public class DocumentController {
         Long sourceProjectId = resolveProjectId(projectSlug);
         DocumentDTO moved = documentService.moveDocument(sourceProjectId, docSlug, dto.getTargetProjectSlug());
         return ResponseEntity.ok(moved);
+    }
+
+    // ==================== Copy Document Endpoint ====================
+
+    @Operation(summary = "Kopírovať dokument do iného projektu", description = "Vytvorí kópiu dokumentu v cieľovom projekte (alebo v rovnakom, ak nie je špecifikovaný cieľ). Kópia má názov \"{title} (copy)\" a nemá žiadne prepojenia.")
+    @ApiResponse(responseCode = "201", description = "Kópia dokumentu úspešne vytvorená")
+    @ApiResponse(responseCode = "404", description = "Dokument alebo cieľový projekt nebol nájdený")
+    @PostMapping("/{docSlug}/copy")
+    public ResponseEntity<DocumentDTO> copyDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
+            @RequestBody(required = false) CopyRequestDTO dto) {
+
+        Long sourceProjectId = resolveProjectId(projectSlug);
+        String targetProjectSlug = (dto != null) ? dto.getTargetProjectSlug() : null;
+        DocumentDTO copied = documentService.copyDocument(sourceProjectId, docSlug, targetProjectSlug);
+        return ResponseEntity.status(HttpStatus.CREATED).body(copied);
     }
 }
