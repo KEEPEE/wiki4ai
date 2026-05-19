@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
+import { generateSlug } from '../utils/slugify';
 import './GraphView.css';
 
 export interface GraphViewProps {
@@ -109,7 +110,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     const docId = node.id;
     const doc = documents.find((d) => d.id === docId);
     if (doc && onNodeClick) {
-      const slug = doc.slug ?? doc.title.toLowerCase().replace(/\s+/g, '-');
+      const slug = doc.slug ?? generateSlug(doc.title);
       onNodeClick(slug);
     }
   };
