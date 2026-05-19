@@ -82,6 +82,12 @@
             <version>0.64.8</version>
         </dependency>
 
+        <!-- Spring Security (full framework for JWT filter + auth) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+
         <!-- Spring Security Crypto (for BCryptPasswordEncoder) -->
         <dependency>
             <groupId>org.springframework.security</groupId>
@@ -111,6 +117,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Spring Security Test (for MockMvc with security) -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

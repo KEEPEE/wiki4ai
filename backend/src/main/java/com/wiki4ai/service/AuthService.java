@@ -1,30 +1,35 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Service for authentication operations: user registration and login.
+ * Only loaded when security.enabled=true.
  */
 @Service
+@ConditionalOnProperty(name = "security.enabled", havingValue = "true", matchIfMissing = true)
 public class AuthService {
 
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository) {
+    public AuthService(UserRepository userRepository, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
+        this.jwtUtil = jwtUtil;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
@@ -85,19 +90,21 @@ public class AuthService {
     }
 
     /**
-     * Generate a simple JWT-style access token (placeholder implementation).
-     * The full JWT filter will be implemented in a separate story.
+     * Generate a real JWT access token for the user.
      */
     public String generateAccessToken(Long userId, String username) {
-        // Simple placeholder: use UUID for now; real JWT will be added later
-        return "eyJAI_access_token_" + userId + "_" + username + "_" + UUID.randomUUID();
+        return jwtUtil.generateToken(username);
     }
 
     /**
-     * Generate a simple refresh token (placeholder implementation).
+     * Generate a real JWT refresh token for the user.
      */
     public String generateRefreshToken(Long userId) {
-        return "refresh_" + userId + "_" + UUID.randomUUID();
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+        return jwtUtil.generateRefreshToken(user.getUsername());
     }
 
     /**
