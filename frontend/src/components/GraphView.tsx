@@ -64,6 +64,10 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   const [showLabels, setShowLabels] = useState(true);
   const graphRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Track current zoom scale for dynamic arrow sizing.
+  // Using a ref avoids re-rendering the entire component on every zoom event,
+  // while still giving the linkCanvasObject access to the latest scale value.
+  const currentZoomScale = useRef(1);
   // Explicit canvas dimensions measured via ResizeObserver.
   // This prevents CSS scaling from distorting the internal coordinate system,
   // which caused labels and hover detection to appear at wrong positions.
@@ -147,6 +151,79 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       graphRef.current.zoomToFit(400, 60);
     }
   }, [isEmpty]);
+
+  /**
+   * Track zoom level changes for dynamic arrow sizing.
+   * Updates the ref so linkCanvasObject can read the current scale
+   * without triggering a full component re-render on every zoom event.
+   */
+  const handleZoom = useCallback(() => {
+    if (graphRef.current) {
+      currentZoomScale.current = graphRef.current.graph2dZoom?.()?.k ?? 1;
+    }
+  }, []);
+
+  /**
+   * Custom link canvas object — draws the connection line AND directional arrow.
+   * Arrow size scales with zoom level so it remains visible at all zoom levels.
+   * This replaces the default linkDirectionalArrowLength/RelPos which use fixed pixel values.
+   */
+  const drawLink = useCallback(
+    (link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const sx = link.source.x;
+      const sy = link.source.y;
+      const tx = link.target.x;
+      const ty = link.target.y;
+
+      // Line width stays relatively constant across zoom levels
+      const lineWidth = Math.max(0.8, 1.5 / globalScale);
+
+      // Arrow size: base 7px at 1x zoom, clamped to stay visible when zoomed out
+      // and not overwhelming when zoomed in.
+      const arrowBaseSize = 7;
+      const arrowLength = Math.max(4, Math.min(arrowBaseSize * 2, arrowBaseSize / globalScale));
+      const arrowWidth = arrowLength * 0.55;
+
+      // Draw the connection line (shortened so it doesn't overlap the arrow)
+      const dx = tx - sx;
+      const dy = ty - sy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist === 0) return;
+
+      const nx = dx / dist; // normalized direction x
+      const ny = dy / dist; // normalized direction y
+
+      // Line ends before the arrow starts
+      const lineEndX = tx - nx * arrowLength;
+      const lineEndY = ty - ny * arrowLength;
+
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(lineEndX, lineEndY);
+      ctx.strokeStyle = '#9ca3af';
+      ctx.lineWidth = lineWidth;
+      ctx.stroke();
+
+      // Draw the directional arrowhead at the target end
+      const perpX = -ny; // perpendicular x
+      const perpY = nx;  // perpendicular y
+
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.lineTo(
+        tx - nx * arrowLength + perpX * arrowWidth,
+        ty - ny * arrowLength + perpY * arrowWidth
+      );
+      ctx.lineTo(
+        tx - nx * arrowLength - perpX * arrowWidth,
+        ty - ny * arrowLength - perpY * arrowWidth
+      );
+      ctx.closePath();
+      ctx.fillStyle = '#9ca3af';
+      ctx.fill();
+    },
+    [],
+  );
 
   /**
    * Handle node hover — track the hovered node for tooltip rendering.
@@ -289,13 +366,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
           nodeRelSize={6}
           nodeCanvasObject={drawNode}
-          linkColor={() => '#9ca3af'}
-          linkWidth={1.5}
+          linkCanvasObject={drawLink}
           backgroundColor="#fafafa"
           onNodeHover={handleNodeHover}
           onNodeClick={handleNodeClick}
-          linkDirectionalArrowLength={3}
-          linkDirectionalArrowRelPos={1}
+          onZoom={handleZoom}
           cooldownTicks={100}
           onEngineStop={handleEngineStop}
         />
