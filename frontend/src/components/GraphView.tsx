@@ -9,7 +9,7 @@
  * - Tooltip overlay on node hover showing full document title
  */
 
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
 import { generateSlug } from '../utils/slugify';
@@ -63,6 +63,37 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [showLabels, setShowLabels] = useState(true);
   const graphRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // Explicit canvas dimensions measured via ResizeObserver.
+  // This prevents CSS scaling from distorting the internal coordinate system,
+  // which caused labels and hover detection to appear at wrong positions.
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+
+  // Measure container dimensions using ResizeObserver for accurate canvas sizing
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Set initial size from current container dimensions
+    setCanvasSize({
+      width: Math.max(1, Math.floor(container.clientWidth)),
+      height: Math.max(1, Math.floor(container.clientHeight)),
+    });
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setCanvasSize(prev =>
+          Math.abs(prev.width - width) > 1 || Math.abs(prev.height - height) > 1
+            ? { width: Math.max(1, Math.floor(width)), height: Math.max(1, Math.floor(height)) }
+            : prev
+        );
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
 
   const graphData = useMemo(() => {
     if (documents.length === 0) {
@@ -228,10 +259,12 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           </button>
         </div>
       </header>
-      <div className="graph-container" onMouseMove={handleMouseMove}>
+      <div ref={containerRef} className="graph-container" onMouseMove={handleMouseMove}>
         <ForceGraph2D
           ref={graphRef}
           graphData={graphData as any}
+          width={canvasSize.width}
+          height={canvasSize.height}
           nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
           nodeRelSize={6}
           nodeCanvasObject={drawNode}

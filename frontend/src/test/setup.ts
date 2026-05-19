@@ -25,5 +25,12 @@ window.IntersectionObserver = class IntersectionObserver {
   disconnect() {}
 } as any
 
+// Mock ResizeObserver (used by GraphView for container sizing)
+window.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as any
+
 // Declare global for fetch mocking in tests
 declare const global: any

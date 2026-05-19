@@ -85,10 +85,17 @@
   text-align: center;
 }
 
-/* Force graph canvas styling */
+/* 
+ * Force graph canvas styling - NO CSS scaling!
+ * Canvas dimensions are set explicitly via width/height props on ForceGraph2D.
+ * This prevents coordinate mismatch between the force simulation and rendered labels,
+ * which caused labels to appear at wrong positions relative to nodes.
+ */
 .graph-container canvas {
-  width: 100% !important;
-  height: 100% !important;
+  display: block;
+  /* Improve text rendering quality for labels */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* ===== Tooltip overlay for node hover ===== */
@@ -134,12 +141,4 @@
   transform: translateX(-50%);
   border: 6px solid transparent;
   border-top-color: #1a1a2e;
-}
-
-/* ===== Node label styling (via react-force-graph-2d) ===== */
-
-.graph-container canvas {
-  /* Improve text rendering quality for labels */
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
