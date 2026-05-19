@@ -280,3 +280,21 @@
     flex-direction: column;
   }
 }
+
+/* Editor footer with word/character count */
+.editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 2rem;
+  background: #f5f5f5;
+  border-top: 1px solid #e0e0e0;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.word-count,
+.char-count {
+  white-space: nowrap;
+}

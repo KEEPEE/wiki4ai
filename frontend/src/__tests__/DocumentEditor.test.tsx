@@ -143,4 +143,108 @@ describe('DocumentEditor', () => {
       })
     })
   })
+
+  describe('Word/Character count', () => {
+    it('should render word count in the editor footer', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Hello World', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/words/)).toBeInTheDocument()
+      })
+    })
+
+    it('should render character count in the editor footer', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Hello World', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/characters/)).toBeInTheDocument()
+      })
+    })
+
+    it('should update word count when content changes', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: 'Hello', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByText('1 words')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const textarea = screen.getByPlaceholderText(/Upravte markdown obsah/)
+      await user.clear(textarea)
+      await user.type(textarea, 'Hello world foo bar')
+
+      await waitFor(() => {
+        expect(screen.getByText('4 words')).toBeInTheDocument()
+      })
+    })
+
+    it('should update character count when content changes', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockResolvedValue(undefined)
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByText('0 characters')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const textarea = screen.getByPlaceholderText(/Upravte markdown obsah/)
+      await user.type(textarea, 'abc')
+
+      await waitFor(() => {
+        expect(screen.getByText('3 characters')).toBeInTheDocument()
+      })
+    })
+
+    it('should show 0 words and 0 characters for empty content', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Empty Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByText('0 words')).toBeInTheDocument()
+        expect(screen.getByText('0 characters')).toBeInTheDocument()
+      })
+    })
+  })
 })
