@@ -4,7 +4,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { ForceGraph2D } from 'react-force-graph';
+import ForceGraph2D from 'react-force-graph-2d';
 import './GraphView.css';
 
 interface Document {
