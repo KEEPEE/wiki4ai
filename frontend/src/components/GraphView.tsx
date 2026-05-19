@@ -184,7 +184,15 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       // visible when zoomed in close and don't become overwhelming when zoomed out far.
       const arrowBaseSize = 12;
       const zoomFactor = Math.pow(globalScale, 0.5); // sqrt scale for partial compensation
-      const arrowLength = Math.max(4, Math.min(arrowBaseSize * 3, arrowBaseSize / zoomFactor));
+      let arrowLength = Math.max(4, Math.min(arrowBaseSize * 3, arrowBaseSize / zoomFactor));
+
+      // At high zoom levels (zoomed in close), arrows become too small and disappear.
+      // Once globalScale exceeds 8x, lock arrow size to a minimum so they stay visible.
+      if (globalScale > 8) {
+        const minArrowLength = Math.max(arrowLength, 12);
+        arrowLength = minArrowLength;
+      }
+
       const arrowWidth = arrowLength * 0.5;
 
       // Draw the connection line (shortened so it doesn't overlap the arrow)
