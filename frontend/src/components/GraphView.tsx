@@ -95,6 +95,18 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     return () => observer.disconnect();
   }, []);
 
+  // Configure D3 force simulation: increase node repulsion and link distance
+  // so nodes are spread out more for better readability.
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+
+    // Stronger charge (repulsion) pushes nodes further apart
+    graph.d3Force('charge').strength(-800);
+    // Longer link distance keeps connected nodes at a comfortable spacing
+    graph.d3Force('link').distance(150);
+  }, []);
+
   const graphData = useMemo(() => {
     if (documents.length === 0) {
       return { nodes: [], links: [] };
@@ -286,10 +298,6 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           linkDirectionalArrowRelPos={1}
           cooldownTicks={100}
           onEngineStop={handleEngineStop}
-          d3Force={{
-            charge: (charge) => charge.strength(-800),
-            link: (link) => link.distance(150),
-          }}
         />
 
         {/* Tooltip overlay — positioned near the cursor when hovering a node */}
