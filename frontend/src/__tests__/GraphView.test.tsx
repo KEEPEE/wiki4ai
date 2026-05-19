@@ -26,22 +26,28 @@ vi.mock('react-force-graph-2d', () => {
     
     return (
       <div className="force-graph-mock">
-        {graphData.nodes.map((node: any) => (
-          <div
-            key={node.id}
-            className="graph-node"
-            data-doc-id={node.id}
-            onClick={() => {
-              // Call the actual onNodeClick prop if provided
-              if (onNodeClickProp) {
-                onNodeClickProp(node)
-              }
-            }}
-          >
-            {/* Simulate react-force-graph-2d's nodeLabel truncation */}
-            {truncateLabel(node.label)}
-          </div>
-        ))}
+        {graphData.nodes.map((node: any) => {
+          // Check if nodeLabel prop is provided — if undefined, don't render label text
+          const hasNodeLabel = typeof props.nodeLabel === 'function'
+          const labelText = hasNodeLabel ? truncateLabel(node.label) : ''
+          
+          return (
+            <div
+              key={node.id}
+              className="graph-node"
+              data-doc-id={node.id}
+              onClick={() => {
+                // Call the actual onNodeClick prop if provided
+                if (onNodeClickProp) {
+                  onNodeClickProp(node)
+                }
+              }}
+            >
+              {/* Only render label text when nodeLabel prop is defined */}
+              {hasNodeLabel && labelText}
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -200,5 +206,53 @@ describe('GraphView — tooltip and label truncation', () => {
 
     // The tooltip should be hidden initially (not rendered when no node is hovered)
     expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('should show labels by default', () => {
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Label Test Doc', slug: 'label-test' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    // Label should be visible by default (showLabels defaults to true)
+    expect(screen.getByText('Label Test Doc')).toBeInTheDocument()
+  })
+
+  it('should toggle label visibility when button is clicked', async () => {
+    const user = userEvent.setup()
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Toggle Label Doc', slug: 'toggle-label' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    // Initially labels should be visible
+    expect(screen.getByText('Toggle Label Doc')).toBeInTheDocument()
+
+    // Click the toggle button to hide labels
+    const toggleBtn = screen.getByRole('button', { name: /hide node labels/i })
+    await user.click(toggleBtn)
+
+    // Labels should now be hidden — the document title text should not appear as a standalone element
+    expect(screen.queryByText('Toggle Label Doc')).not.toBeInTheDocument()
+
+    // Click again to show labels
+    const toggleBtn2 = screen.getByRole('button', { name: /show node labels/i })
+    await user.click(toggleBtn2)
+
+    // Labels should be visible again
+    expect(screen.getByText('Toggle Label Doc')).toBeInTheDocument()
+  })
+
+  it('should have the toggle button in the header', () => {
+    const documents: Document[] = [
+      createMockDocument({ id: 1, title: 'Toggle Button Test', slug: 'toggle-btn-test' }),
+    ]
+
+    render(<GraphView documents={documents} />)
+
+    // Toggle button should be present
+    expect(screen.getByRole('button', { name: /hide node labels/i })).toBeInTheDocument()
   })
 })

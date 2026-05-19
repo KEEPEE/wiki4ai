@@ -4,6 +4,7 @@
  * 
  * Features:
  * - Adaptive label rendering with truncation for long titles (>40 chars)
+ * - Toggle between always-visible labels and hover-only labels (via tooltip)
  * - Tooltip overlay on node hover showing full document title
  */
 
@@ -57,6 +58,7 @@ function truncateLabel(label: string): string {
 const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   const [hoveredNode, setHoveredNode] = useState<{ node: GraphNode } | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [showLabels, setShowLabels] = useState(true);
 
   const graphData = useMemo(() => {
     if (documents.length === 0) {
@@ -138,11 +140,21 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           {documents.length} document{documents.length !== 1 ? 's' : ''} · {graphData.links.length} connection
           {graphData.links.length !== 1 ? 's' : ''}
         </p>
+        <div className="label-toggle">
+          <button
+            onClick={() => setShowLabels((prev) => !prev)}
+            aria-label={showLabels ? 'Hide node labels' : 'Show node labels'}
+            title={showLabels ? 'Click to hide labels (hover only)' : 'Click to show labels always'}
+            className={`label-toggle-btn ${showLabels ? 'active' : ''}`}
+          >
+            {showLabels ? '🏷️ Labels on' : '👁️ Hover only'}
+          </button>
+        </div>
       </header>
       <div className="graph-container" onMouseMove={handleMouseMove}>
         <ForceGraph2D
           graphData={graphData as any}
-          nodeLabel={(node: GraphNode) => truncateLabel(node.label)}
+          nodeLabel={showLabels ? ((node: GraphNode) => truncateLabel(node.label)) : undefined}
           nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
           nodeRelSize={6}
           linkColor={() => '#9ca3af'}
