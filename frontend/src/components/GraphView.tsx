@@ -286,6 +286,10 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
           linkDirectionalArrowRelPos={1}
           cooldownTicks={100}
           onEngineStop={handleEngineStop}
+          d3Force={{
+            charge: (charge) => charge.strength(-800),
+            link: (link) => link.distance(150),
+          }}
         />
 
         {/* Tooltip overlay — positioned near the cursor when hovering a node */}
