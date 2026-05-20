@@ -28,6 +28,15 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-3" data-testid="auth-section">
             {isAuthenticated && user ? (
               <>
+                {(user as any).role === 'ADMIN' && (
+                  <Link
+                    to="/admin/users"
+                    className="text-xs px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors flex-shrink-0"
+                    data-testid="nav-admin-users"
+                  >
+                    Admin
+                  </Link>
+                )}
                 <Link
                   to="/profile"
                   className="text-sm text-gray-600 dark:text-gray-400 flex-shrink-0 hover:underline"

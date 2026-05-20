@@ -9,6 +9,7 @@ import ProjectSettings from './pages/ProjectSettings'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import ProfilePage from './pages/ProfilePage'
+import AdminUsersPage from './pages/AdminUsersPage'
 
 // Lazy-load components that have heavy dependencies (e.g., react-force-graph requires AFRAME)
 const GraphViewPage = lazy(() => import('./pages/GraphViewPage'))
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="profile" element={<ProfilePage />} />
+            <Route path="admin/users" element={<AdminUsersPage />} />
             <Route path="projects/:slug" element={<ProjectDetail />} />
             {/* Project Settings - edit project name, description and delete */}
             <Route path="projects/:slug/settings" element={<ProjectSettings />} />

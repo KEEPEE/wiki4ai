@@ -1,0 +1,202 @@
+.admin-users-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+/* Access denied */
+.access-denied {
+  text-align: center;
+  padding: 4rem 2rem;
+}
+
+.access-denied h1 {
+  font-size: 2rem;
+  color: #dc2626;
+  margin-bottom: 0.5rem;
+}
+
+.dark .access-denied h1 {
+  color: #fca5a5;
+}
+
+.access-denied p {
+  font-size: 1rem;
+  color: #6b7280;
+}
+
+.dark .access-denied p {
+  color: #9ca3af;
+}
+
+/* Section styling */
+.admin-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+
+.dark .admin-section {
+  background-color: #1f2937;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.dark .section-title {
+  color: #f9fafb;
+}
+
+/* Form layout */
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2rem;
+}
+
+/* Messages */
+.success-message {
+  padding: 0.75rem 1rem;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #16a34a;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.dark .success-message {
+  background-color: rgb(22 163 74 / 0.1);
+  border-color: rgb(22 163 74 / 0.3);
+  color: #86efac;
+}
+
+.error-message {
+  padding: 0.75rem 1rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.dark .error-message {
+  background-color: rgb(220 38 38 / 0.1);
+  border-color: rgb(220 38 38 / 0.3);
+  color: #fca5a5;
+}
+
+/* Table */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-table thead {
+  background-color: #f9fafb;
+}
+
+.dark .admin-table thead {
+  background-color: #111827;
+}
+
+.admin-table th {
+  text-align: left;
+  padding: 0.625rem 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.dark .admin-table th {
+  color: #d1d5db;
+  border-color: #374159;
+}
+
+.admin-table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #1f2937;
+}
+
+.dark .admin-table td {
+  color: #f9fafb;
+  border-color: #374159;
+}
+
+.cell-id {
+  color: #9ca3af;
+  font-size: 0.8125rem;
+}
+
+.cell-date {
+  white-space: nowrap;
+  color: #6b7280;
+}
+
+.dark .cell-date {
+  color: #9ca3af;
+}
+
+/* Role badges */
+.role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-admin {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.dark .role-admin {
+  background-color: rgb(217 119 6 / 0.2);
+  color: #fbbf24;
+}
+
+.role-user {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.dark .role-user {
+  background-color: rgb(37 99 235 / 0.2);
+  color: #60a5fa;
+}
