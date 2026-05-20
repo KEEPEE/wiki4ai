@@ -135,6 +135,31 @@ public class AuthService {
     }
 
     /**
+     * Generate a new access token and refresh token for an already authenticated user.
+     * Used by the POST /token endpoint so users can generate fresh tokens (e.g., for API integrations).
+     * Same logic as loginUser but without password verification — the user is already authenticated via JWT.
+     *
+     * @param username the username of the authenticated user (from SecurityContext)
+     * @return AuthResponseDTO with new accessToken, refreshToken and user info — or null if user not found
+     */
+    public AuthResponseDTO generateNewTokenForUser(String username) {
+        User user = userRepository.findByUsername(username).orElse(null);
+
+        if (user == null) {
+            return null; // User not found
+        }
+
+        String accessToken = generateAccessToken(user.getId(), user.getUsername());
+        String refreshToken = generateRefreshToken(user.getId());
+
+        return AuthResponseDTO.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(convertToUserDTO(user))
+                .build();
+    }
+
+    /**
      * Find a user by username.
      */
     public Optional<User> findByUsername(String username) {
