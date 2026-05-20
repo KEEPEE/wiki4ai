@@ -1,10 +1,12 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.CreateUserRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -64,6 +66,44 @@ public class AdminController {
             } else {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
             }
+        }
+    }
+
+    /**
+     * Create a new user with the specified credentials and role.
+     * Only accessible to users with ADMIN role.
+     *
+     * @param request the creation request containing username, email, password, and role
+     * @return the created UserDTO with 201 Created status
+     */
+    @PostMapping("/users")
+    @Operation(
+            summary = "Create a new user",
+            description = "Creates a new user with the specified credentials and role. Admin access required."
+    )
+    @ApiResponse(responseCode = "201", description = "User created successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid request body - validation failed")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    @ApiResponse(responseCode = "409", description = "Conflict - username or email already exists")
+    public ResponseEntity<?> createUser(@Valid @RequestBody CreateUserRequestDTO request) {
+        try {
+            UserDTO createdUser = adminService.createUser(request);
+            return ResponseEntity.status(HttpStatus.CREATED).body(createdUser);
+        } catch (SecurityException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+
+            // Determine if it's an auth or authorization issue
+            if (e.getMessage().contains("Authentication required") || e.getMessage().contains("not found in database")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+            }
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
         }
     }
 }
