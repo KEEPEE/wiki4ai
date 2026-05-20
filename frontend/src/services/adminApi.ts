@@ -3,7 +3,7 @@
  * All endpoints require ADMIN role. Returns 403 if the current user is not an admin.
  */
 
-import { apiGet, apiPost } from './apiClient';
+import { apiGet, apiPost, apiPut, apiDelete } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -44,4 +44,22 @@ export async function listUsers(page = 0, size = 20, search?: string): Promise<A
  */
 export async function createUser(request: CreateUserRequest): Promise<AdminUserDTO> {
   return apiPost(`${API_BASE_URL}/admin/users`, request);
+}
+
+export interface ChangeRoleRequest {
+  role: 'ADMIN' | 'USER';
+}
+
+/**
+ * Update the role of an existing user. Admin only.
+ */
+export async function updateUserRole(userId: number, request: ChangeRoleRequest): Promise<AdminUserDTO> {
+  return apiPut(`${API_BASE_URL}/admin/users/${userId}/role`, request);
+}
+
+/**
+ * Delete a user by ID. Admin only. Cannot delete own account.
+ */
+export async function deleteUser(userId: number): Promise<void> {
+  await apiDelete<void>(`${API_BASE_URL}/admin/users/${userId}`);
 }

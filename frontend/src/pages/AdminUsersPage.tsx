@@ -1,12 +1,21 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { listUsers, createUser, type AdminUserDTO, type CreateUserRequest } from '../services/adminApi';
+import {
+  listUsers,
+  createUser,
+  updateUserRole,
+  deleteUser,
+  type AdminUserDTO,
+  type CreateUserRequest,
+  type ChangeRoleRequest,
+} from '../services/adminApi';
 import './AdminUsers.css';
 
 export default function AdminUsersPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   // Cast to access role property stored in localStorage but not typed in UserInfo
   const isAdmin = (user as any)?.role === 'ADMIN';
+  const currentUserId = (user as any)?.id ?? null;
 
   // Users list state
   const [users, setUsers] = useState<AdminUserDTO[]>([]);
@@ -21,6 +30,26 @@ export default function AdminUsersPage() {
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Toast notification state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Delete confirmation dialog state
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState<AdminUserDTO | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Show toast notification for 3 seconds
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 3000);
+  }, []);
 
   // Load users on mount (only if admin)
   const loadUsers = useCallback(async () => {
@@ -40,10 +69,13 @@ export default function AdminUsersPage() {
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (!isAuthLoading && isAdmin) {
       loadUsers();
+    } else if (!isAuthLoading && !isAdmin) {
+      // Non-admin: no need to load users, stop loading immediately
+      setIsLoading(false);
     }
-  }, [isAdmin, loadUsers]);
+  }, [isAuthLoading, isAdmin, loadUsers]);
 
   const handleCreateUser = useCallback(
     async (e: React.FormEvent) => {
@@ -62,6 +94,7 @@ export default function AdminUsersPage() {
       try {
         await createUser(request);
         setCreateMessage('User created successfully');
+        showToast('User created successfully', 'success');
         // Reset form
         setCreateUsername('');
         setCreateEmail('');
@@ -72,11 +105,54 @@ export default function AdminUsersPage() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Failed to create user';
         setCreateError(msg);
+        showToast(msg, 'error');
       } finally {
         setIsCreating(false);
       }
     },
-    [createUsername, createEmail, createPassword, createRole, loadUsers],
+    [createUsername, createEmail, createPassword, createRole, loadUsers, showToast],
+  );
+
+  // Handle role change via dropdown
+  const handleRoleChange = useCallback(
+    async (userId: number, newRole: 'ADMIN' | 'USER') => {
+      try {
+        const request: ChangeRoleRequest = { role: newRole };
+        await updateUserRole(userId, request);
+
+        // Optimistic update
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)),
+        );
+        showToast(`Role updated to ${newRole}`, 'success');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to update role';
+        showToast(msg, 'error');
+        // Reload to restore correct state on error
+        await loadUsers();
+      }
+    },
+    [loadUsers, showToast],
+  );
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = useCallback(
+    async (userId: number) => {
+      setIsDeleting(true);
+      try {
+        await deleteUser(userId);
+        setDeleteConfirmUser(null);
+        // Remove from local state
+        setUsers((prev) => prev.filter((u) => u.id !== userId));
+        showToast('User deleted successfully', 'success');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to delete user';
+        showToast(msg, 'error');
+      } finally {
+        setIsDeleting(false);
+      }
+    },
+    [showToast],
   );
 
   // Wait for auth context to load before checking admin status
@@ -106,6 +182,48 @@ export default function AdminUsersPage() {
   return (
     <div className="admin-users-page">
       <h1 className="page-title">User Management</h1>
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className={`toast-notification toast-${toast.type}`}
+          role="alert"
+          data-testid="toast-notification"
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirmUser && (
+        <div className="modal-overlay" data-testid="delete-confirm-overlay" onClick={() => setDeleteConfirmUser(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal-title">Confirm Delete</h2>
+            <p className="modal-text">
+              Are you sure you want to delete user <strong>{deleteConfirmUser.username}</strong>?
+              This action cannot be undone.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setDeleteConfirmUser(null)}
+                data-testid="delete-cancel-btn"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-danger"
+                onClick={() => handleDeleteConfirm(deleteConfirmUser.id)}
+                data-testid="delete-confirm-btn"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create User Form */}
       <section className="admin-section" data-testid="create-user-section">
@@ -222,27 +340,45 @@ export default function AdminUsersPage() {
                   <th>Email</th>
                   <th>Role</th>
                   <th>Created</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
-                  <tr key={u.id} data-testid={`user-row-${u.id}`}>
-                    <td className="cell-id">{u.id}</td>
-                    <td className="cell-username" data-testid={`user-username-${u.username}`}>{u.username}</td>
-                    <td className="cell-email">{u.email}</td>
-                    <td>
-                      <span
-                        className={`role-badge role-${u.role.toLowerCase()}`}
-                        data-testid={`user-role-${u.id}`}
-                      >
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="cell-date">
-                      {new Date(u.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
+                {users.map((u) => {
+                  const isSelf = u.id === currentUserId;
+                  return (
+                    <tr key={u.id} data-testid={`user-row-${u.id}`}>
+                      <td className="cell-id">{u.id}</td>
+                      <td className="cell-username" data-testid={`user-username-${u.username}`}>{u.username}</td>
+                      <td className="cell-email">{u.email}</td>
+                      <td>
+                        <select
+                          className="role-select form-select"
+                          value={u.role}
+                          onChange={(e) => handleRoleChange(u.id, e.target.value as 'ADMIN' | 'USER')}
+                          data-testid={`user-role-select-${u.id}`}
+                        >
+                          <option value="USER">USER</option>
+                          <option value="ADMIN">ADMIN</option>
+                        </select>
+                      </td>
+                      <td className="cell-date">
+                        {new Date(u.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="cell-actions">
+                        <button
+                          className="btn btn-sm btn-danger-outline"
+                          onClick={() => setDeleteConfirmUser(u)}
+                          disabled={isSelf}
+                          title={isSelf ? 'Cannot delete your own account' : `Delete ${u.username}`}
+                          data-testid={`delete-user-btn-${u.id}`}
+                        >
+                          {isSelf ? '🔒' : '🗑️'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
