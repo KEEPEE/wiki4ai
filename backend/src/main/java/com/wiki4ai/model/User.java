@@ -10,6 +10,8 @@ import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.Objects;
 
+import static jakarta.persistence.EnumType.STRING;
+
 /**
  * JPA Entity representing a registered User in the Wiki4AI platform.
  */
@@ -36,6 +38,11 @@ public class User {
 
     @Column(name = "password", nullable = false)
     private String password;
+
+    @Enumerated(STRING)
+    @Column(name = "role", nullable = false)
+    @Builder.Default
+    private Role role = Role.USER;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -65,6 +72,13 @@ public class User {
     }
 
     /**
+     * Set the role.
+     */
+    public void setRole(Role role) {
+        this.role = role;
+    }
+
+    /**
      * Set the user id. Used mainly for testing and entity comparison.
      */
     public void setId(Long id) {
@@ -75,6 +89,9 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
+        if (this.role == null) {
+            this.role = Role.USER;
+        }
     }
 
     @PreUpdate
@@ -101,6 +118,7 @@ public class User {
                 "id=" + id +
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
+                ", role=" + role +
                 ", createdAt=" + createdAt +
                 ", updatedAt=" + updatedAt +
                 '}';
