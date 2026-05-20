@@ -9,6 +9,8 @@ import java.time.LocalDateTime;
 import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static com.wiki4ai.model.Role.ADMIN;
+import static com.wiki4ai.model.Role.USER;
 
 /**
  * Unit tests for the User JPA entity.
@@ -50,12 +52,14 @@ class UserEntityTest {
                     .username("testuser")
                     .email("test@example.com")
                     .password("$2a$10.hashed")
+                    .role(Role.ADMIN)
                     .build();
 
             assertThat(user.getId()).isEqualTo(1L);
             assertThat(user.getUsername()).isEqualTo("testuser");
             assertThat(user.getEmail()).isEqualTo("test@example.com");
             assertThat(user.getPassword()).isEqualTo("$2a$10.hashed");
+            assertThat(user.getRole()).isEqualTo(Role.ADMIN);
         }
 
         @Test
@@ -66,11 +70,13 @@ class UserEntityTest {
             user.setUsername("setterUser");
             user.setEmail("setter@example.com");
             user.setPassword("$2a$10.setterHash");
+            user.setRole(Role.ADMIN);
 
             assertThat(user.getId()).isEqualTo(42L);
             assertThat(user.getUsername()).isEqualTo("setterUser");
             assertThat(user.getEmail()).isEqualTo("setter@example.com");
             assertThat(user.getPassword()).isEqualTo("$2a$10.setterHash");
+            assertThat(user.getRole()).isEqualTo(Role.ADMIN);
         }
 
         @Test
@@ -105,12 +111,14 @@ class UserEntityTest {
             user.setId(1L);
             user.setUsername("toStringUser");
             user.setEmail("tostring@example.com");
+            user.setRole(USER);
 
             String str = user.toString();
 
             assertThat(str).contains("id=1");
             assertThat(str).contains("username='toStringUser'");
             assertThat(str).contains("email='tostring@example.com'");
+            assertThat(str).contains("role=USER");
         }
     }
 
@@ -195,6 +203,118 @@ class UserEntityTest {
 
             assertThat(user.getPassword()).isNotNull();
             assertThat(user.getPassword()).isNotEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("Role Field")
+    class RoleTests {
+
+        @Test
+        @DisplayName("newly created user should have default role USER")
+        void newUserShouldHaveDefaultUserRole() {
+            User user = new User();
+            user.setUsername("defaultrole");
+            user.setEmail("default@example.com");
+            user.setPassword("$2a$10.hashed");
+
+            // After @PrePersist callback, role should default to USER
+            user.onCreate();
+
+            assertThat(user.getRole()).isEqualTo(USER);
+        }
+
+        @Test
+        @DisplayName("user created via builder without explicit role should have USER")
+        void builderWithoutExplicitRoleShouldDefaultToUser() {
+            User user = User.builder()
+                    .id(1L)
+                    .username("builderUser")
+                    .email("builder@example.com")
+                    .password("$2a$10.hashed")
+                    .build();
+
+            assertThat(user.getRole()).isEqualTo(USER);
+        }
+
+        @Test
+        @DisplayName("user created via builder with ADMIN role should have ADMIN")
+        void builderWithAdminRoleShouldHaveAdmin() {
+            User user = User.builder()
+                    .id(2L)
+                    .username("adminUser")
+                    .email("admin@example.com")
+                    .password("$2a$10.hashed")
+                    .role(ADMIN)
+                    .build();
+
+            assertThat(user.getRole()).isEqualTo(ADMIN);
+        }
+
+        @Test
+        @DisplayName("should set role via setter")
+        void shouldSetRoleViaSetter() {
+            User user = new User();
+            user.setUsername("setterRole");
+            user.setEmail("setter@example.com");
+            user.setPassword("$2a$10.hashed");
+
+            user.setRole(ADMIN);
+            assertThat(user.getRole()).isEqualTo(ADMIN);
+
+            user.setRole(USER);
+            assertThat(user.getRole()).isEqualTo(USER);
+        }
+
+        @Test
+        @DisplayName("onCreate should set default USER role when role is null")
+        void onCreateShouldSetDefaultRoleWhenNull() {
+            User user = new User();
+            user.setUsername("nullrole");
+            user.setEmail("null@example.com");
+            user.setPassword("$2a$10.hashed");
+
+            // @Builder.Default initializes the field directly, so even no-arg
+            // constructor gets USER. Verify that onCreate preserves it.
+            assertThat(user.getRole()).isEqualTo(USER);
+
+            user.onCreate();
+            assertThat(user.getRole()).isEqualTo(USER);
+        }
+
+        @Test
+        @DisplayName("onCreate should preserve existing non-null role")
+        void onCreateShouldPreserveExistingRole() {
+            User user = new User();
+            user.setUsername("preserved");
+            user.setEmail("preserve@example.com");
+            user.setPassword("$2a$10.hashed");
+            user.setRole(ADMIN);
+
+            user.onCreate();
+            assertThat(user.getRole()).isEqualTo(ADMIN);
+        }
+    }
+
+    @Nested
+    @DisplayName("toString with Role")
+    class ToStringWithRoleTests {
+
+        @Test
+        @DisplayName("toString should include role field")
+        void toStringShouldIncludeRole() {
+            User user = new User();
+            user.setId(1L);
+            user.setUsername("roleUser");
+            user.setEmail("role@example.com");
+            user.setRole(ADMIN);
+
+            String str = user.toString();
+
+            assertThat(str).contains("id=1");
+            assertThat(str).contains("username='roleUser'");
+            assertThat(str).contains("email='role@example.com'");
+            assertThat(str).contains("role=ADMIN");
         }
     }
 }
