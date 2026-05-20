@@ -115,8 +115,22 @@ public class AuthService {
                 .id(user.getId())
                 .username(user.getUsername())
                 .email(user.getEmail())
+                .role(user.getRole())
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * Get the profile (UserDTO) for a user by username.
+     * Used by the GET /me endpoint to return the authenticated user's info.
+     *
+     * @param username the username of the authenticated user
+     * @return UserDTO with id, username, email, role, createdAt — or null if not found
+     */
+    public UserDTO getProfileByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .map(this::convertToUserDTO)
+                .orElse(null);
     }
 
     /**
