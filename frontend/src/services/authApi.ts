@@ -20,6 +20,7 @@ export interface UserInfo {
   id: number;
   username: string;
   email: string;
+  role?: 'ADMIN' | 'USER';
   createdAt: string;
 }
 

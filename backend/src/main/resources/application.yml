@@ -31,6 +31,10 @@ spring:
       enabled: true
       path: /h2-console
 
+  # Flyway - disabled for H2 dev mode, enabled in postgres profile
+  flyway:
+    enabled: false
+
 # Actuator endpoints
 management:
   endpoints:
