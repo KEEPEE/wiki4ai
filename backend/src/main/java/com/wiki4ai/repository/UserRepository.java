@@ -1,6 +1,8 @@
 package com.wiki4ai.repository;
 
 import com.wiki4ai.model.User;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -31,4 +33,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Check if a user with the given email exists.
      */
     boolean existsByEmail(String email);
+
+    /**
+     * Find users whose username or email contains the given search term (case-insensitive).
+     * Supports pagination via Pageable.
+     *
+     * @param searchTerm the term to search for in username or email
+     * @param pageable   pagination information
+     * @return a page of matching users
+     */
+    Page<User> findByUsernameContainingIgnoreCaseOrEmailContainingIgnoreCase(String searchTerm, String searchTerm2, Pageable pageable);
 }
