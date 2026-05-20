@@ -20,6 +20,8 @@
     <properties>
         <java.version>17</java.version>
         <springdoc.version>2.5.0</springdoc.version>
+        <!-- Override Flyway version for modular PostgreSQL support -->
+        <flyway.version>10.15.2</flyway.version>
     </properties>
 
     <dependencies>
@@ -61,12 +63,12 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Flyway for database migrations (PostgreSQL) -->
+        <!-- Flyway for database migrations (PostgreSQL support) -->
+        <!-- Using Flyway 10.x with modular architecture -->
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-database-postgresql</artifactId>
-            <version>10.15.2</version>
-            <scope>runtime</scope>
+            <version>${flyway.version}</version>
         </dependency>
 
         <!-- Lombok -->
