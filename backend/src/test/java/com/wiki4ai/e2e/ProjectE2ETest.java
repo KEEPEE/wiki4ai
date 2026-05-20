@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * using a randomly assigned port and real database (H2).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.ActiveProfiles("test")
 @DisplayName("Project E2E Tests")
 class ProjectE2ETest {
 
