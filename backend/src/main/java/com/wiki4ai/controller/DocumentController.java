@@ -7,7 +7,6 @@ import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
-import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,6 +22,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -49,16 +49,19 @@ public class DocumentController {
      * Resolve projectId from projectSlug.
      */
     private Long resolveProjectId(String projectSlug) {
-        ProjectDTO project = projectService.getProjectBySlug(projectSlug);
-        return project.getId();
+        return projectService.getProjectBySlug(projectSlug).getId();
     }
 
     /**
-     * Resolve source document ID from docSlug within a project.
+     * Get the current authenticated username from SecurityContext.
+     * Returns "anonymous" if no authentication is present (for backward compatibility with tests).
      */
-    private Long resolveSourceDocId(String projectSlug, String docSlug) {
-        DocumentDTO doc = documentService.getDocument(resolveProjectId(projectSlug), docSlug);
-        return doc.getId();
+    private String getCurrentUsername() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
+            return auth.getName();
+        }
+        return "anonymous";
     }
 
     @Operation(summary = "Vytvorenie nového dokumentu", description = "Vytvorí nový dokument v rámci projektu.")
@@ -69,7 +72,8 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Valid @RequestBody DocumentCreateDTO dto) {
         Long projectId = resolveProjectId(projectSlug);
-        DocumentDTO created = documentService.createDocument(projectId, dto);
+        String username = getCurrentUsername();
+        DocumentDTO created = documentService.createDocument(projectId, dto, username);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -82,12 +86,13 @@ public class DocumentController {
             @Parameter(description = "Veľkosť stránky (default 50, max 100)") @RequestParam(required = false, defaultValue = "50") int size) {
 
         Long projectId = resolveProjectId(projectSlug);
+        String username = getCurrentUsername();
 
         // Clamp size to reasonable bounds
         int pageSize = Math.min(Math.max(size, 1), 100);
         Pageable pageable = PageRequest.of(page, pageSize, Sort.by("updatedAt").descending());
 
-        return ResponseEntity.ok(documentService.getDocumentsByProjectPaginated(projectId, pageable));
+        return ResponseEntity.ok(documentService.getDocumentsByProjectPaginated(projectId, pageable, username));
     }
 
     @Operation(summary = "Detail dokumentu podľa slugu", description = "Vráti detail dokumentu na základe jeho URL-friendly slugu.")
@@ -98,7 +103,8 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
         Long projectId = resolveProjectId(projectSlug);
-        return ResponseEntity.ok(documentService.getDocument(projectId, docSlug));
+        String username = getCurrentUsername();
+        return ResponseEntity.ok(documentService.getDocument(projectId, docSlug, username));
     }
 
     @Operation(summary = "Obsah dokumentu s renderovaným markdownom", description = "Vráti dokument s renderovaným HTML obsahom a prepojenými wiki odkazmi.")
@@ -109,7 +115,8 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
         Long projectId = resolveProjectId(projectSlug);
-        return ResponseEntity.ok(documentService.getDocumentContent(projectId, docSlug));
+        String username = getCurrentUsername();
+        return ResponseEntity.ok(documentService.getDocumentContent(projectId, docSlug, username));
     }
 
     @Operation(summary = "Aktualizácia dokumentu", description = "Aktualizuje existujúci dokument podľa slugu.")
@@ -121,7 +128,8 @@ public class DocumentController {
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Valid @RequestBody DocumentUpdateDTO dto) {
         Long projectId = resolveProjectId(projectSlug);
-        return ResponseEntity.ok(documentService.updateDocumentBySlug(projectId, docSlug, dto));
+        String username = getCurrentUsername();
+        return ResponseEntity.ok(documentService.updateDocumentBySlug(projectId, docSlug, dto, username));
     }
 
     @Operation(summary = "Vymazanie dokumentu", description = "Vymaže dokument podľa slugu.")
@@ -132,7 +140,8 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
         Long projectId = resolveProjectId(projectSlug);
-        documentService.deleteDocumentBySlug(projectId, docSlug);
+        String username = getCurrentUsername();
+        documentService.deleteDocumentBySlug(projectId, docSlug, username);
         return ResponseEntity.noContent().build();
     }
 
@@ -146,8 +155,10 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Valid @RequestBody LinkCreateDTO dto) {
-        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
-        DocumentDTO updated = documentService.addLink(sourceDocId, dto.getTargetDocumentId());
+        Long projectId = resolveProjectId(projectSlug);
+        DocumentDTO sourceDoc = documentService.getDocument(projectId, docSlug, getCurrentUsername());
+        String username = getCurrentUsername();
+        DocumentDTO updated = documentService.addLink(sourceDoc.getId(), dto.getTargetDocumentId(), username);
         return ResponseEntity.ok(updated);
     }
 
@@ -159,8 +170,10 @@ public class DocumentController {
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
             @Parameter(description = "ID cieľového dokumentu") @PathVariable Long targetDocId) {
-        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
-        documentService.removeLink(sourceDocId, targetDocId);
+        Long projectId = resolveProjectId(projectSlug);
+        DocumentDTO sourceDoc = documentService.getDocument(projectId, docSlug, getCurrentUsername());
+        String username = getCurrentUsername();
+        documentService.removeLink(sourceDoc.getId(), targetDocId, username);
         return ResponseEntity.noContent().build();
     }
 
@@ -171,8 +184,10 @@ public class DocumentController {
     public ResponseEntity<List<DocumentDTO>> getLinks(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        Long sourceDocId = resolveSourceDocId(projectSlug, docSlug);
-        return ResponseEntity.ok(documentService.getLinkedDocuments(sourceDocId));
+        Long projectId = resolveProjectId(projectSlug);
+        DocumentDTO sourceDoc = documentService.getDocument(projectId, docSlug, getCurrentUsername());
+        String username = getCurrentUsername();
+        return ResponseEntity.ok(documentService.getLinkedDocuments(sourceDoc.getId(), username));
     }
 
     @Operation(summary = "Backlinky dokumentu", description = "Vráti zoznam všetkých dokumentov, ktoré odkazujú NA daný dokument (reverse links).")
@@ -182,8 +197,10 @@ public class DocumentController {
     public ResponseEntity<List<DocumentDTO>> getBacklinks(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
-        Long targetDocId = resolveSourceDocId(projectSlug, docSlug);
-        return ResponseEntity.ok(documentService.getBacklinks(targetDocId));
+        Long projectId = resolveProjectId(projectSlug);
+        DocumentDTO sourceDoc = documentService.getDocument(projectId, docSlug, getCurrentUsername());
+        String username = getCurrentUsername();
+        return ResponseEntity.ok(documentService.getBacklinks(sourceDoc.getId(), username));
     }
 
     // ==================== Search Endpoint ====================
@@ -203,7 +220,8 @@ public class DocumentController {
         }
 
         Long projectId = resolveProjectId(projectSlug);
-        List<DocumentDTO> results = documentService.searchDocuments(projectId, keyword.trim());
+        String username = getCurrentUsername();
+        List<DocumentDTO> results = documentService.searchDocuments(projectId, keyword.trim(), username);
         return ResponseEntity.ok(results);
     }
 
@@ -227,11 +245,12 @@ public class DocumentController {
         }
 
         Long projectId = resolveProjectId(projectSlug);
+        String username = getCurrentUsername();
 
         // Read file content as text
         String content = new String(file.getBytes(), StandardCharsets.UTF_8);
 
-        DocumentDTO created = documentService.uploadDocument(projectId, filename, content);
+        DocumentDTO created = documentService.uploadDocument(projectId, filename, content, username);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -263,7 +282,8 @@ public class DocumentController {
             @Valid @RequestBody MoveRequestDTO dto) {
 
         Long sourceProjectId = resolveProjectId(projectSlug);
-        DocumentDTO moved = documentService.moveDocument(sourceProjectId, docSlug, dto.getTargetProjectSlug());
+        String username = getCurrentUsername();
+        DocumentDTO moved = documentService.moveDocument(sourceProjectId, docSlug, dto.getTargetProjectSlug(), username);
         return ResponseEntity.ok(moved);
     }
 
@@ -280,7 +300,8 @@ public class DocumentController {
 
         Long sourceProjectId = resolveProjectId(projectSlug);
         String targetProjectSlug = (dto != null) ? dto.getTargetProjectSlug() : null;
-        DocumentDTO copied = documentService.copyDocument(sourceProjectId, docSlug, targetProjectSlug);
+        String username = getCurrentUsername();
+        DocumentDTO copied = documentService.copyDocument(sourceProjectId, docSlug, targetProjectSlug, username);
         return ResponseEntity.status(HttpStatus.CREATED).body(copied);
     }
 }

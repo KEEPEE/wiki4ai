@@ -45,6 +45,9 @@ class DocumentServiceTest {
     @Mock
     private ProjectRepository projectRepository;
 
+    @Mock
+    private PermissionService permissionService;
+
     @InjectMocks
     private DocumentService documentService;
 
