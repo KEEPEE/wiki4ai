@@ -438,3 +438,251 @@ Príklad chybovej odpovede:
   "path": "/api/v1/projects/neexistujuci"
 }
 ```
+
+---
+
+## Authentication (JWT)
+
+Všetky endpointy okrem `/api/v1/auth/**` vyžadujú platný JWT token v `Authorization` hlavičke.
+
+### Register User
+
+#### POST /api/v1/auth/register
+
+Registrácia nového používateľa.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "novypouzivatel",
+    "email": "user@example.com",
+    "password": "SecurePass123!"
+  }'
+```
+
+**Odpoveď (201 Created):**
+```json
+{
+  "id": 1,
+  "username": "novypouzivatel",
+  "email": "user@example.com",
+  "createdAt": "2026-05-19T10:00:00"
+}
+```
+
+**Odpoveď (409 Conflict):** *(duplicitné meno alebo email)*
+```json
+{
+  "error": "Username is already taken"
+}
+```
+
+---
+
+### Login
+
+#### POST /api/v1/auth/login
+
+Prihlásenie a získanie JWT tokenov.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "novypouzivatel",
+    "password": "SecurePass123!"
+  }'
+```
+
+**Odpoveď (200 OK):**
+```json
+{
+  "accessToken": "eyJhbGciOi...plny.jwt.token...",
+  "refreshToken": "eyJhbGciOi...refresh.token...",
+  "user": {
+    "id": 1,
+    "username": "novypouzivatel",
+    "email": "user@example.com",
+    "createdAt": "2026-05-19T10:00:00"
+  }
+}
+```
+
+**Odpoveď (401 Unauthorized):** *(nesprávne meno alebo heslo)*
+```json
+{
+  "error": "Invalid username or password"
+}
+```
+
+---
+
+### Auth Health Check
+
+#### GET /api/v1/auth/health
+
+Kontrola stavu autentikačného servisu. Verejný endpoint (bez autentizácie).
+
+```bash
+curl http://localhost:8080/api/v1/auth/health
+```
+
+**Odpoveď (200 OK):**
+```json
+{
+  "status": "UP",
+  "service": "auth"
+}
+```
+
+---
+
+## MCP Client JWT Authentication
+
+MCP (Model Context Protocol) klienti sa autentizujú pomocou rovnakého JWT tokenu ako REST API.
+
+### Ako MCP klient získava token
+
+1. **Registrácia** (voliteľné, ak účet už existuje):
+   ```bash
+   curl -X POST http://server:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"username": "mcp-agent", "email": "agent@wiki4ai.local", "password": "secure-password"}'
+   ```
+
+2. **Login** (získanie tokenu):
+   ```bash
+   curl -X POST http://server:8080/api/v1/auth/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": "mcp-agent", "password": "secure-password"}'
+   ```
+
+3. **Použitie tokenu** vo všetkých ďalších požiadavkách:
+   ```bash
+   curl http://server:8080/api/v1/projects \
+     -H "Authorization: Bearer eyJhbGciOi..."
+   ```
+
+### Token konfigurácia
+
+| Parameter | Výchozí hodnota | Popis |
+|-----------|-----------------|-------|
+| `jwt.expiration` | 86400000 ms (24h) | Platnosť access tokenu |
+| `jwt.refreshExpiration` | 604800000 ms (7 dní) | Platnosť refresh tokenu |
+| `jwt.secret` | Konfigurované v prostredí | Tajný kľúč na podpis tokenov |
+
+### Príklad MCP klienta s JWT
+
+```python
+import requests
+
+BASE_URL = "http://server:8080/api/v1"
+
+# Step 1: Login and get token
+login_response = requests.post(f"{BASE_URL}/auth/login", json={
+    "username": "mcp-agent",
+    "password": "secure-password"
+})
+token = login_response.json()["accessToken"]
+
+# Step 2: Use token in all subsequent requests
+headers = {"Authorization": f"Bearer {token}"}
+
+# List projects
+projects = requests.get(f"{BASE_URL}/projects", headers=headers).json()
+
+# Create a document
+requests.post(
+    f"{BASE_URL}/projects/my-project/documents",
+    headers={**headers, "Content-Type": "application/json"},
+    json={"title": "AI Generated Doc", "content": "# Hello from MCP"}
+)
+```
+
+### Bezpečnostné odporúčania pre MCP klientov
+
+- **Nikdy neukladajte heslá v kóde** - používajte environmentálne premenné alebo secrets manager
+- **Token vyprší po 24h** - implementujte automatické obnovenie pomocou refresh tokenu
+- **Používajte HTTPS** v produkčnom prostredí pre šifrovanie komunikácie
+- **Každý MCP agent by mal mať vlastný účet** s minimálnymi potrebnými oprávneniami
+
+---
+
+## Permissions (RBAC)
+
+Systém používa Role-Based Access Control (RBAC) s týmito úrovňami:
+
+| Oprávnenie | Popis |
+|------------|-------|
+| `READ` | Čítanie projektov a dokumentov |
+| `CREATE` | Vytváranie nových dokumentov |
+| `UPDATE` | Aktualizácia existujúcich dokumentov |
+| `DELETE` | Mazanie dokumentov |
+| `MANAGE` | Všetky oprávnenia + správa iných používateľov |
+
+### Endpoints pre správu oprávnení
+
+#### GET /api/v1/projects/{slug}/permissions
+
+Zoznam všetkých používateľov a ich oprávnení v projekte. Vyžaduje `READ` oprávnenie.
+
+```bash
+curl http://localhost:8080/api/v1/projects/moja-wiki/permissions \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+**Odpoveď (200 OK):**
+```json
+[
+  {
+    "username": "owner",
+    "permissions": ["MANAGE"]
+  },
+  {
+    "username": "editor",
+    "permissions": ["READ", "CREATE", "UPDATE"]
+  }
+]
+```
+
+---
+
+#### POST /api/v1/projects/{slug}/permissions
+
+Pridanie oprávnení používateľovi. Vyžaduje `MANAGE` oprávnenie.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/permissions \
+  -H "Authorization: Bearer eyJhbGciOi..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "editor",
+    "permissions": ["READ", "CREATE"]
+  }'
+```
+
+**Odpoveď (201 Created):**
+```json
+{
+  "message": "Permissions granted to 'editor'"
+}
+```
+
+---
+
+#### DELETE /api/v1/projects/{slug}/permissions/{username}
+
+Odstránenie všetkých oprávnení používateľa. Vyžaduje `MANAGE` oprávnenie.
+
+```bash
+curl -X DELETE http://localhost:8080/api/v1/projects/moja-wiki/permissions/editor \
+  -H "Authorization: Bearer eyJhbGciOi..."
+```
+
+**Odpoveď (200 OK):**
+```json
+{
+  "message": "All permissions revoked from 'editor'"
+}
+```

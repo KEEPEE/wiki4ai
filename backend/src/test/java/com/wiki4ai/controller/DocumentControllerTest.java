@@ -49,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(DocumentController.class)
 @AutoConfigureMockMvc(addFilters = false)
 @ImportAutoConfiguration(exclude = {SecurityAutoConfiguration.class})
+@org.springframework.test.context.ActiveProfiles("test")
 class DocumentControllerTest {
 
     @Autowired
