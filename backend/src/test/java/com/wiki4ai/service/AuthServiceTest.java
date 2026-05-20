@@ -142,4 +142,34 @@ class AuthServiceTest {
             assertThat(found).isEmpty();
         }
     }
+
+    @Nested
+    @DisplayName("Profile Lookup")
+    class ProfileLookupTests {
+
+        @Test
+        @DisplayName("should return UserDTO when user exists")
+        void shouldReturnUserDtoWhenUserExists() {
+            User expected = User.builder().id(1L).username("alice").email("alice@example.com")
+                    .password("$2a$10.hashed").role(com.wiki4ai.model.Role.USER).build();
+            when(userRepository.findByUsername("alice")).thenReturn(Optional.of(expected));
+
+            var profile = authService.getProfileByUsername("alice");
+
+            assertThat(profile).isNotNull();
+            assertThat(profile.getUsername()).isEqualTo("alice");
+            assertThat(profile.getEmail()).isEqualTo("alice@example.com");
+            assertThat(profile.getRole()).isEqualTo(com.wiki4ai.model.Role.USER);
+        }
+
+        @Test
+        @DisplayName("should return null when user not found")
+        void shouldReturnNullWhenUserNotFound() {
+            when(userRepository.findByUsername("nobody")).thenReturn(Optional.empty());
+
+            var profile = authService.getProfileByUsername("nobody");
+
+            assertThat(profile).isNull();
+        }
+    }
 }

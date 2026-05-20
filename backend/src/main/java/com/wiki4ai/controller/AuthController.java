@@ -12,6 +12,8 @@ import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -68,6 +70,37 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Get the profile of the currently authenticated user.
+     * Extracts username from SecurityContext (set by JwtAuthenticationFilter) and returns user info.
+     */
+    @GetMapping("/me")
+    @Operation(summary = "Get current user profile", description = "Returns the profile of the currently authenticated user based on JWT token")
+    @ApiResponse(responseCode = "200", description = "User profile returned successfully")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    public ResponseEntity<?> getCurrentUserProfile() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // If no authentication is set, the user is not authenticated
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        String username = authentication.getName();
+        UserDTO profile = authService.getProfileByUsername(username);
+
+        if (profile == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "User not found in database");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        return ResponseEntity.ok(profile);
     }
 
     /**
