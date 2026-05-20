@@ -141,15 +141,36 @@ class PermissionServiceTest {
         }
 
         @Test
-        @DisplayName("should throw AccessDeniedException when user lacks permission")
-        void shouldThrowWhenUserLacksPermission() {
+        @DisplayName("should allow READ for any authenticated user (wiki convention)")
+        void shouldAllowReadForAuthenticatedUser() {
+            when(projectPermissionRepo.findByProjectIdAndUserId(projectId, 1L))
+                    .thenReturn(Optional.empty());
+
+            // Should NOT throw - any authenticated user can READ
+            permissionService.checkPermission("alice", projectId, Permission.READ);
+            verify(projectPermissionRepo, times(1)).findByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("should throw AccessDeniedException when user lacks non-READ permission")
+        void shouldThrowWhenUserLacksNonReadPermission() {
             when(projectPermissionRepo.findByProjectIdAndUserId(projectId, 1L))
                     .thenReturn(Optional.empty());
 
             assertThatThrownBy(() ->
-                    permissionService.checkPermission("alice", projectId, Permission.READ))
+                    permissionService.checkPermission("alice", projectId, Permission.CREATE))
                     .isInstanceOf(AccessDeniedException.class)
-                    .hasMessageContaining("lacks READ");
+                    .hasMessageContaining("lacks CREATE");
+
+            assertThatThrownBy(() ->
+                    permissionService.checkPermission("alice", projectId, Permission.UPDATE))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("lacks UPDATE");
+
+            assertThatThrownBy(() ->
+                    permissionService.checkPermission("alice", projectId, Permission.DELETE))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("lacks DELETE");
         }
     }
 

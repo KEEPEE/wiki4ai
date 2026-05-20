@@ -59,11 +59,23 @@ public class PermissionService {
     /**
      * Check permission and throw AccessDeniedException if the user lacks it.
      * Skips check if username is null or blank (allows unauthenticated access for public endpoints / tests).
+     * MANAGE permission implicitly grants all other permissions.
+     * READ permission is granted to any authenticated user (wiki convention: logged-in users can read everything).
+     * CREATE, UPDATE, DELETE require explicit permission grant.
      */
     public void checkPermission(String username, Long projectId, Permission permission) {
         if (username == null || username.isBlank() || "anonymous".equals(username) || "anonymousUser".equals(username)) {
             return;
         }
+        // MANAGE grants all permissions
+        if (hasPermission(username, projectId, Permission.MANAGE)) {
+            return;
+        }
+        // Any authenticated user can READ (wiki convention)
+        if (permission == Permission.READ) {
+            return;
+        }
+        // CREATE, UPDATE, DELETE require explicit permission
         if (!hasPermission(username, projectId, permission)) {
             throw new AccessDeniedException(
                     "User '" + username + "' lacks " + permission + " permission on project " + projectId);
