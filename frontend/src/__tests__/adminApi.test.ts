@@ -3,16 +3,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { listUsers, createUser } from '../services/adminApi'
+import { listUsers, createUser, updateUserRole, deleteUser } from '../services/adminApi'
 
 // Mock the apiClient functions
 vi.mock('../services/apiClient', () => ({
   apiGet: vi.fn(),
   apiPost: vi.fn(),
+  apiPut: vi.fn(),
+  apiDelete: vi.fn(),
 }))
 
 // Import mocked module after mocking
-const { apiGet, apiPost } = await import('../services/apiClient')
+const { apiGet, apiPost, apiPut, apiDelete } = await import('../services/apiClient')
 
 describe('adminApi', () => {
   beforeEach(() => {
@@ -82,6 +84,44 @@ describe('adminApi', () => {
         '/api/v1/admin/users',
         expect.objectContaining({ role: 'ADMIN' }),
       )
+    })
+  })
+
+  describe('updateUserRole', () => {
+    it('should call PUT /api/v1/admin/users/{id}/role with new role', async () => {
+      const mockUpdated = { id: 2, username: 'user_two', email: 'u@test.com', role: 'ADMIN' as const, createdAt: '' }
+      vi.mocked(apiPut).mockResolvedValue(mockUpdated)
+
+      const result = await updateUserRole(2, { role: 'ADMIN' })
+
+      expect(apiPut).toHaveBeenCalledWith('/api/v1/admin/users/2/role', { role: 'ADMIN' })
+      expect(result).toEqual(mockUpdated)
+    })
+
+    it('should change role to USER correctly', async () => {
+      vi.mocked(apiPut).mockResolvedValue({ id: 1, username: 'admin_one', email: 'a@test.com', role: 'USER' as const, createdAt: '' })
+
+      await updateUserRole(1, { role: 'USER' })
+
+      expect(apiPut).toHaveBeenCalledWith('/api/v1/admin/users/1/role', { role: 'USER' })
+    })
+  })
+
+  describe('deleteUser', () => {
+    it('should call DELETE /api/v1/admin/users/{id}', async () => {
+      vi.mocked(apiDelete).mockResolvedValue(undefined)
+
+      await deleteUser(5)
+
+      expect(apiDelete).toHaveBeenCalledWith('/api/v1/admin/users/5')
+    })
+
+    it('should return void on success', async () => {
+      vi.mocked(apiDelete).mockResolvedValue(undefined)
+
+      const result = await deleteUser(3)
+
+      expect(result).toBeUndefined()
     })
   })
 })
