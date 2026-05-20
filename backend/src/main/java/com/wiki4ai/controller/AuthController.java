@@ -2,6 +2,7 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
+import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AuthService;
@@ -101,6 +102,47 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(profile);
+    }
+
+    /**
+     * Update the profile of the currently authenticated user.
+     * Allows updating username, email, and/or password.
+     * All fields in the request body are optional — only provided fields are updated.
+     */
+    @PutMapping("/me")
+    @Operation(summary = "Update current user profile", description = "Updates the profile of the currently authenticated user. Optional fields: username, email, currentPassword (required for password change), newPassword")
+    @ApiResponse(responseCode = "200", description = "Profile updated successfully")
+    @ApiResponse(responseCode = "400", description = "Current password is incorrect or validation failed")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "409", description = "Username or email already taken by another user")
+    public ResponseEntity<?> updateCurrentUserProfile(@RequestBody ProfileUpdateRequestDTO request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // If no authentication is set, the user is not authenticated
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        String username = authentication.getName();
+
+        try {
+            UserDTO updatedProfile = authService.updateUserProfile(username, request);
+            return ResponseEntity.ok(updatedProfile);
+        } catch (IllegalArgumentException e) {
+            String message = e.getMessage();
+            if ("Username is already taken".equals(message) || "Email is already registered".equals(message)) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", message);
+                return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+            } else {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", message);
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+        }
     }
 
     /**

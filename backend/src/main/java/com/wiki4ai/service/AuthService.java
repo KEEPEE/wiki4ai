@@ -3,6 +3,7 @@ package com.wiki4ai.service;
 import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
+import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.model.User;
@@ -152,5 +153,56 @@ public class AuthService {
      */
     public boolean verifyPassword(String rawPassword, String hashedPassword) {
         return passwordEncoder.matches(rawPassword, hashedPassword);
+    }
+
+    /**
+     * Update the profile of an existing user by username.
+     * Only non-null fields in the request are applied.
+     *
+     * @param username the username of the authenticated user (from SecurityContext)
+     * @param request  the profile update request with optional fields
+     * @return the updated UserDTO
+     * @throws IllegalArgumentException if username/email already taken by another user, or currentPassword is wrong
+     */
+    @Transactional
+    public UserDTO updateUserProfile(String username, ProfileUpdateRequestDTO request) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        // Update username if provided and different
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            if (!request.getUsername().equals(user.getUsername())) {
+                if (userRepository.existsByUsername(request.getUsername())) {
+                    throw new IllegalArgumentException("Username is already taken");
+                }
+                user.setUsername(request.getUsername());
+            }
+        }
+
+        // Update email if provided and different
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            if (!request.getEmail().equals(user.getEmail())) {
+                if (userRepository.existsByEmail(request.getEmail())) {
+                    throw new IllegalArgumentException("Email is already registered");
+                }
+                user.setEmail(request.getEmail());
+            }
+        }
+
+        // Update password if newPassword is provided
+        if (request.getNewPassword() != null && !request.getNewPassword().isBlank()) {
+            // Verify current password if changing password
+            if (request.getCurrentPassword() == null || request.getCurrentPassword().isBlank()) {
+                throw new IllegalArgumentException("Current password is required to change password");
+            }
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+                throw new IllegalArgumentException("Current password is incorrect");
+            }
+            String hashedNewPassword = passwordEncoder.encode(request.getNewPassword());
+            user.setPassword(hashedNewPassword);
+        }
+
+        userRepository.save(user);
+        return convertToUserDTO(user);
     }
 }
