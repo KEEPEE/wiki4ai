@@ -28,12 +28,13 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-3" data-testid="auth-section">
             {isAuthenticated && user ? (
               <>
-                <span
-                  className="text-sm text-gray-600 dark:text-gray-400 flex-shrink-0"
-                  data-testid="user-username"
+                <Link
+                  to="/profile"
+                  className="text-sm text-gray-600 dark:text-gray-400 flex-shrink-0 hover:underline"
+                  data-testid="nav-profile"
                 >
                   {user.username}
-                </span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="text-xs px-3 py-1.5 rounded-md bg-red-500 hover:bg-red-600 text-white font-medium transition-colors flex-shrink-0"

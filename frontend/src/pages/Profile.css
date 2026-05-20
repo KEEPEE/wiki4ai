@@ -1,0 +1,268 @@
+.profile-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+.page-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 2rem;
+}
+
+.dark .page-title {
+  color: #f9fafb;
+}
+
+/* Section styling */
+.profile-section {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
+}
+
+.dark .profile-section {
+  background-color: #1f2937;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 1rem;
+}
+
+.dark .section-title {
+  color: #f9fafb;
+}
+
+.section-danger {
+  color: #dc2626;
+}
+
+.section-description {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 1rem;
+}
+
+.dark .section-description {
+  color: #9ca3af;
+}
+
+/* Profile info card */
+.profile-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.dark .info-row {
+  border-color: #374159;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+}
+
+.dark .info-label {
+  color: #9ca3af;
+}
+
+.info-value {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dark .info-value {
+  color: #f9fafb;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-admin {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.dark .role-admin {
+  background-color: rgb(217 119 6 / 0.2);
+  color: #fbbf24;
+}
+
+.role-user {
+  background-color: #dbeafe;
+  color: #2563eb;
+}
+
+.dark .role-user {
+  background-color: rgb(37 99 235 / 0.2);
+  color: #60a5fa;
+}
+
+/* Form styling */
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Messages */
+.success-message {
+  padding: 0.75rem 1rem;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #16a34a;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.dark .success-message {
+  background-color: rgb(22 163 74 / 0.1);
+  border-color: rgb(22 163 74 / 0.3);
+  color: #86efac;
+}
+
+.error-message {
+  padding: 0.75rem 1rem;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.dark .error-message {
+  background-color: rgb(220 38 38 / 0.1);
+  border-color: rgb(220 38 38 / 0.3);
+  color: #fca5a5;
+}
+
+/* Token display */
+.token-display {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.dark .token-display {
+  background-color: #111827;
+  border-color: #374159;
+}
+
+.token-display code {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: #374151;
+  word-break: break-all;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.dark .token-display code {
+  color: #d1d5db;
+}
+
+/* Buttons */
+.btn-secondary {
+  background-color: #6b7280;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #4b5563;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background-color: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #b91c1c;
+}
+
+.btn-small {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  background-color: white;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.dark .btn-small {
+  background-color: #1f2937;
+  border-color: #4b5563;
+  color: #d1d5db;
+}
+
+.btn-small:hover {
+  background-color: #f3f4f6;
+}
+
+.dark .btn-small:hover {
+  background-color: #374151;
+}
+
+.profile-danger-zone {
+  border: 1px solid #fecaca;
+}
+
+.dark .profile-danger-zone {
+  border-color: rgb(220 38 38 / 0.3);
+}
