@@ -51,16 +51,10 @@ class SecurityConfigTest {
     }
 
     @Test
-    void protectedEndpoint_withoutToken_shouldNotBe403() throws Exception {
-        // GET /api/v1/projects without token - verifies endpoint is reachable
-        // (not 403 Forbidden, which would indicate misconfigured security)
+    void protectedEndpoint_withoutToken_shouldReturn401() throws Exception {
+        // GET /api/v1/projects without token - should return 401 Unauthorized (not 403)
         mockMvc.perform(get("/api/v1/projects"))
-                .andExpect(result -> {
-                    // Accept either 200 (if security disabled in test) or 401 (if security enabled)
-                    int status = result.getResponse().getStatus();
-                    assert (status == 200 || status == 401) :
-                        "Expected 200 or 401, got " + status;
-                });
+                .andExpect(status().isUnauthorized()); // 401 because no auth token, NOT 403
     }
 
     @Test

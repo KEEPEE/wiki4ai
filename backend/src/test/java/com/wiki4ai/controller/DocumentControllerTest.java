@@ -122,7 +122,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.createDocument(eq(1L), any(DocumentCreateDTO.class))).willReturn(created);
+            given(documentService.createDocument(eq(1L), any(DocumentCreateDTO.class), any(String.class))).willReturn(created);
 
             // when & then
             mockMvc.perform(post("/api/v1/projects/test-project/documents")
@@ -133,7 +133,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.projectId").value(1))
                     .andExpect(jsonPath("$.id").value(2));
 
-            verify(documentService).createDocument(eq(1L), any(DocumentCreateDTO.class));
+            verify(documentService).createDocument(eq(1L), any(DocumentCreateDTO.class), any(String.class));
         }
 
         @Test
@@ -164,7 +164,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
             Page<DocumentDTO> page = new PageImpl<>(List.of(doc));
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -183,7 +183,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             Page<DocumentDTO> emptyPage = new PageImpl<>(List.of());
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(emptyPage);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(emptyPage);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -203,7 +203,7 @@ class DocumentControllerTest {
             DocumentDTO doc2 = DocumentDTO.builder().id(2L).title("Doc 2").slug("doc-2").projectId(1L)
                     .linkedDocuments(List.of()).createdAt(now).updatedAt(now).build();
             Page<DocumentDTO> page = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(1, 10), 25);
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents")
@@ -223,7 +223,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
             Page<DocumentDTO> page = new PageImpl<>(List.of(doc), PageRequest.of(0, 50), 1);
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -245,7 +245,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(doc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(doc);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document"))
@@ -259,7 +259,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocument(eq(1L), eq("non-existent")))
+            given(documentService.getDocument(eq(1L), eq("non-existent"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
 
@@ -293,7 +293,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class)))
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
                     .willReturn(updated);
 
             // when & then
@@ -304,7 +304,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.title").value("Updated Document"))
                     .andExpect(jsonPath("$.content").value("# Updated Content\nThis is updated content."));
 
-            verify(documentService).updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class));
+            verify(documentService).updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class));
         }
 
         @Test
@@ -313,7 +313,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentUpdateDTO updateDto = createSampleUpdateDto();
-            given(documentService.updateDocumentBySlug(eq(1L), eq("non-existent"), any(DocumentUpdateDTO.class)))
+            given(documentService.updateDocumentBySlug(eq(1L), eq("non-existent"), any(DocumentUpdateDTO.class), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
 
@@ -351,13 +351,13 @@ class DocumentControllerTest {
         void shouldDeleteDocumentSuccessfully() throws Exception {
             // given
             mockProjectResolution("test-project");
-            doNothing().when(documentService).deleteDocumentBySlug(1L, "test-document");
+            doNothing().when(documentService).deleteDocumentBySlug(eq(1L), eq("test-document"), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/test-document"))
                     .andExpect(status().isNoContent());
 
-            verify(documentService).deleteDocumentBySlug(1L, "test-document");
+            verify(documentService).deleteDocumentBySlug(eq(1L), eq("test-document"), any(String.class));
         }
 
         @Test
@@ -367,7 +367,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             doThrow(new EntityNotFoundException(
                     "Document not found with slug 'non-existent' in project 1"))
-                    .when(documentService).deleteDocumentBySlug(eq(1L), eq("non-existent"));
+                    .when(documentService).deleteDocumentBySlug(eq(1L), eq("non-existent"), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/non-existent"))
@@ -388,7 +388,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
@@ -404,7 +404,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.addLink(eq(1L), eq(5L))).willReturn(updatedDoc);
+            given(documentService.addLink(eq(1L), eq(5L), any(String.class))).willReturn(updatedDoc);
 
             // when & then
             mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/links")
@@ -414,7 +414,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.linkedDocuments").isArray())
                     .andExpect(jsonPath("$.linkedDocuments[0]").value(5));
 
-            verify(documentService).addLink(eq(1L), eq(5L));
+            verify(documentService).addLink(eq(1L), eq(5L), any(String.class));
         }
 
         @Test
@@ -436,7 +436,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocument(eq(1L), eq("test-document")))
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class)))
                     .willThrow(new EntityNotFoundException("Document not found with slug 'test-document' in project 1"));
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
@@ -456,12 +456,12 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
 
-            given(documentService.addLink(eq(1L), eq(5L)))
+            given(documentService.addLink(eq(1L), eq(5L), any(String.class)))
                     .willThrow(new IllegalArgumentException("Link already exists between these documents"));
 
             // when & then
@@ -478,12 +478,12 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(5L)
                     .build();
 
-            given(documentService.addLink(eq(1L), eq(5L)))
+            given(documentService.addLink(eq(1L), eq(5L), any(String.class)))
                     .willThrow(new IllegalArgumentException(
                             "Documents must belong to the same project. Source project: 1, Target project: 2"));
 
@@ -502,12 +502,12 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             LinkCreateDTO linkDto = LinkCreateDTO.builder()
                     .targetDocumentId(1L)
                     .build();
 
-            given(documentService.addLink(eq(1L), eq(1L)))
+            given(documentService.addLink(eq(1L), eq(1L), any(String.class)))
                     .willThrow(new IllegalArgumentException("Cannot link a document to itself"));
 
             // when & then
@@ -531,14 +531,14 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
-            doNothing().when(documentService).removeLink(1L, 5L);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
+            doNothing().when(documentService).removeLink(eq(1L), eq(5L), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/test-document/links/5"))
                     .andExpect(status().isNoContent());
 
-            verify(documentService).removeLink(1L, 5L);
+            verify(documentService).removeLink(eq(1L), eq(5L), any(String.class));
         }
 
         @Test
@@ -546,7 +546,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenSourceDocNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocument(eq(1L), eq("test-document")))
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class)))
                     .willThrow(new EntityNotFoundException("Document not found with slug 'test-document' in project 1"));
 
             // when & then
@@ -561,9 +561,9 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             doThrow(new IllegalArgumentException("Link does not exist between these documents"))
-                    .when(documentService).removeLink(eq(1L), eq(5L));
+                    .when(documentService).removeLink(eq(1L), eq(5L), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project/documents/test-document/links/5"))
@@ -584,7 +584,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
             DocumentDTO linkedDoc = DocumentDTO.builder()
                     .id(5L)
                     .title("Linked Document")
@@ -596,7 +596,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.getLinkedDocuments(1L)).willReturn(List.of(linkedDoc));
+            given(documentService.getLinkedDocuments(eq(1L), any(String.class))).willReturn(List.of(linkedDoc));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/links"))
@@ -611,8 +611,8 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO sourceDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(sourceDoc);
-            given(documentService.getLinkedDocuments(1L)).willReturn(List.of());
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(sourceDoc);
+            given(documentService.getLinkedDocuments(eq(1L), any(String.class))).willReturn(List.of());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/links"))
@@ -625,7 +625,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenDocNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocument(eq(1L), eq("non-existent")))
+            given(documentService.getDocument(eq(1L), eq("non-existent"), any(String.class)))
                     .willThrow(new EntityNotFoundException("Document not found with slug 'non-existent' in project 1"));
 
             // when & then
@@ -647,7 +647,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO targetDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("test-document"))).willReturn(targetDoc);
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(targetDoc);
 
             DocumentDTO backlinkA = DocumentDTO.builder()
                     .id(3L)
@@ -671,7 +671,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.getBacklinks(1L)).willReturn(List.of(backlinkA, backlinkB));
+            given(documentService.getBacklinks(eq(1L), any(String.class))).willReturn(List.of(backlinkA, backlinkB));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/backlinks"))
@@ -680,7 +680,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$[0].title").value("Backlink A"))
                     .andExpect(jsonPath("$[1].title").value("Backlink B"));
 
-            verify(documentService).getBacklinks(1L);
+            verify(documentService).getBacklinks(eq(1L), any(String.class));
         }
 
         @Test
@@ -689,8 +689,8 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO isolatedDoc = createSampleDocument();
-            given(documentService.getDocument(eq(1L), eq("isolated-document"))).willReturn(isolatedDoc);
-            given(documentService.getBacklinks(1L)).willReturn(List.of());
+            given(documentService.getDocument(eq(1L), eq("isolated-document"), any(String.class))).willReturn(isolatedDoc);
+            given(documentService.getBacklinks(eq(1L), any(String.class))).willReturn(List.of());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/isolated-document/backlinks"))
@@ -703,7 +703,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenDocNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocument(eq(1L), eq("non-existent")))
+            given(documentService.getDocument(eq(1L), eq("non-existent"), any(String.class)))
                     .willThrow(new EntityNotFoundException("Document not found with slug 'non-existent' in project 1"));
 
             // when & then
@@ -735,7 +735,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentContentDTO contentDto = createSampleContentDto();
-            given(documentService.getDocumentContent(eq(1L), eq("test-document"))).willReturn(contentDto);
+            given(documentService.getDocumentContent(eq(1L), eq("test-document"), any(String.class))).willReturn(contentDto);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document/content"))
@@ -749,7 +749,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.linkedDocuments").isArray())
                     .andExpect(jsonPath("$.linkedDocuments[0].id").value(5));
 
-            verify(documentService).getDocumentContent(eq(1L), eq("test-document"));
+            verify(documentService).getDocumentContent(eq(1L), eq("test-document"), any(String.class));
         }
 
         @Test
@@ -757,7 +757,7 @@ class DocumentControllerTest {
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.getDocumentContent(eq(1L), eq("non-existent")))
+            given(documentService.getDocumentContent(eq(1L), eq("non-existent"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
 
@@ -779,7 +779,7 @@ class DocumentControllerTest {
                     List.of(),
                     List.of()
             );
-            given(documentService.getDocumentContent(eq(1L), eq("simple-doc"))).willReturn(contentDto);
+            given(documentService.getDocumentContent(eq(1L), eq("simple-doc"), any(String.class))).willReturn(contentDto);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/simple-doc/content"))
@@ -821,7 +821,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.searchDocuments(eq(1L), eq("Spring"))).willReturn(List.of(doc1, doc2));
+            given(documentService.searchDocuments(eq(1L), eq("Spring"), any(String.class))).willReturn(List.of(doc1, doc2));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
@@ -831,7 +831,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$[0].title").value("Spring Boot Guide"))
                     .andExpect(jsonPath("$[1].title").value("Spring Security Docs"));
 
-            verify(documentService).searchDocuments(eq(1L), eq("Spring"));
+            verify(documentService).searchDocuments(eq(1L), eq("Spring"), any(String.class));
         }
 
         @Test
@@ -839,7 +839,7 @@ class DocumentControllerTest {
         void shouldReturnEmptyListWhenNoMatches() throws Exception {
             // given
             mockProjectResolution("test-project");
-            given(documentService.searchDocuments(eq(1L), eq("nonexistent"))).willReturn(List.of());
+            given(documentService.searchDocuments(eq(1L), eq("nonexistent"), any(String.class))).willReturn(List.of());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
@@ -894,7 +894,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
-            given(documentService.searchDocuments(eq(1L), eq("He"))).willReturn(List.of(doc));
+            given(documentService.searchDocuments(eq(1L), eq("He"), any(String.class))).willReturn(List.of(doc));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
@@ -903,7 +903,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.length()").value(1))
                     .andExpect(jsonPath("$[0].title").value("Test Document"));
 
-            verify(documentService).searchDocuments(eq(1L), eq("He"));
+            verify(documentService).searchDocuments(eq(1L), eq("He"), any(String.class));
         }
 
         @Test
@@ -912,7 +912,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             DocumentDTO doc = createSampleDocument();
-            given(documentService.searchDocuments(eq(1L), eq("Spring"))).willReturn(List.of(doc));
+            given(documentService.searchDocuments(eq(1L), eq("Spring"), any(String.class))).willReturn(List.of(doc));
 
             // when & then - keyword has leading/trailing spaces
             mockMvc.perform(get("/api/v1/projects/test-project/documents/search")
@@ -920,7 +920,7 @@ class DocumentControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.length()").value(1));
 
-            verify(documentService).searchDocuments(eq(1L), eq("Spring"));
+            verify(documentService).searchDocuments(eq(1L), eq("Spring"), any(String.class));
         }
     }
 
@@ -995,7 +995,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent)))
+            given(documentService.uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent), any(String.class)))
                     .willReturn(created);
 
             // when & then
@@ -1006,7 +1006,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.title").value("My Uploaded Document"))
                     .andExpect(jsonPath("$.slug").value("my-uploaded-document"));
 
-            verify(documentService).uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent));
+            verify(documentService).uploadDocument(eq(1L), eq("My Uploaded Document.md"), eq(fileContent), any(String.class));
         }
 
         @Test
@@ -1033,7 +1033,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent)))
+            given(documentService.uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent), any(String.class)))
                     .willReturn(created);
 
             // when & then
@@ -1042,7 +1042,7 @@ class DocumentControllerTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.title").value("API Reference"));
 
-            verify(documentService).uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent));
+            verify(documentService).uploadDocument(eq(1L), eq("API Reference.markdown"), eq(fileContent), any(String.class));
         }
 
         @Test
@@ -1095,7 +1095,7 @@ class DocumentControllerTest {
                     "# Existing".getBytes()
             );
 
-            given(documentService.uploadDocument(eq(1L), eq("Existing Document.md"), any()))
+            given(documentService.uploadDocument(eq(1L), eq("Existing Document.md"), any(), any(String.class)))
                     .willThrow(new IllegalArgumentException(
                             "A document with this title already exists in the project"));
 
@@ -1153,7 +1153,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.uploadDocument(eq(1L), eq("Special Document.md"), eq(fileContent)))
+            given(documentService.uploadDocument(eq(1L), eq("Special Document.md"), eq(fileContent), any(String.class)))
                     .willReturn(created);
 
             // when & then
@@ -1194,7 +1194,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project")))
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project"), any(String.class)))
                     .willReturn(movedDoc);
 
             // when & then
@@ -1208,7 +1208,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.linkedDocuments").isArray())
                     .andExpect(jsonPath("$.linkedDocuments.length()").value(0));
 
-            verify(documentService).moveDocument(eq(1L), eq("test-document"), eq("target-project"));
+            verify(documentService).moveDocument(eq(1L), eq("test-document"), eq("target-project"), any(String.class));
         }
 
         @Test
@@ -1232,7 +1232,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             MoveRequestDTO moveDto = createMoveDto("target-project");
 
-            given(documentService.moveDocument(eq(1L), eq("non-existent"), eq("target-project")))
+            given(documentService.moveDocument(eq(1L), eq("non-existent"), eq("target-project"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
 
@@ -1252,7 +1252,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             MoveRequestDTO moveDto = createMoveDto("non-existent-project");
 
-            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("non-existent-project")))
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("non-existent-project"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Target project not found with slug: non-existent-project"));
 
@@ -1272,7 +1272,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             MoveRequestDTO moveDto = createMoveDto("test-project");
 
-            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("test-project")))
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("test-project"), any(String.class)))
                     .willThrow(new IllegalArgumentException(
                             "Cannot move document to the same project it already belongs to"));
 
@@ -1292,7 +1292,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             MoveRequestDTO moveDto = createMoveDto("target-project");
 
-            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project")))
+            given(documentService.moveDocument(eq(1L), eq("test-document"), eq("target-project"), any(String.class)))
                     .willThrow(new IllegalArgumentException(
                             "A document with this title already exists in the target project"));
 
@@ -1348,7 +1348,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("other-project")))
+            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("other-project"), any(String.class)))
                     .willReturn(copiedDoc);
 
             // when & then
@@ -1361,7 +1361,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.projectId").value(2))
                     .andExpect(jsonPath("$.linkedDocuments.length()").value(0));
 
-            verify(documentService).copyDocument(eq(1L), eq("test-document"), eq("other-project"));
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), eq("other-project"), any(String.class));
         }
 
         @Test
@@ -1381,7 +1381,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull()))
+            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull(), any(String.class)))
                     .willReturn(copiedDoc);
 
             // when & then — no request body
@@ -1391,7 +1391,7 @@ class DocumentControllerTest {
                     .andExpect(jsonPath("$.title").value("Test Document (copy)"))
                     .andExpect(jsonPath("$.projectId").value(1));
 
-            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull());
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull(), any(String.class));
         }
 
         @Test
@@ -1411,7 +1411,7 @@ class DocumentControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull()))
+            given(documentService.copyDocument(eq(1L), eq("test-document"), isNull(), any(String.class)))
                     .willReturn(copiedDoc);
 
             // when & then — empty JSON object
@@ -1421,7 +1421,7 @@ class DocumentControllerTest {
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.projectId").value(1));
 
-            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull());
+            verify(documentService).copyDocument(eq(1L), eq("test-document"), isNull(), any(String.class));
         }
 
         @Test
@@ -1431,7 +1431,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             String requestBody = "{\"targetProjectSlug\": \"other-project\"}";
 
-            given(documentService.copyDocument(eq(1L), eq("non-existent"), eq("other-project")))
+            given(documentService.copyDocument(eq(1L), eq("non-existent"), eq("other-project"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Document not found with slug 'non-existent' in project 1"));
 
@@ -1451,7 +1451,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             String requestBody = "{\"targetProjectSlug\": \"non-existent-project\"}";
 
-            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("non-existent-project")))
+            given(documentService.copyDocument(eq(1L), eq("test-document"), eq("non-existent-project"), any(String.class)))
                     .willThrow(new EntityNotFoundException(
                             "Target project not found with slug: non-existent-project"));
 

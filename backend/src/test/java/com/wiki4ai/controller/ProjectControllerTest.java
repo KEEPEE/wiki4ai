@@ -163,7 +163,7 @@ class ProjectControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(projectService.createProject(any(ProjectCreateDTO.class))).willReturn(created);
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class))).willReturn(created);
 
             // when & then
             mockMvc.perform(post("/api/v1/projects")
@@ -173,7 +173,7 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.name").value("New Project"))
                     .andExpect(jsonPath("$.slug").value("new-project"));
 
-            verify(projectService).createProject(any(ProjectCreateDTO.class));
+            verify(projectService).createProject(any(ProjectCreateDTO.class), any(String.class));
         }
 
         @Test
@@ -195,7 +195,7 @@ class ProjectControllerTest {
         void shouldReturnConflictWhenDuplicateName() throws Exception {
             // given
             ProjectCreateDTO dto = createSampleCreateDto();
-            given(projectService.createProject(any(ProjectCreateDTO.class)))
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class)))
                     .willThrow(new IllegalArgumentException("A project with this name already exists"));
 
             // when & then
@@ -242,7 +242,7 @@ class ProjectControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(projectService.updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class)))
+            given(projectService.updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class), any(String.class)))
                     .willReturn(updated);
 
             // when & then
@@ -253,7 +253,7 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.name").value("Updated Project"))
                     .andExpect(jsonPath("$.description").value("Updated description"));
 
-            verify(projectService).updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class));
+            verify(projectService).updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class), any(String.class));
         }
 
         @Test
@@ -261,7 +261,7 @@ class ProjectControllerTest {
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
             ProjectUpdateDTO updateDto = createSampleUpdateDto();
-            given(projectService.updateProjectBySlug(eq("non-existent"), any(ProjectUpdateDTO.class)))
+            given(projectService.updateProjectBySlug(eq("non-existent"), any(ProjectUpdateDTO.class), any(String.class)))
                     .willThrow(new EntityNotFoundException("Project not found with slug: non-existent"));
 
             // when & then
@@ -295,13 +295,13 @@ class ProjectControllerTest {
         @DisplayName("Should return 204 when project deleted successfully")
         void shouldDeleteProjectSuccessfully() throws Exception {
             // given
-            doNothing().when(projectService).deleteProjectBySlug("test-project");
+            doNothing().when(projectService).deleteProjectBySlug(eq("test-project"), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/test-project"))
                     .andExpect(status().isNoContent());
 
-            verify(projectService).deleteProjectBySlug("test-project");
+            verify(projectService).deleteProjectBySlug(eq("test-project"), any(String.class));
         }
 
         @Test
@@ -309,7 +309,7 @@ class ProjectControllerTest {
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
             doThrow(new EntityNotFoundException("Project not found with slug: non-existent"))
-                    .when(projectService).deleteProjectBySlug("non-existent");
+                    .when(projectService).deleteProjectBySlug(eq("non-existent"), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/non-existent"))
@@ -370,7 +370,7 @@ class ProjectControllerTest {
                     .updatedAt(now)
                     .build();
 
-            given(projectService.updateProjectById(eq(1L), any(ProjectUpdateDTO.class)))
+            given(projectService.updateProjectById(eq(1L), any(ProjectUpdateDTO.class), any(String.class)))
                     .willReturn(updated);
 
             // when & then
@@ -381,7 +381,7 @@ class ProjectControllerTest {
                     .andExpect(jsonPath("$.name").value("Updated Project"))
                     .andExpect(jsonPath("$.description").value("Updated description"));
 
-            verify(projectService).updateProjectById(eq(1L), any(ProjectUpdateDTO.class));
+            verify(projectService).updateProjectById(eq(1L), any(ProjectUpdateDTO.class), any(String.class));
         }
 
         @Test
@@ -389,7 +389,7 @@ class ProjectControllerTest {
         void shouldReturnNotFoundWhenNotExistsById() throws Exception {
             // given
             ProjectUpdateDTO updateDto = createSampleUpdateDto();
-            given(projectService.updateProjectById(eq(999L), any(ProjectUpdateDTO.class)))
+            given(projectService.updateProjectById(eq(999L), any(ProjectUpdateDTO.class), any(String.class)))
                     .willThrow(new EntityNotFoundException("Project not found with id: 999"));
 
             // when & then
@@ -423,13 +423,13 @@ class ProjectControllerTest {
         @DisplayName("Should return 204 when project deleted successfully by ID")
         void shouldDeleteProjectSuccessfullyById() throws Exception {
             // given
-            doNothing().when(projectService).deleteProject(1L);
+            doNothing().when(projectService).deleteProject(eq(1L), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/by-id/1"))
                     .andExpect(status().isNoContent());
 
-            verify(projectService).deleteProject(1L);
+            verify(projectService).deleteProject(eq(1L), any(String.class));
         }
 
         @Test
@@ -437,7 +437,7 @@ class ProjectControllerTest {
         void shouldReturnNotFoundWhenNotExistsById() throws Exception {
             // given
             doThrow(new EntityNotFoundException("Project not found with id: 999"))
-                    .when(projectService).deleteProject(999L);
+                    .when(projectService).deleteProject(eq(999L), any(String.class));
 
             // when & then
             mockMvc.perform(delete("/api/v1/projects/by-id/999"))
@@ -455,6 +455,7 @@ class ProjectControllerTest {
         void shouldHaveTagAnnotation() throws Exception {
             // The controller is annotated with @Tag(name = "Projects", ...)
             // This test verifies the controller class exists and has correct mapping
+            given(projectService.getAllProjects()).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk()); // Will fail if controller not registered
         }
@@ -464,9 +465,12 @@ class ProjectControllerTest {
         void shouldHaveOperationAnnotations() throws Exception {
             // Verify that the controller has proper OpenAPI documentation
             // by checking that all CRUD endpoints are properly mapped
+            given(projectService.getAllProjects()).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk());
 
+            ProjectDTO created = createSampleProject();
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class))).willReturn(created);
             mockMvc.perform(post("/api/v1/projects")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"name\":\"Test\"}"))
@@ -483,7 +487,7 @@ class ProjectControllerTest {
         void shouldReturnZipFileWhenProjectExists() throws Exception {
             // given
             byte[] mockZipData = createMinimalZip();
-            given(projectService.exportProjectAsZip("test-project")).willReturn(mockZipData);
+            given(projectService.exportProjectAsZip(eq("test-project"), any(String.class))).willReturn(mockZipData);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/export"))
@@ -497,7 +501,7 @@ class ProjectControllerTest {
         @DisplayName("Should return 404 when project not found")
         void shouldReturnNotFoundWhenProjectNotExists() throws Exception {
             // given
-            given(projectService.exportProjectAsZip("non-existent"))
+            given(projectService.exportProjectAsZip(eq("non-existent"), any(String.class)))
                     .willThrow(new EntityNotFoundException("Project not found with slug: non-existent"));
 
             // when & then
@@ -511,7 +515,7 @@ class ProjectControllerTest {
         void shouldReturnValidZipContent() throws Exception {
             // given
             byte[] mockZipData = createMinimalZip();
-            given(projectService.exportProjectAsZip("test-project")).willReturn(mockZipData);
+            given(projectService.exportProjectAsZip(eq("test-project"), any(String.class))).willReturn(mockZipData);
 
             // when & then
             var response = mockMvc.perform(get("/api/v1/projects/test-project/export"))
