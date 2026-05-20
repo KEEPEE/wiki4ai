@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Basic integration test for the Wiki4AI application.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.springframework.test.context.ActiveProfiles("test")
 class Wiki4AiApplicationTests {
 
     @Autowired

@@ -54,6 +54,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 // Permit all authentication endpoints without authentication
                 auth.requestMatchers("/api/v1/auth/**").permitAll();
+                // Permit health check and actuator endpoints without authentication
+                auth.requestMatchers("/api/health", "/actuator/**", "/h2-console/**").permitAll();
                 // Permit OPTIONS preflight requests for CORS
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                 // When security is enabled: require valid JWT token for ALL other endpoints
@@ -63,7 +65,14 @@ public class SecurityConfig {
                 } else {
                     auth.anyRequest().permitAll();
                 }
-            });
+            })
+            // For unauthenticated access to protected endpoints, return 401 instead of 403
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(
+                    (request, response, exception) -> {
+                        response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+                        response.setContentType("application/json");
+                        response.getWriter().write("{\"message\":\"Authentication required\"}");
+                    }));
 
         // Only add JWT filter when security is enabled and filter is available
         if (securityEnabled && jwtAuthenticationFilter != null) {
