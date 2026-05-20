@@ -1,5 +1,6 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.ChangeRoleRequestDTO;
 import com.wiki4ai.dto.CreateUserRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AdminService;
@@ -104,6 +105,90 @@ public class AdminController {
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+        }
+    }
+
+    /**
+     * Change the role of an existing user.
+     * Only accessible to users with ADMIN role.
+     *
+     * @param id      the ID of the user whose role should be changed
+     * @param request the change role request containing the new role (ADMIN or USER)
+     * @return the updated UserDTO with 200 OK status
+     */
+    @PutMapping("/users/{id}/role")
+    @Operation(
+            summary = "Change user role",
+            description = "Changes the role of an existing user. Admin access required."
+    )
+    @ApiResponse(responseCode = "200", description = "User role updated successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid request body or cannot delete own account")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    @ApiResponse(responseCode = "404", description = "User not found")
+    public ResponseEntity<?> changeUserRole(
+            @PathVariable Long id,
+            @Valid @RequestBody ChangeRoleRequestDTO request) {
+        try {
+            UserDTO updatedUser = adminService.changeUserRole(id, request);
+            return ResponseEntity.ok(updatedUser);
+        } catch (SecurityException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+
+            if (e.getMessage().contains("Authentication required") || e.getMessage().contains("not found in database")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+            }
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+    }
+
+    /**
+     * Delete a user from the system.
+     * Only accessible to users with ADMIN role.
+     * An admin cannot delete their own account.
+     *
+     * @param id the ID of the user to delete
+     * @return 204 No Content on success
+     */
+    @DeleteMapping("/users/{id}")
+    @Operation(
+            summary = "Delete a user",
+            description = "Deletes a user from the database. Admin access required. Cannot delete your own account."
+    )
+    @ApiResponse(responseCode = "204", description = "User deleted successfully")
+    @ApiResponse(responseCode = "400", description = "Cannot delete your own account")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    @ApiResponse(responseCode = "404", description = "User not found")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+        try {
+            adminService.deleteUser(id);
+            return ResponseEntity.noContent().build();
+        } catch (SecurityException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+
+            if (e.getMessage().contains("Authentication required") || e.getMessage().contains("not found in database")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            } else {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+            }
+        } catch (IllegalArgumentException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+
+            // Self-deletion attempt returns 400 Bad Request
+            if (e.getMessage().contains("cannot delete your own")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
         }
     }
 }

@@ -21,8 +21,10 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -507,6 +509,224 @@ class AdminControllerIT {
                                     }
                                     """))
                     .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("PUT /api/v1/admin/users/{id}/role - Change Role Tests")
+    class ChangeRoleTests {
+
+        @Test
+        @DisplayName("Admin should change user role from USER to ADMIN - 200 OK")
+        void adminShouldChangeUserRoleToAdmin() throws Exception {
+            // regularuser has id=2 (created after admin in setUp)
+            mockMvc.perform(put("/api/v1/admin/users/2/role")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"role": "ADMIN"}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(2))
+                    .andExpect(jsonPath("$.username").value("regularuser"))
+                    .andExpect(jsonPath("$.role").value("ADMIN"));
+
+            // Verify in DB
+            User updated = userRepository.findById(2L).orElseThrow();
+            org.junit.jupiter.api.Assertions.assertEquals(Role.ADMIN, updated.getRole());
+        }
+
+        @Test
+        @DisplayName("Admin should change user role from ADMIN to USER - 200 OK")
+        void adminShouldChangeUserRoleToUser() throws Exception {
+            // Create a second admin first
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "secondadmin",
+                                        "email": "second@example.com",
+                                        "password": "pass12345678",
+                                        "role": "ADMIN"
+                                    }
+                                    """))
+                    .andExpect(status().isCreated());
+
+            Long secondAdminId = userRepository.findByUsername("secondadmin").orElseThrow().getId();
+
+            // Now demote to USER
+            mockMvc.perform(put("/api/v1/admin/users/" + secondAdminId + "/role")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"role": "USER"}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.role").value("USER"));
+
+            // Verify in DB
+            User updated = userRepository.findById(secondAdminId).orElseThrow();
+            org.junit.jupiter.api.Assertions.assertEquals(Role.USER, updated.getRole());
+        }
+
+        @Test
+        @DisplayName("Regular user should get 403 Forbidden when trying to change role")
+        void regularUserShouldGetForbiddenOnChangeRole() throws Exception {
+            mockMvc.perform(put("/api/v1/admin/users/2/role")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"role": "ADMIN"}
+                                    """))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("No token should get 401 Unauthorized")
+        void noTokenShouldGetUnauthorizedOnChangeRole() throws Exception {
+            mockMvc.perform(put("/api/v1/admin/users/2/role")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"role": "ADMIN"}
+                                    """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value("Authentication required"));
+        }
+
+        @Test
+        @DisplayName("Non-existent user id should return 404 Not Found")
+        void nonExistentUserShouldReturnNotFound() throws Exception {
+            mockMvc.perform(put("/api/v1/admin/users/99999/role")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"role": "ADMIN"}
+                                    """))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("Missing role in request body should return 400 Bad Request")
+        void missingRoleShouldReturnBadRequest() throws Exception {
+            mockMvc.perform(put("/api/v1/admin/users/2/role")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /api/v1/admin/users/{id} - Delete User Tests")
+    class DeleteUserTests {
+
+        @Test
+        @DisplayName("Admin should delete a regular user - 204 No Content")
+        void adminShouldDeleteRegularUser() throws Exception {
+            Long userIdToDelete = userRepository.findByUsername("regularuser").orElseThrow().getId();
+
+            mockMvc.perform(delete("/api/v1/admin/users/" + userIdToDelete)
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isNoContent());
+
+            // Verify user is deleted from DB
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    userRepository.findById(userIdToDelete).isPresent(),
+                    "User should be deleted from database");
+        }
+
+        @Test
+        @DisplayName("Admin should delete another admin user - 204 No Content")
+        void adminShouldDeleteAnotherAdmin() throws Exception {
+            // Create a second admin first
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "adminToDelete",
+                                        "email": "todelete@example.com",
+                                        "password": "pass12345678",
+                                        "role": "ADMIN"
+                                    }
+                                    """))
+                    .andExpect(status().isCreated());
+
+            Long adminIdToDelete = userRepository.findByUsername("adminToDelete").orElseThrow().getId();
+
+            mockMvc.perform(delete("/api/v1/admin/users/" + adminIdToDelete)
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isNoContent());
+
+            // Verify deleted
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    userRepository.findById(adminIdToDelete).isPresent(),
+                    "Admin user should be deleted from database");
+        }
+
+        @Test
+        @DisplayName("Regular user should get 403 Forbidden when trying to delete a user")
+        void regularUserShouldGetForbiddenOnDelete() throws Exception {
+            Long userId = userRepository.findByUsername("regularuser").orElseThrow().getId();
+
+            mockMvc.perform(delete("/api/v1/admin/users/" + userId)
+                            .header("Authorization", "Bearer " + userToken))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("No token should get 401 Unauthorized")
+        void noTokenShouldGetUnauthorizedOnDelete() throws Exception {
+            mockMvc.perform(delete("/api/v1/admin/users/2"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value("Authentication required"));
+        }
+
+        @Test
+        @DisplayName("Admin cannot delete their own account - 400 Bad Request")
+        void adminCannotDeleteSelf() throws Exception {
+            Long adminId = userRepository.findByUsername("admin").orElseThrow().getId();
+
+            mockMvc.perform(delete("/api/v1/admin/users/" + adminId)
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("You cannot delete your own account"));
+
+            // Verify admin still exists
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    userRepository.findById(adminId).isPresent(),
+                    "Admin should still exist after self-delete attempt");
+        }
+
+        @Test
+        @DisplayName("Non-existent user id should return 404 Not Found")
+        void nonExistentUserShouldReturnNotFound() throws Exception {
+            mockMvc.perform(delete("/api/v1/admin/users/99999")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("After deletion, user should not appear in list")
+        void deletedUserShouldNotAppearInList() throws Exception {
+            Long userIdToDelete = userRepository.findByUsername("regularuser").orElseThrow().getId();
+
+            // Delete the user
+            mockMvc.perform(delete("/api/v1/admin/users/" + userIdToDelete)
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isNoContent());
+
+            // Verify only 1 user remains (admin)
+            mockMvc.perform(get("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(1))
+                    .andExpect(jsonPath("$.content[0].username").value("admin"));
         }
     }
 }

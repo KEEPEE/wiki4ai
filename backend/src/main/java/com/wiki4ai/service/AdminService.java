@@ -1,5 +1,6 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.ChangeRoleRequestDTO;
 import com.wiki4ai.dto.CreateUserRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.model.Role;
@@ -88,6 +89,60 @@ public class AdminService {
         userRepository.save(user);
 
         return convertToUserDTO(user);
+    }
+
+    /**
+     * Change the role of an existing user.
+     * Only accessible by users with ADMIN role.
+     *
+     * @param userId  the ID of the user whose role should be changed
+     * @param request the change role request containing the new role
+     * @return the updated UserDTO (without password)
+     * @throws SecurityException      if the current user does not have ADMIN role
+     * @throws IllegalArgumentException if the user with the given ID is not found
+     */
+    @Transactional
+    public UserDTO changeUserRole(Long userId, ChangeRoleRequestDTO request) {
+        verifyAdminRole();
+
+        User targetUser = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User with id " + userId + " not found"));
+
+        targetUser.setRole(request.getRole());
+        userRepository.save(targetUser);
+
+        return convertToUserDTO(targetUser);
+    }
+
+    /**
+     * Delete a user from the database.
+     * Only accessible by users with ADMIN role.
+     * An admin cannot delete their own account.
+     *
+     * @param userId the ID of the user to delete
+     * @throws SecurityException      if the current user does not have ADMIN role
+     * @throws IllegalArgumentException if the user is not found or tries to delete themselves
+     */
+    @Transactional
+    public void deleteUser(Long userId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // Verify admin role first (also validates authentication exists)
+        verifyAdminRole();
+
+        String currentUsername = authentication.getName();
+        User currentUser = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new SecurityException("Authenticated user not found in database"));
+
+        // Prevent self-deletion
+        if (currentUser.getId().equals(userId)) {
+            throw new IllegalArgumentException("You cannot delete your own account");
+        }
+
+        User targetUser = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User with id " + userId + " not found"));
+
+        userRepository.delete(targetUser);
     }
 
     /**
