@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -308,6 +309,204 @@ class AdminControllerIT {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content[0].username").value("regularuser"))
                     .andExpect(jsonPath("$.content[1].username").value("admin"));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/admin/users - Create User Tests")
+    class CreateUserTests {
+
+        @Test
+        @DisplayName("Admin should create a user with role USER - 201 Created")
+        void adminShouldCreateUser() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "newuser",
+                                        "email": "newuser@example.com",
+                                        "password": "securepass123",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").exists())
+                    .andExpect(jsonPath("$.username").value("newuser"))
+                    .andExpect(jsonPath("$.email").value("newuser@example.com"))
+                    .andExpect(jsonPath("$.role").value("USER"))
+                    .andExpect(jsonPath("$.createdAt").exists())
+                    .andExpect(jsonPath("$.password").doesNotExist());
+        }
+
+        @Test
+        @DisplayName("Admin should create another admin with role ADMIN - 201 Created")
+        void adminShouldCreateAnotherAdmin() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "newadmin",
+                                        "email": "newadmin@example.com",
+                                        "password": "adminpass123",
+                                        "role": "ADMIN"
+                                    }
+                                    """))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").exists())
+                    .andExpect(jsonPath("$.username").value("newadmin"))
+                    .andExpect(jsonPath("$.email").value("newadmin@example.com"))
+                    .andExpect(jsonPath("$.role").value("ADMIN"));
+        }
+
+        @Test
+        @DisplayName("Regular user should get 403 Forbidden when trying to create a user")
+        void regularUserShouldGetForbidden() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + userToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "hacker",
+                                        "email": "hacker@example.com",
+                                        "password": "hackpass123",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("No token should get 401 Unauthorized")
+        void noTokenShouldGetUnauthorized() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "notoken",
+                                        "email": "notoken@example.com",
+                                        "password": "nopass12345",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.message").value("Authentication required"));
+        }
+
+        @Test
+        @DisplayName("Duplicate username should return 409 Conflict")
+        void duplicateUsernameShouldReturnConflict() throws Exception {
+            // "admin" already exists from setUp
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "admin",
+                                        "email": "different@example.com",
+                                        "password": "somepass123",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("Duplicate email should return 409 Conflict")
+        void duplicateEmailShouldReturnConflict() throws Exception {
+            // "admin@example.com" already exists from setUp
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "differentuser",
+                                        "email": "admin@example.com",
+                                        "password": "somepass123",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").exists());
+        }
+
+        @Test
+        @DisplayName("Password should be stored as BCrypt hash")
+        void passwordShouldBeHashed() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "hashcheck",
+                                        "email": "hashcheck@example.com",
+                                        "password": "mysecretpassword",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isCreated());
+
+            // Verify password is hashed in DB
+            User createdUser = userRepository.findByUsername("hashcheck").orElseThrow();
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    createdUser.getPassword().startsWith("$2a$"),
+                    "Password should be BCrypt hashed");
+            org.junit.jupiter.api.Assertions.assertNotEquals(
+                    "mysecretpassword", createdUser.getPassword(),
+                    "Password should not be stored in plain text");
+        }
+
+        @Test
+        @DisplayName("Blank username should return 400 Bad Request")
+        void blankUsernameShouldReturnBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "",
+                                        "email": "blank@example.com",
+                                        "password": "somepass123",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Short password should return 400 Bad Request")
+        void shortPasswordShouldReturnBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "shortpw",
+                                        "email": "short@example.com",
+                                        "password": "short",
+                                        "role": "USER"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Missing role should return 400 Bad Request")
+        void missingRoleShouldReturnBadRequest() throws Exception {
+            mockMvc.perform(post("/api/v1/admin/users")
+                            .header("Authorization", "Bearer " + adminToken)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {
+                                        "username": "norole",
+                                        "email": "norole@example.com",
+                                        "password": "somepass123"
+                                    }
+                                    """))
+                    .andExpect(status().isBadRequest());
         }
     }
 }

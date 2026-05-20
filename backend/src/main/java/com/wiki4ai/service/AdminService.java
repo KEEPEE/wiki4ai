@@ -1,5 +1,6 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.CreateUserRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
@@ -8,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final BCryptPasswordEncoder passwordEncoder;
 
     public AdminService(UserRepository userRepository) {
         this.userRepository = userRepository;
+        this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
     /**
@@ -46,6 +50,44 @@ public class AdminService {
         }
 
         return users.map(this::convertToUserDTO);
+    }
+
+    /**
+     * Create a new user with the specified credentials and role.
+     * Only accessible by users with ADMIN role.
+     *
+     * @param request the creation request containing username, email, password, and role
+     * @return the created UserDTO (without password)
+     * @throws SecurityException if the current user does not have ADMIN role
+     * @throws IllegalArgumentException if username or email is already taken
+     */
+    @Transactional
+    public UserDTO createUser(CreateUserRequestDTO request) {
+        verifyAdminRole();
+
+        // Validate uniqueness of username
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new IllegalArgumentException("Username '" + request.getUsername() + "' is already taken");
+        }
+
+        // Validate uniqueness of email
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Email '" + request.getEmail() + "' is already registered");
+        }
+
+        // Hash the password and create user entity
+        String hashedPassword = passwordEncoder.encode(request.getPassword());
+
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(hashedPassword)
+                .role(request.getRole())
+                .build();
+
+        userRepository.save(user);
+
+        return convertToUserDTO(user);
     }
 
     /**
