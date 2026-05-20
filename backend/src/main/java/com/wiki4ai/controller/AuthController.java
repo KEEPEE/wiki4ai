@@ -146,6 +146,38 @@ public class AuthController {
     }
 
     /**
+     * Generate a new JWT token for the currently authenticated user.
+     * Useful for API integrations, MCP servers, or when a fresh token is needed.
+     * Requires a valid JWT token (authenticated user).
+     */
+    @PostMapping("/token")
+    @Operation(summary = "Generate new access token", description = "Generates a new access and refresh token for the currently authenticated user")
+    @ApiResponse(responseCode = "200", description = "New tokens generated successfully")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    public ResponseEntity<?> generateNewToken() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        // If no authentication is set, the user is not authenticated
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        String username = authentication.getName();
+        AuthResponseDTO response = authService.generateNewTokenForUser(username);
+
+        if (response == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "User not found in database");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Health check for auth endpoint.
      */
     @GetMapping("/health")
