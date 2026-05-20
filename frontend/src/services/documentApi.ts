@@ -1,9 +1,10 @@
 /**
  * API service for Document operations using project slugs.
- * Handles all HTTP requests to the backend document endpoints.
+ * Uses authenticated apiClient for all requests (automatic JWT token + 401 retry).
  */
 
 import type { Document, CreateDocumentDto, UpdateDocumentDto } from '../types/document';
+import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -19,76 +20,48 @@ export const documentApi = {
    * Backend returns a Spring Data Page object with { content: Document[], ... }.
    * We extract the .content array for frontend consumption.
    */
-  getByProject: (projectSlug: string): Promise<Document[]> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents?page=0&size=50`).then((res) => {
-      if (!res.ok) throw new Error(`Failed to fetch documents for project ${projectSlug}: ${res.statusText}`);
-      return res.json().then((data) => (Array.isArray(data) ? data : data.content || []));
-    }),
+  getByProject: async (projectSlug: string): Promise<Document[]> => {
+    const data = await apiGet<any>(`${API_BASE_URL}/projects/${projectSlug}/documents?page=0&size=50`);
+    return Array.isArray(data) ? data : data.content || [];
+  },
 
   /**
    * Create a new document in a project.
    */
   create: (projectSlug: string, data: CreateDocumentDto): Promise<Document> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    }).then((res) => {
-      if (!res.ok) throw new Error(`Failed to create document: ${res.statusText}`);
-      return res.json();
-    }),
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents`, data),
 
   /**
    * Get a single document by project slug and document slug.
    */
   get: (projectSlug: string, docSlug: string): Promise<Document> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`).then((res) => {
-      if (!res.ok) throw new Error(`Failed to fetch document ${docSlug}: ${res.statusText}`);
-      return res.json();
-    }),
+    apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`),
 
   /**
    * Get document content with rendered markdown and extracted wiki links.
    * Endpoint: GET /projects/:slug/documents/:docSlug/content
    */
   getContent: (projectSlug: string, docSlug: string): Promise<DocumentContentResponse> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/content`).then((res) => {
-      if (!res.ok) throw new Error(`Failed to fetch document content ${docSlug}: ${res.statusText}`);
-      return res.json();
-    }),
+    apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/content`),
 
   /**
    * Update an existing document.
    */
   update: (projectSlug: string, docSlug: string, data: UpdateDocumentDto): Promise<Document> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    }).then((res) => {
-      if (!res.ok) throw new Error(`Failed to update document ${docSlug}: ${res.statusText}`);
-      return res.json();
-    }),
+    apiPut(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`, data),
 
   /**
    * Delete a document.
    */
   delete: (projectSlug: string, docSlug: string): Promise<void> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`, {
-      method: 'DELETE',
-    }).then((res) => {
-      if (!res.ok && res.status !== 204) throw new Error(`Failed to delete document ${docSlug}: ${res.statusText}`);
-    }),
+    apiDelete(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}`),
 
   /**
    * Search documents in a project by keyword.
    * Endpoint: GET /projects/:slug/documents/search?keyword={keyword}
    */
   search: (projectSlug: string, keyword: string): Promise<Document[]> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/search?keyword=${encodeURIComponent(keyword)}`).then((res) => {
-      if (!res.ok) throw new Error(`Failed to search documents: ${res.statusText}`);
-      return res.json();
-    }),
+    apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/search?keyword=${encodeURIComponent(keyword)}`),
 
   /**
    * Upload a .md file as a new document.
@@ -97,13 +70,7 @@ export const documentApi = {
   upload: (projectSlug: string, file: File): Promise<Document> => {
     const formData = new FormData();
     formData.append('file', file);
-    return fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/upload`, {
-      method: 'POST',
-      body: formData,
-    }).then((res) => {
-      if (!res.ok) throw new Error(`Failed to upload document: ${res.statusText}`);
-      return res.json();
-    });
+    return apiPostFormData(`${API_BASE_URL}/projects/${projectSlug}/documents/upload`, formData);
   },
 
   /**
@@ -111,8 +78,5 @@ export const documentApi = {
    * Endpoint: GET /projects/:slug/documents/:docSlug/backlinks
    */
   getBacklinks: (projectSlug: string, docSlug: string): Promise<Document[]> =>
-    fetch(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/backlinks`).then((res) => {
-      if (!res.ok) throw new Error(`Failed to fetch backlinks for ${docSlug}: ${res.statusText}`);
-      return res.json();
-    }),
+    apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/backlinks`),
 };

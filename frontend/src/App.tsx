@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import Layout from './components/Layout'
+import ProtectedRoute from './components/ProtectedRoute'
 import Dashboard from './pages/Dashboard'
 import ProjectDetail from './pages/ProjectDetail'
 import ProjectSettings from './pages/ProjectSettings'
@@ -22,8 +23,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Main app routes with Layout */}
-          <Route path="/" element={<Layout />}>
+          {/* Main app routes with Layout - all protected */}
+          <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="projects/:slug" element={<ProjectDetail />} />
             {/* Project Settings - edit project name, description and delete */}

@@ -1,9 +1,10 @@
 /**
  * API service for Project operations.
- * Handles all HTTP requests to the backend project endpoints.
+ * Uses authenticated apiClient for all requests (automatic JWT token + 401 retry).
  */
 
 import type { Project, ProjectDTO } from '../types/project';
+import { apiGet, apiPost, apiPut, apiDelete, apiGetBlob } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -12,86 +13,49 @@ class ProjectApiService {
    * Get all projects.
    */
   async getAllProjects(): Promise<Project[]> {
-    const response = await fetch(`${API_BASE_URL}/projects`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch projects: ${response.statusText}`);
-    }
-    return response.json();
+    return apiGet(`${API_BASE_URL}/projects`);
   }
 
   /**
    * Get a single project by ID.
    */
   async getProjectById(id: number): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch project ${id}: ${response.statusText}`);
-    }
-    return response.json();
+    return apiGet(`${API_BASE_URL}/projects/by-id/${id}`);
   }
 
   /**
    * Get a single project by slug.
    */
   async getProjectBySlug(slug: string): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects/slug/${slug}`);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch project ${slug}: ${response.statusText}`);
-    }
-    return response.json();
+    return apiGet(`${API_BASE_URL}/projects/slug/${slug}`);
   }
 
   /**
    * Create a new project.
    */
   async createProject(dto: ProjectDTO): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to create project: ${response.statusText}`);
-    }
-    return response.json();
+    return apiPost(`${API_BASE_URL}/projects`, dto);
   }
 
   /**
    * Update an existing project.
    */
   async updateProject(id: number, dto: ProjectDTO): Promise<Project> {
-    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(dto),
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to update project ${id}: ${response.statusText}`);
-    }
-    return response.json();
+    return apiPut(`${API_BASE_URL}/projects/by-id/${id}`, dto);
   }
 
   /**
    * Delete a project.
    */
   async deleteProject(id: number): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/projects/by-id/${id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete project ${id}: ${response.statusText}`);
-    }
+    await apiDelete(`${API_BASE_URL}/projects/by-id/${id}`);
   }
 
   /**
    * Export a project as a ZIP archive.
    */
   async exportProject(slug: string): Promise<Blob> {
-    const response = await fetch(`${API_BASE_URL}/projects/${slug}/export`);
-    if (!response.ok) {
-      throw new Error(`Failed to export project ${slug}: ${response.statusText}`);
-    }
-    return response.blob();
+    return apiGetBlob(`${API_BASE_URL}/projects/${slug}/export`);
   }
 }
 

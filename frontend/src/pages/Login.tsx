@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getRedirectFromUrl } from '../services/apiClient';
 import './Login.css';
 
 export default function Login() {
@@ -19,7 +20,9 @@ export default function Login() {
 
       try {
         await login(username, password);
-        navigate('/');
+        // Redirect to the page user was trying to access, or dashboard
+        const redirectUrl = getRedirectFromUrl();
+        navigate(redirectUrl || '/');
       } catch (err) {
         if (err instanceof Error) {
           setError(err.message || 'Invalid credentials');

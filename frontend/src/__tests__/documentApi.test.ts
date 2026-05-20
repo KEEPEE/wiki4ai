@@ -1,5 +1,5 @@
 /**
- * Tests for documentApi service
+ * Tests for documentApi service (uses authenticated apiClient)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,6 +12,8 @@ window.fetch = mockFetch
 describe('documentApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Set a token so apiClient attaches Authorization header
+    localStorage.setItem('wiki4ai_access_token', 'test-token')
   })
 
   describe('getByProject', () => {
@@ -34,7 +36,10 @@ describe('documentApi', () => {
 
       const result = await documentApi.getByProject('test-project')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents?page=0&size=50')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents?page=0&size=50',
+        expect.objectContaining({ method: 'GET' }),
+      )
       expect(result).toEqual(mockDocuments)
     })
 
@@ -50,7 +55,10 @@ describe('documentApi', () => {
 
       const result = await documentApi.getByProject('test-project')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents?page=0&size=50')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents?page=0&size=50',
+        expect.objectContaining({ method: 'GET' }),
+      )
       expect(result).toEqual(mockResponse)
     })
 
@@ -58,7 +66,7 @@ describe('documentApi', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
-        json: async () => ({ message: 'Server error' }),
+        statusText: 'Internal Server Error',
       })
 
       await expect(documentApi.getByProject('test-project')).rejects.toThrow()
@@ -76,11 +84,13 @@ describe('documentApi', () => {
 
       const result = await documentApi.create('test-project', { title: 'New Doc' })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'New Doc' }),
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ title: 'New Doc' }),
+        }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })
@@ -96,11 +106,13 @@ describe('documentApi', () => {
 
       const result = await documentApi.update('test-project', 'my-doc', { title: 'Updated' })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: 'Updated' }),
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents/my-doc',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ title: 'Updated' }),
+        }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })
@@ -109,14 +121,16 @@ describe('documentApi', () => {
     it('should delete document via DELETE request', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({}),
+        status: 204,
+        headers: { get: () => null },
       })
 
       await documentApi.delete('test-project', 'my-doc')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc', {
-        method: 'DELETE',
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents/my-doc',
+        expect.objectContaining({ method: 'DELETE' }),
+      )
     })
   })
 
@@ -131,7 +145,10 @@ describe('documentApi', () => {
 
       const result = await documentApi.getContent('test-project', 'my-doc')
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/test-project/documents/my-doc/content')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/test-project/documents/my-doc/content',
+        expect.objectContaining({ method: 'GET' }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })

@@ -1,5 +1,5 @@
 /**
- * Tests for projectApi service
+ * Tests for projectApi service (uses authenticated apiClient)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -12,6 +12,8 @@ window.fetch = mockFetch
 describe('projectApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Set a token so apiClient attaches Authorization header
+    localStorage.setItem('wiki4ai_access_token', 'test-token')
   })
 
   describe('getAllProjects', () => {
@@ -27,7 +29,10 @@ describe('projectApi', () => {
 
       const result = await projectApi.getAllProjects()
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects',
+        expect.objectContaining({ method: 'GET' }),
+      )
       expect(result).toEqual(mockResponse)
     })
 
@@ -35,7 +40,7 @@ describe('projectApi', () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
-        json: async () => ({ message: 'Server error' }),
+        statusText: 'Internal Server Error',
       })
 
       await expect(projectApi.getAllProjects()).rejects.toThrow()
@@ -53,7 +58,10 @@ describe('projectApi', () => {
 
       const result = await projectApi.getProjectById(1)
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1')
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/by-id/1',
+        expect.objectContaining({ method: 'GET' }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })
@@ -69,11 +77,13 @@ describe('projectApi', () => {
 
       const result = await projectApi.createProject({ name: 'New Project' })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'New Project' }),
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ name: 'New Project' }),
+        }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })
@@ -89,11 +99,13 @@ describe('projectApi', () => {
 
       const result = await projectApi.updateProject(1, { name: 'Updated Project' })
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'Updated Project' }),
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/by-id/1',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ name: 'Updated Project' }),
+        }),
+      )
       expect(result).toEqual(mockResponse)
     })
   })
@@ -102,14 +114,16 @@ describe('projectApi', () => {
     it('should delete project via DELETE request with by-id route', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({}),
+        status: 204,
+        headers: { get: () => null },
       })
 
       await projectApi.deleteProject(1)
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/v1/projects/by-id/1', {
-        method: 'DELETE',
-      })
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/by-id/1',
+        expect.objectContaining({ method: 'DELETE' }),
+      )
     })
   })
 })
