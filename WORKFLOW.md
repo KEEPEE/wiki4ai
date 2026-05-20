@@ -37,11 +37,14 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ---
 
-## 5. Write & Run Tests (if applicable)
+## 5. Write & Run Tests — Mandatory
 
-- Write tests when they add value and make sense for the changes.
-- Execute all tests and confirm they pass.
-- Fix any failing tests or broken functionality.
+- **The agent MUST always deliver work with ALL tests passing.** This is non-negotiable. No code is considered complete until every test in the suite passes successfully.
+- Execute the full test suite after implementation and verify zero failures.
+- **If tests fail:** diagnose the root cause and fix it — either repair the broken code or update the tests to reflect correct behaviour.
+- **If tests reference non-existent code** (e.g., removed features, deprecated modules that no longer exist in the codebase), those specific tests MAY be removed. This is the ONLY exception where removing tests is permitted.
+- **Otherwise, tests MUST NOT be removed.** We aim for the best possible code coverage. Removing valid tests reduces coverage and is not acceptable.
+- Write new tests when they add value and make sense for the changes being made.
 
 ---
 
