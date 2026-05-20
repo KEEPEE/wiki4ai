@@ -40,8 +40,9 @@ import java.util.zip.ZipInputStream;
  * Tests controller layer in isolation without starting the full application context.
  */
 @WebMvcTest(ProjectController.class)
-@AutoConfigureMockMvc(addFilters = false)
+@AutoConfigureMockMvc
 @ImportAutoConfiguration(exclude = {SecurityAutoConfiguration.class})
+@org.springframework.test.context.ActiveProfiles("test")
 class ProjectControllerTest {
 
     @Autowired

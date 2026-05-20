@@ -45,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         // Extract the token from the header
-        String token = authorizationHeader.substring(6); // Remove "Bearer " prefix
+        String token = authorizationHeader.substring(7).trim(); // Remove "Bearer " prefix (7 chars) and trim whitespace
 
         try {
             // Validate the token
