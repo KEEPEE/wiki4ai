@@ -159,8 +159,11 @@ except ImportError:
     HAS_STARLETTE = False
 
 
+# ─── SSE Transport JWT Token Extraction ──────────────────────────────
+
+
 def jwt_token_middleware(request: StarletteRequest, call_next):
-    """Middleware that extracts JWT token from SSE request headers.
+    """Starlette-style middleware that extracts JWT token from SSE request headers.
 
     This middleware intercepts incoming HTTP requests and extracts the
     Authorization header to use as the JWT token for backend API calls.
@@ -170,6 +173,19 @@ def jwt_token_middleware(request: StarletteRequest, call_next):
     """
     # Extract JWT token from Authorization header
     auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()  # Remove "Bearer " prefix
+        token_var = jwt_token_context.set(token)
+    
+    try:
+        return call_next(request)
+    finally:
+        # Reset the context variable after request completes
+        if 'token_var' in locals():
+            token_var.reset()
+
+
+# ─── MCP Server Setup ────────────────────────────────────────────────
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()  # Remove "Bearer " prefix
         token_var = jwt_token_context.set(token)
@@ -565,25 +581,25 @@ def main():
     if args.transport == "sse":
         print(f"Starting Wiki4AI MCP server on port {args.port} (SSE mode)...")
         
-        # Use run_http_async with JWT token extraction middleware
-        # This properly extracts client-provided tokens from SSE request headers
+        # Use SSE transport with JWT token extraction from request headers
         try:
             import asyncio
-            from starlette.middleware import Middleware
             
             # Create the MCP server instance
             mcp_server = create_mcp_server()
+            
+            # Add JWT middleware to extract client tokens from SSE requests
+            if HAS_STARLETTE:
+                mcp_server.add_middleware(jwt_token_middleware)
             
             # Run async method in event loop (main is synchronous)
             asyncio.run(mcp_server.run_http_async(
                 transport="sse",
                 host="0.0.0.0",
                 port=args.port,
-                middleware=[Middleware(jwt_token_middleware)],
             ))
         except Exception as e:
-            print(f"Warning: Could not add JWT middleware ({e}). Using default SSE transport.")
-            print("Client-provided tokens will not be extracted from request headers.")
+            print(f"Warning: SSE transport failed ({e}). Using default SSE transport.")
             mcp.run(transport="sse", host="0.0.0.0", port=args.port)
     else:
         print("Starting Wiki4AI MCP server (stdio mode)...")
