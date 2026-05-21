@@ -6,7 +6,9 @@ import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.UserDTO;
+import com.wiki4ai.model.RefreshToken;
 import com.wiki4ai.model.User;
+import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
@@ -25,11 +28,13 @@ import java.util.Optional;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.jwtUtil = jwtUtil;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
@@ -68,6 +73,7 @@ public class AuthService {
 
     /**
      * Authenticate a user with username and password.
+     * Persists the refresh token so it survives across deploys.
      *
      * @param request the login request containing username and password
      * @return AuthResponseDTO with tokens and user info, or null if credentials are invalid
@@ -81,7 +87,7 @@ public class AuthService {
         }
 
         String accessToken = generateAccessToken(user.getId(), user.getUsername());
-        String refreshToken = generateRefreshToken(user.getId());
+        String refreshToken = generateAndPersistRefreshToken(user);
 
         return AuthResponseDTO.builder()
                 .accessToken(accessToken)
@@ -98,7 +104,29 @@ public class AuthService {
     }
 
     /**
-     * Generate a real JWT refresh token for the user.
+     * Generate a real JWT refresh token and persist it in the database.
+     * The persisted token survives across deploys so users don't lose their tokens.
+     */
+    public String generateAndPersistRefreshToken(User user) {
+        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+
+        // Calculate expiration (use JwtUtil's refreshExpiration setting)
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
+
+        RefreshToken tokenEntity = RefreshToken.builder()
+                .user(user)
+                .token(refreshToken)
+                .expiresAt(expiresAt)
+                .build();
+
+        refreshTokenRepository.save(tokenEntity);
+
+        return refreshToken;
+    }
+
+    /**
+     * Generate a real JWT refresh token for the user (without persistence).
+     * Kept for backward compatibility with tests.
      */
     public String generateRefreshToken(Long userId) {
         User user = userRepository.findById(userId).orElse(null);
@@ -136,6 +164,7 @@ public class AuthService {
 
     /**
      * Generate a new access token and refresh token for an already authenticated user.
+     * Persists the refresh token so it survives across deploys.
      * Used by the POST /token endpoint so users can generate fresh tokens (e.g., for API integrations).
      * Same logic as loginUser but without password verification — the user is already authenticated via JWT.
      *
@@ -150,7 +179,7 @@ public class AuthService {
         }
 
         String accessToken = generateAccessToken(user.getId(), user.getUsername());
-        String refreshToken = generateRefreshToken(user.getId());
+        String refreshToken = generateAndPersistRefreshToken(user);
 
         return AuthResponseDTO.builder()
                 .accessToken(accessToken)

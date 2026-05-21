@@ -51,6 +51,13 @@ public class User {
     private LocalDateTime updatedAt;
 
     /**
+     * One-to-one relationship with RefreshToken.
+     * A user has at most one active refresh token.
+     */
+    @OneToOne(mappedBy = "user", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    private RefreshToken refreshToken;
+
+    /**
      * Set the username.
      */
     public void setUsername(String username) {
@@ -83,6 +90,13 @@ public class User {
      */
     public void setId(Long id) {
         this.id = id;
+    }
+
+    /**
+     * Set the refresh token (for persistence across deploys).
+     */
+    public void setRefreshToken(RefreshToken refreshToken) {
+        this.refreshToken = refreshToken;
     }
 
     @PrePersist

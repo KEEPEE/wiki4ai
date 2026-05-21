@@ -38,6 +38,13 @@ public class JwtUtil {
     }
 
     /**
+     * Get the refresh token expiration in seconds.
+     */
+    public long getRefreshExpirationSeconds() {
+        return refreshExpiration;
+    }
+
+    /**
      * Generate an access token for the given username.
      *
      * @param username the username to include in the token
