@@ -565,20 +565,21 @@ def main():
     if args.transport == "sse":
         print(f"Starting Wiki4AI MCP server on port {args.port} (SSE mode)...")
         
-        # Use custom SSE transport with JWT token extraction middleware
+        # Use run_http_async with JWT token extraction middleware
+        # This properly extracts client-provided tokens from SSE request headers
         try:
-            from fastmcp.server.fastapi import FastAPIServer
             from starlette.middleware import Middleware
             
             # Create the MCP server instance
             mcp_server = create_mcp_server()
             
-            # Get the underlying Starlette app and add JWT middleware
-            if hasattr(mcp_server, 'app') and HAS_STARLETTE:
-                # Add JWT token extraction middleware to the existing app
-                mcp_server.app.add_middleware(jwt_token_middleware)
-            
-            mcp_server.run(transport="sse", host="0.0.0.0", port=args.port)
+            # Run with HTTP/SSE transport, passing JWT middleware to run_http_async
+            mcp_server.run_http_async(
+                transport="sse",
+                host="0.0.0.0",
+                port=args.port,
+                middleware=[Middleware(jwt_token_middleware)],
+            )
         except Exception as e:
             print(f"Warning: Could not add JWT middleware ({e}). Using default SSE transport.")
             print("Client-provided tokens will not be extracted from request headers.")
