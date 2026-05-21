@@ -568,18 +568,19 @@ def main():
         # Use run_http_async with JWT token extraction middleware
         # This properly extracts client-provided tokens from SSE request headers
         try:
+            import asyncio
             from starlette.middleware import Middleware
             
             # Create the MCP server instance
             mcp_server = create_mcp_server()
             
-            # Run with HTTP/SSE transport, passing JWT middleware to run_http_async
-            mcp_server.run_http_async(
+            # Run async method in event loop (main is synchronous)
+            asyncio.run(mcp_server.run_http_async(
                 transport="sse",
                 host="0.0.0.0",
                 port=args.port,
                 middleware=[Middleware(jwt_token_middleware)],
-            )
+            ))
         except Exception as e:
             print(f"Warning: Could not add JWT middleware ({e}). Using default SSE transport.")
             print("Client-provided tokens will not be extracted from request headers.")
