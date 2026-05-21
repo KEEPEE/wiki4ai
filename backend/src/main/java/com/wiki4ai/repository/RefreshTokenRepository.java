@@ -1,6 +1,7 @@
 package com.wiki4ai.repository;
 
 import com.wiki4ai.model.RefreshToken;
+import com.wiki4ai.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -21,4 +22,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
      * Check if a refresh token exists for the given user.
      */
     boolean existsByUserId(Long userId);
+
+    /**
+     * Find a refresh token by the associated User entity.
+     */
+    Optional<RefreshToken> findByUser(User user);
+
+    /**
+     * Delete all refresh tokens for the given user ID.
+     */
+    void deleteByUserId(Long userId);
 }
