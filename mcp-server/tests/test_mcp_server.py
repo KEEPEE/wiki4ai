@@ -41,6 +41,18 @@ def reset_base_url():
     yield
 
 
+@pytest.fixture(autouse=True)
+def reset_jwt_token_fixture():
+    """Reset JWT_TOKEN to None before each test.
+
+    Note: This runs BEFORE the test body, so tests that need to verify
+    token values should set and assert within the same function call chain.
+    """
+    from mcp_server import set_jwt_token as _set
+    _set(None)
+    yield
+
+
 @pytest.fixture
 def mock_search_response():
     """Sample search API response."""
@@ -1013,3 +1025,125 @@ class TestExistingToolsSmokeTest:
 
         result = gb_func("test-project", "some-doc")
         assert isinstance(result, list)
+
+
+# ─── Tests: JWT Token Authentication ──────────────────────────────────────
+
+class TestJWTTokenAuthentication:
+    """Tests that JWT token is correctly passed via Authorization header."""
+
+    @patch("mcp_server.urlopen")
+    def test_no_token_sends_no_authorization_header(self, mock_urlopen):
+        """When no JWT token is set, requests don't include Authorization header."""
+        from mcp_server import list_projects, set_jwt_token
+
+        # Ensure no token is set
+        set_jwt_token(None)
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        # No Authorization header should be present
+        assert "Authorization" not in request.headers
+
+    @patch("mcp_server.urlopen")
+    def test_token_sends_authorization_header(self, mock_urlopen):
+        """When JWT token is set, requests include Bearer token in Authorization header."""
+        from mcp_server import list_projects, set_jwt_token
+
+        # Set a JWT token
+        set_jwt_token("eyJhbGciOiJIUzI1NiJ9.test")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        # Authorization header should be present with Bearer token
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer eyJhbGciOiJIUzI1NiJ9.test"
+
+    @patch("mcp_server.urlopen")
+    def test_token_includes_username_from_token(self, mock_urlopen):
+        """JWT token is correctly formatted with Bearer prefix."""
+        from mcp_server import get_project, set_jwt_token
+
+        # Set a realistic JWT token
+        set_jwt_token("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJrZWVwZWUiLCJpYXQiOjE3NzkzNTc3NTZ9.test")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"id": 1, "name": "Test"}).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_project("my-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert request.headers["Authorization"] == "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJrZWVwZWUiLCJpYXQiOjE3NzkzNTc3NTZ9.test"
+
+    @patch("mcp_server.urlopen")
+    def test_token_does_not_affect_health_check_endpoint(self, mock_urlopen):
+        """Health check works correctly even when JWT token is set."""
+        from mcp_server import health_check, set_jwt_token
+
+        # Set a JWT token
+        set_jwt_token("eyJhbGciOiJIUzI1NiJ9.test")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({"status": "UP"}).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = health_check()
+
+        assert isinstance(result, dict)
+        assert result["status"] == "UP"
+        # Authorization header should still be present (token is set globally)
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+
+
+class TestEnvironmentVariableJWT:
+    """Tests for MCP_JWT_TOKEN environment variable support."""
+
+    @patch("mcp_server.urlopen")
+    def test_env_var_token_is_used(self, mock_urlopen, monkeypatch):
+        """MCP_JWT_TOKEN env var is used when no CLI token is provided."""
+        from mcp_server import list_documents, set_jwt_token
+        import os
+
+        # Set environment variable
+        monkeypatch.setenv("MCP_JWT_TOKEN", "env-token-123")
+
+        # Ensure no CLI token overrides it (reset to None)
+        set_jwt_token(None)
+
+        mock_resp = MagicMock()
+        page_response = {
+            "content": [{"id": 1, "title": "Doc"}],
+            "totalElements": 1,
+            "totalPages": 1,
+            "number": 0,
+            "size": 50,
+        }
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        # The token should be set from env var in real usage via main()
+        # Here we just verify the mechanism works
+        set_jwt_token(os.environ.get("MCP_JWT_TOKEN"))
+
+        result = list_documents("test-project")
+
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer env-token-123"

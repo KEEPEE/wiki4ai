@@ -4,12 +4,18 @@ Wiki4AI MCP Server
 MCP (Model Context Protocol) server that exposes Wiki4AI REST API as tools.
 
 Usage:
-  python mcp_server.py --base-url http://localhost:8080/api
+  python mcp_server.py --base-url http://localhost:8080/api --token eyJhbGci...
 
 Connect your AI agent to this server via stdio or SSE transport.
+
+Authentication:
+  - Via CLI argument: --token <jwt_token>
+  - Via environment variable: MCP_JWT_TOKEN=<jwt_token>
+  - CLI argument takes precedence over environment variable
 """
 
 import argparse
+import os
 import sys
 from typing import Optional
 
@@ -26,6 +32,9 @@ DEFAULT_BASE_URL = "http://localhost:8080/api"
 # Global base URL (set via CLI argument or environment variable)
 BASE_URL: str = DEFAULT_BASE_URL
 
+# Global JWT token (set via CLI argument, env var, or default to None for unauthenticated access)
+JWT_TOKEN: Optional[str] = None
+
 
 def set_base_url(url: str):
     """Set the backend API base URL."""
@@ -33,6 +42,16 @@ def set_base_url(url: str):
     if not url.endswith("/"):
         url += "/"
     BASE_URL = url
+
+
+def set_jwt_token(token: Optional[str]):
+    """Set the JWT authentication token.
+
+    Args:
+        token: JWT Bearer token string, or None for unauthenticated access (e.g., health checks)
+    """
+    global JWT_TOKEN
+    JWT_TOKEN = token
 
 
 # ─── HTTP Client (no external deps beyond stdlib) ─────────────────────────────
@@ -43,10 +62,27 @@ from urllib.error import HTTPError, URLError
 
 
 def _api_request(method: str, path: str, body: Optional[dict] = None) -> dict:
-    """Make an HTTP request to the Wiki4AI backend API."""
+    """Make an HTTP request to the Wiki4AI backend API.
+
+    Args:
+        method: HTTP method (GET, POST, PUT, DELETE, etc.)
+        path: API path (e.g., '/v1/projects')
+        body: Optional JSON body for POST/PUT requests
+
+    Returns:
+        Parsed JSON response as a dict or list
+
+    Raises:
+        MCPToolError: On HTTP errors or connection failures
+    """
     url = BASE_URL + path.lstrip("/")
     data = _json.dumps(body).encode("utf-8") if body else None
     headers = {"Content-Type": "application/json"}
+
+    # Add JWT Bearer token for authentication (if configured)
+    global JWT_TOKEN
+    if JWT_TOKEN:
+        headers["Authorization"] = f"Bearer {JWT_TOKEN}"
 
     req = Request(url, data=data, headers=headers, method=method)
 
@@ -425,6 +461,11 @@ def main():
         help=f"Base URL of the Wiki4AI backend API (default: {DEFAULT_BASE_URL})",
     )
     parser.add_argument(
+        "--token",
+        default=None,
+        help="JWT Bearer token for authentication. Overrides MCP_JWT_TOKEN env var.",
+    )
+    parser.add_argument(
         "--transport",
         choices=["stdio", "sse"],
         default="stdio",
@@ -439,6 +480,14 @@ def main():
 
     args = parser.parse_args()
     set_base_url(args.base_url)
+
+    # Set JWT token: CLI arg > env var > None (unauthenticated)
+    token_from_cli = args.token
+    token_from_env = os.environ.get("MCP_JWT_TOKEN") or None
+    if token_from_cli:
+        set_jwt_token(token_from_cli)
+    elif token_from_env:
+        set_jwt_token(token_from_env)
 
     mcp = create_mcp_server()
 
