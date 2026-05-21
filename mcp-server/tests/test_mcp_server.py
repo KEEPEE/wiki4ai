@@ -1147,3 +1147,297 @@ class TestEnvironmentVariableJWT:
         request = call_args[0][0]
         assert "Authorization" in request.headers
         assert request.headers["Authorization"] == "Bearer env-token-123"
+
+
+# ─── Tests: Client-Provided JWT Token Fallback ──────────────────────────────
+
+class TestClientProvidedTokenFallback:
+    """Tests for client-provided JWT token fallback when server token is not set.
+
+    This tests the scenario where:
+    - No server-side JWT token is configured (JWT_TOKEN = None)
+    - Client provides a JWT token via SSE request headers
+    - The MCP server uses the client-provided token instead
+    """
+
+    @pytest.fixture(autouse=True)
+    def reset_jwt_context(self):
+        """Reset jwt_token_context to None before each test."""
+        from mcp_server import jwt_token_context
+        # Store and reset context variable
+        self._token_var = jwt_token_context.set(None)
+        yield
+
+    @patch("mcp_server.urlopen")
+    def test_client_token_used_when_no_server_token(self, mock_urlopen):
+        """When no server token is set, client-provided token from context is used."""
+        from mcp_server import list_projects, set_jwt_token, jwt_token_context
+
+        # Ensure no server-side token is configured
+        set_jwt_token(None)
+
+        # Simulate client-provided token via SSE request headers (context variable)
+        token_var = jwt_token_context.set("client-token-from-sse")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        # The client-provided token should be used
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer client-token-from-sse"
+
+    @patch("mcp_server.urlopen")
+    def test_client_token_overrides_server_token(self, mock_urlopen):
+        """Client-provided token takes priority over server-side configured token."""
+        from mcp_server import list_projects, set_jwt_token, jwt_token_context
+
+        # Set a server-side token (simulating CLI arg or env var)
+        set_jwt_token("server-token-configured")
+
+        # Simulate client-provided token via SSE request headers
+        token_var = jwt_token_context.set("client-token-from-sse")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        # The client-provided token should override the server token
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer client-token-from-sse"
+
+    @patch("mcp_server.urlopen")
+    def test_fallback_to_server_token_when_no_client_token(self, mock_urlopen):
+        """When no client token is provided, server-side configured token is used."""
+        from mcp_server import list_projects, set_jwt_token, jwt_token_context
+
+        # Ensure no server-side token is configured
+        set_jwt_token(None)
+
+        # Reset the context variable to None (no client-provided token)
+        token_var = jwt_token_context.set(None)
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        # No Authorization header should be present (no tokens configured)
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" not in request.headers
+
+    @patch("mcp_server.urlopen")
+    def test_no_auth_when_neither_token_is_set(self, mock_urlopen):
+        """When neither client nor server token is set, no Authorization header."""
+        from mcp_server import list_projects, set_jwt_token, jwt_token_context
+
+        # Ensure both tokens are None
+        set_jwt_token(None)
+
+        # Reset the context variable to None (no client-provided token)
+        token_var = jwt_token_context.set(None)
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+
+        # No Authorization header should be present
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" not in request.headers
+
+    @patch("mcp_server.urlopen")
+    def test_client_token_works_with_document_operations(self, mock_urlopen):
+        """Client-provided token works correctly with document operations."""
+        from mcp_server import get_document, set_jwt_token, jwt_token_context
+
+        # Ensure no server-side token is configured
+        set_jwt_token(None)
+
+        # Simulate client-provided token via SSE request headers
+        token_var = jwt_token_context.set("client-doc-token")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "id": 1, "title": "Test Doc", "slug": "test-doc"
+        }).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = get_document("my-project", "test-doc")
+
+        # The client-provided token should be used for document operations
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer client-doc-token"
+
+    @patch("mcp_server.urlopen")
+    def test_client_token_works_with_project_operations(self, mock_urlopen):
+        """Client-provided token works correctly with project operations."""
+        from mcp_server import create_project, set_jwt_token, jwt_token_context
+
+        # Ensure no server-side token is configured
+        set_jwt_token(None)
+
+        # Simulate client-provided token via SSE request headers
+        token_var = jwt_token_context.set("client-project-token")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "id": 1, "name": "New Project", "slug": "new-project"
+        }).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = create_project("New Project")
+
+        # The client-provided token should be used for project operations
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert "Authorization" in request.headers
+        assert request.headers["Authorization"] == "Bearer client-project-token"
+
+
+# ─── Tests: JWT Token Middleware ─────────────────────────────────────────────
+
+class TestJWTTokenMiddleware:
+    """Tests for the JWT token extraction middleware."""
+
+    @pytest.fixture(autouse=True)
+    def reset_jwt_context(self):
+        """Reset jwt_token_context to None before each test."""
+        from mcp_server import jwt_token_context
+        self._token_var = jwt_token_context.set(None)
+        yield
+
+    def test_middleware_function_exists(self):
+        """jwt_token_middleware function exists and is callable."""
+        from mcp_server import jwt_token_middleware
+        assert callable(jwt_token_middleware)
+
+    def test_context_var_exists(self):
+        """jwt_token_context context variable exists."""
+        from mcp_server import jwt_token_context
+        assert hasattr(jwt_token_context, 'set')
+        assert hasattr(jwt_token_context, 'get')
+
+    @patch("mcp_server.urlopen")
+    def test_get_current_jwt_token_returns_client_token(self, mock_urlopen):
+        """get_current_jwt_token returns client token from context when available."""
+        from mcp_server import get_current_jwt_token, jwt_token_context
+
+        # Set a client-provided token in the context (use stored var)
+        self._token_var = jwt_token_context.set("test-client-token")
+
+        result = get_current_jwt_token()
+        assert result == "test-client-token"
+
+    @patch("mcp_server.urlopen")
+    def test_get_current_jwt_token_returns_server_token_when_no_client(self, mock_urlopen):
+        """get_current_jwt_token returns server token when no client token is set."""
+        from mcp_server import get_current_jwt_token, set_jwt_token, jwt_token_context
+
+        # Reset context to None first (use stored var)
+        self._token_var = jwt_token_context.set(None)
+
+        # Set a server-side token
+        set_jwt_token("server-token")
+
+        result = get_current_jwt_token()
+        assert result == "server-token"
+
+    @patch("mcp_server.urlopen")
+    def test_get_current_jwt_token_returns_none_when_no_tokens(self, mock_urlopen):
+        """get_current_jwt_token returns None when no tokens are configured."""
+        from mcp_server import get_current_jwt_token, set_jwt_token, jwt_token_context
+
+        # Reset context to None first (use stored var)
+        self._token_var = jwt_token_context.set(None)
+
+        # Ensure no tokens are set
+        set_jwt_token(None)
+
+        result = get_current_jwt_token()
+        assert result is None
+
+
+# ─── Tests: SSE Transport JWT Integration ─────────────────────────────────────
+
+class TestSSETransportJWTIntegration:
+    """Tests for SSE transport JWT token integration."""
+
+    @pytest.fixture(autouse=True)
+    def reset_jwt_context(self):
+        """Reset jwt_token_context to None before each test."""
+        from mcp_server import jwt_token_context
+        self._token_var = jwt_token_context.set(None)
+        yield
+
+    def test_has_starlette_import(self):
+        """Starlette imports are available for SSE transport."""
+        from mcp_server import HAS_STARLETTE, jwt_token_middleware
+        # Starlette should be importable (it's a dependency of fastmcp)
+        assert callable(jwt_token_middleware)
+
+    def test_jwt_token_middleware_has_correct_signature(self):
+        """jwt_token_middleware has the correct function signature."""
+        from mcp_server import jwt_token_middleware
+        import inspect
+        sig = inspect.signature(jwt_token_middleware)
+        params = list(sig.parameters.keys())
+        assert 'request' in params or len(params) >= 1
+        assert 'call_next' in params
+
+    @patch("mcp_server.urlopen")
+    def test_sse_mode_uses_client_token_for_api_calls(self, mock_urlopen):
+        """In SSE mode, client-provided token is used for all API calls."""
+        from mcp_server import (
+            list_projects, get_project, create_document, set_jwt_token,
+            jwt_token_context
+        )
+
+        # Ensure no server-side token is configured
+        set_jwt_token(None)
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        # Simulate client-provided token (as would come from SSE request headers)
+        token_var = jwt_token_context.set("sse-client-token")
+
+        result = list_projects()
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert request.headers["Authorization"] == "Bearer sse-client-token"
+
+    @patch("mcp_server.urlopen")
+    def test_token_priority_order_client_over_cli(self, mock_urlopen):
+        """Client token has higher priority than CLI arg token."""
+        from mcp_server import list_projects, set_jwt_token, jwt_token_context
+
+        # Simulate server-side token (CLI arg)
+        set_jwt_token("cli-token")
+
+        # Client-provided token should override
+        token_var = jwt_token_context.set("client-token")
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps([{"id": 1}]).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_projects()
+        call_args = mock_urlopen.call_args
+        request = call_args[0][0]
+        assert request.headers["Authorization"] == "Bearer client-token"

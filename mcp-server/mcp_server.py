@@ -11,10 +11,20 @@ Connect your AI agent to this server via stdio or SSE transport.
 Authentication:
   - Via CLI argument: --token <jwt_token>
   - Via environment variable: MCP_JWT_TOKEN=<jwt_token>
-  - CLI argument takes precedence over environment variable
+  - Via client request header (SSE mode): Authorization: Bearer <token>
+  
+Priority order for JWT token:
+  1. Client-provided token (via SSE request headers) — highest priority
+  2. CLI argument --token
+  3. Environment variable MCP_JWT_TOKEN
+  4. No authentication (unauthenticated access)
+
+This allows clients to dynamically provide their own JWT tokens without
+requiring server-side configuration.
 """
 
 import argparse
+import contextvars
 import os
 import sys
 from typing import Optional
@@ -35,6 +45,10 @@ BASE_URL: str = DEFAULT_BASE_URL
 # Global JWT token (set via CLI argument, env var, or default to None for unauthenticated access)
 JWT_TOKEN: Optional[str] = None
 
+# Context variable for per-request JWT tokens from SSE clients
+# This allows dynamic authentication without server-side configuration
+jwt_token_context: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar("jwt_token", default=None)
+
 
 def set_base_url(url: str):
     """Set the backend API base URL."""
@@ -54,7 +68,27 @@ def set_jwt_token(token: Optional[str]):
     JWT_TOKEN = token
 
 
-# ─── HTTP Client (no external deps beyond stdlib) ─────────────────────────────
+def get_current_jwt_token() -> Optional[str]:
+    """Get the current JWT token for this request context.
+
+    Priority order:
+      1. Client-provided token from SSE request headers
+      2. Server-side configured token (CLI arg or env var)
+
+    Returns:
+        The effective JWT token to use, or None if no authentication is available.
+    """
+    # Check client-provided token first (highest priority)
+    client_token = jwt_token_context.get()
+    if client_token:
+        return client_token
+    
+    # Fall back to server-side configured token
+    global JWT_TOKEN
+    return JWT_TOKEN
+
+
+# ─── HTTP Client (no external deps beyond stdlib) ──────────────────────────────
 
 import json as _json
 from urllib.request import Request, urlopen
@@ -80,9 +114,10 @@ def _api_request(method: str, path: str, body: Optional[dict] = None) -> dict:
     headers = {"Content-Type": "application/json"}
 
     # Add JWT Bearer token for authentication (if configured)
-    global JWT_TOKEN
-    if JWT_TOKEN:
-        headers["Authorization"] = f"Bearer {JWT_TOKEN}"
+    # Uses client-provided token from SSE request headers with highest priority
+    current_token = get_current_jwt_token()
+    if current_token:
+        headers["Authorization"] = f"Bearer {current_token}"
 
     req = Request(url, data=data, headers=headers, method=method)
 
@@ -109,6 +144,42 @@ class MCPToolError(Exception):
         self.status_code = status_code
         self.details = details
         super().__init__(message)
+
+
+# ─── SSE Transport with JWT Token Extraction ────────────────────────────────
+
+try:
+    from starlette.applications import Starlette
+    from starlette.middleware import Middleware
+    from starlette.requests import Request as StarletteRequest
+    from starlette.routing import Route
+    from starlette.responses import Response
+    HAS_STARLETTE = True
+except ImportError:
+    HAS_STARLETTE = False
+
+
+def jwt_token_middleware(request: StarletteRequest, call_next):
+    """Middleware that extracts JWT token from SSE request headers.
+
+    This middleware intercepts incoming HTTP requests and extracts the
+    Authorization header to use as the JWT token for backend API calls.
+    
+    The token is stored in a context variable so it's available during
+    tool execution without requiring server-side configuration.
+    """
+    # Extract JWT token from Authorization header
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()  # Remove "Bearer " prefix
+        token_var = jwt_token_context.set(token)
+    
+    try:
+        return call_next(request)
+    finally:
+        # Reset the context variable after request completes
+        if 'token_var' in locals():
+            token_var.reset()
 
 
 # ─── Health Tools ─────────────────────────────────────────────────────────────
@@ -493,7 +564,25 @@ def main():
 
     if args.transport == "sse":
         print(f"Starting Wiki4AI MCP server on port {args.port} (SSE mode)...")
-        mcp.run(transport="sse", host="0.0.0.0", port=args.port)
+        
+        # Use custom SSE transport with JWT token extraction middleware
+        try:
+            from fastmcp.server.fastapi import FastAPIServer
+            from starlette.middleware import Middleware
+            
+            # Create the MCP server instance
+            mcp_server = create_mcp_server()
+            
+            # Get the underlying Starlette app and add JWT middleware
+            if hasattr(mcp_server, 'app') and HAS_STARLETTE:
+                # Add JWT token extraction middleware to the existing app
+                mcp_server.app.add_middleware(jwt_token_middleware)
+            
+            mcp_server.run(transport="sse", host="0.0.0.0", port=args.port)
+        except Exception as e:
+            print(f"Warning: Could not add JWT middleware ({e}). Using default SSE transport.")
+            print("Client-provided tokens will not be extracted from request headers.")
+            mcp.run(transport="sse", host="0.0.0.0", port=args.port)
     else:
         print("Starting Wiki4AI MCP server (stdio mode)...")
         mcp.run()
