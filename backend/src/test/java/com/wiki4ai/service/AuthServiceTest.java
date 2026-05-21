@@ -4,11 +4,12 @@ import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Optional;
 
@@ -23,6 +24,8 @@ class AuthServiceTest {
 
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
+    private EntityManager entityManager;
+    private TransactionTemplate transactionTemplate;
     private JwtUtil jwtUtil;
     private AuthService authService;
 
@@ -30,11 +33,18 @@ class AuthServiceTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         refreshTokenRepository = mock(RefreshTokenRepository.class);
+        entityManager = mock(EntityManager.class);
+        transactionTemplate = mock(TransactionTemplate.class);
+        when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
+            var func = invocation.getArgument(0);
+            // Simulate successful execution by returning a default refresh token
+            return "mock-tx-refresh-token";
+        });
         jwtUtil = mock(JwtUtil.class);
         when(jwtUtil.generateToken(anyString())).thenReturn("mock-access-token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock-refresh-token");
         when(jwtUtil.getRefreshExpirationSeconds()).thenReturn(86400L); // 24 hours default
-        authService = new AuthService(userRepository, refreshTokenRepository, jwtUtil);
+        authService = new AuthService(userRepository, refreshTokenRepository, entityManager, transactionTemplate, jwtUtil);
     }
 
     @Nested

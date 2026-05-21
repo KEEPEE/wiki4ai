@@ -10,11 +10,13 @@ import com.wiki4ai.model.RefreshToken;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -29,12 +31,17 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final EntityManager entityManager;
+    private final TransactionTemplate transactionTemplate;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
-    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, JwtUtil jwtUtil) {
+    public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, 
+                       EntityManager entityManager, TransactionTemplate transactionTemplate, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.entityManager = entityManager;
+        this.transactionTemplate = transactionTemplate;
         this.jwtUtil = jwtUtil;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
@@ -108,25 +115,31 @@ public class AuthService {
      * The persisted token survives across deploys so users don't lose their tokens.
      * Deletes any existing refresh token for the user first to avoid unique constraint violations.
      */
-    @Transactional
     public String generateAndPersistRefreshToken(User user) {
-        // Delete any existing refresh token for this user to avoid duplicate key violation
-        refreshTokenRepository.deleteByUserId(user.getId());
+        // Use TransactionTemplate for explicit transaction management to ensure
+        // UPDATE/DELETE operations have an active transaction context
+        return transactionTemplate.execute(status -> {
+            // Delete any existing refresh token for this user using native query
+            entityManager.createNativeQuery(
+                    "DELETE FROM refresh_tokens WHERE user_id = :userId")
+                    .setParameter("userId", user.getId())
+                    .executeUpdate();
 
-        String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
+            String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
-        // Calculate expiration (use JwtUtil's refreshExpiration setting)
-        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
+            // Calculate expiration (use JwtUtil's refreshExpiration setting)
+            LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
 
-        RefreshToken tokenEntity = RefreshToken.builder()
-                .user(user)
-                .token(refreshToken)
-                .expiresAt(expiresAt)
-                .build();
+            RefreshToken tokenEntity = RefreshToken.builder()
+                    .user(user)
+                    .token(refreshToken)
+                    .expiresAt(expiresAt)
+                    .build();
 
-        refreshTokenRepository.save(tokenEntity);
+            refreshTokenRepository.save(tokenEntity);
 
-        return refreshToken;
+            return refreshToken;
+        });
     }
 
     /**
