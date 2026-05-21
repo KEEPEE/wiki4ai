@@ -10,6 +10,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=wiki4ai
       - SPRING_DATASOURCE_PASSWORD=wiki4ai
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - JWT_SECRET=wiki4ai-jwt-secret-key-change-in-production-secure-2025
     depends_on:
       db:
         condition: service_healthy
