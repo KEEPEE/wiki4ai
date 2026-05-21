@@ -106,8 +106,12 @@ public class AuthService {
     /**
      * Generate a real JWT refresh token and persist it in the database.
      * The persisted token survives across deploys so users don't lose their tokens.
+     * Deletes any existing refresh token for the user first to avoid unique constraint violations.
      */
     public String generateAndPersistRefreshToken(User user) {
+        // Delete any existing refresh token for this user to avoid duplicate key violation
+        refreshTokenRepository.deleteByUserId(user.getId());
+
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
         // Calculate expiration (use JwtUtil's refreshExpiration setting)
