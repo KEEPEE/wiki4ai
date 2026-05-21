@@ -116,14 +116,54 @@ export default function ProfilePage() {
     }
   }, []);
 
-  const handleCopyToken = useCallback(() => {
-    if (generatedToken) {
-      navigator.clipboard.writeText(generatedToken).then(() => {
+  const copyToClipboard = useCallback((text: string) => {
+    // Try modern Clipboard API first; fall back to execCommand for non-secure contexts (HTTP on IP)
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
         setTokenCopied(true);
         setTimeout(() => setTokenCopied(false), 2000);
+      }).catch(() => {
+        // Clipboard API failed — use fallback below
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          setTokenCopied(true);
+          setTimeout(() => setTokenCopied(false), 2000);
+        } catch {
+          setUpdateError('Failed to copy token');
+        } finally {
+          document.body.removeChild(textarea);
+        }
       });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000);
+      } catch {
+        setUpdateError('Failed to copy token');
+      } finally {
+        document.body.removeChild(textarea);
+      }
     }
-  }, [generatedToken]);
+  }, []);
+
+  const handleCopyToken = useCallback(() => {
+    if (generatedToken) {
+      copyToClipboard(generatedToken);
+    }
+  }, [generatedToken, copyToClipboard]);
 
   const handleLogout = useCallback(() => {
     logout();
