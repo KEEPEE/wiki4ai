@@ -2,6 +2,7 @@ package com.wiki4ai.service;
 
 import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.model.User;
+import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -21,16 +22,19 @@ import static org.mockito.Mockito.*;
 class AuthServiceTest {
 
     private UserRepository userRepository;
+    private RefreshTokenRepository refreshTokenRepository;
     private JwtUtil jwtUtil;
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
         userRepository = mock(UserRepository.class);
+        refreshTokenRepository = mock(RefreshTokenRepository.class);
         jwtUtil = mock(JwtUtil.class);
         when(jwtUtil.generateToken(anyString())).thenReturn("mock-access-token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock-refresh-token");
-        authService = new AuthService(userRepository, jwtUtil);
+        when(jwtUtil.getRefreshExpirationSeconds()).thenReturn(86400L); // 24 hours default
+        authService = new AuthService(userRepository, refreshTokenRepository, jwtUtil);
     }
 
     @Nested
