@@ -31,6 +31,7 @@ services:
       - "8095:8095"
     environment:
       - MCP_BASE_URL=http://wiki4ai-backend:8080/api
+      - MCP_JWT_TOKEN=${MCP_JWT_TOKEN}
     depends_on:
       - backend
     restart: unless-stopped
