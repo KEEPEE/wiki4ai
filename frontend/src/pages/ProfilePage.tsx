@@ -1,10 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost, apiPut } from '../services/apiClient';
 import './Profile.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
+// ── Storage key for generated API tokens (persists across logout/login) ────
+const GENERATED_TOKEN_KEY = 'wiki4ai_generated_api_token';
 
 interface UserProfile {
   id: number;
@@ -43,23 +46,9 @@ export default function ProfilePage() {
   const [tokenCopied, setTokenCopied] = useState(false);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
 
-  // Load profile on mount
-  useCallback(async () => {
-    try {
-      const data = await apiGet<UserProfile>(`${API_BASE_URL}/auth/me`);
-      setProfile(data);
-      setEditUsername(data.username);
-      setEditEmail(data.email);
-    } catch {
-      setUpdateError('Failed to load profile');
-    } finally {
-      setIsLoadingProfile(false);
-    }
-  }, []);
-
-  // Trigger the load on mount
-  useState(() => {
-    (async () => {
+  // Load profile on mount (and restore stored generated token)
+  useEffect(() => {
+    const loadProfile = async () => {
       try {
         const data = await apiGet<UserProfile>(`${API_BASE_URL}/auth/me`);
         setProfile(data);
@@ -70,8 +59,18 @@ export default function ProfilePage() {
       } finally {
         setIsLoadingProfile(false);
       }
-    })();
-  });
+    };
+
+    const restoreToken = () => {
+      const storedToken = localStorage.getItem(GENERATED_TOKEN_KEY);
+      if (storedToken) {
+        setGeneratedToken(storedToken);
+      }
+    };
+
+    loadProfile();
+    restoreToken();
+  }, []);
 
   const handleUpdateProfile = useCallback(
     async (e: React.FormEvent) => {
@@ -108,6 +107,8 @@ export default function ProfilePage() {
     try {
       const response = await apiPost<{ accessToken: string }>(`${API_BASE_URL}/auth/token`);
       setGeneratedToken(response.accessToken);
+      // Persist to localStorage so it survives logout/login cycles
+      localStorage.setItem(GENERATED_TOKEN_KEY, response.accessToken);
       setTokenCopied(false);
     } catch {
       setUpdateError('Failed to generate token');
