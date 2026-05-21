@@ -185,19 +185,6 @@ def jwt_token_middleware(request: StarletteRequest, call_next):
             token_var.reset()
 
 
-# ─── MCP Server Setup ────────────────────────────────────────────────
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()  # Remove "Bearer " prefix
-        token_var = jwt_token_context.set(token)
-    
-    try:
-        return call_next(request)
-    finally:
-        # Reset the context variable after request completes
-        if 'token_var' in locals():
-            token_var.reset()
-
-
 # ─── Health Tools ─────────────────────────────────────────────────────────────
 
 def health_check() -> dict:
@@ -588,11 +575,8 @@ def main():
             # Create the MCP server instance
             mcp_server = create_mcp_server()
             
-            # Add JWT middleware to extract client tokens from SSE requests
-            if HAS_STARLETTE:
-                mcp_server.add_middleware(jwt_token_middleware)
-            
             # Run async method in event loop (main is synchronous)
+            # ASGI middleware handles HTTP-level JWT extraction before FastMCP processing
             asyncio.run(mcp_server.run_http_async(
                 transport="sse",
                 host="0.0.0.0",
