@@ -108,6 +108,7 @@ public class AuthService {
      * The persisted token survives across deploys so users don't lose their tokens.
      * Deletes any existing refresh token for the user first to avoid unique constraint violations.
      */
+    @Transactional
     public String generateAndPersistRefreshToken(User user) {
         // Delete any existing refresh token for this user to avoid duplicate key violation
         refreshTokenRepository.deleteByUserId(user.getId());
