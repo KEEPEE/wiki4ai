@@ -575,15 +575,86 @@ def main():
             # Create the MCP server instance
             mcp_server = create_mcp_server()
             
-            # Run async method in event loop (main is synchronous)
-            # ASGI middleware handles HTTP-level JWT extraction before FastMCP processing
-            asyncio.run(mcp_server.run_http_async(
+            # Import Starlette middleware for JWT extraction
+            from starlette.middleware import Middleware
+            
+            # Define our JWT token extraction middleware as a Starlette middleware class
+            class JwtTokenMiddleware:
+                """Starlette middleware that extracts JWT token from SSE request headers or query params.
+                
+                Priority order (highest to lowest):
+                  1. Authorization header (Bearer <token>) — highest priority
+                  2. Query parameter (?token=<token>) — fallback for clients that can't send headers
+                
+                This allows clients to dynamically provide their own JWT tokens without
+                requiring server-side configuration.
+                """
+                
+                def __init__(self, app):
+                    self.app = app
+                
+                async def __call__(self, scope, receive, send):
+                    if scope["type"] == "http":
+                        # Extract JWT token from Authorization header (highest priority)
+                        auth_header = ""
+                        for key, value in scope.get("headers", []):
+                            if key == b"authorization":
+                                auth_header = value.decode("utf-8")
+                                break
+                        
+                        # Also extract from query parameter as fallback
+                        query_string = scope.get("query_string", b"").decode("utf-8")
+                        token_from_query = None
+                        if "token=" in query_string:
+                            for param in query_string.split("&"):
+                                if param.startswith("token="):
+                                    token_from_query = param[6:]  # Remove "token=" prefix
+                        
+                        # Determine which token to use (header > query)
+                        token_to_use = None
+                        if auth_header.startswith("Bearer "):
+                            token_to_use = auth_header[7:].strip()
+                        elif token_from_query:
+                            token_to_use = token_from_query
+                        
+                        token_var = None  # Initialize for cleanup
+                        if token_to_use:
+                            token_var = jwt_token_context.set(token_to_use)
+                        
+                        try:
+                            await self.app(scope, receive, send)
+                        finally:
+                            if token_var is not None:
+                                token_var.reset()
+                    else:
+                        await self.app(scope, receive, send)
+            
+            # Create the SSE app with JWT middleware
+            # RequestContextMiddleware is added by FastMCP internally, we add ours on top
+            sse_app = mcp_server.http_app(
                 transport="sse",
+                middleware=[
+                    Middleware(JwtTokenMiddleware),  # JWT extraction runs first (outermost)
+                ],
+            )
+            
+            # Run using uvicorn
+            import uvicorn
+            
+            config = uvicorn.Config(
+                sse_app,
                 host="0.0.0.0",
                 port=args.port,
-            ))
+                log_level="info"
+            )
+            server = uvicorn.Server(config=config)
+            asyncio.run(server.serve())
+            
+        except ImportError:
+            print("Warning: Starlette/uvicorn not available. Using default SSE transport.")
+            mcp.run(transport="sse", host="0.0.0.0", port=args.port)
         except Exception as e:
-            print(f"Warning: SSE transport failed ({e}). Using default SSE transport.")
+            print(f"Warning: SSE transport with JWT failed ({e}). Using default SSE transport.")
             mcp.run(transport="sse", host="0.0.0.0", port=args.port)
     else:
         print("Starting Wiki4AI MCP server (stdio mode)...")
