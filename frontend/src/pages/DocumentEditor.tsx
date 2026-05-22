@@ -220,7 +220,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       {/* Save status indicator */}
       {saveStatus !== 'idle' && (
         <div className={`save-status ${saveStatus}`} data-testid="save-status">
-          {saveStatus === 'saving' ? '⏳ Ukladá sa...' : saveStatus === 'saved' ? '✓ Uložené' : saveStatus === 'unsaved' ? '* Neuložené zmeny' : saveStatus === 'error' ? '✗ Chyba pri ukladaní' : ''}
+          {saveStatus === 'saving' ? 'Ukladá sa...' : saveStatus === 'saved' ? 'Uložené' : saveStatus === 'unsaved' ? 'Neuložené zmeny' : saveStatus === 'error' ? 'Chyba pri ukladaní' : ''}
         </div>
       )}
 

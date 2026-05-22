@@ -87,7 +87,7 @@
   box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
 }
 
-/* ── Save status indicator — neon styling ──────────────────────── */
+/* ── Save status indicator — dot + text with neon per state ───── */
 
 .save-status {
   padding: 0.35rem 1.5rem;
@@ -100,31 +100,85 @@
   transition: all 0.3s ease;
 }
 
+/* Saving state — cyan pulse animation */
 .save-status.saving {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
-  border-bottom-color: rgba(245, 158, 11, 0.3);
-  box-shadow: inset 0 -1px 0 rgba(245, 158, 11, 0.2);
+  background: rgba(0, 240, 255, 0.1) !important;
+  color: #00f0ff !important;
+  border-bottom-color: rgba(0, 240, 255, 0.3) !important;
+  box-shadow: inset 0 -1px 0 rgba(0, 240, 255, 0.2);
 }
 
+.save-status.saving::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  animation: cyan-pulse 1.5s ease-in-out infinite;
+}
+
+/* Saved state — green glow */
 .save-status.saved {
-  background: var(--color-success-bg);
-  color: var(--color-success-text);
-  border-bottom-color: var(--color-success-border);
+  background: var(--color-success-bg) !important;
+  color: var(--color-success-text) !important;
+  border-bottom-color: var(--color-success-border) !important;
   box-shadow: inset 0 -1px 0 var(--color-success-border);
 }
 
-.save-status.unsaved {
-  background: rgba(245, 158, 11, 0.08);
-  color: #fbbf24;
-  border-bottom-color: rgba(245, 158, 11, 0.2);
+.save-status.saved::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--color-success-text);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
 }
 
+/* Unsaved state — amber/yellow */
+.save-status.unsaved {
+  background: rgba(245, 158, 11, 0.08) !important;
+  color: #fbbf24 !important;
+  border-bottom-color: rgba(245, 158, 11, 0.2) !important;
+}
+
+.save-status.unsaved::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #fbbf24;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+
+/* Error state — red glow */
 .save-status.error {
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  border-bottom-color: var(--color-error-border);
+  background: var(--color-error-bg) !important;
+  color: var(--color-error-text) !important;
+  border-bottom-color: var(--color-error-border) !important;
   box-shadow: inset 0 -1px 0 var(--color-error-border);
+}
+
+.save-status.error::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--color-error-text);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+@keyframes cyan-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
 }
 
 /* ── Editor body layout — split view with gradient divider ─────── */
@@ -267,20 +321,34 @@
   cursor: not-allowed;
 }
 
-.btn-primary.saving {
-  animation: pulse 1.5s infinite;
-}
+/* ── Save button — gradient background + dark text + neon hover ─ */
 
-/* Save button — neon active state */
 .save-btn {
-  background: var(--glass-bg) !important;
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
+  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%) !important;
+  border: none !important;
+  color: #0a0a12 !important; /* dark text on gradient */
+  border-radius: 50px !important; /* pill shape */
+  padding: 10px 24px !important;
+  font-family: 'Syne', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  letter-spacing: 1px !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
 }
 
 .save-btn:hover:not(:disabled) {
-  background: rgba(0, 240, 255, 0.15) !important;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3), 0 0 8px var(--glow-cyan) !important;
+  box-shadow: 0 0 25px var(--glow-cyan), 0 0 50px rgba(0, 240, 255, 0.15) !important;
+  transform: translateY(-2px) scale(1.03) !important;
+}
+
+.save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary.saving {
+  animation: pulse 1.5s infinite;
 }
 
 .btn-secondary {
