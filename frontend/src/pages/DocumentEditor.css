@@ -1,5 +1,5 @@
 /**
- * CSS styles for Document Editor page — Nexaverse dark mode with glassmorphism.
+ * CSS styles for Document Editor page — Nexaverse dark mode with glassmorphism, neon effects.
  */
 
 .document-editor {
@@ -9,7 +9,8 @@
   background: var(--dark-1);
 }
 
-/* Header with title and actions */
+/* ── Header with title input and actions ─────────────────────────── */
+
 .editor-header {
   display: flex;
   align-items: center;
@@ -19,11 +20,12 @@
   background: var(--dark-2);
 }
 
+/* Editor title input — glassmorphism style */
 .editor-title-input {
   flex: 1;
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.7);
   border: none;
   outline: none;
   padding: 0.5rem;
@@ -35,52 +37,96 @@
   font-weight: normal;
 }
 
+/* Title input wrapper — glass panel */
+.editor-header > .editor-actions + .editor-title-input,
+.editor-header .editor-title-input {
+  /* Inline title input stays transparent */
+}
+
+/* ── Editor actions bar (buttons) ──────────────────────────────── */
+
 .editor-actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
 }
 
-/* View mode toggle button */
-.view-mode-btn.active {
-  background-color: var(--primary) !important;
-  color: var(--dark-1) !important;
+/* View mode toggle button — glassmorphism pill style */
+.view-mode-btn {
+  padding: 0.4rem 0.8rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 50px;
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-/* Save status indicator */
+.view-mode-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.view-mode-btn.active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--dark-1) !important;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+}
+
+/* ── Save status indicator — neon styling ──────────────────────── */
+
 .save-status {
-  padding: 0.25rem 1rem;
+  padding: 0.35rem 1.5rem;
   text-align: center;
   font-size: 0.875rem;
   background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--glass-border);
+  transition: all 0.3s ease;
 }
 
 .save-status.saving {
-  background: rgba(245, 158, 11, 0.15);
-  color: var(--color-warning-text);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fbbf24;
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+  box-shadow: inset 0 -1px 0 rgba(245, 158, 11, 0.2);
 }
 
 .save-status.saved {
   background: var(--color-success-bg);
   color: var(--color-success-text);
+  border-bottom-color: var(--color-success-border);
+  box-shadow: inset 0 -1px 0 var(--color-success-border);
 }
 
 .save-status.unsaved {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(245, 158, 11, 0.08);
   color: #fbbf24;
+  border-bottom-color: rgba(245, 158, 11, 0.2);
 }
 
 .save-status.error {
   background: var(--color-error-bg);
   color: var(--color-error-text);
+  border-bottom-color: var(--color-error-border);
+  box-shadow: inset 0 -1px 0 var(--color-error-border);
 }
 
-/* Editor body layout */
+/* ── Editor body layout — split view with gradient divider ─────── */
+
 .editor-body {
   flex: 1;
   display: flex;
   overflow: hidden;
+  position: relative;
 }
 
 /* View mode variants */
@@ -97,32 +143,69 @@
   width: 50%;
 }
 
-/* Editor pane — glass panel */
-.editor-pane {
-  display: flex;
-  border-right: 1px solid var(--glass-border);
-  overflow: hidden;
+/* Gradient divider between split panes */
+.view-mode-split .editor-body::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--primary) 0%, var(--secondary) 100%);
+  pointer-events: none;
+  z-index: 10;
 }
 
+/* ── Editor pane — glass panel with neon textarea ──────────────── */
+
+.editor-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Markdown textarea — Nexaverse form style */
 .markdown-input {
   width: 100%;
   height: 100%;
   padding: 2rem;
   border: none;
   resize: none;
-  font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 1rem;
-  line-height: 1.6;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  line-height: 1.8;
   outline: none;
-  background: var(--dark-2);
-  color: var(--text-primary);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
 }
 
+.markdown-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Neon cursor — caret color + custom glow */
+.markdown-input {
+  caret-color: var(--primary) !important;
+}
+
+/* Custom neon cursor effect via text-indent hack (webkit only) */
+@supports (-webkit-text-fill-color: transparent) {
+  .markdown-input {
+    -webkit-text-fill-color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+/* Focus state — neon glow border + shadow */
 .markdown-input:focus {
-  box-shadow: inset 0 0 0 2px var(--primary);
+  box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.1), 0 0 15px rgba(0, 240, 255, 0.2);
 }
 
-/* Preview pane */
+/* ── Preview pane — glassmorphism markdown viewer ──────────────── */
+
 .preview-pane {
   flex: 1;
   padding: 2rem;
@@ -137,7 +220,8 @@
   margin-top: 4rem;
 }
 
-/* Loading indicator */
+/* ── Loading indicator ─────────────────────────────────────────── */
+
 .editor-loading {
   display: flex;
   align-items: center;
@@ -147,30 +231,49 @@
   color: var(--text-muted);
 }
 
-/* Button styles */
+/* ── Button styles — glassmorphism with neon hover ─────────────── */
+
 .btn-primary {
   padding: 0.5rem 1rem;
-  background-color: var(--primary);
-  color: var(--dark-1);
-  border: none;
-  border-radius: 4px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  color: rgba(255, 255, 255, 0.7);
+  border-radius: 50px;
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: background-color var(--transition-base), box-shadow var(--transition-base);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
+  transition: all 0.3s ease;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 8px var(--glow-cyan);
+  background: rgba(0, 240, 255, 0.1);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3), 0 0 8px var(--glow-cyan);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
 .btn-primary.saving {
   animation: pulse 1.5s infinite;
+}
+
+/* Save button — neon active state */
+.save-btn {
+  background: var(--glass-bg) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+.save-btn:hover:not(:disabled) {
+  background: rgba(0, 240, 255, 0.15) !important;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3), 0 0 8px var(--glow-cyan) !important;
 }
 
 .btn-secondary {
@@ -193,7 +296,8 @@
   50% { opacity: 0.7; }
 }
 
-/* Markdown preview styles */
+/* ── Markdown preview styles — Nexaverse dark theme ────────────── */
+
 .preview-pane h1,
 .preview-pane h2,
 .preview-pane h3,
@@ -273,7 +377,27 @@
   border-radius: 4px;
 }
 
-/* Responsive adjustments */
+/* ── Editor footer — word/character count ──────────────────────── */
+
+.editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 2rem;
+  background: var(--dark-2);
+  border-top: 1px solid var(--glass-border);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.word-count,
+.char-count {
+  white-space: nowrap;
+}
+
+/* ── Responsive adjustments ────────────────────────────────────── */
+
 @media (max-width: 768px) {
   .editor-header {
     flex-direction: column;
@@ -295,22 +419,13 @@
   .view-mode-split .editor-body {
     flex-direction: column;
   }
-}
 
-/* Editor footer with word/character count */
-.editor-footer {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 1rem;
-  padding: 0.4rem 2rem;
-  background: var(--dark-2);
-  border-top: 1px solid var(--glass-border);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.word-count,
-.char-count {
-  white-space: nowrap;
+  /* On mobile, hide gradient divider — use horizontal separator instead */
+  .view-mode-split .editor-body::after {
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 100%;
+    height: 2px;
+  }
 }
