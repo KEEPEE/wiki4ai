@@ -4,6 +4,7 @@ import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
+import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,6 +44,9 @@ class ProjectServiceTest {
 
     @Mock
     private PermissionService permissionService;
+
+    @Mock
+    private ProjectPermissionRepository projectPermissionRepository;
 
     @InjectMocks
     private ProjectService projectService;

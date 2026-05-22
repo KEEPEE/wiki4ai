@@ -366,11 +366,12 @@ public class DocumentService {
 
     /**
      * Move a document from its current project to a target project.
-     * Requires UPDATE + DELETE on source project, CREATE on target project.
+     * Requires UPDATE + DELETE on source project, READ on target project (not CREATE).
+     * Moving a document doesn't create new content — it moves existing content between projects.
      */
     @Transactional
     public DocumentDTO moveDocument(Long sourceProjectId, String slug, String targetProjectSlug, String username) {
-        // Check permissions first
+        // Check permissions: UPDATE + DELETE on source, READ on target (not CREATE)
         permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
         permissionService.checkPermission(username, sourceProjectId, Permission.DELETE);
 
@@ -384,8 +385,9 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Target project not found with slug: " + targetProjectSlug));
 
-        // Check CREATE permission on target project
-        permissionService.checkPermission(username, targetProject.getId(), Permission.CREATE);
+        // Check READ permission on target project (not CREATE — we're moving, not creating)
+        // Wiki convention: any authenticated user can read all projects
+        permissionService.checkPermission(username, targetProject.getId(), Permission.READ);
 
         // Cannot move to the same project
         if (sourceProjectId.equals(targetProject.getId())) {

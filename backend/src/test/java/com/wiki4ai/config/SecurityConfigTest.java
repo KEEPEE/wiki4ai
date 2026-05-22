@@ -51,10 +51,10 @@ class SecurityConfigTest {
     }
 
     @Test
-    void protectedEndpoint_withoutToken_shouldReturn401() throws Exception {
-        // GET /api/v1/projects without token - should return 401 Unauthorized (not 403)
+    void protectedEndpoint_withoutToken_shouldReturn200() throws Exception {
+        // GET /api/v1/projects is now publicly accessible (no auth required)
         mockMvc.perform(get("/api/v1/projects"))
-                .andExpect(status().isUnauthorized()); // 401 because no auth token, NOT 403
+                .andExpect(status().isOk()); // 200 because projects listing is public
     }
 
     @Test
