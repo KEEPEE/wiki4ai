@@ -1,17 +1,17 @@
 /**
- * CSS styles for Markdown Viewer component.
+ * CSS styles for Markdown Viewer component — Nexaverse dark mode with glassmorphism.
  */
 
 .markdown-viewer {
   padding: 1rem;
   line-height: 1.7;
-  color: #333;
+  color: var(--text-secondary);
 }
 
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3 {
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
@@ -25,19 +25,20 @@
 }
 
 .markdown-content a.wiki-link {
-  color: #4a90d9;
+  color: var(--primary);
   text-decoration: none;
-  border-bottom: 1px dashed #4a90d9;
+  border-bottom: 1px dashed var(--primary);
   cursor: pointer;
 }
 
 .markdown-content a.wiki-link:hover {
-  color: #357abd;
+  color: #00d4e6; /* slightly darker cyan */
   border-bottom-style: solid;
+  text-shadow: 0 0 8px var(--glow-cyan);
 }
 
 .markdown-viewer code {
-  background: #f4f4f4;
+  background-color: rgba(255, 255, 255, 0.06);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -45,11 +46,12 @@
 }
 
 .markdown-viewer pre {
-  background: #1a1a2e;
-  color: #e0e0e0;
+  background-color: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
+  border: 1px solid var(--glass-border);
 }
 
 .markdown-viewer pre code {
@@ -60,16 +62,16 @@
 
 .markdown-viewer hr {
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--glass-border);
   margin: 1.5rem 0;
 }
 
 .markdown-viewer blockquote {
-  border-left: 4px solid #4a90d9;
+  border-left: 4px solid var(--primary);
   padding: 0.5rem 1rem;
   margin: 1rem 0;
-  background: #f8f9fa;
-  color: #555;
+  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
 }
 
 .markdown-viewer ul,
@@ -83,22 +85,22 @@
 }
 
 .empty-content {
-  color: #888;
+  color: var(--text-muted);
   font-style: italic;
 }
 
-/* Links section */
+/* Links section — glass panel */
 .links-section {
   margin-top: 2rem;
   padding: 1rem;
-  background: #f0f7ff;
+  background: rgba(0, 240, 255, 0.03);
   border-radius: 8px;
-  border: 1px solid #d0e3f7;
+  border: 1px solid var(--glass-border);
 }
 
 .links-section h3 {
   font-size: 1.1rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin-bottom: 0.75rem;
 }
 
@@ -113,13 +115,14 @@
 .links-section li a.wiki-link {
   display: inline-block;
   padding: 0.25rem 0.75rem;
-  background: #ffffff;
+  background: var(--glass-bg);
   border-radius: 4px;
-  border: 1px solid #c0d8f0;
+  border: 1px solid rgba(0, 240, 255, 0.2);
   font-size: 0.9rem;
 }
 
 .links-section li a.wiki-link:hover {
-  background: #e3f0ff;
-  border-color: #4a90d9;
+  background: rgba(0, 240, 255, 0.1);
+  border-color: var(--primary);
+  box-shadow: 0 0 8px var(--glow-cyan);
 }
