@@ -53,6 +53,24 @@ export function useDocuments(projectSlug: string) {
     },
   });
 
+  // Add link mutation with cache invalidation
+  const addLinkMutation = useMutation({
+    mutationFn: ({ docSlug, targetDocumentId }: { docSlug: string; targetDocumentId: number }) =>
+      documentApi.addLink(projectSlug, docSlug, targetDocumentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+    },
+  });
+
+  // Remove link mutation with cache invalidation
+  const removeLinkMutation = useMutation({
+    mutationFn: ({ docSlug, targetDocumentId }: { docSlug: string; targetDocumentId: number }) =>
+      documentApi.removeLink(projectSlug, docSlug, targetDocumentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+    },
+  });
+
   return {
     documents: data ?? [],
     isLoading,
@@ -62,10 +80,14 @@ export function useDocuments(projectSlug: string) {
     updateDocument: updateMutation.mutateAsync,
     deleteDocument: deleteMutation.mutateAsync,
     uploadDocument: uploadMutation.mutateAsync,
+    addLink: addLinkMutation.mutateAsync,
+    removeLink: removeLinkMutation.mutateAsync,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
     isUploading: uploadMutation.isPending,
+    isAddingLink: addLinkMutation.isPending,
+    isRemovingLink: removeLinkMutation.isPending,
   };
 }
 

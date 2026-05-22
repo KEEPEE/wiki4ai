@@ -22,3 +22,7 @@ export interface UpdateDocumentDto {
   title: string;
   content?: string;
 }
+
+export interface LinkCreateDto {
+  targetDocumentId: number;
+}
