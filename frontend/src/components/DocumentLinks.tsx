@@ -139,7 +139,7 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
           />
           <button
             type="submit"
-            disabled={addingLink || !newLinkTarget.trim()}
+            disabled={!!addingLink || !newLinkTarget.trim()}
             className={`btn-primary add-link-btn ${addingLink ? 'loading' : ''}`}
           >
             {addingLink ? 'Pridáva sa...' : '+ Pridať prepojenie'}
