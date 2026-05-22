@@ -75,21 +75,47 @@
 
 .role-badge {
   display: inline-block;
-  padding: 0.125rem 0.625rem;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  border: 1px solid rgba(0, 240, 255, 0.2); /* cyan pri 20% opacity */
+  border-radius: 50px; /* pill shape */
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  transition: border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.role-badge:hover {
+  border-color: var(--primary, #00f0ff); /* #00f0ff */
+  color: var(--primary, #00f0ff); /* #00f0ff */
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
 }
 
 .role-admin {
-  background-color: rgba(245, 158, 11, 0.15);
-  color: var(--color-warning-text);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+  border-color: rgba(245, 158, 11, 0.3); /* warning orange */
+  color: var(--color-warning-text, #fbbf24);
+}
+
+.role-admin:hover {
+  border-color: var(--color-warning-text, #fbbf24);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+  color: var(--color-warning-text, #fbbf24);
 }
 
 .role-user {
-  background-color: rgba(59, 130, 246, 0.15);
-  color: var(--color-info-text);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-color: rgba(59, 130, 246, 0.3); /* info blue */
+  color: var(--color-info-text, #60a5fa);
+}
+
+.role-user:hover {
+  border-color: var(--color-info-text, #60a5fa);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+  color: var(--color-info-text, #60a5fa);
 }
 
 /* Form styling */
