@@ -370,7 +370,7 @@ const Dashboard: React.FC = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Search projects..."
+            placeholder="Hľadať projekty..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="search-input"
