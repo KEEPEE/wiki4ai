@@ -1,33 +1,48 @@
 /**
  * Auth page styles — Nexaverse dark mode with glassmorphism.
+ * Full-screen pozadie, ambient orbs, neon glow inputs, gradient button.
  */
+
+/* ── Page Background ──────────────────────────────────────────── */
 
 .auth-page {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 64px);
+  min-height: 100vh;
   padding: 2rem;
   background-color: var(--dark-1);
 }
 
+/* ── Auth Card — Glassmorphism Container ─────────────────────── */
+
 .auth-card {
   width: 100%;
-  max-width: 420px;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 2rem;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  padding: 48px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
+/* ── Auth Title — Gradient Text Fill ─────────────────────────── */
+
 .auth-title {
-  font-size: 1.5rem;
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
   font-weight: 700;
   text-align: center;
   margin-bottom: 1.5rem;
-  color: var(--text-primary);
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
+
+/* ── Auth Form ───────────────────────────────────────────────── */
 
 .auth-form {
   display: flex;
@@ -41,32 +56,51 @@
   gap: 0.375rem;
 }
 
+/* ── Form Label ──────────────────────────────────────────────── */
+
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
+
+/* ── Form Inputs — Glass + Neon Glow Focus ───────────────────── */
 
 .form-input {
   width: 100%;
-  padding: 0.625rem 0.875rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   font-size: 0.9375rem;
-  color: var(--text-primary);
-  background-color: var(--dark-2);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  color: rgba(255, 255, 255, 0.7);
+  background-color: rgba(255, 255, 255, 0.05);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
+}
+
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: var(--focus-ring-shadow);
+  border-color: #00f0ff;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.08);
 }
 
-.form-input::placeholder {
-  color: var(--text-muted);
+/* ── Validation Error Styles ─────────────────────────────────── */
+
+.form-input-error {
+  border-color: var(--color-error-text) !important;
 }
+
+.field-error {
+  font-size: 0.75rem;
+  color: var(--color-error-text);
+  margin-top: -0.125rem;
+}
+
+/* ── Auth Error Message ──────────────────────────────────────── */
 
 .auth-error {
   padding: 0.75rem 1rem;
@@ -78,26 +112,29 @@
   margin-bottom: 1rem;
 }
 
+/* ── Submit Button — Gradient + Hover Glow ──────────────────── */
+
 .auth-submit-btn {
   width: 100%;
-  padding: 0.75rem;
+  padding: 14px 32px;
   margin-top: 0.5rem;
 }
 
 .btn-primary {
-  background-color: var(--primary);
-  color: var(--dark-1);
+  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
+  color: #0a0a12;
   border: none;
-  border-radius: 8px;
+  border-radius: 50px;
+  font-family: 'Syne', sans-serif;
   font-size: 0.9375rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 12px var(--glow-cyan);
+  box-shadow: 0 0 30px rgba(0, 240, 255, 0.4), 0 0 60px rgba(0, 240, 255, 0.2);
+  transform: translateY(-2px) scale(1.02);
 }
 
 .btn-primary:disabled {
@@ -105,31 +142,22 @@
   cursor: not-allowed;
 }
 
+/* ── Auth Footer — Register / Login Link ─────────────────────── */
+
 .auth-footer {
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.875rem;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .auth-link {
   color: var(--primary);
   text-decoration: none;
   font-weight: 600;
+  transition: text-shadow var(--transition-fast);
 }
 
 .auth-link:hover {
-  text-decoration: underline;
-  box-shadow: 0 0 8px var(--glow-cyan);
-}
-
-/* Validation error styles */
-.form-input-error {
-  border-color: var(--color-error-text) !important;
-}
-
-.field-error {
-  font-size: 0.75rem;
-  color: var(--color-error-text);
-  margin-top: -0.125rem;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
 }

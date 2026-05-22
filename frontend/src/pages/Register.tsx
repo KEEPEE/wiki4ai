@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AmbientBackground from '../components/AmbientBackground';
 import './Login.css';
 
 /** Validation result for a single field */
@@ -83,100 +84,103 @@ export default function Register() {
   );
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-title">Create Account</h1>
+    <>
+      <AmbientBackground />
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1 className="auth-title">Create Account</h1>
 
-        {serverError && (
-          <div className="auth-error" role="alert" data-testid="register-server-error">
-            {serverError}
-          </div>
-        )}
+          {serverError && (
+            <div className="auth-error" role="alert" data-testid="register-server-error">
+              {serverError}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="auth-form" data-testid="register-form">
-          <div className="form-group">
-            <label htmlFor="reg-username" className="form-label">
-              Username
-            </label>
-            <input
-              id="reg-username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className={`form-input ${fieldErrors.username ? 'form-input-error' : ''}`}
-              placeholder="Choose a username (min 3 chars)"
-              required
-              autoComplete="username"
-              data-testid="register-username"
-            />
-            {fieldErrors.username && (
-              <span className="field-error" data-testid="register-username-error">
-                {fieldErrors.username}
-              </span>
-            )}
-          </div>
+          <form onSubmit={handleSubmit} className="auth-form" data-testid="register-form">
+            <div className="form-group">
+              <label htmlFor="reg-username" className="form-label">
+                Username
+              </label>
+              <input
+                id="reg-username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className={`form-input ${fieldErrors.username ? 'form-input-error' : ''}`}
+                placeholder="Choose a username (min 3 chars)"
+                required
+                autoComplete="username"
+                data-testid="register-username"
+              />
+              {fieldErrors.username && (
+                <span className="field-error" data-testid="register-username-error">
+                  {fieldErrors.username}
+                </span>
+              )}
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="reg-email" className="form-label">
-              Email
-            </label>
-            <input
-              id="reg-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={`form-input ${fieldErrors.email ? 'form-input-error' : ''}`}
-              placeholder="your@email.com"
-              required
-              autoComplete="email"
-              data-testid="register-email"
-            />
-            {fieldErrors.email && (
-              <span className="field-error" data-testid="register-email-error">
-                {fieldErrors.email}
-              </span>
-            )}
-          </div>
+            <div className="form-group">
+              <label htmlFor="reg-email" className="form-label">
+                Email
+              </label>
+              <input
+                id="reg-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`form-input ${fieldErrors.email ? 'form-input-error' : ''}`}
+                placeholder="your@email.com"
+                required
+                autoComplete="email"
+                data-testid="register-email"
+              />
+              {fieldErrors.email && (
+                <span className="field-error" data-testid="register-email-error">
+                  {fieldErrors.email}
+                </span>
+              )}
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="reg-password" className="form-label">
-              Password
-            </label>
-            <input
-              id="reg-password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
-              placeholder="Min 8 characters"
-              required
-              autoComplete="new-password"
-              data-testid="register-password"
-            />
-            {fieldErrors.password && (
-              <span className="field-error" data-testid="register-password-error">
-                {fieldErrors.password}
-              </span>
-            )}
-          </div>
+            <div className="form-group">
+              <label htmlFor="reg-password" className="form-label">
+                Password
+              </label>
+              <input
+                id="reg-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
+                placeholder="Min 8 characters"
+                required
+                autoComplete="new-password"
+                data-testid="register-password"
+              />
+              {fieldErrors.password && (
+                <span className="field-error" data-testid="register-password-error">
+                  {fieldErrors.password}
+                </span>
+              )}
+            </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary auth-submit-btn"
-            disabled={isLoading}
-            data-testid="register-submit"
-          >
-            {isLoading ? 'Creating account...' : 'Register'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="btn btn-primary auth-submit-btn"
+              disabled={isLoading}
+              data-testid="register-submit"
+            >
+              {isLoading ? 'Creating account...' : 'Register'}
+            </button>
+          </form>
 
-        <p className="auth-footer">
-          Already have an account?{' '}
-          <Link to="/login" className="auth-link">
-            Login here
-          </Link>
-        </p>
+          <p className="auth-footer">
+            Already have an account?{' '}
+            <Link to="/login" className="auth-link">
+              Login here
+            </Link>
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

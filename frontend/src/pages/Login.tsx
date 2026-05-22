@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getRedirectFromUrl } from '../services/apiClient';
+import AmbientBackground from '../components/AmbientBackground';
 import './Login.css';
 
 export default function Login() {
@@ -37,68 +38,71 @@ export default function Login() {
   );
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-title">Login to Wiki4AI</h1>
+    <>
+      <AmbientBackground />
+      <div className="auth-page">
+        <div className="auth-card">
+          <h1 className="auth-title">Login to Wiki4AI</h1>
 
-        {error && (
-          <div className="auth-error" role="alert" data-testid="login-error">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="auth-error" role="alert" data-testid="login-error">
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit} className="auth-form" data-testid="login-form">
-          <div className="form-group">
-            <label htmlFor="username" className="form-label">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="form-input"
-              placeholder="Enter your username"
-              required
-              autoComplete="username"
-              data-testid="login-username"
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="auth-form" data-testid="login-form">
+            <div className="form-group">
+              <label htmlFor="username" className="form-label">
+                Username
+              </label>
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="form-input"
+                placeholder="Enter your username"
+                required
+                autoComplete="username"
+                data-testid="login-username"
+              />
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="form-input"
-              placeholder="Enter your password"
-              required
-              autoComplete="current-password"
-              data-testid="login-password"
-            />
-          </div>
+            <div className="form-group">
+              <label htmlFor="password" className="form-label">
+                Password
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="form-input"
+                placeholder="Enter your password"
+                required
+                autoComplete="current-password"
+                data-testid="login-password"
+              />
+            </div>
 
-          <button
-            type="submit"
-            className="btn btn-primary auth-submit-btn"
-            disabled={isLoading}
-            data-testid="login-submit"
-          >
-            {isLoading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="btn btn-primary auth-submit-btn"
+              disabled={isLoading}
+              data-testid="login-submit"
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
 
-        <p className="auth-footer">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="auth-link">
-            Register here
-          </Link>
-        </p>
+          <p className="auth-footer">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="auth-link">
+              Register here
+            </Link>
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
