@@ -8,6 +8,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import BackButton from '../components/BackButton';
+import Breadcrumb from '../components/Breadcrumb';
 import { documentApi } from '../services/documentApi';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
@@ -177,6 +178,11 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
 
   return (
     <div className="document-editor">
+      {/* Breadcrumb Navigation */}
+      {projectSlug && (
+        <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug || 'Nový dokument'} />
+      )}
+
       {/* Header with title input and actions */}
       <header className="editor-header">
         <input

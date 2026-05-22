@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
 import BackButton from '../components/BackButton';
+import Breadcrumb from '../components/Breadcrumb';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
 import './DocumentViewer.css';
@@ -109,17 +110,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   return (
     <div className="document-viewer">
       {/* Breadcrumb Navigation */}
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <ol>
-          <li>
-            <Link to="/">Dashboard</Link>
-          </li>
-          <li>
-            <Link to={`/projects/${projectSlug}`}>{projectSlug}</Link>
-          </li>
-          <li className="current" aria-current="page">{title || docSlug}</li>
-        </ol>
-      </nav>
+      <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug} />
 
       {/* Document Header */}
       <header className="document-header">

@@ -1,0 +1,152 @@
+/**
+ * Breadcrumb navigation styles — Nexaverse glassmorphism design system.
+ * 
+ * Design tokens used:
+ * - var(--glass-bg): rgba(255, 255, 255, 0.03) — glass panel fill
+ * - var(--glass-border): rgba(255, 255, 255, 0.08) — glass border stroke
+ * - var(--primary): #00f0ff — cyan neon accent
+ * - var(--glow-cyan): rgba(0, 240, 255, 0.4) — cyan glow effect
+ * 
+ * Typography:
+ * - Project slug: 'Outfit' sans-serif (body font)
+ * - Document title: 'Syne' sans-serif (heading font)
+ */
+
+/* ── Breadcrumb Container — glassmorphism pill ─────────────────── */
+
+.breadcrumb {
+  margin-bottom: 1.5rem;
+}
+
+.breadcrumb-list {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  padding: 0.6rem 1.2rem;
+  margin: 0;
+  gap: 0.75rem;
+
+  /* Glassmorphism container */
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 50px;
+
+  /* Subtle shadow for depth */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+  /* Smooth transition for hover effects */
+  transition: all 0.3s ease;
+}
+
+/* ── Breadcrumb Items ─────────────────────────────────────────── */
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+}
+
+/* ── Breadcrumb Links — base styles ───────────────────────────── */
+
+.breadcrumb-link {
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+  padding: 0.15rem 0.25rem;
+  border-radius: 4px;
+}
+
+/* Dashboard home link — muted color */
+.breadcrumb-home {
+  font-family: 'Outfit', sans-serif;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.breadcrumb-home:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Project slug link — Outfit font, muted */
+.breadcrumb-project {
+  font-family: 'Outfit', sans-serif;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.breadcrumb-project:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* ── Breadcrumb Separator (→) ─────────────────────────────────── */
+
+.breadcrumb-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 0.875rem;
+  user-select: none;
+  margin: 0 0.15rem;
+}
+
+/* ── Current Document Title — Syne font, neon hover ───────────── */
+
+.breadcrumb-current {
+  /* No link styling for current page */
+}
+
+.breadcrumb-doc-title {
+  font-family: 'Syne', sans-serif;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  cursor: default;
+}
+
+/* Neon hover effect on document title */
+.breadcrumb-doc-title:hover {
+  color: var(--primary);
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.3), 0 0 20px rgba(0, 240, 255, 0.15);
+}
+
+/* ── Active / Focus States ────────────────────────────────────── */
+
+.breadcrumb-link:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* ── Responsive — collapse on small screens ──────────────────── */
+
+@media (max-width: 640px) {
+  .breadcrumb-list {
+    border-radius: 12px; /* Less rounded on mobile for space */
+    padding: 0.5rem 0.75rem;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .breadcrumb-separator {
+    display: none; /* Hide separators on very small screens */
+  }
+
+  .breadcrumb-list::before {
+    content: '→';
+    color: rgba(255, 255, 255, 0.3);
+    margin-right: 0.2rem;
+  }
+
+  .breadcrumb-home {
+    font-size: 0.8rem;
+  }
+
+  .breadcrumb-project {
+    font-size: 0.8rem;
+  }
+
+  .breadcrumb-doc-title {
+    font-size: 0.8rem;
+  }
+}
