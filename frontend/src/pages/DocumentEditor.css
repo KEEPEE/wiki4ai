@@ -58,33 +58,50 @@
   align-items: center;
 }
 
-/* View mode toggle button — glassmorphism pill style */
+/* ── View mode toggle container — pill button group ─────────────── */
+
+.view-mode-toggle {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+/* View mode toggle buttons — glassmorphism pill style */
 .view-mode-btn {
-  padding: 0.4rem 0.8rem;
-  background: var(--glass-bg);
+  padding: 0.4rem 1rem;
+  background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 50px;
   color: rgba(255, 255, 255, 0.6);
-  font-family: 'Syne', sans-serif;
-  font-size: 0.75rem;
-  letter-spacing: 1px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 400;
+  letter-spacing: 0.5px;
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
-.view-mode-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
+/* Inactive hover state */
+.view-mode-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.8);
 }
 
+/* Active state — cyan neon glow */
 .view-mode-btn.active {
-  background: var(--primary) !important;
+  background: rgba(0, 240, 255, 0.08) !important;
   border-color: var(--primary) !important;
-  color: var(--dark-1) !important;
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
+  color: var(--primary) !important;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+/* Active hover — slightly stronger glow */
+.view-mode-btn.active:hover {
+  background: rgba(0, 240, 255, 0.12) !important;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
 }
 
 /* ── Save status indicator — dot + text with neon per state ───── */

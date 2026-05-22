@@ -161,8 +161,10 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     }
   };
 
-  const handlePreviewToggle = () => {
-    setViewMode((prev) => (prev === 'split' ? 'edit' : prev === 'preview' ? 'split' : 'edit'));
+  const viewModes: ViewMode[] = ['edit', 'preview', 'split'];
+
+  const handleViewModeChange = (mode: ViewMode) => {
+    setViewMode(mode);
   };
 
   if (loading) {
@@ -194,14 +196,20 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         />
 
         <div className="editor-actions">
-          {/* View mode toggle */}
-          <button
-            onClick={handlePreviewToggle}
-            className={`btn-secondary view-mode-btn ${viewMode === 'split' ? 'active' : ''}`}
-            title={viewMode === 'edit' ? 'Zobraziť náhľad' : viewMode === 'preview' ? 'Zobraziť split' : 'Zobraziť editor'}
-          >
-            {viewMode === 'edit' ? '👁 Náhľad' : viewMode === 'preview' ? '⬜ Split' : '✏️ Editor'}
-          </button>
+          {/* View mode toggle — three pill buttons */}
+          <div className="view-mode-toggle" data-testid="view-mode-toggle">
+            {viewModes.map((mode) => (
+              <button
+                key={mode}
+                onClick={() => handleViewModeChange(mode)}
+                className={`view-mode-btn ${viewMode === mode ? 'active' : ''}`}
+                aria-label={`${mode.charAt(0).toUpperCase() + mode.slice(1)} view`}
+                title={`Zobraziť ako ${mode === 'edit' ? 'editor' : mode === 'preview' ? 'náhľad' : 'split'}`}
+              >
+                {mode === 'edit' ? 'Edit' : mode === 'preview' ? 'Preview' : 'Split'}
+              </button>
+            ))}
+          </div>
 
           {/* Save button */}
           <button
