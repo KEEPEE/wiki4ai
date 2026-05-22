@@ -64,6 +64,93 @@
   --transition-base: 0.2s ease;
 }
 
+/* ── Typography — Nexaverse Fonts ─────────────────────────────── */
+
+body {
+  font-family: 'Outfit', sans-serif;
+}
+
+h1, h2, h3, .section-title, .brand-name, .menu-badge, .metric-value {
+  font-family: 'Syne', sans-serif;
+}
+
+p, span, a, button, input, textarea {
+  font-family: 'Outfit', sans-serif;
+}
+
+/* ── Loading Screen — Nexaverse Dual-Ring Spinner ─────────────── */
+
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--dark-1);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loader-ring {
+  width: 80px;
+  height: 80px;
+  position: relative;
+}
+
+.loader-ring::before,
+.loader-ring::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+/* Outer ring — cyan (#00f0ff), clockwise rotation */
+.loader-ring::before {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top-color: var(--primary);
+  border-right-color: var(--primary);
+  animation: spin 1.2s linear infinite;
+}
+
+/* Inner ring — magenta (#ff00d4), counter-clockwise rotation */
+.loader-ring::after {
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border-bottom-color: var(--secondary);
+  border-left-color: var(--secondary);
+  animation: spin 0.8s linear infinite reverse;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin-top: 30px;
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--primary);
+  text-transform: uppercase;
+}
+
 /* ── Dark Mode Default (no light mode toggle) ─────────────────── */
 
 html,
