@@ -9,6 +9,13 @@
   background: var(--dark-1);
 }
 
+/* ── Breadcrumb above header ─────────────────────────────────── */
+
+.document-editor > .breadcrumb {
+  padding: 0.5rem 2rem;
+  flex-shrink: 0;
+}
+
 /* ── Header with title input and actions ─────────────────────────── */
 
 .editor-header {
