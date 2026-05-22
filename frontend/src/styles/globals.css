@@ -68,6 +68,7 @@
 
 body {
   font-family: 'Outfit', sans-serif;
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
 
 h1, h2, h3, .section-title, .brand-name, .menu-badge, .metric-value {
@@ -76,6 +77,40 @@ h1, h2, h3, .section-title, .brand-name, .menu-badge, .metric-value {
 
 p, span, a, button, input, textarea {
   font-family: 'Outfit', sans-serif;
+}
+
+/* ── Brand Name — Nexaverse Style ─────────────────────────────── */
+
+.brand-name {
+  font-weight: 600;
+  font-size: 52px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Section Title — Nexaverse Style ──────────────────────────── */
+
+.section-title {
+  font-weight: 600;
+  font-size: 42px;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Text Opacity — Nexaverse ─────────────────────────────────── */
+
+.text-secondary {
+  color: rgba(255, 255, 255, 0.5); /* Nexaverse secondary text opacity */
+}
+
+.text-primary {
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
 
 /* ── Loading Screen — Nexaverse Dual-Ring Spinner ─────────────── */
