@@ -20,16 +20,16 @@ export interface GraphViewProps {
   onNodeClick?: (docSlug: string) => void;
 }
 
-// Color palette for nodes based on document count
+// Neon color palette for dark background — Nexaverse inspired
 const NODE_COLORS = [
-  '#4f46e5', // indigo
-  '#0891b2', // cyan
+  '#00f0ff', // cyan neon
+  '#ff00d4', // magenta neon
+  '#9d4edd', // purple neon
+  '#0891b2', // teal
   '#059669', // emerald
-  '#d97706', // amber
-  '#dc2626', // red
   '#7c3aed', // violet
   '#db2777', // pink
-  '#2563eb', // blue,
+  '#ffffff', // white
 ];
 
 // Maximum characters to show in the node label before truncating
@@ -206,7 +206,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
 
       const arrowWidth = arrowLength * 0.5;
 
-      // Draw the connection line (shortened so it doesn't overlap the arrow)
+      // Draw the connection line — cyan at 30% opacity (Nexaverse style)
       const dx = tx - sx;
       const dy = ty - sy;
       const dist = Math.sqrt(dx * dx + dy * dy);
@@ -222,11 +222,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(lineEndX, lineEndY);
-      ctx.strokeStyle = '#9ca3af';
+      ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)'; // cyan at 30% opacity
       ctx.lineWidth = lineWidth;
       ctx.stroke();
 
-      // Draw the directional arrowhead at the target end
+      // Draw the directional arrowhead — neon cyan (primary color)
       const perpX = -ny; // perpendicular x
       const perpY = nx;  // perpendicular y
 
@@ -241,7 +241,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         ty - ny * arrowLength - perpY * arrowWidth
       );
       ctx.closePath();
-      ctx.fillStyle = '#9ca3af';
+      ctx.fillStyle = '#00f0ff'; // var(--primary) neon cyan
       ctx.fill();
     },
     [],
@@ -275,41 +275,50 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   };
 
   /**
-   * Custom node canvas object — draws the node circle AND its label permanently.
-   * This replaces the default rendering so we can always show labels (or hide them).
+   * Custom node canvas object — draws the node circle with neon glow AND its label permanently.
+   * Dark theme: white labels on dark background, cyan/magenta glow effects.
    */
   const drawNode = useCallback(
     (node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
       // When "Labels on" is active, labels are ALWAYS visible regardless of zoom.
-      // Previously there was a zoom-level threshold check that incorrectly hid labels
-      // when the user was zoomed in (high globalScale), which caused the bug where
-      // labels were invisible even with the toggle enabled.
       const shouldShowLabels = showLabels;
 
-      // Draw node circle
+      // Draw node circle with neon glow effect
       const radius = Math.max(8, 6 / globalScale); // Scale radius with zoom
+      
+      // Neon glow: use shadowBlur for cyan/magenta glow around each node
+      ctx.shadowBlur = 15 / globalScale; // Scale glow with zoom
+      ctx.shadowColor = '#00f0ff'; // Cyan glow (var(--glow-cyan))
+      
       ctx.beginPath();
       ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = node.color || '#4f46e5';
+      ctx.fillStyle = node.color || '#00f0ff';
       ctx.fill();
 
-      // Draw label if toggle is on
+      // Draw label if toggle is on — dark theme styling (Nexaverse)
       if (shouldShowLabels) {
         const fontSize = Math.max(8, 11 / globalScale); // Scale font with zoom
-        ctx.font = `${fontSize}px system-ui, -apple-system, sans-serif`;
+        
+        // Reset shadow for text rendering to keep it crisp
+        ctx.shadowBlur = 0;
+        ctx.shadowColor = 'transparent';
+        
+        // Use Outfit font family (Nexaverse style)
+        ctx.font = `${fontSize}px 'Outfit', system-ui, -apple-system, sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
         const label = truncateLabel(node.label);
         const textWidth = ctx.measureText(label).width;
 
-        // Background pill for readability
+        // Background pill for readability on dark background
         const paddingX = 4 / globalScale;
         const paddingY = 2.5 / globalScale;
         const pillWidth = textWidth + paddingX * 2;
         const pillHeight = fontSize + paddingY * 2;
 
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.88)';
+        // Semi-transparent dark pill background
+        ctx.fillStyle = 'rgba(10, 10, 18, 0.75)';
         ctx.beginPath();
         // Rounded rectangle for the label background
         const cornerRadius = Math.min(pillHeight / 2, pillWidth / 4);
@@ -336,11 +345,15 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         ctx.closePath();
         ctx.fill();
 
-        // Draw text on top of the background
-        const textColor = '#1a1a2e';
+        // Draw text — white at 80% opacity (Nexaverse style)
+        const textColor = 'rgba(255, 255, 255, 0.8)';
         ctx.fillStyle = textColor;
         ctx.fillText(label, node.x || 0, py + pillHeight / 2);
       }
+
+      // Reset shadow for next draw operations
+      ctx.shadowBlur = 0;
+      ctx.shadowColor = 'transparent';
     },
     [showLabels],
   );
@@ -380,23 +393,23 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         </div>
       </header>
       <div ref={containerRef} className="graph-container" onMouseMove={handleMouseMove}>
-        <ForceGraph2D
-          ref={graphRef}
-          graphData={graphData as any}
-          width={canvasSize.width}
-          height={canvasSize.height}
-          nodeColor={(node: GraphNode) => node.color || '#4f46e5'}
-          nodeRelSize={6}
-          nodeCanvasObject={drawNode}
-          linkWidth={0}
-          linkCanvasObject={drawLink}
-          backgroundColor="#fafafa"
-          onNodeHover={handleNodeHover}
-          onNodeClick={handleNodeClick}
-          onZoom={handleZoom}
-          cooldownTicks={100}
-          onEngineStop={handleEngineStop}
-        />
+          <ForceGraph2D
+            ref={graphRef}
+            graphData={graphData as any}
+            width={canvasSize.width}
+            height={canvasSize.height}
+            nodeColor={(node: GraphNode) => node.color || '#00f0ff'}
+            nodeRelSize={6}
+            nodeCanvasObject={drawNode}
+            linkWidth={0}
+            linkCanvasObject={drawLink}
+            backgroundColor="#0a0a12"
+            onNodeHover={handleNodeHover}
+            onNodeClick={handleNodeClick}
+            onZoom={handleZoom}
+            cooldownTicks={100}
+            onEngineStop={handleEngineStop}
+          />
 
         {/* Tooltip overlay — positioned near the cursor when hovering a node */}
         {hoveredNode && (
