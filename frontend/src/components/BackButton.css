@@ -1,0 +1,55 @@
+/**
+ * Back Button — Glassmorphism Pill with Neon Hover
+ *
+ * Inspired by TemplateMo 603 - Nexaverse (https://templatemo.com/tm-603-nexaverse).
+ * All visual properties use CSS variables defined in globals.css.
+ */
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 50px; /* pill shape */
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg) /* rgba(255, 255, 255, 0.03) */;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.back-button:hover {
+  background: rgba(0, 240, 255, 0.08);
+  border-color: var(--primary); /* #00f0ff */
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  transform: translateY(-3px) scale(1.02);
+}
+
+.back-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.back-button:active {
+  transform: translateY(-1px) scale(1.01);
+}
+
+.back-button-icon {
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.back-button:hover .back-button-icon {
+  transform: translateX(-3px);
+}
+
+.back-button-text {
+  white-space: nowrap;
+}

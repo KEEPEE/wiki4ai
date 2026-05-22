@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import BackButton from '../components/BackButton';
 import { documentApi } from '../services/documentApi';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
@@ -159,16 +160,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     }
   };
 
-  const handleBack = () => {
-    if (isEditing && projectSlug && docSlug) {
-      navigate(`/projects/${projectSlug}/documents/${docSlug}`);
-    } else {
-      navigate(-1); // Go back to previous page
-    }
-  };
-
   const handlePreviewToggle = () => {
-    setViewMode((prev) => (prev === 'split' ? 'edit' : prev === 'edit' ? 'preview' : 'split'));
+    setViewMode((prev) => (prev === 'split' ? 'edit' : prev === 'preview' ? 'split' : 'edit'));
   };
 
   if (loading) {
@@ -214,9 +207,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           </button>
 
           {/* Back button */}
-          <button onClick={handleBack} className="btn-secondary back-btn">
-            ← Späť
-          </button>
+          <BackButton to={`/projects/${projectSlug}/documents/${docSlug}`} label="Späť" />
         </div>
       </header>
 

@@ -5,6 +5,7 @@
 
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import BackButton from '../components/BackButton';
 import { useProjects } from '../hooks/useProjects';
 import type { ProjectDTO } from '../types/project';
 import './ProjectSettings.css';
@@ -69,6 +70,11 @@ const ProjectSettings: React.FC = () => {
         <span className="separator">&rsaquo;</span>
         <span className="current">Settings</span>
       </nav>
+
+      {/* Back Button — glassmorphism pill with neon hover */}
+      <div className="settings-back-btn" data-testid="back-button-container">
+        <BackButton to={`/projects/${slug}`} label="Späť na projekt" />
+      </div>
 
       <header className="settings-header">
         <h1>Project Settings</h1>

@@ -139,7 +139,8 @@ describe('DocumentEditor', () => {
       renderWithProviders(<DocumentEditor />)
 
       await waitFor(() => {
-        expect(screen.getByText('← Späť')).toBeInTheDocument()
+        // BackButton component renders with aria-label and class "back-button"
+        expect(screen.getByRole('button', { name: /navigate back/i })).toBeInTheDocument()
       })
     })
   })

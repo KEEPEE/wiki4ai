@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
+import BackButton from '../components/BackButton';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
 import './DocumentViewer.css';
@@ -124,6 +125,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       <header className="document-header">
         <h1>{title || docSlug}</h1>
         <div className="document-actions">
+          <BackButton to={`/projects/${projectSlug}`} label="Späť na projekt" />
           <button onClick={handleEdit} className="btn-primary">
             Upraviť
           </button>
