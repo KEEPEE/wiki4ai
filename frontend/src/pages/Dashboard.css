@@ -262,13 +262,24 @@
 }
 
 .badge {
-  background: rgba(0, 240, 255, 0.1);
-  color: var(--primary);
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
-  font-size: 0.75rem;
-  font-weight: 600;
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  border: 1px solid rgba(0, 240, 255, 0.2); /* cyan pri 20% opacity */
+  border-radius: 50px; /* pill shape */
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  line-height: 1.4;
   white-space: nowrap;
+  transition: border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.badge:hover {
+  border-color: var(--primary, #00f0ff); /* #00f0ff */
+  color: var(--primary, #00f0ff); /* #00f0ff */
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
 }
 
 .description {

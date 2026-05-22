@@ -1,0 +1,65 @@
+/**
+ * Tag / Label Badge — glassmorphism s neon gradient border efektmi.
+ *
+ * Štýl podľa akceptačných kritérií:
+ * - Background: rgba(255,255,255,0.03) (var(--glass-bg))
+ * - Border: 1px solid rgba(0,240,255,0.2) — cyan pri 20% opacity
+ * - border-radius: 50px (pill shape)
+ * - Padding: 4px 12px
+ * - Text: Outfit font, weight 400, color rgba(255,255,255,0.6), font-size 12px
+ * - Hover: border-color var(--primary), box-shadow neon glow, color var(--primary)
+ */
+
+/* ── Base Tag Style ─────────────────────────────────────────────── */
+
+.tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  border: 1px solid rgba(0, 240, 255, 0.2); /* cyan pri 20% opacity */
+  border-radius: 50px; /* pill shape */
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: default;
+  transition: border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
+}
+
+/* ── Hover Effect — neon glow + cyan text ─────────────────────── */
+
+.tag:hover {
+  border-color: var(--primary, #00f0ff); /* #00f0ff */
+  color: var(--primary, #00f0ff); /* #00f0ff */
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
+}
+
+/* ── Admin Role Badge — gradient background s neon border ─────── */
+
+.tag-admin {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
+  border-color: rgba(245, 158, 11, 0.3); /* warning orange */
+  color: var(--color-warning-text, #fbbf24);
+}
+
+.tag-admin:hover {
+  border-color: var(--color-warning-text, #fbbf24);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+  color: var(--color-warning-text, #fbbf24);
+}
+
+/* ── User Role Badge — gradient background s neon border ──────── */
+
+.tag-user {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
+  border-color: rgba(59, 130, 246, 0.3); /* info blue */
+  color: var(--color-info-text, #60a5fa);
+}
+
+.tag-user:hover {
+  border-color: var(--color-info-text, #60a5fa);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+  color: var(--color-info-text, #60a5fa);
+}
