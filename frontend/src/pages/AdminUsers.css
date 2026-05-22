@@ -8,7 +8,8 @@
   padding: 2rem 1rem;
 }
 
-/* Access denied */
+/* ── Access denied ─────────────────────────────────────────────── */
+
 .access-denied {
   text-align: center;
   padding: 4rem 2rem;
@@ -25,11 +26,14 @@
   color: var(--text-muted);
 }
 
-/* Section styling — glassmorphism */
+/* ── Section styling — glassmorphism kontajner ─────────────────── */
+
 .admin-section {
-  background: var(--glass-bg);
+  background: rgba(255, 255, 255, 0.03);       /* var(--glass-bg) */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: 24px;                          /* akceptačné kritériá — 24px */
   padding: 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -42,7 +46,8 @@
   margin-bottom: 1rem;
 }
 
-/* Form layout */
+/* ── Form layout ──────────────────────────────────────────────── */
+
 .admin-form {
   display: flex;
   flex-direction: column;
@@ -69,7 +74,8 @@
   padding-right: 2rem;
 }
 
-/* Messages */
+/* ── Messages ─────────────────────────────────────────────────── */
+
 .success-message {
   padding: 0.75rem 1rem;
   background-color: var(--color-success-bg);
@@ -90,10 +96,13 @@
   margin-bottom: 1rem;
 }
 
-/* Table */
+/* ── Table wrapper ────────────────────────────────────────────── */
+
 .table-wrapper {
   overflow-x: auto;
 }
+
+/* ── Users tabuľka — glassmorphism + neon hover ──────────────── */
 
 .admin-table {
   width: 100%;
@@ -102,7 +111,7 @@
 }
 
 .admin-table thead {
-  background-color: var(--dark-2);
+  background-color: rgba(255, 255, 255, 0.06);   /* akceptačné kritériá */
 }
 
 .admin-table th {
@@ -110,13 +119,22 @@
   padding: 0.625rem 0.75rem;
   font-weight: 600;
   color: var(--text-secondary);
-  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);   /* akceptačné kritériá */
+}
+
+.admin-table tbody tr {
+  transition: background-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+/* Row hover — cyan pri 5% opacity */
+.admin-table tbody tr:hover {
+  background-color: rgba(0, 240, 255, 0.05);   /* akceptačné kritériá */
 }
 
 .admin-table td {
   padding: 0.625rem 0.75rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.7);             /* akceptačné kritériá */
 }
 
 .cell-id {
@@ -129,13 +147,14 @@
   color: var(--text-muted);
 }
 
-/* Role badges — glassmorphism s neon border */
+/* ── Role badges — glassmorphism s neon border ──────────────── */
+
 .role-badge {
   display: inline-block;
   padding: 4px 12px;
-  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  border: 1px solid rgba(0, 240, 255, 0.2); /* cyan pri 20% opacity */
-  border-radius: 50px; /* pill shape */
+  background: rgba(255, 255, 255, 0.03);       /* var(--glass-bg) */
+  border: 1px solid rgba(0, 240, 255, 0.2);    /* cyan pri 20% opacity */
+  border-radius: 50px;                          /* pill shape */
   font-family: 'Outfit', sans-serif;
   font-weight: 400;
   color: rgba(255, 255, 255, 0.6);
@@ -146,14 +165,14 @@
 }
 
 .role-badge:hover {
-  border-color: var(--primary, #00f0ff); /* #00f0ff */
-  color: var(--primary, #00f0ff); /* #00f0ff */
+  border-color: var(--primary, #00f0ff);       /* neon hover */
+  color: var(--primary, #00f0ff);              /* neon hover */
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
 }
 
 .role-admin {
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
-  border-color: rgba(245, 158, 11, 0.3); /* warning orange */
+  border-color: rgba(245, 158, 11, 0.3);       /* warning orange */
   color: var(--color-warning-text, #fbbf24);
 }
 
@@ -165,7 +184,7 @@
 
 .role-user {
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
-  border-color: rgba(59, 130, 246, 0.3); /* info blue */
+  border-color: rgba(59, 130, 246, 0.3);       /* info blue */
   color: var(--color-info-text, #60a5fa);
 }
 
@@ -175,7 +194,8 @@
   color: var(--color-info-text, #60a5fa);
 }
 
-/* Toast notification */
+/* ── Toast notification ─────────────────────────────────────── */
+
 .toast-notification {
   position: fixed;
   top: 1rem;
@@ -212,7 +232,8 @@
   color: var(--color-error-text);
 }
 
-/* Modal overlay and content */
+/* ── Modal overlay and content — glassmorphism ─────────────── */
+
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -230,9 +251,11 @@
 }
 
 .modal-content {
-  background: var(--dark-3);
+  background: rgba(255, 255, 255, 0.03);       /* glassmorphism */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: 24px;                          /* akceptačné kritériá — 24px */
   padding: 1.5rem;
   max-width: 420px;
   width: 90%;
@@ -265,15 +288,21 @@
   justify-content: flex-end;
 }
 
-/* Role select in table */
+/* ── Role select in table — dropdown štýl ─────────────────── */
+
 .role-select {
   padding: 0.25rem 1.5rem 0.25rem 0.5rem;
   font-size: 0.8125rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: var(--dark-2);
-  color: var(--text-primary);
+  border-radius: 8px;                          /* akceptačné kritériá — 8px */
+  background-color: rgba(255, 255, 255, 0.05); /* akceptačné kritériá */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* akceptačné kritériá */
+  color: rgba(255, 255, 255, 0.7);             /* akceptačné kritériá */
   cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.role-select:hover {
+  border-color: rgba(0, 240, 255, 0.3);
 }
 
 .role-select:focus {
@@ -282,7 +311,8 @@
   box-shadow: var(--focus-ring-shadow);
 }
 
-/* Action buttons */
+/* ── Action buttons ───────────────────────────────────────── */
+
 .cell-actions {
   text-align: center;
 }
@@ -311,7 +341,8 @@
   cursor: not-allowed;
 }
 
-/* Buttons */
+/* ── Buttons — glassmorphism + neon hover ─────────────────── */
+
 .btn {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -328,8 +359,8 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 8px var(--glow-cyan);
+  background-color: #00d4e6;                   /* slightly darker cyan */
+  box-shadow: 0 0 8px var(--glow-cyan), 0 0 20px rgba(0, 240, 255, 0.15);
 }
 
 .btn-primary:disabled {
@@ -338,13 +369,18 @@
 }
 
 .btn-secondary {
-  background-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);       /* glassmorphism */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08); /* glassmorphism border */
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon hover */
 }
 
 .btn-danger {
@@ -353,8 +389,8 @@
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #ef4444; /* brighter red */
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+  background-color: #ef4444;                   /* brighter red */
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3), 0 0 15px rgba(239, 68, 68, 0.15);
 }
 
 .btn-danger:disabled {
@@ -362,7 +398,8 @@
   cursor: not-allowed;
 }
 
-/* Page title */
+/* ── Page title ───────────────────────────────────────────── */
+
 .page-title {
   font-size: 1.5rem;
   font-weight: 700;
@@ -370,7 +407,8 @@
   margin-bottom: 1.5rem;
 }
 
-/* Loading state */
+/* ── Loading state ────────────────────────────────────────── */
+
 .loading-state {
   display: flex;
   flex-direction: column;
@@ -393,7 +431,8 @@
   to { transform: rotate(360deg); }
 }
 
-/* Form inputs */
+/* ── Form inputs — neon focus glow (ako Login stránka) ───── */
+
 .form-label {
   display: block;
   font-size: 0.8125rem;
@@ -406,14 +445,20 @@
   width: 100%;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08); /* glassmorphism border */
   border-radius: 8px;
-  background-color: var(--dark-2);
+  background-color: rgba(255, 255, 255, 0.03);  /* glassmorphism bg */
   color: var(--text-primary);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
+.form-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Neon focus glow — ako v Login stránke */
 .form-input:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 20px var(--glow-cyan), 0 0 0 3px rgba(0, 240, 255, 0.15);
 }
