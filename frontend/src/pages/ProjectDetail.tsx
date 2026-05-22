@@ -315,101 +315,107 @@ const ProjectDetail: React.FC = () => {
 
       {/* Create Document Form */}
       {showCreateForm && activeTab === 'documents' && (
-        <form onSubmit={(e) => { e.preventDefault(); handleCreateDocument(); }} className="create-form">
-          <input
-            type="text"
-            placeholder="Názov dokumentu"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            required
-            autoFocus
-          />
-          {createError && <p className="error">{createError}</p>}
-          <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={isCreating}>
-              {isCreating ? 'Vytváram...' : 'Vytvoriť'}
-            </button>
-            <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
-              Zrušiť
-            </button>
-          </div>
-        </form>
+        <div key={`form-${Date.now()}`} className="tab-content">
+          <form onSubmit={(e) => { e.preventDefault(); handleCreateDocument(); }} className="create-form">
+            <input
+              type="text"
+              placeholder="Názov dokumentu"
+              value={newTitle}
+              onChange={(e) => setNewTitle(e.target.value)}
+              required
+              autoFocus
+            />
+            {createError && <p className="error">{createError}</p>}
+            <div className="form-actions">
+              <button type="submit" className="btn-primary" disabled={isCreating}>
+                {isCreating ? 'Vytváram...' : 'Vytvoriť'}
+              </button>
+              <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
+                Zrušiť
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Documents List */}
       {activeTab === 'documents' && (
-        <div className="documents-list">
-          <h2>Dokumenty ({hasSearched ? searchResults.length : documents.length})</h2>
+        <div key={`docs-${Date.now()}`} className="tab-content">
+          <div className="documents-list">
+            <h2>Dokumenty ({hasSearched ? searchResults.length : documents.length})</h2>
 
-          {/* Search Bar */}
-          <div className="search-bar">
-            <input
-              type="text"
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-input"
-              data-testid="document-search-input"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="search-clear-btn"
-                aria-label="Clear search"
-                data-testid="clear-search-button"
-              >
-                &times;
-              </button>
+            {/* Search Bar */}
+            <div className="search-bar">
+              <input
+                type="text"
+                placeholder="Search documents..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="search-input"
+                data-testid="document-search-input"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="search-clear-btn"
+                  aria-label="Clear search"
+                  data-testid="clear-search-button"
+                >
+                  &times;
+                </button>
+              )}
+            </div>
+
+            {loadingDocuments && !hasSearched ? (
+              <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
+            ) : searching ? (
+              <div className="loading-state"><div className="spinner" /><p>Searching...</p></div>
+            ) : hasSearched && searchResults.length === 0 ? (
+              <p className="empty-state">No documents match your search</p>
+            ) : !hasSearched && displayDocuments.length === 0 ? (
+              <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
+            ) : (
+              <ul className="document-items">
+                {displayDocuments.map((doc) => {
+                  const slug = doc.slug || generateSlug(doc.title);
+                  return (
+                    <li key={doc.id} className="document-item">
+                      <div className="doc-info" onClick={() => handleViewDocument(slug)}>
+                        <span className="doc-title">{doc.title}</span>
+                        <span className="doc-slug">@{slug}</span>
+                      </div>
+                      <div className="doc-meta">
+                        <span className="doc-date">{formatDate(doc.updatedAt)}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteDocument(slug); }}
+                          className="btn-delete"
+                          disabled={isDeleting}
+                          title="Vymazať dokument"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
-
-          {loadingDocuments && !hasSearched ? (
-            <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
-          ) : searching ? (
-            <div className="loading-state"><div className="spinner" /><p>Searching...</p></div>
-          ) : hasSearched && searchResults.length === 0 ? (
-            <p className="empty-state">No documents match your search</p>
-          ) : !hasSearched && displayDocuments.length === 0 ? (
-            <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
-          ) : (
-            <ul className="document-items">
-              {displayDocuments.map((doc) => {
-                const slug = doc.slug || generateSlug(doc.title);
-                return (
-                  <li key={doc.id} className="document-item">
-                    <div className="doc-info" onClick={() => handleViewDocument(slug)}>
-                      <span className="doc-title">{doc.title}</span>
-                      <span className="doc-slug">@{slug}</span>
-                    </div>
-                    <div className="doc-meta">
-                      <span className="doc-date">{formatDate(doc.updatedAt)}</span>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteDocument(slug); }}
-                        className="btn-delete"
-                        disabled={isDeleting}
-                        title="Vymazať dokument"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
         </div>
       )}
 
       {/* Graph Tab Content */}
       {activeTab === 'graph' && (
-        <Link to={`/projects/${slug}/graph`} className="graph-redirect">
-          <div className="graph-preview">
-            <h2>Document Graph</h2>
-            <p>View the interactive graph visualization of document connections.</p>
-            <span className="btn-primary">Open Graph View &rarr;</span>
-          </div>
-        </Link>
+        <div key={`graph-${Date.now()}`} className="tab-content">
+          <Link to={`/projects/${slug}/graph`} className="graph-redirect">
+            <div className="graph-preview">
+              <h2>Document Graph</h2>
+              <p>View the interactive graph visualization of document connections.</p>
+              <span className="btn-primary">Open Graph View &rarr;</span>
+            </div>
+          </Link>
+        </div>
       )}
     </div>
   );

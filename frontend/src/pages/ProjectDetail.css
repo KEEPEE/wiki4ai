@@ -292,34 +292,96 @@
   gap: 0.75rem;
 }
 
-/* Tabs Navigation — glassmorphism */
+/* Tabs Navigation — Nexaverse glassmorphism pill style */
 .tabs {
   display: flex;
-  gap: 0;
+  gap: 0.5rem;
   margin-bottom: 1.5rem;
-  border-bottom: 2px solid var(--glass-border);
+  align-items: center;
 }
 
 .tab {
-  padding: 0.75rem 1.5rem;
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 1rem;
+  padding: 0.65rem 1.5rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 50px; /* pill shape */
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  transition: all var(--transition-base);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glossy shine overlay on tabs */
+.tab::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  border-radius: 50px 50px 0 0;
+  pointer-events: none;
 }
 
 .tab:hover {
-  color: var(--primary);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
 }
 
 .tab.active {
+  background: rgba(0, 240, 255, 0.08); /* cyan at 8% opacity */
+  border-color: var(--primary);
   color: var(--primary);
-  border-bottom-color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
   font-weight: 600;
+}
+
+.tab.active:hover {
+  background: rgba(0, 240, 255, 0.12);
+}
+
+/* Tab link (for Graph tab) */
+.tab[href] {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tab[href]:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.tab[href].active {
+  background: rgba(0, 240, 255, 0.08);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+/* Tab content fade animation */
+.tab-content {
+  animation: tabFade 0.4s ease-out;
+}
+
+@keyframes tabFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Graph Preview Card — glass panel */
