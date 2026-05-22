@@ -169,24 +169,31 @@
 
 .search-input {
   width: 100%;
-  padding: 0.75rem 2.5rem 0.75rem 2.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
+  padding: 12px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  border-radius: 50px; /* pill shape */
   font-size: 0.95rem;
   box-sizing: border-box;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-  background: var(--dark-2);
-  color: var(--text-primary);
-}
-
-.search-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: var(--focus-ring-shadow);
+  transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base);
+  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
 
 .search-input::placeholder {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Hover stav (pred focus) — Nexaverse hover efekt */
+.search-input:hover:not(:focus) {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Focus stav — neon cyan glow */
+.search-input:focus {
+  outline: none; /* odstrániť default browser outline */
+  border-color: var(--primary); /* #00f0ff cyan */
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow — Nexaverse feel */
 }
 
 .search-clear {
