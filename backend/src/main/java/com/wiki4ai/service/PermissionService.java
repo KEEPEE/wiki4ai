@@ -117,11 +117,24 @@ public class PermissionService {
     /**
      * Grant MANAGE permission (all permissions) to the project creator.
      * Called automatically when a user creates a new project.
+     * MANAGE implicitly grants all other permissions (READ, CREATE, UPDATE, DELETE).
      */
     @Transactional
     public void grantManageToCreator(String username, Long projectId) {
         if (username != null && !username.isBlank()) {
+            // Grant full access to the creator: MANAGE includes all permissions
             grantPermissions(username, projectId, List.of(Permission.MANAGE));
+        }
+    }
+
+    /**
+     * Grant READ permission to a user on a project.
+     * This is used for wiki convention where authenticated users can read projects.
+     */
+    @Transactional
+    public void grantReadToUser(String username, Long projectId) {
+        if (username != null && !username.isBlank()) {
+            grantPermissions(username, projectId, List.of(Permission.READ));
         }
     }
 

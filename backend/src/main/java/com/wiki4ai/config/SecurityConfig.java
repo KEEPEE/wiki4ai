@@ -58,6 +58,9 @@ public class SecurityConfig {
                 auth.requestMatchers("/api/health", "/actuator/**", "/h2-console/**").permitAll();
                 // Permit OPTIONS preflight requests for CORS
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                // Permit public read-only project endpoints (list and get by slug) without authentication
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/projects").permitAll();
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/projects/**").permitAll();
                 // When security is enabled: require valid JWT token for ALL other endpoints
                 // When security is disabled (test mode): permit all requests
                 if (securityEnabled) {

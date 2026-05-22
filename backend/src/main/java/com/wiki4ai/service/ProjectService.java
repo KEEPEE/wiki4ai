@@ -7,6 +7,7 @@ import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
+import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final DocumentRepository documentRepository;
     private final PermissionService permissionService;
+    private final ProjectPermissionRepository projectPermissionRepository;
 
     /**
      * Get all projects ordered by creation date (newest first).
@@ -155,6 +157,8 @@ public class ProjectService {
             if (!projectRepository.existsById(id)) {
                 throw new EntityNotFoundException("Project not found with id: " + id);
             }
+            // Delete associated permissions first to avoid FK constraint violations
+            projectPermissionRepository.deleteByProjectIdOnly(id);
             projectRepository.deleteById(id);
             return;
         }
@@ -163,6 +167,9 @@ public class ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
 
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
+        
+        // Delete all project permissions for this project to avoid FK constraint violations
+        projectPermissionRepository.deleteByProjectIdOnly(project.getId());
         projectRepository.delete(project);
     }
 
@@ -176,6 +183,8 @@ public class ProjectService {
         if (username == null || username.isBlank() || "anonymous".equals(username)) {
             Project project = projectRepository.findBySlug(slug)
                     .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+            // Delete associated permissions first to avoid FK constraint violations
+            projectPermissionRepository.deleteByProjectIdOnly(project.getId());
             projectRepository.delete(project);
             return;
         }
@@ -184,6 +193,9 @@ public class ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
+        
+        // Delete all project permissions for this project to avoid FK constraint violations
+        projectPermissionRepository.deleteByProjectIdOnly(project.getId());
         projectRepository.delete(project);
     }
 
