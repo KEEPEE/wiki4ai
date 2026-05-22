@@ -29,6 +29,8 @@
   margin: 0 0 1.5rem 0;
 }
 
+/* ── Metrics Strip — Nexaverse Style ─────────────────────────── */
+
 .stats-row {
   display: inline-flex;
   align-items: center;
@@ -46,23 +48,33 @@
   gap: 0.25rem;
 }
 
+/* Metric value — Syne font, weight 700, 42px, gradient text fill */
 .stat-number {
-  font-size: 1.5rem;
+  font-family: 'Syne', sans-serif;
   font-weight: 700;
-  color: var(--primary);
+  font-size: 42px;
+  line-height: 1;
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
+/* Metric label — Outfit font, weight 400, 12px, uppercase, 3px letter-spacing */
 .stat-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 3px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
+/* Divider — vertical line with subtle opacity */
 .stat-divider {
   width: 1px;
   height: 2rem;
-  background: var(--glass-border);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 /* ── Create New Button ────────────────────────────────────────── */
