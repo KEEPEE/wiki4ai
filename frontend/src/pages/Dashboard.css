@@ -527,7 +527,7 @@
   opacity: 1;
 }
 
-/* ── Modal ───────────────────────────────────────────────────── */
+/* ── Modal — glassmorphism s neon accent (Nexaverse štýl) ───── */
 
 .modal-backdrop {
   position: fixed;
@@ -535,7 +535,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(10, 10, 18, 0.85); /* #0a0a12 s 85% opacity */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -544,23 +546,23 @@
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal-content {
-  background: var(--dark-3);
+  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: 24px;
   padding: 2rem;
   width: 90%;
   max-width: 500px;
   position: relative;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow:
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(0, 240, 255, 0.1); /* neon cyan glow */
   animation: slideUp 0.3s ease-out;
 }
 
@@ -593,12 +595,19 @@
   color: var(--text-primary);
 }
 
-.modal-content h3 {
+/* Modal header/title — gradient text fill (cyan → white → magenta) */
+.modal-content h3,
+.create-form h3 {
   margin-top: 0;
-  color: var(--text-primary);
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
   padding-right: 2rem;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .delete-warning {
@@ -617,7 +626,9 @@
   justify-content: flex-end;
 }
 
-.modal-content label {
+/* Form inputs v modaloch — glassmorphism štýl */
+.modal-content label,
+.create-form label {
   display: block;
   font-size: 0.875rem;
   font-weight: 500;
@@ -626,24 +637,104 @@
 }
 
 .modal-content input,
-.modal-content textarea {
+.modal-content textarea,
+.create-form input,
+.create-form textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  margin-bottom: 1rem;
+  background: rgba(255, 255, 255, 0.05); /* glassmorphism input bg */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
   font-size: 0.95rem;
   box-sizing: border-box;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
-  background: var(--dark-2);
-  color: var(--text-primary);
 }
 
 .modal-content input:focus,
-.modal-content textarea:focus {
+.modal-content textarea:focus,
+.create-form input:focus,
+.create-form textarea:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: var(--focus-ring-shadow);
+  box-shadow: 0 0 20px var(--glow-cyan); /* neon cyan glow */
+}
+
+/* Placeholder text — Nexaverse muted style */
+.modal-content input::placeholder,
+.modal-content textarea::placeholder,
+.create-form input::placeholder,
+.create-form textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Modal Buttons — glassmorphism s neon accent ─────────────── */
+
+.modal-content .btn-primary,
+.create-form .btn-primary {
+  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%); /* cyan → magenta gradient */
+  color: var(--dark-1);
+  border: none;
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
+}
+
+.modal-content .btn-primary:hover:not(:disabled),
+.create-form .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow hover */
+  transform: translateY(-1px);
+}
+
+.modal-content .btn-primary:active:not(:disabled),
+.create-form .btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.modal-content .btn-secondary,
+.create-form .btn-secondary {
+  background: rgba(255, 255, 255, 0.03); /* glassmorphism bg */
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
+}
+
+.modal-content .btn-secondary:hover,
+.create-form .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Delete/Danger button — glassmorphism s neon red border */
+.modal-content .btn-danger,
+.create-form .btn-danger {
+  background: rgba(220, 38, 38, 0.2); /* danger bg */
+  color: var(--color-error-text);
+  border: 1px solid rgba(220, 38, 38, 0.4); /* neon red border */
+  border-radius: 8px;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
+}
+
+.modal-content .btn-danger:hover:not(:disabled),
+.create-form .btn-danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.3);
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.3); /* neon red glow */
+}
+
+.modal-content .btn-danger:active:not(:disabled),
+.create-form .btn-danger:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 /* ── Toast Notifications — glassmorphism with neon accent ───── */
