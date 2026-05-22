@@ -4,6 +4,7 @@ import com.wiki4ai.dto.UserPermissionDTO;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.model.ProjectPermission;
+import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
@@ -59,12 +60,17 @@ public class PermissionService {
     /**
      * Check permission and throw AccessDeniedException if the user lacks it.
      * Skips check if username is null or blank (allows unauthenticated access for public endpoints / tests).
+     * ADMIN role bypasses all project-level permissions - admins have full system-wide access.
      * MANAGE permission implicitly grants all other permissions.
      * READ permission is granted to any authenticated user (wiki convention: logged-in users can read everything).
      * CREATE, UPDATE, DELETE require explicit permission grant.
      */
     public void checkPermission(String username, Long projectId, Permission permission) {
         if (username == null || username.isBlank() || "anonymous".equals(username) || "anonymousUser".equals(username)) {
+            return;
+        }
+        // ADMIN role bypasses all project-level permissions - full system-wide access
+        if (isAdminRole(username)) {
             return;
         }
         // MANAGE grants all permissions
@@ -79,6 +85,21 @@ public class PermissionService {
         if (!hasPermission(username, projectId, permission)) {
             throw new AccessDeniedException(
                     "User '" + username + "' lacks " + permission + " permission on project " + projectId);
+        }
+    }
+
+    /**
+     * Check if a user has the ADMIN role.
+     * Returns false if the user is not found or an error occurs.
+     */
+    private boolean isAdminRole(String username) {
+        try {
+            User user = userRepository.findByUsername(username)
+                    .orElse(null);
+            return user != null && Role.ADMIN.equals(user.getRole());
+        } catch (Exception e) {
+            // If we can't verify the role, fall through to project-level checks
+            return false;
         }
     }
 

@@ -3,6 +3,7 @@ package com.wiki4ai.service;
 import com.wiki4ai.dto.UserPermissionDTO;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.ProjectPermission;
+import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
@@ -171,6 +172,38 @@ class PermissionServiceTest {
                     permissionService.checkPermission("alice", projectId, Permission.DELETE))
                     .isInstanceOf(AccessDeniedException.class)
                     .hasMessageContaining("lacks DELETE");
+        }
+
+        @Test
+        @DisplayName("should allow ADMIN users to bypass all project-level permissions")
+        void shouldAllowAdminToBypassPermissions() {
+            // Create an admin user
+            User adminUser = User.builder().id(3L).username("admin").email("admin@test.com").password("$2a$10.hashed").role(Role.ADMIN).build();
+            when(userRepository.findByUsername("admin")).thenReturn(Optional.of(adminUser));
+
+            // Admin should be able to perform any operation without MANAGE permission
+            // Should NOT throw - admin bypasses all checks
+            permissionService.checkPermission("admin", projectId, Permission.DELETE);
+            permissionService.checkPermission("admin", projectId, Permission.UPDATE);
+            permissionService.checkPermission("admin", projectId, Permission.CREATE);
+
+            verify(projectPermissionRepo, never()).findByProjectIdAndUserId(any(), any());
+        }
+
+        @Test
+        @DisplayName("should allow ADMIN users to delete projects even without MANAGE permission")
+        void shouldAllowAdminToDeleteProjects() {
+            // Create an admin user
+            User adminUser = User.builder().id(3L).username("admin2").email("admin2@test.com").password("$2a$10.hashed").role(Role.ADMIN).build();
+            when(userRepository.findByUsername("admin2")).thenReturn(Optional.of(adminUser));
+
+            // Admin should be able to delete even without MANAGE permission on the project
+            assertThatThrownBy(() ->
+                    permissionService.checkPermission("non-admin", projectId, Permission.DELETE))
+                    .isInstanceOf(AccessDeniedException.class);
+
+            // But admin can do it
+            permissionService.checkPermission("admin2", projectId, Permission.DELETE);
         }
     }
 
