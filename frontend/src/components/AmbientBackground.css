@@ -1,0 +1,87 @@
+/**
+ * Ambient Background — Nexaverse Atmosféra
+ *
+ * Tmavé pozadie s 3 ambient orb animáciami a jemnou grid sieťou.
+ * Inšpirované TemplateMo 603 - Nexaverse.
+ */
+
+/* ── Ambient Orbs ─────────────────────────────────────────────── */
+
+.ambient-orb {
+  position: fixed;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.ambient-orb--1 {
+  width: 600px;
+  height: 600px;
+  top: -200px;
+  left: -200px;
+  background: radial-gradient(circle, #00f0ff 0%, transparent 70%);
+  filter: blur(80px);
+  opacity: 0.35;
+  animation: float 14s ease-in-out infinite;
+}
+
+.ambient-orb--2 {
+  width: 500px;
+  height: 500px;
+  bottom: -150px;
+  right: -150px;
+  background: radial-gradient(circle, #ff00d4 0%, transparent 70%);
+  filter: blur(80px);
+  opacity: 0.3;
+  animation: float 14s ease-in-out infinite;
+  animation-delay: -7s;
+}
+
+.ambient-orb--3 {
+  width: 400px;
+  height: 400px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #9d4edd 0%, transparent 70%);
+  filter: blur(80px);
+  opacity: 0.25;
+  animation: float 14s ease-in-out infinite;
+  animation-delay: -14s;
+}
+
+/* ── Grid Overlay ─────────────────────────────────────────────── */
+
+.ambient-grid {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+/* ── Float Animation (Nexaverse style) ───────────────────────── */
+
+@keyframes float {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(30px, -40px) scale(1.05);
+  }
+  50% {
+    transform: translate(-20px, 20px) scale(0.95);
+  }
+  75% {
+    transform: translate(15px, 35px) scale(1.03);
+  }
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+}

@@ -1,5 +1,6 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import AmbientBackground from './AmbientBackground';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -16,8 +17,11 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
+      {/* Ambient Background — fixed behind all content */}
+      <AmbientBackground />
+
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col relative z-[2]">
         {/* Top bar with brand and auth controls */}
         <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
           <Link to="/" className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0 hover:underline">
@@ -74,7 +78,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content */}
-        <div className="flex-1 max-w-7xl mx-auto w-full p-4">
+        <div className="flex-1 max-w-7xl mx-auto w-full p-4 relative z-[3]">
           {children || <Outlet />}
         </div>
       </main>
