@@ -1,5 +1,5 @@
 /**
- * CSS styles for Project Detail page.
+ * CSS styles for Project Detail page — Nexaverse dark mode with glassmorphism.
  */
 
 .project-detail {
@@ -46,7 +46,7 @@
 .upload-progress-container {
   position: relative;
   margin-bottom: 1rem;
-  background: #e5e7eb;
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 6px;
   overflow: hidden;
   height: 28px;
@@ -59,7 +59,7 @@
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, #4f46e5, #7c3aed);
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
   transition: width 0.3s ease;
   border-radius: 6px;
 }
@@ -69,8 +69,8 @@
   z-index: 1;
   font-size: 0.8rem;
   font-weight: 600;
-  color: white;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   width: 100%;
   text-align: center;
 }
@@ -80,9 +80,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #dc2626;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
   padding: 0.75rem 1rem;
   border-radius: 6px;
   margin-bottom: 1rem;
@@ -92,7 +92,7 @@
 .dismiss-btn {
   background: none;
   border: none;
-  color: #dc2626;
+  color: var(--color-error-text);
   cursor: pointer;
   font-size: 1.25rem;
   padding: 0 0.25rem;
@@ -100,7 +100,7 @@
 }
 
 .dismiss-btn:hover {
-  color: #b91c1c;
+  color: #ef4444; /* brighter red */
 }
 
 /* Drag & Drop Overlay */
@@ -110,7 +110,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(79, 70, 229, 0.15);
+  background: rgba(0, 240, 255, 0.1);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -120,18 +120,18 @@
 }
 
 .drag-overlay p {
-  background: white;
+  background: var(--dark-3);
   padding: 2rem 3rem;
   border-radius: 12px;
   font-size: 1.5rem;
   font-weight: 600;
-  color: #4f46e5;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  color: var(--primary);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 /* Drag Over State */
 .project-detail.drag-over {
-  outline: 3px dashed #4f46e5;
+  outline: 3px dashed var(--primary);
   outline-offset: -3px;
 }
 
@@ -145,7 +145,7 @@
 }
 
 .breadcrumb a {
-  color: #4a90d9;
+  color: var(--primary);
   text-decoration: none;
 }
 
@@ -154,11 +154,11 @@
 }
 
 .breadcrumb .separator {
-  color: #888;
+  color: var(--text-muted);
 }
 
 .breadcrumb .current {
-  color: #333;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -168,11 +168,11 @@
   gap: 0.5rem;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .back-link {
-  color: #4a90d9;
+  color: var(--primary);
   text-decoration: none;
   font-size: 0.9rem;
 }
@@ -183,25 +183,25 @@
 
 .detail-header h1 {
   font-size: 2rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .description {
-  color: #666;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .documents-list {
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 1.5rem;
 }
 
 .documents-list h2 {
   margin-top: 0;
-  color: #1a1a2e;
+  color: var(--text-primary);
   font-size: 1.25rem;
 }
 
@@ -217,8 +217,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.15s;
+  border-bottom: 1px solid var(--glass-border);
+  transition: background-color var(--transition-fast);
 }
 
 .document-item:last-child {
@@ -226,7 +226,7 @@
 }
 
 .document-item:hover {
-  background-color: #fafafa;
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 .doc-info {
@@ -238,7 +238,7 @@
 }
 
 .doc-title {
-  color: #4a90d9;
+  color: var(--primary);
   font-weight: 500;
   text-decoration: none;
 }
@@ -249,7 +249,7 @@
 
 .doc-slug {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-muted);
   font-family: monospace;
 }
 
@@ -261,24 +261,24 @@
 
 .doc-date {
   font-size: 0.85rem;
-  color: #999;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .btn-delete {
   background: none;
   border: none;
-  color: #ccc;
+  color: rgba(255, 255, 255, 0.3);
   cursor: pointer;
   font-size: 1.25rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  transition: color 0.15s, background-color 0.15s;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
 .btn-delete:hover:not(:disabled) {
-  color: #e74c3c;
-  background-color: #fdf0ef;
+  color: #ef4444; /* brighter red */
+  background-color: rgba(239, 68, 68, 0.15);
 }
 
 .btn-delete:disabled {
@@ -292,60 +292,59 @@
   gap: 0.75rem;
 }
 
-/* Tabs Navigation */
+/* Tabs Navigation — glassmorphism */
 .tabs {
   display: flex;
   gap: 0;
   margin-bottom: 1.5rem;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--glass-border);
 }
 
 .tab {
   padding: 0.75rem 1.5rem;
   background: none;
   border: none;
-  color: #6b7280;
+  color: var(--text-muted);
   font-size: 1rem;
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -2px;
-  transition: all 0.2s;
-  text-decoration: none;
+  transition: all var(--transition-base);
 }
 
 .tab:hover {
-  color: #4a90d9;
+  color: var(--primary);
 }
 
 .tab.active {
-  color: #4f46e5;
-  border-bottom-color: #4f46e5;
+  color: var(--primary);
+  border-bottom-color: var(--primary);
   font-weight: 600;
 }
 
-/* Graph Preview Card */
+/* Graph Preview Card — glass panel */
 .graph-preview {
-  background: white;
-  border: 1px solid #e0e0e0;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   padding: 2rem;
   text-align: center;
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition: box-shadow var(--transition-base), transform var(--transition-base);
 }
 
 .graph-preview:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.06);
   transform: translateY(-2px);
 }
 
 .graph-preview h2 {
   margin-top: 0;
-  color: #1a1a2e;
+  color: var(--text-primary);
   font-size: 1.5rem;
 }
 
 .graph-preview p {
-  color: #6b7280;
+  color: var(--text-muted);
   margin-bottom: 1.5rem;
 }
 
@@ -358,14 +357,14 @@
 .loading-state, .empty-state {
   text-align: center;
   padding: 3rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #4f46e5;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 1rem;
@@ -376,7 +375,7 @@
 }
 
 .error {
-  color: #dc2626;
+  color: var(--color-error-text);
   text-align: center;
   padding: 2rem;
 }
@@ -392,16 +391,18 @@
 .search-input {
   width: 100%;
   padding: 0.75rem 2.5rem 0.75rem 1rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   font-size: 0.95rem;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  background: var(--dark-2);
+  color: var(--text-primary);
 }
 
 .search-input:focus {
-  border-color: #4f46e5;
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring-shadow);
 }
 
 .search-clear-btn {
@@ -409,14 +410,14 @@
   right: 0.5rem;
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--text-muted);
   font-size: 1.25rem;
   cursor: pointer;
   padding: 0.25rem 0.5rem;
   line-height: 1;
-  transition: color 0.15s;
+  transition: color var(--transition-fast);
 }
 
 .search-clear-btn:hover {
-  color: #4b5563;
+  color: var(--text-primary);
 }

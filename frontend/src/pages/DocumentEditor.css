@@ -1,12 +1,12 @@
 /**
- * CSS styles for Document Editor page.
+ * CSS styles for Document Editor page — Nexaverse dark mode with glassmorphism.
  */
 
 .document-editor {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 60px);
-  background: #fafafa;
+  height: calc(100vh - 64px);
+  background: var(--dark-1);
 }
 
 /* Header with title and actions */
@@ -15,15 +15,15 @@
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 2rem;
-  border-bottom: 1px solid #e0e0e0;
-  background: white;
+  border-bottom: 1px solid var(--glass-border);
+  background: var(--dark-2);
 }
 
 .editor-title-input {
   flex: 1;
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1a1a2e;
+  color: var(--text-primary);
   border: none;
   outline: none;
   padding: 0.5rem;
@@ -31,7 +31,7 @@
 }
 
 .editor-title-input::placeholder {
-  color: #aaa;
+  color: var(--text-muted);
   font-weight: normal;
 }
 
@@ -43,8 +43,8 @@
 
 /* View mode toggle button */
 .view-mode-btn.active {
-  background-color: #4a90d9 !important;
-  color: white !important;
+  background-color: var(--primary) !important;
+  color: var(--dark-1) !important;
 }
 
 /* Save status indicator */
@@ -52,28 +52,28 @@
   padding: 0.25rem 1rem;
   text-align: center;
   font-size: 0.875rem;
-  background: #f0f0f0;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .save-status.saving {
-  background: #fff3cd;
-  color: #856404;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--color-warning-text);
 }
 
 .save-status.saved {
-  background: #d4edda;
-  color: #155724;
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
 }
 
 .save-status.unsaved {
-  background: #ffe0cc;
-  color: #c05a00;
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
 }
 
 .save-status.error {
-  background: #f8d7da;
-  color: #721c24;
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
 }
 
 /* Editor body layout */
@@ -97,10 +97,10 @@
   width: 50%;
 }
 
-/* Editor pane */
+/* Editor pane — glass panel */
 .editor-pane {
   display: flex;
-  border-right: 1px solid #e0e0e0;
+  border-right: 1px solid var(--glass-border);
   overflow: hidden;
 }
 
@@ -114,11 +114,12 @@
   font-size: 1rem;
   line-height: 1.6;
   outline: none;
-  background: white;
+  background: var(--dark-2);
+  color: var(--text-primary);
 }
 
 .markdown-input:focus {
-  box-shadow: inset 0 0 0 2px #4a90d9;
+  box-shadow: inset 0 0 0 2px var(--primary);
 }
 
 /* Preview pane */
@@ -126,11 +127,11 @@
   flex: 1;
   padding: 2rem;
   overflow-y: auto;
-  background: white;
+  background: var(--dark-1);
 }
 
 .empty-preview {
-  color: #aaa;
+  color: var(--text-muted);
   font-style: italic;
   text-align: center;
   margin-top: 4rem;
@@ -141,25 +142,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: calc(100vh - 60px);
+  height: calc(100vh - 64px);
   font-size: 1.25rem;
-  color: #666;
+  color: var(--text-muted);
 }
 
 /* Button styles */
 .btn-primary {
   padding: 0.5rem 1rem;
-  background-color: #4a90d9;
-  color: white;
+  background-color: var(--primary);
+  color: var(--dark-1);
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #357abd;
+  background-color: #00d4e6; /* slightly darker cyan */
+  box-shadow: 0 0 8px var(--glow-cyan);
 }
 
 .btn-primary:disabled {
@@ -173,17 +175,17 @@
 
 .btn-secondary {
   padding: 0.5rem 1rem;
-  background-color: #f0f0f0;
-  color: #333;
-  border: 1px solid #ddd;
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.875rem;
-  transition: background-color 0.2s;
+  transition: background-color var(--transition-base);
 }
 
 .btn-secondary:hover {
-  background-color: #e0e0e0;
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes pulse {
@@ -200,16 +202,17 @@
 .preview-pane h6 {
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
 }
 
 .preview-pane p {
   margin-bottom: 1rem;
   line-height: 1.7;
+  color: var(--text-secondary);
 }
 
 .preview-pane code {
-  background-color: #f4f4f4;
+  background-color: rgba(255, 255, 255, 0.06);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -217,10 +220,11 @@
 }
 
 .preview-pane pre {
-  background-color: #f4f4f4;
+  background-color: rgba(255, 255, 255, 0.04);
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
+  border: 1px solid var(--glass-border);
 }
 
 .preview-pane pre code {
@@ -229,11 +233,11 @@
 }
 
 .preview-pane blockquote {
-  border-left: 4px solid #4a90d9;
+  border-left: 4px solid var(--primary);
   margin: 1rem 0;
   padding: 0.5rem 1rem;
-  color: #666;
-  background-color: #f8f9fa;
+  color: var(--text-muted);
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
 .preview-pane ul,
@@ -244,20 +248,22 @@
 
 .preview-pane li {
   margin-bottom: 0.5rem;
+  color: var(--text-secondary);
 }
 
 .preview-pane a {
-  color: #4a90d9;
+  color: var(--primary);
   text-decoration: none;
 }
 
 .preview-pane a:hover {
   text-decoration: underline;
+  text-shadow: 0 0 8px var(--glow-cyan);
 }
 
 .preview-pane hr {
   border: none;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--glass-border);
   margin: 2rem 0;
 }
 
@@ -298,10 +304,10 @@
   align-items: center;
   gap: 1rem;
   padding: 0.4rem 2rem;
-  background: #f5f5f5;
-  border-top: 1px solid #e0e0e0;
+  background: var(--dark-2);
+  border-top: 1px solid var(--glass-border);
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-muted);
 }
 
 .word-count,

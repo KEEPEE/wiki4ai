@@ -1,6 +1,5 @@
 /**
- * CSS styles for GraphView component with react-force-graph.
- * Includes tooltip overlay and improved label readability.
+ * CSS styles for GraphView component — Nexaverse dark mode with glassmorphism.
  */
 
 .graph-view {
@@ -9,12 +8,12 @@
 
 .graph-header h2 {
   font-size: 1.5rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin: 0 0 0.25rem;
 }
 
 .graph-subtitle {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
   font-size: 0.9rem;
 }
@@ -29,35 +28,36 @@
 }
 
 .label-toggle-btn {
-  background: #f3f4f6;
-  border: 1px solid #d1d5db;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 0.5rem;
   padding: 0.375rem 0.75rem;
   font-size: 0.8rem;
-  color: #374151;
+  color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all var(--transition-base);
   user-select: none;
 }
 
 .label-toggle-btn:hover {
-  background: #e5e7eb;
-  border-color: #9ca3af;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .label-toggle-btn.active {
-  background: #4f46e5;
-  color: #ffffff;
-  border-color: #4f46e5;
+  background: var(--primary);
+  color: var(--dark-1);
+  border-color: var(--primary);
 }
 
 .label-toggle-btn.active:hover {
-  background: #4338ca;
+  background: #00d4e6; /* slightly darker cyan */
+  box-shadow: 0 0 8px var(--glow-cyan);
 }
 
 .graph-container {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 0.75rem;
   overflow: hidden;
   margin-top: 1rem;
@@ -71,7 +71,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  color: #6b7280;
+  color: var(--text-muted);
 }
 
 .graph-empty p {
@@ -80,7 +80,7 @@
 
 .graph-empty .hint {
   font-size: 0.85rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   max-width: 400px;
   text-align: center;
 }
@@ -106,15 +106,15 @@
   z-index: 1000;
   transform: translate(-50%, -120%);
   margin-top: -8px;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--transition-fast);
 }
 
 .graph-tooltip-content {
-  background: #1a1a2e;
-  color: #ffffff;
+  background: var(--dark-3);
+  color: var(--text-primary);
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   max-width: 320px;
   white-space: nowrap;
 }
@@ -123,12 +123,12 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.4;
-  color: #ffffff;
+  color: var(--text-primary);
 }
 
 .graph-tooltip-truncated {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
@@ -140,5 +140,5 @@
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: #1a1a2e;
+  border-top-color: var(--dark-3);
 }

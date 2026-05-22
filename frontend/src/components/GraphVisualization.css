@@ -1,5 +1,5 @@
 /**
- * CSS styles for Graph Visualization component.
+ * CSS styles for Graph Visualization component — Nexaverse dark mode.
  */
 
 .graph-visualization {
@@ -8,18 +8,18 @@
 
 .graph-header h2 {
   font-size: 1.5rem;
-  color: #1a1a2e;
+  color: var(--text-primary);
   margin: 0 0 0.25rem;
 }
 
 .graph-subtitle {
-  color: #6b7280;
+  color: var(--text-muted);
   margin: 0;
 }
 
 .graph-container {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
   border-radius: 0.5rem;
   overflow: hidden;
   margin-top: 1rem;
@@ -31,7 +31,7 @@
 }
 
 .graph-edge {
-  stroke: #d1d5db;
+  stroke: rgba(255, 255, 255, 0.1);
   stroke-width: 2;
 }
 
@@ -40,16 +40,17 @@
 }
 
 .graph-node {
-  fill: #4f46e5;
-  transition: fill 0.2s;
+  fill: var(--primary);
+  transition: fill var(--transition-base), filter var(--transition-base);
 }
 
 .graph-node:hover {
-  fill: #4338ca;
+  fill: #00d4e6; /* slightly darker cyan */
+  filter: drop-shadow(0 0 8px var(--glow-cyan));
 }
 
 .graph-node-label {
-  fill: white;
+  fill: var(--dark-1);
   font-size: 11px;
   font-family: system-ui, -apple-system, sans-serif;
   pointer-events: none;

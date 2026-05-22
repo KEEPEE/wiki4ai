@@ -1,0 +1,73 @@
+/**
+ * Global CSS Variables (Design Tokens) — Nexaverse Color Palette
+ *
+ * This file defines all design tokens used across the Wiki4AI UI.
+ * Inspired by TemplateMo 603 - Nexaverse (https://templatemo.com/tm-603-nexaverse).
+ *
+ * All hardcoded hex colors in existing CSS files should be replaced with these variables.
+ */
+
+:root {
+  /* ── Neon / Accent Colors ─────────────────────────────────────── */
+  --primary: #00f0ff;       /* cyan / neon accent */
+  --secondary: #ff00d4;     /* magenta / pink neon accent */
+  --accent: #9d4edd;        /* purple accent for gradients */
+
+  /* ── Dark Mode Backgrounds ──────────────────────────────────── */
+  --dark-1: #0a0a12;        /* deepest background / body */
+  --dark-2: #12121f;        /* secondary dark layer */
+  --dark-3: #1a1a2e;        /* tertiary dark surface */
+
+  /* ── Glassmorphism Tokens ───────────────────────────────────── */
+  --glass-bg: rgba(255, 255, 255, 0.03);   /* glass panel fill */
+  --glass-border: rgba(255, 255, 255, 0.08); /* glass border stroke */
+
+  /* ── Glow Effects ───────────────────────────────────────────── */
+  --glow-cyan: rgba(0, 240, 255, 0.4);     /* cyan glow box-shadow / text-shadow */
+  --glow-magenta: rgba(255, 0, 212, 0.4);  /* magenta glow ambient orbs */
+
+  /* ── Derived UI Colors (mapped from Nexaverse) ──────────────── */
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  --surface-base: var(--dark-1);
+  --surface-raised: var(--dark-2);
+  --surface-overlay: var(--dark-3);
+
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.18);
+
+  /* ── Semantic Colors ────────────────────────────────────────── */
+  --color-success-bg: rgba(16, 185, 129, 0.1);
+  --color-success-border: rgba(16, 185, 129, 0.3);
+  --color-success-text: #6ee7b7;
+
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-error-border: rgba(239, 68, 68, 0.3);
+  --color-error-text: #fca5a5;
+
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-warning-border: rgba(245, 158, 11, 0.3);
+  --color-warning-text: #fbbf24;
+
+  --color-info-bg: rgba(59, 130, 246, 0.1);
+  --color-info-border: rgba(59, 130, 246, 0.3);
+  --color-info-text: #60a5fa;
+
+  /* ── Focus Ring ─────────────────────────────────────────────── */
+  --focus-ring-color: var(--primary);
+  --focus-ring-shadow: 0 0 0 3px rgba(0, 240, 255, 0.15);
+
+  /* ── Transitions ────────────────────────────────────────────── */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+}
+
+/* ── Dark Mode Default (no light mode toggle) ─────────────────── */
+
+html,
+body {
+  background-color: var(--dark-1);
+  color: var(--text-primary);
+}
