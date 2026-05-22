@@ -16,15 +16,51 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 dark:bg-gray-900 overflow-hidden">
+    <div className="flex h-screen w-full bg-[var(--dark-1)] overflow-hidden">
       {/* Ambient Background — fixed behind all content */}
       <AmbientBackground />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col relative z-[2]">
-        {/* Top bar with brand and auth controls */}
-        <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
-          <Link to="/" className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex-shrink-0 hover:underline">
+        {/* Top bar with brand and auth controls — glassmorphism header */}
+        <header
+          className="sticky top-0 z-30 w-full px-4 py-2 flex items-center justify-between"
+          style={{
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderBottom: '1px solid var(--glass-border)',
+            position: 'sticky',
+            top: 0,
+          }}
+        >
+          {/* Top-edge highlight pseudo-element */}
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '1px',
+              background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
+              pointerEvents: 'none',
+            }}
+          />
+
+          {/* Wiki4AI brand link — gradient text fill */}
+          <Link
+            to="/"
+            className="flex-shrink-0"
+            style={{
+              fontFamily: "'Syne', sans-serif",
+              fontWeight: 600,
+              fontSize: '1rem',
+              background: 'linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}
+          >
             Wiki4AI
           </Link>
 
@@ -35,7 +71,10 @@ export default function Layout({ children }: LayoutProps) {
                 {(user as any).role === 'ADMIN' && (
                   <Link
                     to="/admin/users"
-                    className="text-xs px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium transition-colors flex-shrink-0"
+                    className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease"
+                    style={{
+                      background: '#f59e0b',
+                    }}
                     data-testid="nav-admin-users"
                   >
                     Admin
@@ -43,14 +82,17 @@ export default function Layout({ children }: LayoutProps) {
                 )}
                 <Link
                   to="/profile"
-                  className="text-sm text-gray-600 dark:text-gray-400 flex-shrink-0 hover:underline"
+                  className="text-sm flex-shrink-0 transition-colors duration-[0.3s] ease hover:text-white text-gray-400"
                   data-testid="nav-profile"
                 >
                   {user.username}
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="text-xs px-3 py-1.5 rounded-md bg-red-500 hover:bg-red-600 text-white font-medium transition-colors flex-shrink-0"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-red-600"
+                  style={{
+                    background: '#ef4444',
+                  }}
                   data-testid="logout-button"
                 >
                   Logout
@@ -60,14 +102,17 @@ export default function Layout({ children }: LayoutProps) {
               <nav className="flex items-center gap-2">
                 <Link
                   to="/login"
-                  className="text-xs px-3 py-1.5 rounded-md bg-blue-500 hover:bg-blue-600 text-white font-medium transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-blue-600"
+                  style={{
+                    background: '#3b82f6',
+                  }}
                   data-testid="nav-login"
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="text-xs px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-gray-300 transition-all duration-[0.3s] ease hover:text-white border border-white/20 hover:border-white/40"
                   data-testid="nav-register"
                 >
                   Register
