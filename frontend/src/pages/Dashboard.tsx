@@ -9,34 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
 import type { ProjectDTO } from '../types/project';
+import { ToastContainer, type ToastItem } from '../components/Toast';
 import './Dashboard.css';
-
-/** Toast notification component */
-interface Toast {
-  id: number;
-  message: string;
-  type: 'success' | 'error';
-}
-
-const ToastContainer: React.FC<{ toasts: Toast[]; onDismiss: (id: number) => void }> = ({ toasts, onDismiss }) => {
-  return (
-    <div className="toast-container" data-testid="toast-container">
-      {toasts.map((toast) => (
-        <div key={toast.id} className={`toast toast-${toast.type}`} role="alert">
-          <span>{toast.message}</span>
-          <button
-            type="button"
-            className="toast-dismiss"
-            onClick={() => onDismiss(toast.id)}
-            aria-label="Dismiss notification"
-          >
-            ×
-          </button>
-        </div>
-      ))}
-    </div>
-  );
-};
 
 /** Delete Confirmation Dialog component */
 interface DeleteConfirmationDialogProps {
@@ -201,16 +175,13 @@ const Dashboard: React.FC = () => {
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Toast state
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
   let toastIdCounter = 0;
 
   const addToast = useCallback((message: string, type: 'success' | 'error') => {
     const id = ++toastIdCounter;
     setToasts((prev) => [...prev, { id, message, type }]);
-    // Auto-dismiss after 3 seconds
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
+    // Auto-dismiss after 5 seconds (handled by Toast component internally)
   }, []);
 
   const dismissToast = useCallback((id: number) => {

@@ -749,71 +749,6 @@
   transform: scale(0.98);
 }
 
-/* ── Toast Notifications — glassmorphism with neon accent ───── */
-
-.toast-container {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 1100;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.toast {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.875rem 1.25rem;
-  border-radius: 8px;
-  font-size: 0.9rem;
-  font-weight: 500;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  animation: slideInRight 0.3s ease-out;
-  min-width: 280px;
-  max-width: 400px;
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(100%);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.toast-success {
-  background: rgba(16, 185, 129, 0.15);
-  color: var(--color-success-text);
-  border: 1px solid var(--color-success-border);
-}
-
-.toast-error {
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  border: 1px solid var(--color-error-border);
-}
-
-.toast-dismiss {
-  background: none;
-  border: none;
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0 0 0 0.75rem;
-  color: inherit;
-  opacity: 0.6;
-  transition: opacity var(--transition-base);
-  line-height: 1;
-}
-
-.toast-dismiss:hover {
-  opacity: 1;
-}
-
 /* ── Responsive ───────────────────────────────────────────────── */
 
 @media (max-width: 640px) {
@@ -857,16 +792,5 @@
   .modal-content {
     padding: 1.5rem;
     width: 95%;
-  }
-
-  .toast-container {
-    top: 0.5rem;
-    right: 0.5rem;
-    left: 0.5rem;
-  }
-
-  .toast {
-    min-width: auto;
-    max-width: none;
   }
 }

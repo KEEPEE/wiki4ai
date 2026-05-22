@@ -1,0 +1,144 @@
+/**
+ * Toast notification styles — Nexaverse glassmorphism + neon accents.
+ */
+
+/* ── Container: fixed top-right corner ─────────────────────────── */
+
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ── Toast panel — glassmorphism base ─────────────────────────── */
+
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem 0.875rem 1.5rem; /* extra left for accent bar */
+  border-radius: 16px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  min-width: 280px;
+  max-width: 420px;
+
+  /* Glassmorphism */
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+
+  /* Default neon glow (info) */
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px var(--glow-cyan);
+
+  /* Entry animation: slide in from right + fade in */
+  animation: toastSlideIn 0.4s ease-out;
+}
+
+/* ── Exit state — triggers slide-out animation ────────────────── */
+
+.toast-exit {
+  animation: toastSlideOut 0.3s ease-in forwards;
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+}
+
+/* ── Neon accent bar (left side) ─────────────────────────────── */
+
+.toast-accent-bar {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 4px 0 0 4px;
+}
+
+/* ── Toast message text ──────────────────────────────────────── */
+
+.toast-message {
+  flex: 1;
+  margin-left: 0.75rem;
+  color: var(--text-primary);
+}
+
+/* ── Dismiss button ──────────────────────────────────────────── */
+
+.toast-dismiss {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0 0 0 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+  transition: opacity var(--transition-base), color var(--transition-fast);
+  line-height: 1;
+}
+
+.toast-dismiss:hover {
+  opacity: 1;
+  color: var(--text-primary);
+}
+
+/* ── Success toast — green neon accent ───────────────────────── */
+
+.toast-success {
+  border-color: rgba(22, 163, 74, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(16, 185, 129, 0.3);
+}
+
+/* ── Error toast — red neon accent ───────────────────────────── */
+
+.toast-error {
+  border-color: rgba(220, 38, 38, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+/* ── Info toast — cyan→purple neon accent (default) ──────────── */
+
+.toast-info {
+  border-color: var(--primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px var(--glow-cyan);
+}
+
+/* ── Responsive — mobile full-width toast ────────────────────── */
+
+@media (max-width: 640px) {
+  .toast-container {
+    top: 0.5rem;
+    right: 0.5rem;
+    left: 0.5rem;
+  }
+
+  .toast {
+    min-width: auto;
+    max-width: none;
+  }
+}
