@@ -249,6 +249,131 @@ describe('DocumentEditor', () => {
     })
   })
 
+  describe('View mode toggle', () => {
+    it('should render three view mode buttons (Edit, Preview, Split)', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      // All three buttons should be present
+      const toggleContainer = screen.getByTestId('view-mode-toggle')
+      expect(toggleContainer).toBeInTheDocument()
+      expect(screen.getByText('Edit')).toBeInTheDocument()
+      expect(screen.getByText('Preview')).toBeInTheDocument()
+      expect(screen.getByText('Split')).toBeInTheDocument()
+    })
+
+    it('should have active class on the current view mode button', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      // Default view mode is 'split', so Split button should have active class
+      const splitBtn = screen.getByText('Split')
+      expect(splitBtn).toHaveClass('active')
+
+      const editBtn = screen.getByText('Edit')
+      expect(editBtn).not.toHaveClass('active')
+
+      const previewBtn = screen.getByText('Preview')
+      expect(previewBtn).not.toHaveClass('active')
+    })
+
+    it('should switch to Edit mode when Edit button is clicked', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const editBtn = screen.getByText('Edit')
+      await user.click(editBtn)
+
+      // Edit button should now be active, others inactive
+      expect(editBtn).toHaveClass('active')
+      expect(screen.getByText('Preview')).not.toHaveClass('active')
+      expect(screen.getByText('Split')).not.toHaveClass('active')
+    })
+
+    it('should switch to Preview mode when Preview button is clicked', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      const previewBtn = screen.getByText('Preview')
+      await user.click(previewBtn)
+
+      expect(previewBtn).toHaveClass('active')
+    })
+
+    it('should switch to Split mode when Split button is clicked', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Test Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Test Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      
+      // First click Edit to change from default Split mode
+      await user.click(screen.getByText('Edit'))
+      
+      // Now click Split
+      const splitBtn = screen.getByText('Split')
+      await user.click(splitBtn)
+
+      expect(splitBtn).toHaveClass('active')
+    })
+  })
+
   describe('Auto-save', () => {
     it('should trigger auto-save after content change (debounced)', async () => {
       const { documentApi } = await import('../services/documentApi')
