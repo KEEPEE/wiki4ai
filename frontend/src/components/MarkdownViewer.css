@@ -2,56 +2,84 @@
  * CSS styles for Markdown Viewer component — Nexaverse dark mode with glassmorphism.
  */
 
+/* ── Main Container — Glass Panel ─────────────────────────────── */
+
 .markdown-viewer {
-  padding: 1rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 32px;
   line-height: 1.7;
-  color: var(--text-secondary);
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
+
+/* ── Markdown Content — Typography & Elements ─────────────────── */
 
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3 {
-  color: var(--text-primary);
+  font-family: 'Syne', sans-serif;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
 
-.markdown-content h1 { font-size: 2rem; }
-.markdown-content h2 { font-size: 1.5rem; }
-.markdown-content h3 { font-size: 1.25rem; }
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-family: 'Syne', sans-serif;
+  color: rgba(255, 255, 255, 0.8);
+  margin-top: 1.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.markdown-content h1 {
+  font-size: 2rem;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.markdown-content h2 {
+  font-size: 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.markdown-content h3 {
+  font-size: 1.25rem;
+  color: rgba(255, 255, 255, 0.9);
+}
 
 .markdown-content p {
   margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  line-height: 1.8;
 }
 
-.markdown-content a.wiki-link {
-  color: var(--primary);
-  text-decoration: none;
-  border-bottom: 1px dashed var(--primary);
-  cursor: pointer;
-}
-
-.markdown-content a.wiki-link:hover {
-  color: #00d4e6; /* slightly darker cyan */
-  border-bottom-style: solid;
-  text-shadow: 0 0 8px var(--glow-cyan);
-}
+/* ── Inline Code — Glass Pill ─────────────────────────────────── */
 
 .markdown-viewer code {
-  background-color: rgba(255, 255, 255, 0.06);
-  padding: 0.2em 0.4em;
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  padding: 4px 8px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 0.9em;
 }
 
+/* ── Code Block — Glass Panel ─────────────────────────────────── */
+
 .markdown-viewer pre {
-  background-color: rgba(255, 255, 255, 0.04);
-  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   padding: 1rem;
-  border-radius: 6px;
   overflow-x: auto;
-  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
 }
 
 .markdown-viewer pre code {
@@ -60,19 +88,25 @@
   color: inherit;
 }
 
+/* ── Horizontal Rule ──────────────────────────────────────────── */
+
 .markdown-viewer hr {
   border: none;
   border-top: 1px solid var(--glass-border);
   margin: 1.5rem 0;
 }
 
+/* ── Blockquote — Neon Accent Border ──────────────────────────── */
+
 .markdown-viewer blockquote {
-  border-left: 4px solid var(--primary);
-  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--primary);
+  padding: 0.5rem 16px;
   margin: 1rem 0;
   background-color: rgba(255, 255, 255, 0.03);
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6); /* Nexaverse secondary text opacity */
 }
+
+/* ── Lists ────────────────────────────────────────────────────── */
 
 .markdown-viewer ul,
 .markdown-viewer ol {
@@ -84,23 +118,51 @@
   margin-bottom: 0.25rem;
 }
 
-.empty-content {
-  color: var(--text-muted);
-  font-style: italic;
+/* ── Wiki Links — Gradient Underline Hover ────────────────────── */
+
+.markdown-content a.wiki-link,
+.links-section li a.wiki-link {
+  color: var(--primary); /* #00f0ff cyan */
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
 }
 
-/* Links section — glass panel */
+/* Gradient underline via background trick */
+.markdown-content a.wiki-link::after,
+.links-section li a.wiki-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px; /* 2px below text (accounting for line-height) */
+  width: 100%;
+  height: 2px;
+  background-image: linear-gradient(90deg, #00f0ff, #ff00d4);
+  background-size: 0% 2px;
+  background-position: bottom center;
+  background-repeat: no-repeat;
+  transition: background-size 0.3s ease;
+}
+
+.markdown-content a.wiki-link:hover::after,
+.links-section li a.wiki-link:hover::after {
+  background-size: 100% 2px;
+}
+
+/* ── Links Section — Glass Panel ──────────────────────────────── */
+
 .links-section {
   margin-top: 2rem;
-  padding: 1rem;
-  background: rgba(0, 240, 255, 0.03);
+  padding: 1.5rem;
+  background: var(--glass-bg);
   border-radius: 8px;
   border: 1px solid var(--glass-border);
 }
 
 .links-section h3 {
+  font-family: 'Syne', sans-serif;
   font-size: 1.1rem;
-  color: var(--text-primary);
+  color: rgba(255, 255, 255, 0.9);
   margin-bottom: 0.75rem;
 }
 
@@ -125,4 +187,11 @@
   background: rgba(0, 240, 255, 0.1);
   border-color: var(--primary);
   box-shadow: 0 0 8px var(--glow-cyan);
+}
+
+/* ── Empty Content ────────────────────────────────────────────── */
+
+.empty-content {
+  color: rgba(255, 255, 255, 0.4); /* Nexaverse muted text */
+  font-style: italic;
 }

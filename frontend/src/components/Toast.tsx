@@ -30,18 +30,6 @@ const accentGradients: Record<ToastType, string> = {
   info:    'linear-gradient(180deg, var(--primary) 0%, var(--accent) 100%)',
 };
 
-const accentBorders: Record<ToastType, string> = {
-  success: 'rgba(22, 163, 74, 0.3)',
-  error:   'rgba(220, 38, 38, 0.3)',
-  info:    'var(--primary)',
-};
-
-const accentGlowColors: Record<ToastType, string> = {
-  success: 'rgba(16, 185, 129, 0.3)',
-  error:   'rgba(239, 68, 68, 0.3)',
-  info:    'var(--glow-cyan)',
-};
-
 /* ── ToastItem component ─────────────────────────────────────── */
 
 interface ToastItemProps {
