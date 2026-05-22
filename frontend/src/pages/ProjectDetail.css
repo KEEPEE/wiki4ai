@@ -2,6 +2,8 @@
  * CSS styles for Project Detail page — Nexaverse dark mode with glassmorphism.
  */
 
+/* ── Main Container ─────────────────────────────────────────────── */
+
 .project-detail {
   max-width: 1000px;
   margin: 0 auto;
@@ -9,7 +11,8 @@
   position: relative;
 }
 
-/* Header Actions - buttons row */
+/* ── Header Actions — buttons row ──────────────────────────────── */
+
 .header-actions {
   display: flex;
   gap: 0.75rem;
@@ -42,11 +45,12 @@
   cursor: not-allowed;
 }
 
-/* Upload Progress Bar */
+/* ── Upload Progress Bar — Nexaverse gradient fill ─────────────── */
+
 .upload-progress-container {
   position: relative;
   margin-bottom: 1rem;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05); /* track: dark glass */
   border-radius: 6px;
   overflow: hidden;
   height: 28px;
@@ -59,7 +63,7 @@
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  background: linear-gradient(90deg, #00f0ff, #9d4edd); /* cyan → purple gradient */
   transition: width 0.3s ease;
   border-radius: 6px;
 }
@@ -75,7 +79,8 @@
   text-align: center;
 }
 
-/* Upload Error */
+/* ── Upload Error ──────────────────────────────────────────────── */
+
 .upload-error {
   display: flex;
   align-items: center;
@@ -103,7 +108,8 @@
   color: #ef4444; /* brighter red */
 }
 
-/* Drag & Drop Overlay */
+/* ── Drag & Drop Overlay ──────────────────────────────────────── */
+
 .drag-overlay {
   position: fixed;
   top: 0;
@@ -129,13 +135,15 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
-/* Drag Over State */
+/* ── Drag Over State ─────────────────────────────────────────── */
+
 .project-detail.drag-over {
   outline: 3px dashed var(--primary);
   outline-offset: -3px;
 }
 
-/* Breadcrumb Navigation */
+/* ── Breadcrumb Navigation ───────────────────────────────────── */
+
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -161,6 +169,8 @@
   color: var(--text-secondary);
   font-weight: 500;
 }
+
+/* ── Detail Header ───────────────────────────────────────────── */
 
 .detail-header {
   display: flex;
@@ -192,6 +202,8 @@
   margin: 0;
 }
 
+/* ── Documents List Container — glassmorphism panel ──────────── */
+
 .documents-list {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -205,12 +217,15 @@
   font-size: 1.25rem;
 }
 
-/* Document Items List */
+/* ── Document Items List ─────────────────────────────────────── */
+
 .document-items {
   list-style: none;
   padding: 0;
   margin: 0;
 }
+
+/* ── Document Card — glassmorphism + neon hover ─────────────── */
 
 .document-item {
   display: flex;
@@ -218,16 +233,48 @@
   align-items: center;
   padding: 1rem;
   border-bottom: 1px solid var(--glass-border);
-  transition: background-color var(--transition-fast);
+  transition: all 0.3s ease;
+
+  /* Glassmorphism base */
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 16px;
+
+  /* Glossy shine overlay */
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glossy shine on document cards */
+.document-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%);
+  border-radius: 16px 16px 0 0;
+  pointer-events: none;
 }
 
 .document-item:last-child {
   border-bottom: none;
 }
 
+/* ── Document Card Hover — neon glow effect ─────────────────── */
+
 .document-item:hover {
-  background-color: rgba(255, 255, 255, 0.03);
+  background: rgba(0, 240, 255, 0.08); /* cyan at 8% opacity */
+  border-color: var(--primary); /* #00f0ff */
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(0, 240, 255, 0.15); /* cyan glow */
+  transform: translateY(-5px) scale(1.01);
 }
+
+/* ── Document Info (clickable title + slug) ─────────────────── */
 
 .doc-info {
   display: flex;
@@ -238,8 +285,10 @@
 }
 
 .doc-title {
-  color: var(--primary);
-  font-weight: 500;
+  /* Syne font, rgba(255,255,255,0.8) */
+  font-family: 'Syne', sans-serif;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -247,11 +296,15 @@
   text-decoration: underline;
 }
 
+/* ── Document Slug — Outfit font, rgba(255,255,255,0.4), 12px */
+
 .doc-slug {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-family: monospace;
+  font-family: 'Outfit', sans-serif;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
 }
+
+/* ── Document Meta (date + delete button) ───────────────────── */
 
 .doc-meta {
   display: flex;
@@ -264,6 +317,8 @@
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* ── Delete Button ─────────────────────────────────────────── */
 
 .btn-delete {
   background: none;
@@ -286,13 +341,15 @@
   cursor: not-allowed;
 }
 
-/* Form Actions */
+/* ── Form Actions ───────────────────────────────────────────── */
+
 .form-actions {
   display: flex;
   gap: 0.75rem;
 }
 
-/* Tabs Navigation — Nexaverse glassmorphism pill style */
+/* ── Tabs Navigation — Nexaverse glassmorphism pill style ──── */
+
 .tabs {
   display: flex;
   gap: 0.5rem;
@@ -368,7 +425,8 @@
   box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
 }
 
-/* Tab content fade animation */
+/* ── Tab Content Fade Animation ─────────────────────────────── */
+
 .tab-content {
   animation: tabFade 0.4s ease-out;
 }
@@ -384,7 +442,8 @@
   }
 }
 
-/* Graph Preview Card — glass panel */
+/* ── Graph Preview Card — glass panel ─────────────────────── */
+
 .graph-preview {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
@@ -415,7 +474,8 @@
   display: block;
 }
 
-/* Loading and Empty States */
+/* ── Loading and Empty States ─────────────────────────────── */
+
 .loading-state, .empty-state {
   text-align: center;
   padding: 3rem;
@@ -442,7 +502,8 @@
   padding: 2rem;
 }
 
-/* Search Bar */
+/* ── Search Bar ───────────────────────────────────────────── */
+
 .search-bar {
   position: relative;
   margin-bottom: 1.5rem;
