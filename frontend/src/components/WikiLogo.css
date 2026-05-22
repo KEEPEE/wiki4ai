@@ -1,0 +1,66 @@
+/**
+ * WikiLogo — Hexagon SVG Logo Styles
+ *
+ * Neon glow, gradient stroke, hover effects.
+ * Inšpirované TemplateMo 603 - Nexaverse.
+ */
+
+/* ── Container ─────────────────────────────────────────────────── */
+
+.wiki-logo {
+  width: 90px;
+  height: 90px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.wiki-logo:hover {
+  transform: scale(1.08);
+}
+
+/* ── SVG Element ──────────────────────────────────────────────── */
+
+.wiki-logo-svg {
+  width: 100%;
+  height: 100%;
+  transition: filter 0.3s ease;
+}
+
+.wiki-logo:hover .wiki-logo-svg {
+  filter: url(#wikiLogoGlowHover);
+}
+
+/* ── Outer Hexagon ───────────────────────────────────────────── */
+
+.wiki-logo-outer {
+  stroke: url(#wikiLogoGrad);
+  transition: stroke-width 0.3s ease;
+}
+
+.wiki-logo:hover .wiki-logo-outer {
+  stroke-width: 2.5;
+}
+
+/* ── Inner Hexagon ───────────────────────────────────────────── */
+
+.wiki-logo-inner {
+  stroke: #00f0ff;
+  opacity: 0.6;
+  transition: opacity 0.3s ease, stroke-width 0.3s ease;
+}
+
+.wiki-logo:hover .wiki-logo-inner {
+  opacity: 0.85;
+  stroke-width: 2;
+}
+
+/* ── Center Circle ───────────────────────────────────────────── */
+
+.wiki-logo-center {
+  fill: #00f0ff;
+  transition: r 0.3s ease, fill-opacity 0.3s ease;
+}
+
+.wiki-logo:hover .wiki-logo-center {
+  fill-opacity: 1;
+}

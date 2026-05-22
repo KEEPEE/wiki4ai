@@ -1,6 +1,8 @@
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from './AmbientBackground';
+import WikiLogo from './WikiLogo';
+import './WikiLogo.css';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -47,21 +49,9 @@ export default function Layout({ children }: LayoutProps) {
             }}
           />
 
-          {/* Wiki4AI brand link — gradient text fill */}
-          <Link
-            to="/"
-            className="flex-shrink-0"
-            style={{
-              fontFamily: "'Syne', sans-serif",
-              fontWeight: 600,
-              fontSize: '1rem',
-              background: 'linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            Wiki4AI
+          {/* Wiki4AI brand — hexagon SVG logo with neon glow */}
+          <Link to="/" className="flex-shrink-0" data-testid="nav-logo">
+            <WikiLogo size={56} />
           </Link>
 
           {/* Auth section */}
