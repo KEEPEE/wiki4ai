@@ -79,4 +79,45 @@ export const documentApi = {
    */
   getBacklinks: (projectSlug: string, docSlug: string): Promise<Document[]> =>
     apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/backlinks`),
+
+  /**
+   * Add a link from one document to another.
+   * Endpoint: POST /projects/:slug/documents/:docSlug/links
+   */
+  addLink: (projectSlug: string, docSlug: string, targetDocumentId: number): Promise<Document> =>
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/links`, {
+      targetDocumentId,
+    }),
+
+  /**
+   * Remove a link between two documents.
+   * Endpoint: DELETE /projects/:slug/documents/:docSlug/links/:targetDocId
+   */
+  removeLink: (projectSlug: string, docSlug: string, targetDocumentId: number): Promise<void> =>
+    apiDelete(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/links/${targetDocumentId}`),
+
+  /**
+   * Get links - documents that a specific document links TO.
+   * Endpoint: GET /projects/:slug/documents/:docSlug/links
+   */
+  getLinks: (projectSlug: string, docSlug: string): Promise<Document[]> =>
+    apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/links`),
+
+  /**
+   * Move a document to another project.
+   * Endpoint: POST /projects/:slug/documents/:docSlug/move
+   */
+  moveDocument: (projectSlug: string, docSlug: string, targetProjectSlug: string): Promise<Document> =>
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/move`, {
+      targetProjectSlug,
+    }),
+
+  /**
+   * Copy a document to another project (or within the same project).
+   * Endpoint: POST /projects/:slug/documents/:docSlug/copy
+   */
+  copyDocument: (projectSlug: string, docSlug: string, targetProjectSlug?: string): Promise<Document> => {
+    const body = targetProjectSlug ? { targetProjectSlug } : {};
+    return apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/copy`, body);
+  },
 };

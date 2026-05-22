@@ -8,6 +8,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
+import DocumentLinks from '../components/DocumentLinks';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
 import './DocumentViewer.css';
@@ -149,6 +150,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
           <p className="no-backlinks">No documents link to this page</p>
         )}
       </section>
+
+      {/* Document Links Management */}
+      <DocumentLinks projectSlug={projectSlug} docSlug={docSlug} onRefresh={loadDocument} />
     </div>
   );
 };
