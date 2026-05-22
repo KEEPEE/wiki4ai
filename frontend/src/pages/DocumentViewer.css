@@ -98,7 +98,8 @@
   margin-bottom: 1rem;
 }
 
-/* Button Styles */
+/* ── Button Styles — Nexaverse glassmorphism + neon hover ─────── */
+
 .btn-primary,
 .btn-secondary {
   padding: 0.5rem 1rem;
@@ -109,15 +110,25 @@
   transition: all var(--transition-base);
 }
 
-.btn-primary {
-  background: var(--primary);
-  color: var(--dark-1);
-  border: none;
+/* ── Edit button (Document Viewer) — glassmorphism pill + neon hover ── */
+
+.document-actions .btn-primary {
+  background: rgba(255, 255, 255, 0.05); /* var(--glass-bg) */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  border-radius: 50px; /* pill shape */
+  padding: 8px 20px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
 }
 
-.btn-primary:hover {
-  background: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 8px var(--glow-cyan);
+.document-actions .btn-primary:hover {
+  background: rgba(0, 240, 255, 0.08); /* cyan at 8% opacity */
+  border-color: var(--primary); /* #00f0ff */
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
 }
 
 .btn-secondary {
