@@ -46,6 +46,10 @@ export default function ProfilePage() {
   const [tokenCopied, setTokenCopied] = useState(false);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
 
+  // Token expiration settings
+  const [expiresAt, setExpiresAt] = useState<string>('');
+  const [useCustomExpiry, setUseCustomExpiry] = useState(false);
+
   // Load profile on mount (and restore stored generated token)
   useEffect(() => {
     const loadProfile = async () => {
@@ -105,7 +109,17 @@ export default function ProfilePage() {
   const handleGenerateToken = useCallback(async () => {
     setIsGeneratingToken(true);
     try {
-      const response = await apiPost<{ accessToken: string }>(`${API_BASE_URL}/auth/token`);
+      // Build request body with optional expiresAt
+      const requestBody: { expiresAt?: string } = {};
+      if (useCustomExpiry && expiresAt) {
+        requestBody.expiresAt = expiresAt;
+      }
+
+      const response = await apiPost<{ accessToken: string }>(
+        `${API_BASE_URL}/auth/token`, 
+        Object.keys(requestBody).length > 0 ? requestBody : undefined
+      );
+      
       setGeneratedToken(response.accessToken);
       // Persist to localStorage so it survives logout/login cycles
       localStorage.setItem(GENERATED_TOKEN_KEY, response.accessToken);
@@ -115,7 +129,7 @@ export default function ProfilePage() {
     } finally {
       setIsGeneratingToken(false);
     }
-  }, []);
+  }, [useCustomExpiry, expiresAt]);
 
   const copyToClipboard = useCallback((text: string) => {
     // Try modern Clipboard API first; fall back to execCommand for non-secure contexts (HTTP on IP)
@@ -295,10 +309,43 @@ export default function ProfilePage() {
           Generate a new JWT access token for API integrations or MCP server connections.
         </p>
 
+        {/* Expiration date picker */}
+        <div className="form-group" style={{ marginTop: '16px' }}>
+          <label htmlFor="token-expiry" className="form-label">Token Expiration</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              type="checkbox"
+              id="use-custom-expiry"
+              checked={useCustomExpiry}
+              onChange={(e) => setUseCustomExpiry(e.target.checked)}
+              style={{ width: 'auto', marginRight: '8px' }}
+            />
+            <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
+          </div>
+
+          {useCustomExpiry && (
+            <input
+              id="token-expiry"
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="form-input"
+              style={{ marginTop: '8px' }}
+              data-testid="token-expiry-input"
+            />
+          )}
+
+          <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+            {useCustomExpiry && expiresAt
+              ? `Token will expire at ${new Date(expiresAt).toLocaleString()}`
+              : 'Leave unchecked for a token that never expires'}
+          </p>
+        </div>
+
         <button
           onClick={handleGenerateToken}
           className="btn btn-secondary"
-          disabled={isGeneratingToken}
+          disabled={isGeneratingToken || (useCustomExpiry && !expiresAt)}
           data-testid="generate-token-btn"
         >
           {isGeneratingToken ? 'Generating...' : 'Generate New Token'}

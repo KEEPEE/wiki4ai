@@ -34,7 +34,7 @@ public class RefreshToken {
     @Column(name = "token", nullable = false, unique = true)
     private String token;
 
-    @Column(name = "expires_at", nullable = false)
+    @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -42,9 +42,20 @@ public class RefreshToken {
 
     /**
      * Check if this refresh token has expired.
+     * Returns false when expiresAt is null (infinite-expiry tokens never expire).
      */
     public boolean isExpired() {
+        if (expiresAt == null) {
+            return false; // Infinite-expiry tokens never expire
+        }
         return LocalDateTime.now().isAfter(expiresAt);
+    }
+
+    /**
+     * Check if this refresh token has an infinite lifetime (no expiration).
+     */
+    public boolean isInfinite() {
+        return expiresAt == null;
     }
 
     @PrePersist

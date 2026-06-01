@@ -4,6 +4,7 @@ import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
+import com.wiki4ai.dto.TokenGenerationRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -149,12 +150,14 @@ public class AuthController {
      * Generate a new JWT token for the currently authenticated user.
      * Useful for API integrations, MCP servers, or when a fresh token is needed.
      * Requires a valid JWT token (authenticated user).
+     * Accepts an optional TokenGenerationRequestDTO with expiresAt to set custom expiration.
+     * If no expiresAt is provided, the refresh token will never expire (infinite lifetime).
      */
     @PostMapping("/token")
-    @Operation(summary = "Generate new access token", description = "Generates a new access and refresh token for the currently authenticated user")
+    @Operation(summary = "Generate new access token", description = "Generates a new access and refresh token for the currently authenticated user. Optional: pass expiresAt in request body to set custom expiration; omit for infinite-expiry tokens.")
     @ApiResponse(responseCode = "200", description = "New tokens generated successfully")
     @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
-    public ResponseEntity<?> generateNewToken() {
+    public ResponseEntity<?> generateNewToken(@RequestBody(required = false) TokenGenerationRequestDTO request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         // If no authentication is set, the user is not authenticated
@@ -166,7 +169,7 @@ public class AuthController {
         }
 
         String username = authentication.getName();
-        AuthResponseDTO response = authService.generateNewTokenForUser(username);
+        AuthResponseDTO response = authService.generateNewTokenForUser(username, request);
 
         if (response == null) {
             Map<String, String> error = new HashMap<>();

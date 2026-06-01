@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import com.wiki4ai.dto.TokenGenerationRequestDTO;
+
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -114,8 +116,24 @@ public class AuthService {
      * Generate a real JWT refresh token and persist it in the database.
      * The persisted token survives across deploys so users don't lose their tokens.
      * Deletes any existing refresh token for the user first to avoid unique constraint violations.
+     *
+     * @param user the user entity
+     * @return the generated refresh token string
      */
     public String generateAndPersistRefreshToken(User user) {
+        return generateAndPersistRefreshToken(user, null);
+    }
+
+    /**
+     * Generate a real JWT refresh token and persist it in the database with custom expiration.
+     * The persisted token survives across deploys so users don't lose their tokens.
+     * Deletes any existing refresh token for the user first to avoid unique constraint violations.
+     *
+     * @param user        the user entity
+     * @param expiresAt   optional expiration date; null means infinite lifetime (never expires)
+     * @return the generated refresh token string
+     */
+    public String generateAndPersistRefreshToken(User user, LocalDateTime expiresAt) {
         // Use TransactionTemplate for explicit transaction management to ensure
         // UPDATE/DELETE operations have an active transaction context
         return transactionTemplate.execute(status -> {
@@ -127,13 +145,19 @@ public class AuthService {
 
             String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
-            // Calculate expiration (use JwtUtil's refreshExpiration setting)
-            LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
+            LocalDateTime expiresAtValue;
+            if (expiresAt != null) {
+                // Use the provided expiration date
+                expiresAtValue = expiresAt;
+            } else {
+                // Default: use JwtUtil's refreshExpiration setting for backward compatibility
+                expiresAtValue = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
+            }
 
             RefreshToken tokenEntity = RefreshToken.builder()
                     .user(user)
                     .token(refreshToken)
-                    .expiresAt(expiresAt)
+                    .expiresAt(expiresAtValue)
                     .build();
 
             refreshTokenRepository.save(tokenEntity);
@@ -185,6 +209,7 @@ public class AuthService {
      * Persists the refresh token so it survives across deploys.
      * Used by the POST /token endpoint so users can generate fresh tokens (e.g., for API integrations).
      * Same logic as loginUser but without password verification — the user is already authenticated via JWT.
+     * Uses default expiration from JwtUtil configuration when no custom expiresAt is provided.
      *
      * @param username the username of the authenticated user (from SecurityContext)
      * @return AuthResponseDTO with new accessToken, refreshToken and user info — or null if user not found
@@ -197,7 +222,39 @@ public class AuthService {
         }
 
         String accessToken = generateAccessToken(user.getId(), user.getUsername());
-        String refreshToken = generateAndPersistRefreshToken(user);
+        String refreshToken = generateAndPersistRefreshToken(user, null);
+
+        return AuthResponseDTO.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(convertToUserDTO(user))
+                .build();
+    }
+
+    /**
+     * Generate a new access token and refresh token for an already authenticated user.
+     * Persists the refresh token so it survives across deploys.
+     * Used by the POST /token endpoint so users can generate fresh tokens (e.g., for API integrations).
+     * Same logic as loginUser but without password verification — the user is already authenticated via JWT.
+     * Accepts a TokenGenerationRequestDTO with optional expiration date.
+     * If expiresAt is null or not provided, the refresh token will never expire (infinite lifetime).
+     *
+     * @param username    the username of the authenticated user (from SecurityContext)
+     * @param request     token generation request with optional expiresAt field; null means infinite lifetime
+     * @return AuthResponseDTO with new accessToken, refreshToken and user info — or null if user not found
+     */
+    public AuthResponseDTO generateNewTokenForUser(String username, TokenGenerationRequestDTO request) {
+        LocalDateTime expiresAt = (request != null && request.getExpiresAt() != null) 
+                ? request.getExpiresAt() : null;
+        
+        User user = userRepository.findByUsername(username).orElse(null);
+
+        if (user == null) {
+            return null; // User not found
+        }
+
+        String accessToken = generateAccessToken(user.getId(), user.getUsername());
+        String refreshToken = generateAndPersistRefreshToken(user, expiresAt);
 
         return AuthResponseDTO.builder()
                 .accessToken(accessToken)
