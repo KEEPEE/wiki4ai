@@ -1,6 +1,7 @@
 package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.AuthResponseDTO;
+import com.wiki4ai.dto.TokenGenerationRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.service.AuthService;
@@ -37,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @org.springframework.test.context.TestPropertySource(properties = "security.enabled=true")
 class AuthControllerTokenTest {
 
-    @Autowired
+        @Autowired
     private MockMvc mockMvc;
 
     @MockBean
@@ -87,7 +88,7 @@ class AuthControllerTokenTest {
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(username, null, authorities);
 
-            given(authService.generateNewTokenForUser(username)).willReturn(expectedResponse);
+            given(authService.generateNewTokenForUser(username, null)).willReturn(expectedResponse);
 
             // when & then
             mockMvc.perform(post("/api/v1/auth/token").with(authentication(auth)))
@@ -98,6 +99,54 @@ class AuthControllerTokenTest {
                     .andExpect(jsonPath("$.user.username").value("testuser"))
                     .andExpect(jsonPath("$.user.email").value("testuser@example.com"))
                     .andExpect(jsonPath("$.user.role").value("USER"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with new tokens when authenticated (with request body)")
+        void shouldReturnNewTokensWhenAuthenticatedWithRequestBody() throws Exception {
+            // given
+            String username = "testuser";
+            AuthResponseDTO expectedResponse = createSampleAuthResponse(username);
+
+            List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                    new SimpleGrantedAuthority("ROLE_USER"));
+            UsernamePasswordAuthenticationToken auth =
+                    new UsernamePasswordAuthenticationToken(username, null, authorities);
+
+            // Mock expects any TokenGenerationRequestDTO with expiresAt set
+            given(authService.generateNewTokenForUser(org.mockito.ArgumentMatchers.eq(username),
+                    org.mockito.ArgumentMatchers.any(TokenGenerationRequestDTO.class)))
+                    .willReturn(expectedResponse);
+
+            // when & then - send JSON body with expiresAt
+            mockMvc.perform(post("/api/v1/auth/token")
+                            .with(authentication(auth))
+                            .contentType("application/json")
+                            .content("{\"expiresAt\":\"2025-12-31T23:59:00\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accessToken").value("test-access-token-for-testuser"))
+                    .andExpect(jsonPath("$.refreshToken").value("test-refresh-token-for-testuser"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with new tokens when authenticated (without request body)")
+        void shouldReturnNewTokensWhenAuthenticatedWithoutRequestBody() throws Exception {
+            // given
+            String username = "testuser";
+            AuthResponseDTO expectedResponse = createSampleAuthResponse(username);
+
+            List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                    new SimpleGrantedAuthority("ROLE_USER"));
+            UsernamePasswordAuthenticationToken auth =
+                    new UsernamePasswordAuthenticationToken(username, null, authorities);
+
+            given(authService.generateNewTokenForUser(username, null)).willReturn(expectedResponse);
+
+            // when & then
+            mockMvc.perform(post("/api/v1/auth/token").with(authentication(auth)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.accessToken").value("test-access-token-for-testuser"))
+                    .andExpect(jsonPath("$.refreshToken").value("test-refresh-token-for-testuser"));
         }
 
         @Test
@@ -124,7 +173,7 @@ class AuthControllerTokenTest {
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(username, null, authorities);
 
-            given(authService.generateNewTokenForUser(username)).willReturn(expectedResponse);
+            given(authService.generateNewTokenForUser(username, null)).willReturn(expectedResponse);
 
             // when & then
             mockMvc.perform(post("/api/v1/auth/token").with(authentication(auth)))
@@ -169,7 +218,7 @@ class AuthControllerTokenTest {
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(username, null, authorities);
 
-            given(authService.generateNewTokenForUser(username)).willReturn(null);
+            given(authService.generateNewTokenForUser(username, null)).willReturn(null);
 
             // when & then
             mockMvc.perform(post("/api/v1/auth/token").with(authentication(auth)))
@@ -189,7 +238,7 @@ class AuthControllerTokenTest {
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(username, null, authorities);
 
-            given(authService.generateNewTokenForUser(username)).willReturn(expectedResponse);
+            given(authService.generateNewTokenForUser(username, null)).willReturn(expectedResponse);
 
             // when & then
             mockMvc.perform(post("/api/v1/auth/token").with(authentication(auth)))
