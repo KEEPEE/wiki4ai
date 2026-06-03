@@ -362,7 +362,24 @@ export default function ProfilePage() {
       setTimeout(() => setDeleteToast(null), 3000);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete token';
-      setUpdateError(message);
+      
+      // If the API returns 404, the token is already gone from DB — still clean localStorage
+      if (message.includes('404')) {
+        const updatedStored = storedTokens.filter((t) => t.tokenId !== tokenId);
+        setStoredTokens(updatedStored);
+        localStorage.setItem(STORED_NAMED_TOKENS_KEY, JSON.stringify(updatedStored));
+
+        // Refresh the tokens list to remove it from UI
+        if (profile?.id) {
+          const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
+          setApiTokens(tokens);
+        }
+
+        setDeleteToast(`Token "${tokenName}" already deleted`);
+        setTimeout(() => setDeleteToast(null), 3000);
+      } else {
+        setUpdateError(message);
+      }
     }
   }, [profile?.id, storedTokens]);
 
