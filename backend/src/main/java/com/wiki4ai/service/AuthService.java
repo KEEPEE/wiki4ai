@@ -290,11 +290,16 @@ public class AuthService {
             throw new IllegalArgumentException("User not found");
         }
 
-        // Convert expiresAt to Date for JWT generation; null means infinite lifetime
-        Date jwtExpiryDate = (expiresAt != null) ? Date.from(expiresAt.atZone(java.time.ZoneOffset.UTC).toInstant()) : null;
-
-        // Generate a unique JWT access token with the correct expiration date
-        String accessToken = jwtUtil.generateToken(user.getUsername(), "ACCESS", new java.util.HashMap<>(), jwtExpiryDate);
+        // Generate a unique JWT access token with the correct expiration date.
+        // When expiresAt is null, use infinite-expiry token (no 'exp' claim).
+        String accessToken;
+        if (expiresAt != null) {
+            Date jwtExpiryDate = Date.from(expiresAt.atZone(java.time.ZoneOffset.UTC).toInstant());
+            accessToken = jwtUtil.generateToken(user.getUsername(), "ACCESS", new java.util.HashMap<>(), jwtExpiryDate);
+        } else {
+            // No expiration specified — generate a token that never expires
+            accessToken = jwtUtil.generateInfiniteToken(user.getUsername());
+        }
 
         // Use TransactionTemplate to ensure proper transaction participation
         return transactionTemplate.execute(status -> {
