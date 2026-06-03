@@ -6,8 +6,18 @@ import './Profile.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
-// ── Storage key for generated API tokens (persists across logout/login) ────
+// ── Storage keys for generated API tokens (persist across logout/login) ────
 const GENERATED_TOKEN_KEY = 'wiki4ai_generated_api_token';
+
+interface StoredToken {
+  tokenId: number;
+  name: string;
+  accessToken: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+const STORED_NAMED_TOKENS_KEY = 'wiki4ai_stored_named_tokens';
 
 interface UserProfile {
   id: number;
@@ -67,7 +77,10 @@ export default function ProfilePage() {
   const [useNewTokenExpiry, setUseNewTokenExpiry] = useState(false);
   const [isCreatingNamedToken, setIsCreatingNamedToken] = useState(false);
 
-  // Load profile and tokens on mount (and restore stored generated token)
+  // Stored named tokens (persist in localStorage for copy anytime)
+  const [storedTokens, setStoredTokens] = useState<StoredToken[]>([]);
+
+  // Load profile, tokens and stored named tokens on mount (and restore stored generated token)
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -89,8 +102,20 @@ export default function ProfilePage() {
       }
     };
 
+    const loadStoredNamedTokens = () => {
+      try {
+        const stored = localStorage.getItem(STORED_NAMED_TOKENS_KEY);
+        if (stored) {
+          setStoredTokens(JSON.parse(stored));
+        }
+      } catch {
+        // Corrupted data — ignore
+      }
+    };
+
     loadProfile();
     restoreToken();
+    loadStoredNamedTokens();
   }, []);
 
   // Load API tokens when profile is loaded
@@ -185,6 +210,19 @@ export default function ProfilePage() {
         requestBody
       );
 
+      // Save to localStorage so user can copy it anytime
+      const newStoredToken: StoredToken = {
+        tokenId: response.tokenId,
+        name: newTokenName.trim(),
+        accessToken: response.accessToken,
+        expiresAt: useNewTokenExpiry && newTokenExpiresAt ? newTokenExpiresAt : null,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updatedStored = [...storedTokens, newStoredToken];
+      setStoredTokens(updatedStored);
+      localStorage.setItem(STORED_NAMED_TOKENS_KEY, JSON.stringify(updatedStored));
+
       // Show the generated token once (like before)
       setGeneratedToken(response.accessToken);
       
@@ -204,25 +242,34 @@ export default function ProfilePage() {
     } finally {
       setIsCreatingNamedToken(false);
     }
-  }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id]);
+  }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id, storedTokens]);
 
-  // Delete a named API token
-  const handleDeleteApiToken = useCallback(async (tokenId: number) => {
-    if (!window.confirm('Are you sure you want to delete this token?')) return;
-    
+  const [deleteToast, setDeleteToast] = useState<string | null>(null);
+
+  // Delete a named API token (inline — no confirm)
+  const handleDeleteApiToken = useCallback(async (tokenId: number, tokenName: string) => {
     try {
       await apiDelete(`${API_BASE_URL}/auth/token/${tokenId}`);
+      
+      // Remove from localStorage too
+      const updatedStored = storedTokens.filter(t => t.tokenId !== tokenId);
+      setStoredTokens(updatedStored);
+      localStorage.setItem(STORED_NAMED_TOKENS_KEY, JSON.stringify(updatedStored));
       
       // Refresh the tokens list
       if (profile?.id) {
         const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
         setApiTokens(tokens);
       }
+
+      // Show delete toast
+      setDeleteToast(`Token "${tokenName}" deleted`);
+      setTimeout(() => setDeleteToast(null), 3000);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete token';
       setUpdateError(message);
     }
-  }, [profile?.id]);
+  }, [profile?.id, storedTokens]);
 
   const copyToClipboard = useCallback((text: string) => {
     if (navigator.clipboard?.writeText) {
@@ -508,7 +555,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <button
-                      onClick={() => handleDeleteApiToken(token.tokenId)}
+                      onClick={() => handleDeleteApiToken(token.tokenId, token.name)}
                       className="btn btn-small btn-danger"
                       style={{ fontSize: '12px', padding: '4px 8px' }}
                       data-testid={`delete-token-${token.tokenId}`}
@@ -535,6 +582,45 @@ export default function ProfilePage() {
               >
                 {tokenCopied ? '✓ Copied!' : 'Copy'}
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Stored Named Tokens — persist in localStorage, copy anytime */}
+        {storedTokens.length > 0 && (
+          <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Your Stored Tokens</h3>
+            <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
+              Generated tokens are saved locally — copy them whenever you need.
+            </p>
+            <div data-testid="stored-tokens-list">
+              {storedTokens.map((token) => (
+                <div
+                  key={`${token.tokenId}-${token.name}`}
+                  className={`profile-info-card ${isTokenExpired(token.expiresAt) ? 'expired-token' : ''}`}
+                  style={{ marginBottom: '8px', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <strong>{token.name}</strong>
+                      {token.expiresAt && (
+                        <div style={{ fontSize: '12px', color: isTokenExpired(token.expiresAt) ? '#dc2626' : '#6b7280', marginTop: '4px' }}>
+                          Expires: {formatExpiration(token.expiresAt)}
+                          {isTokenExpired(token.expiresAt) && ' (expired)'}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(token.accessToken)}
+                      className="btn btn-small"
+                      style={{ fontSize: '12px', padding: '4px 8px' }}
+                      data-testid={`copy-stored-token-${token.tokenId}`}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -600,6 +686,13 @@ export default function ProfilePage() {
           )}
         </div>
       </section>
+
+      {/* Delete toast */}
+      {deleteToast && (
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 1000, background: '#1f2937', color: '#fff', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+          <span style={{ fontSize: '14px' }}>{deleteToast}</span>
+        </div>
+      )}
 
       {/* Logout */}
       <section className="profile-section profile-danger-zone">
