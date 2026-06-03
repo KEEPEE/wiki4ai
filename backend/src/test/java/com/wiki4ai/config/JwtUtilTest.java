@@ -149,4 +149,40 @@ class JwtUtilTest {
         assertFalse(token.contains("password"));
         assertFalse(token.contains("secret"));
     }
+
+    @Test
+    void generateToken_withExplicitExpiry_shouldUseProvidedDate() {
+        // Create a token that expires in 10 years from now (definitely not expired)
+        Date farFuture = new Date(System.currentTimeMillis() + 365L * 24 * 60 * 60 * 1000 * 10);
+
+        String token = jwtUtil.generateToken("farfutureuser", "ACCESS", new java.util.HashMap<>(), farFuture);
+
+        assertNotNull(token);
+        assertTrue(jwtUtil.validateToken(token));
+        assertEquals("farfutureuser", jwtUtil.getUsernameFromToken(token));
+        // Token should not be expired (it expires in 10 years)
+        assertFalse(jwtUtil.isTokenExpired(token));
+    }
+
+    @Test
+    void generateToken_withNullExpiry_shouldUseDefault() {
+        // When expiryDate is null, should use default expiration (same as regular generateToken)
+        String tokenWithNull = jwtUtil.generateToken("nulluser", "ACCESS", new java.util.HashMap<>(), null);
+        String tokenDefault = jwtUtil.generateToken("nulluser");
+
+        assertNotNull(tokenWithNull);
+        assertTrue(jwtUtil.validateToken(tokenWithNull));
+        assertEquals("nulluser", jwtUtil.getUsernameFromToken(tokenWithNull));
+    }
+
+    @Test
+    void generateToken_withPastExpiry_shouldCreateExpiredToken() {
+        // Create a token that already expired (1 second in the past)
+        Date past = new Date(System.currentTimeMillis() - 1000);
+
+        String token = jwtUtil.generateToken("pastuser", "ACCESS", new java.util.HashMap<>(), past);
+
+        assertNotNull(token);
+        assertTrue(jwtUtil.isTokenExpired(token)); // Should be identified as expired
+    }
 }

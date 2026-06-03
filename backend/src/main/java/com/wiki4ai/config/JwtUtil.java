@@ -67,6 +67,7 @@ public class JwtUtil {
 
     /**
      * Generate a token with type and additional claims for the given username.
+     * Uses the default expiration configured in jwt.expiration.
      *
      * @param username    the username to include in the token
      * @param type        the token type (e.g., "ACCESS" or "REFRESH")
@@ -76,6 +77,34 @@ public class JwtUtil {
     public String generateToken(String username, String type, Map<String, Object> extraClaims) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + expiration);
+
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .claim("type", type)
+                .claims(extraClaims)
+                .signWith(secretKey)
+                .compact();
+    }
+
+    /**
+     * Generate a token with explicit expiration date for the given username.
+     * This allows tokens to have custom lifetimes (e.g., infinite or longer than default).
+     *
+     * @param username    the username to include in the token
+     * @param type        the token type (e.g., "ACCESS" or "REFRESH")
+     * @param extraClaims additional claims to include
+     * @param expiryDate  explicit expiration date; if null, uses default expiration
+     * @return the generated JWT token string
+     */
+    public String generateToken(String username, String type, Map<String, Object> extraClaims, Date expiryDate) {
+        Date now = new Date();
+
+        // If no explicit expiry provided, use default
+        if (expiryDate == null) {
+            return generateToken(username, type, extraClaims);
+        }
 
         return Jwts.builder()
                 .subject(username)
