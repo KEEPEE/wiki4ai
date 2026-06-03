@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost, apiPut, apiDelete } from '../services/apiClient';
@@ -254,7 +254,7 @@ export default function ProfilePage() {
   }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id, storedTokens]);
 
   // ── Computed: merge stored tokens + API tokens into unified list ────
-  const tokenCards = useCallback((): TokenCardData[] => {
+  const tokenCards = useMemo(() => {
     if (storedTokens.length === 0 && apiTokens.length === 0) return [];
 
     // Build a map from stored tokens (they have accessToken)
@@ -587,18 +587,18 @@ export default function ProfilePage() {
           ) : tokenCards.length === 0 ? (
             <p style={{ fontSize: '14px', color: '#6b7280' }}>No API tokens yet. Create one above.</p>
           ) : (
-            tokenCards.map((token) => {
-              const hasAccessToken = !!token.accessToken;
-              return (
-                <div
-                  key={`${token.tokenId}-${token.name}`}
-                  className={`token-card ${isTokenExpired(token.expiresAt) ? 'expired' : ''}`}
-                >
-                  <div className="token-card-info">
-                    <div className="token-card-name">{token.name}</div>
-                    {hasAccessToken && (
-                      <div className="token-card-preview" title={token.accessToken}>
-                        {tokenPreview(token.accessToken)}
+              tokenCards.map((token) => {
+                const hasAccessToken = !!token.accessToken;
+                return (
+                  <div
+                    key={`${token.tokenId}-${token.name}`}
+                    className={`token-card ${isTokenExpired(token.expiresAt) ? 'expired' : ''}`}
+                  >
+                    <div className="token-card-info">
+                      <div className="token-card-name">{token.name}</div>
+                      {hasAccessToken && (
+                        <div className="token-card-preview" title={token.accessToken!}>
+                          {tokenPreview(token.accessToken!)}
                       </div>
                     )}
                     <div className="token-card-meta">
