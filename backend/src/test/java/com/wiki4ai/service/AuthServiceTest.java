@@ -189,4 +189,71 @@ class AuthServiceTest {
             assertThat(profile).isNull();
         }
     }
+
+    @Nested
+    @DisplayName("Named API Token Generation")
+    class NamedApiTokenTests {
+
+        @Test
+        @DisplayName("should generate infinite-expiry token when expiresAt is null")
+        void shouldGenerateInfiniteTokenWhenExpiresAtIsNull() {
+            // given
+            User user = User.builder().id(1L).username("tokenuser").email("token@example.com").password("$2a$10.hashed").build();
+            when(userRepository.findByUsername("tokenuser")).thenReturn(Optional.of(user));
+
+            // Mock the infinite token method (not the regular generateToken)
+            when(jwtUtil.generateInfiniteToken("tokenuser")).thenReturn("mock-infinite-token");
+
+            // Override transactionTemplate to return a proper TokenResponseDTO
+            com.wiki4ai.dto.TokenResponseDTO mockResponse = com.wiki4ai.dto.TokenResponseDTO.builder()
+                    .accessToken("mock-infinite-token")
+                    .name("Agent")
+                    .expiresAt(null)
+                    .createdAt(java.time.LocalDateTime.now())
+                    .tokenId(1L)
+                    .build();
+            when(transactionTemplate.execute(any())).thenReturn(mockResponse);
+
+            // when
+            var response = authService.generateNamedApiToken("tokenuser", "Agent", null);
+
+            // then — should call generateInfiniteToken, NOT generateToken with expiryDate
+            assertThat(response).isNotNull();
+            assertThat(response.getAccessToken()).isEqualTo("mock-infinite-token");
+            assertThat(response.getName()).isEqualTo("Agent");
+            assertThat(response.getExpiresAt()).isNull();
+            verify(jwtUtil).generateInfiniteToken("tokenuser");
+        }
+
+        @Test
+        @DisplayName("should generate token with explicit expiry when expiresAt is provided")
+        void shouldGenerateExpiryTokenWhenExpiresAtProvided() {
+            // given
+            User user = User.builder().id(1L).username("expiryuser").email("expiry@example.com").password("$2a$10.hashed").build();
+            when(userRepository.findByUsername("expiryuser")).thenReturn(Optional.of(user));
+
+            java.time.LocalDateTime expiryDate = java.time.LocalDateTime.of(2027, 12, 31, 23, 59);
+            String expectedToken = "mock-expiry-token";
+            when(jwtUtil.generateToken(eq("expiryuser"), eq("ACCESS"), any(), any())).thenReturn(expectedToken);
+
+            // Override transactionTemplate to return a proper TokenResponseDTO
+            com.wiki4ai.dto.TokenResponseDTO mockResponse = com.wiki4ai.dto.TokenResponseDTO.builder()
+                    .accessToken(expectedToken)
+                    .name("ExpiryToken")
+                    .expiresAt(expiryDate)
+                    .createdAt(java.time.LocalDateTime.now())
+                    .tokenId(2L)
+                    .build();
+            when(transactionTemplate.execute(any())).thenReturn(mockResponse);
+
+            // when
+            var response = authService.generateNamedApiToken("expiryuser", "ExpiryToken", expiryDate);
+
+            // then — should call generateToken with the explicit expiry date
+            assertThat(response).isNotNull();
+            assertThat(response.getAccessToken()).isEqualTo(expectedToken);
+            assertThat(response.getName()).isEqualTo("ExpiryToken");
+            assertThat(response.getExpiresAt()).isEqualTo(expiryDate);
+        }
+    }
 }

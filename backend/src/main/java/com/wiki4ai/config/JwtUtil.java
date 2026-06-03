@@ -117,6 +117,25 @@ public class JwtUtil {
     }
 
     /**
+     * Generate an access token with infinite lifetime (no expiration).
+     * This is used for named API tokens that should never expire.
+     * The token has no 'exp' claim, so it will never be considered expired by the parser.
+     *
+     * @param username the username to include in the token
+     * @return the generated JWT access token string (never expires)
+     */
+    public String generateInfiniteToken(String username) {
+        Date now = new Date();
+
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(now)
+                .claim("type", "ACCESS")
+                .signWith(secretKey)
+                .compact();
+    }
+
+    /**
      * Generate a refresh token for the given username.
      *
      * @param username the username to include in the token
@@ -190,6 +209,7 @@ public class JwtUtil {
 
     /**
      * Check if the token has expired.
+     * Tokens without an 'exp' claim (infinite-expiry tokens) are never considered expired.
      *
      * @param token the JWT token
      * @return true if the token is expired, false otherwise
@@ -197,9 +217,13 @@ public class JwtUtil {
     public boolean isTokenExpired(String token) {
         try {
             Date expiration = getExpirationDateFromToken(token);
+            // If there's no 'exp' claim (infinite-expiry token), expiration will be null → not expired
+            if (expiration == null) {
+                return false;
+            }
             return expiration.before(new Date());
         } catch (Exception e) {
-            // If we can't parse the token or it's expired, treat as expired
+            // If we can't parse the token, treat as expired
             return true;
         }
     }

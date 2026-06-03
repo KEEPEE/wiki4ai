@@ -185,4 +185,42 @@ class JwtUtilTest {
         assertNotNull(token);
         assertTrue(jwtUtil.isTokenExpired(token)); // Should be identified as expired
     }
+
+    @Test
+    void generateInfiniteToken_shouldCreateValidToken() {
+        String token = jwtUtil.generateInfiniteToken("infinitetokenuser");
+
+        assertNotNull(token);
+        assertTrue(jwtUtil.validateToken(token));
+        assertEquals("infinitetokenuser", jwtUtil.getUsernameFromToken(token));
+    }
+
+    @Test
+    void generateInfiniteToken_shouldNeverExpire() {
+        String token = jwtUtil.generateInfiniteToken("neverexpires");
+
+        // Should never be identified as expired since there's no 'exp' claim
+        assertFalse(jwtUtil.isTokenExpired(token));
+
+        // Even after waiting, it should still not be expired
+        try {
+            Thread.sleep(10);
+        } catch (InterruptedException ignored) {
+        }
+
+        assertFalse(jwtUtil.isTokenExpired(token));
+    }
+
+    @Test
+    void generateInfiniteToken_shouldHaveAccessType() {
+        String token = jwtUtil.generateInfiniteToken("typecheckuser");
+
+        assertEquals("ACCESS", jwtUtil.getTokenType(token));
+    }
+
+    @Test
+    void validateToken_withInfiniteToken_shouldReturnTrue() {
+        String token = jwtUtil.generateInfiniteToken("validinfinitetoken");
+        assertTrue(jwtUtil.validateToken(token));
+    }
 }
