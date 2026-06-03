@@ -5,6 +5,7 @@ import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
+import com.wiki4ai.dto.TokenResponseDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,7 +19,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -178,6 +181,106 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * DTO for creating a named API token.
+     */
+    public record CreateTokenRequest(String name, LocalDateTime expiresAt) {}
+
+    /**
+     * Generate a new named API token (JWT access token) for the currently authenticated user.
+     * The token is stored with a custom name and optional expiration date.
+     * If no expiration date is provided, the token never expires (infinite lifetime).
+     */
+    @PostMapping("/token/named")
+    @Operation(summary = "Generate named API token", description = "Generates a new JWT access token for the authenticated user with a custom name and optional expiration. Stored in database for management.")
+    @ApiResponse(responseCode = "201", description = "Named token generated successfully")
+    @ApiResponse(responseCode = "400", description = "Invalid request (e.g., missing name)")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    public ResponseEntity<?> generateNamedToken(@Valid @RequestBody CreateTokenRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        if (request.name == null || request.name.isBlank()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Token name is required");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+        }
+
+        String username = authentication.getName();
+        TokenResponseDTO response = authService.generateNamedApiToken(username, request.name, request.expiresAt);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * List all API tokens for the currently authenticated user.
+     */
+    @GetMapping("/tokens")
+    @Operation(summary = "List API tokens", description = "Returns all named API tokens for the authenticated user (without token values)")
+    @ApiResponse(responseCode = "200", description = "Token list returned successfully")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    public ResponseEntity<?> listApiTokens() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        UserDTO profile = authService.getProfileByUsername(authentication.getName());
+        if (profile == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "User not found in database");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        List<TokenResponseDTO> tokens = authService.listApiTokens(profile.getId());
+        return ResponseEntity.ok(tokens);
+    }
+
+    /**
+     * Delete an API token by ID (only if it belongs to the authenticated user).
+     */
+    @DeleteMapping("/token/{tokenId}")
+    @Operation(summary = "Delete API token", description = "Deletes a named API token. Only the owner can delete their own tokens.")
+    @ApiResponse(responseCode = "204", description = "Token deleted successfully")
+    @ApiResponse(responseCode = "401", description = "Authentication required or unauthorized")
+    @ApiResponse(responseCode = "404", description = "Token not found")
+    public ResponseEntity<?> deleteApiToken(@PathVariable Long tokenId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+
+        if (authentication == null || authentication.getName() == null
+                || "anonymousUser".equals(authentication.getName())) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Authentication required. Please provide a valid JWT token.");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        UserDTO profile = authService.getProfileByUsername(authentication.getName());
+        if (profile == null) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "User not found in database");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        boolean deleted = authService.deleteApiToken(tokenId, profile.getId());
+        if (!deleted) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Token not found or unauthorized");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+        }
+
+        return ResponseEntity.noContent().build();
     }
 
     /**

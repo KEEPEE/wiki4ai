@@ -195,11 +195,12 @@ describe('ProfilePage', () => {
       await userEvent.click(generateBtn)
 
       await waitFor(() => {
-        expect(screen.getByTestId('token-display')).toBeInTheDocument()
+        expect(screen.getByTestId('new-token-display')).toBeInTheDocument()
       })
 
       expect(apiClient.apiPost).toHaveBeenCalledWith(
         expect.stringContaining('/auth/token'),
+        undefined,
       )
     })
 
@@ -282,11 +283,11 @@ describe('ProfilePage', () => {
       await userEvent.click(generateBtn)
 
       await waitFor(() => {
-        expect(screen.getByTestId('token-display')).toBeInTheDocument()
+        expect(screen.getByTestId('new-token-display')).toBeInTheDocument()
       })
 
       // Click copy button
-      const copyBtn = screen.getByTestId('copy-token-btn')
+      const copyBtn = screen.getByTestId('copy-new-token-btn')
       await userEvent.click(copyBtn)
 
       expect(mockClipboard.writeText).toHaveBeenCalledWith('test-token-value')

@@ -5,9 +5,13 @@ import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
+import com.wiki4ai.dto.TokenGenerationRequestDTO;
+import com.wiki4ai.dto.TokenResponseDTO;
 import com.wiki4ai.dto.UserDTO;
+import com.wiki4ai.model.ApiToken;
 import com.wiki4ai.model.RefreshToken;
 import com.wiki4ai.model.User;
+import com.wiki4ai.repository.ApiTokenRepository;
 import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -21,7 +25,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service for authentication operations: user registration and login.
@@ -33,15 +39,18 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ApiTokenRepository apiTokenRepository;
     private final EntityManager entityManager;
     private final TransactionTemplate transactionTemplate;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, 
-                       EntityManager entityManager, TransactionTemplate transactionTemplate, JwtUtil jwtUtil) {
+                       ApiTokenRepository apiTokenRepository, EntityManager entityManager, 
+                       TransactionTemplate transactionTemplate, JwtUtil jwtUtil) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.apiTokenRepository = apiTokenRepository;
         this.entityManager = entityManager;
         this.transactionTemplate = transactionTemplate;
         this.jwtUtil = jwtUtil;
@@ -150,8 +159,8 @@ public class AuthService {
                 // Use the provided expiration date
                 expiresAtValue = expiresAt;
             } else {
-                // Default: use JwtUtil's refreshExpiration setting for backward compatibility
-                expiresAtValue = LocalDateTime.now().plusSeconds(jwtUtil.getRefreshExpirationSeconds());
+                // Null means infinite lifetime — token never expires
+                expiresAtValue = null;
             }
 
             RefreshToken tokenEntity = RefreshToken.builder()
@@ -261,6 +270,87 @@ public class AuthService {
                 .refreshToken(refreshToken)
                 .user(convertToUserDTO(user))
                 .build();
+    }
+
+    /**
+     * Generate a named API token (JWT access token) for the authenticated user.
+     * The token is stored in the database with a custom name and optional expiration date.
+     * If expiresAt is null, the token never expires (infinite lifetime).
+     *
+     * @param username    the username of the authenticated user (from SecurityContext)
+     * @param tokenName   a custom name for this token (for user identification)
+     * @param expiresAt   optional expiration date; null means infinite lifetime
+     * @return TokenResponseDTO with the generated access token and metadata
+     */
+    public TokenResponseDTO generateNamedApiToken(String username, String tokenName, LocalDateTime expiresAt) {
+        User user = userRepository.findByUsername(username).orElse(null);
+
+        if (user == null) {
+            throw new IllegalArgumentException("User not found");
+        }
+
+        // Generate a unique JWT access token for this API token
+        String accessToken = jwtUtil.generateToken(user.getUsername());
+
+        // Use TransactionTemplate to ensure proper transaction participation
+        return transactionTemplate.execute(status -> {
+            ApiToken apiToken = ApiToken.builder()
+                    .user(user)
+                    .name(tokenName)
+                    .tokenValue(accessToken)
+                    .expiresAt(expiresAt)  // null means infinite lifetime
+                    .build();
+
+            apiTokenRepository.save(apiToken);
+
+            return TokenResponseDTO.builder()
+                    .accessToken(accessToken)
+                    .name(tokenName)
+                    .expiresAt(expiresAt)
+                    .createdAt(apiToken.getCreatedAt())
+                    .tokenId(apiToken.getId())
+                    .build();
+        });
+    }
+
+    /**
+     * List all API tokens for the authenticated user.
+     *
+     * @param userId the user ID to list tokens for
+     * @return list of TokenResponseDTO (without the actual token value)
+     */
+    public List<TokenResponseDTO> listApiTokens(Long userId) {
+        return apiTokenRepository.findByUserId(userId).stream()
+                .map(token -> TokenResponseDTO.builder()
+                        .accessToken(null)  // Don't expose the actual token value in listing
+                        .name(token.getName())
+                        .expiresAt(token.getExpiresAt())
+                        .createdAt(token.getCreatedAt())
+                        .tokenId(token.getId())
+                        .build())
+                .toList();
+    }
+
+    /**
+     * Delete an API token by ID (only if it belongs to the specified user).
+     *
+     * @param tokenId  the ID of the token to delete
+     * @param userId   the ID of the authenticated user (for authorization)
+     * @return true if deleted, false if not found or unauthorized
+     */
+    public boolean deleteApiToken(Long tokenId, Long userId) {
+        Optional<ApiToken> tokenOpt = apiTokenRepository.findById(tokenId);
+        if (tokenOpt.isEmpty()) {
+            return false;
+        }
+
+        ApiToken token = tokenOpt.get();
+        if (!token.getUser().getId().equals(userId)) {
+            throw new IllegalArgumentException("Cannot delete token belonging to another user");
+        }
+
+        apiTokenRepository.deleteById(tokenId);
+        return true;
     }
 
     /**

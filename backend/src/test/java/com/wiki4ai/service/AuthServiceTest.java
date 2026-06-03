@@ -2,6 +2,7 @@ package com.wiki4ai.service;
 
 import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.model.User;
+import com.wiki4ai.repository.ApiTokenRepository;
 import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -24,6 +25,7 @@ class AuthServiceTest {
 
     private UserRepository userRepository;
     private RefreshTokenRepository refreshTokenRepository;
+    private ApiTokenRepository apiTokenRepository;
     private EntityManager entityManager;
     private TransactionTemplate transactionTemplate;
     private JwtUtil jwtUtil;
@@ -33,6 +35,7 @@ class AuthServiceTest {
     void setUp() {
         userRepository = mock(UserRepository.class);
         refreshTokenRepository = mock(RefreshTokenRepository.class);
+        apiTokenRepository = mock(ApiTokenRepository.class);
         entityManager = mock(EntityManager.class);
         transactionTemplate = mock(TransactionTemplate.class);
         when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
@@ -44,7 +47,7 @@ class AuthServiceTest {
         when(jwtUtil.generateToken(anyString())).thenReturn("mock-access-token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock-refresh-token");
         when(jwtUtil.getRefreshExpirationSeconds()).thenReturn(86400L); // 24 hours default
-        authService = new AuthService(userRepository, refreshTokenRepository, entityManager, transactionTemplate, jwtUtil);
+        authService = new AuthService(userRepository, refreshTokenRepository, apiTokenRepository, entityManager, transactionTemplate, jwtUtil);
     }
 
     @Nested

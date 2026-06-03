@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { apiGet, apiPost, apiPut } from '../services/apiClient';
+import { apiGet, apiPost, apiPut, apiDelete } from '../services/apiClient';
 import './Profile.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -24,6 +24,13 @@ interface ProfileUpdateRequest {
   newPassword?: string;
 }
 
+interface ApiTokenInfo {
+  tokenId: number;
+  name: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -41,16 +48,26 @@ export default function ProfilePage() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Token generation state
+  // Token generation state (single token for backward compatibility)
   const [generatedToken, setGeneratedToken] = useState<string | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [isGeneratingToken, setIsGeneratingToken] = useState(false);
 
-  // Token expiration settings
+  // Token expiration settings (for single token generation)
   const [expiresAt, setExpiresAt] = useState<string>('');
   const [useCustomExpiry, setUseCustomExpiry] = useState(false);
 
-  // Load profile on mount (and restore stored generated token)
+  // Named API tokens state
+  const [apiTokens, setApiTokens] = useState<ApiTokenInfo[]>([]);
+  const [isFetchingTokens, setIsFetchingTokens] = useState(false);
+  
+  // New named token form state
+  const [newTokenName, setNewTokenName] = useState('');
+  const [newTokenExpiresAt, setNewTokenExpiresAt] = useState<string>('');
+  const [useNewTokenExpiry, setUseNewTokenExpiry] = useState(false);
+  const [isCreatingNamedToken, setIsCreatingNamedToken] = useState(false);
+
+  // Load profile and tokens on mount (and restore stored generated token)
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -75,6 +92,25 @@ export default function ProfilePage() {
     loadProfile();
     restoreToken();
   }, []);
+
+  // Load API tokens when profile is loaded
+  useEffect(() => {
+    const loadApiTokens = async () => {
+      if (!profile?.id) return;
+      
+      setIsFetchingTokens(true);
+      try {
+        const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
+        setApiTokens(Array.isArray(tokens) ? tokens : []);
+      } catch {
+        // Silently fail - tokens are optional, keep existing list
+      } finally {
+        setIsFetchingTokens(false);
+      }
+    };
+
+    loadApiTokens();
+  }, [profile?.id]);
 
   const handleUpdateProfile = useCallback(
     async (e: React.FormEvent) => {
@@ -106,10 +142,10 @@ export default function ProfilePage() {
     [editUsername, editEmail, currentPassword, newPassword],
   );
 
+  // Generate a single token (backward compatible)
   const handleGenerateToken = useCallback(async () => {
     setIsGeneratingToken(true);
     try {
-      // Build request body with optional expiresAt
       const requestBody: { expiresAt?: string } = {};
       if (useCustomExpiry && expiresAt) {
         requestBody.expiresAt = expiresAt;
@@ -121,7 +157,6 @@ export default function ProfilePage() {
       );
       
       setGeneratedToken(response.accessToken);
-      // Persist to localStorage so it survives logout/login cycles
       localStorage.setItem(GENERATED_TOKEN_KEY, response.accessToken);
       setTokenCopied(false);
     } catch {
@@ -131,14 +166,70 @@ export default function ProfilePage() {
     }
   }, [useCustomExpiry, expiresAt]);
 
+  // Generate a named API token
+  const handleCreateNamedToken = useCallback(async () => {
+    if (!newTokenName.trim()) return;
+    
+    setIsCreatingNamedToken(true);
+    try {
+      const requestBody: { name: string; expiresAt?: string } = {
+        name: newTokenName.trim(),
+      };
+
+      if (useNewTokenExpiry && newTokenExpiresAt) {
+        requestBody.expiresAt = newTokenExpiresAt;
+      }
+
+      const response = await apiPost<{ accessToken: string; tokenId: number }>(
+        `${API_BASE_URL}/auth/token/named`, 
+        requestBody
+      );
+
+      // Show the generated token once (like before)
+      setGeneratedToken(response.accessToken);
+      
+      // Refresh the tokens list
+      if (profile?.id) {
+        const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
+        setApiTokens(tokens);
+      }
+
+      // Reset form
+      setNewTokenName('');
+      setNewTokenExpiresAt('');
+      setUseNewTokenExpiry(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create token';
+      setUpdateError(message);
+    } finally {
+      setIsCreatingNamedToken(false);
+    }
+  }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id]);
+
+  // Delete a named API token
+  const handleDeleteApiToken = useCallback(async (tokenId: number) => {
+    if (!window.confirm('Are you sure you want to delete this token?')) return;
+    
+    try {
+      await apiDelete(`${API_BASE_URL}/auth/token/${tokenId}`);
+      
+      // Refresh the tokens list
+      if (profile?.id) {
+        const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
+        setApiTokens(tokens);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete token';
+      setUpdateError(message);
+    }
+  }, [profile?.id]);
+
   const copyToClipboard = useCallback((text: string) => {
-    // Try modern Clipboard API first; fall back to execCommand for non-secure contexts (HTTP on IP)
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(text).then(() => {
         setTokenCopied(true);
         setTimeout(() => setTokenCopied(false), 2000);
       }).catch(() => {
-        // Clipboard API failed — use fallback below
         const textarea = document.createElement('textarea');
         textarea.value = text;
         textarea.style.position = 'fixed';
@@ -184,6 +275,26 @@ export default function ProfilePage() {
     logout();
     navigate('/login');
   }, [logout, navigate]);
+
+  // Format expiration date for display
+  const formatExpiration = (expiresAt: string | null): string => {
+    if (!expiresAt) return 'Never';
+    try {
+      return new Date(expiresAt).toLocaleString();
+    } catch {
+      return expiresAt;
+    }
+  };
+
+  // Check if token is expired
+  const isTokenExpired = (expiresAt: string | null): boolean => {
+    if (!expiresAt) return false;
+    try {
+      return new Date(expiresAt) < new Date();
+    } catch {
+      return false;
+    }
+  };
 
   if (isLoadingProfile) {
     return (
@@ -304,65 +415,190 @@ export default function ProfilePage() {
 
       {/* API Token Section */}
       <section className="profile-section" data-testid="api-token-section">
-        <h2 className="section-title">API Token</h2>
+        <h2 className="section-title">API Tokens</h2>
         <p className="section-description">
-          Generate a new JWT access token for API integrations or MCP server connections.
+          Generate JWT access tokens for API integrations or MCP server connections.
+          You can create multiple named tokens and manage them here.
         </p>
 
-        {/* Expiration date picker */}
+        {/* Named Token Creation Form */}
         <div className="form-group" style={{ marginTop: '16px' }}>
-          <label htmlFor="token-expiry" className="form-label">Token Expiration</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Create New Token</h3>
+          
+          <div className="form-group">
+            <label htmlFor="token-name" className="form-label">Token Name</label>
             <input
-              type="checkbox"
-              id="use-custom-expiry"
-              checked={useCustomExpiry}
-              onChange={(e) => setUseCustomExpiry(e.target.checked)}
-              style={{ width: 'auto', marginRight: '8px' }}
+              id="token-name"
+              type="text"
+              value={newTokenName}
+              onChange={(e) => setNewTokenName(e.target.value)}
+              className="form-input"
+              placeholder="e.g., MCP Server, CI/CD Pipeline"
+              data-testid="api-token-name"
             />
-            <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
           </div>
 
-          {useCustomExpiry && (
-            <input
-              id="token-expiry"
-              type="datetime-local"
-              value={expiresAt}
-              onChange={(e) => setExpiresAt(e.target.value)}
-              className="form-input"
-              style={{ marginTop: '8px' }}
-              data-testid="token-expiry-input"
-            />
-          )}
+          <div className="form-group">
+            <label htmlFor="token-expiry" className="form-label">Expiration</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                id="use-new-token-expiry"
+                checked={useNewTokenExpiry}
+                onChange={(e) => setUseNewTokenExpiry(e.target.checked)}
+                style={{ width: 'auto', marginRight: '8px' }}
+              />
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
+            </div>
 
-          <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-            {useCustomExpiry && expiresAt
-              ? `Token will expire at ${new Date(expiresAt).toLocaleString()}`
-              : 'Leave unchecked for a token that never expires'}
-          </p>
+            {useNewTokenExpiry && (
+              <input
+                id="token-expiry"
+                type="datetime-local"
+                value={newTokenExpiresAt}
+                onChange={(e) => setNewTokenExpiresAt(e.target.value)}
+                className="form-input"
+                style={{ marginTop: '8px' }}
+                data-testid="api-token-expiry-input"
+              />
+            )}
+
+            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+              {useNewTokenExpiry && newTokenExpiresAt
+                ? `Token will expire at ${new Date(newTokenExpiresAt).toLocaleString()}`
+                : 'Leave unchecked for a token that never expires'}
+            </p>
+          </div>
+
+          <button
+            onClick={handleCreateNamedToken}
+            className="btn btn-secondary"
+            disabled={isCreatingNamedToken || !newTokenName.trim()}
+            data-testid="create-named-token-btn"
+          >
+            {isCreatingNamedToken ? 'Creating...' : 'Create Named Token'}
+          </button>
         </div>
 
-        <button
-          onClick={handleGenerateToken}
-          className="btn btn-secondary"
-          disabled={isGeneratingToken || (useCustomExpiry && !expiresAt)}
-          data-testid="generate-token-btn"
-        >
-          {isGeneratingToken ? 'Generating...' : 'Generate New Token'}
-        </button>
+        {/* Existing Tokens List */}
+        <div style={{ marginTop: '24px' }}>
+          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Your Tokens</h3>
+          
+          {isFetchingTokens ? (
+            <p style={{ fontSize: '14px', color: '#6b7280' }}>Loading tokens...</p>
+          ) : apiTokens.length === 0 ? (
+            <p style={{ fontSize: '14px', color: '#6b7280' }}>No API tokens yet. Create one above.</p>
+          ) : (
+            <div data-testid="api-tokens-list">
+              {apiTokens.map((token) => (
+                <div
+                  key={token.tokenId}
+                  className={`profile-info-card ${isTokenExpired(token.expiresAt) ? 'expired-token' : ''}`}
+                  style={{ marginBottom: '8px', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <strong>{token.name}</strong>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                        Created: {new Date(token.createdAt).toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '12px', color: isTokenExpired(token.expiresAt) ? '#dc2626' : '#6b7280', marginTop: '2px' }}>
+                        Expires: {formatExpiration(token.expiresAt)}
+                        {isTokenExpired(token.expiresAt) && ' (expired)'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteApiToken(token.tokenId)}
+                      className="btn btn-small btn-danger"
+                      style={{ fontSize: '12px', padding: '4px 8px' }}
+                      data-testid={`delete-token-${token.tokenId}`}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
+        {/* Generated Token Display (for newly created tokens) */}
         {generatedToken && (
-          <div className="token-display" data-testid="token-display">
-            <code>{generatedToken.slice(0, 40)}...</code>
-            <button
-              onClick={handleCopyToken}
-              className="btn btn-small copy-btn"
-              data-testid="copy-token-btn"
-            >
-              {tokenCopied ? '✓ Copied!' : 'Copy'}
-            </button>
+          <div style={{ marginTop: '16px' }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>New Token</h3>
+            <div className="token-display" data-testid="new-token-display">
+              <code>{generatedToken.slice(0, 40)}...</code>
+              <button
+                onClick={handleCopyToken}
+                className="btn btn-small copy-btn"
+                data-testid="copy-new-token-btn"
+              >
+                {tokenCopied ? '✓ Copied!' : 'Copy'}
+              </button>
+            </div>
           </div>
         )}
+
+        {/* Legacy single token generation (backward compatible) */}
+        <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Quick Generate Token</h3>
+          
+          {/* Expiration date picker */}
+          <div className="form-group">
+            <label htmlFor="token-expiry" className="form-label">Token Expiration</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                type="checkbox"
+                id="use-custom-expiry"
+                checked={useCustomExpiry}
+                onChange={(e) => setUseCustomExpiry(e.target.checked)}
+                style={{ width: 'auto', marginRight: '8px' }}
+              />
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
+            </div>
+
+            {useCustomExpiry && (
+              <input
+                id="token-expiry"
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="form-input"
+                style={{ marginTop: '8px' }}
+                data-testid="token-expiry-input"
+              />
+            )}
+
+            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+              {useCustomExpiry && expiresAt
+                ? `Token will expire at ${new Date(expiresAt).toLocaleString()}`
+                : 'Leave unchecked for a token that never expires'}
+            </p>
+          </div>
+
+          <button
+            onClick={handleGenerateToken}
+            className="btn btn-secondary"
+            disabled={isGeneratingToken || (useCustomExpiry && !expiresAt)}
+            data-testid="generate-token-btn"
+          >
+            {isGeneratingToken ? 'Generating...' : 'Generate New Token'}
+          </button>
+
+          {/* Legacy token display */}
+          {generatedToken && !newTokenName && (
+            <div className="token-display" data-testid="legacy-token-display">
+              <code>{generatedToken.slice(0, 40)}...</code>
+              <button
+                onClick={handleCopyToken}
+                className="btn btn-small copy-btn"
+                data-testid="copy-token-btn"
+              >
+                {tokenCopied ? '✓ Copied!' : 'Copy'}
+              </button>
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Logout */}
