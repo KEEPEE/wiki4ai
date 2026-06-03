@@ -25,6 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -275,7 +276,7 @@ public class AuthService {
     /**
      * Generate a named API token (JWT access token) for the authenticated user.
      * The token is stored in the database with a custom name and optional expiration date.
-     * If expiresAt is null, the token never expires (infinite lifetime).
+     * If expiresAt is null, the JWT token never expires (infinite lifetime).
      *
      * @param username    the username of the authenticated user (from SecurityContext)
      * @param tokenName   a custom name for this token (for user identification)
@@ -289,8 +290,11 @@ public class AuthService {
             throw new IllegalArgumentException("User not found");
         }
 
-        // Generate a unique JWT access token for this API token
-        String accessToken = jwtUtil.generateToken(user.getUsername());
+        // Convert expiresAt to Date for JWT generation; null means infinite lifetime
+        Date jwtExpiryDate = (expiresAt != null) ? Date.from(expiresAt.atZone(java.time.ZoneOffset.UTC).toInstant()) : null;
+
+        // Generate a unique JWT access token with the correct expiration date
+        String accessToken = jwtUtil.generateToken(user.getUsername(), "ACCESS", new java.util.HashMap<>(), jwtExpiryDate);
 
         // Use TransactionTemplate to ensure proper transaction participation
         return transactionTemplate.execute(status -> {
