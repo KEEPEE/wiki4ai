@@ -285,3 +285,138 @@
   border: 1px solid rgba(220, 38, 38, 0.3); /* per spec */
   background-color: rgba(220, 38, 38, 0.05); /* per spec */
 }
+
+/* ── Token cards — unified clean layout ────────────────────────── */
+
+.token-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.token-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.token-card:hover {
+  border-color: rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.08);
+}
+
+.token-card.expired {
+  opacity: 0.5;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.token-card-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.token-card-name {
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-card-preview {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.token-card-meta .expired-text {
+  color: #fca5a5; /* error text */
+}
+
+.token-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-copy-token {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--glass-border);
+  background-color: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-copy-token:hover:not(:disabled) {
+  background-color: rgba(0, 240, 255, 0.1);
+  border-color: var(--primary);
+}
+
+.btn-copy-token.copied {
+  color: #6ee7b7; /* success text */
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.btn-delete-token {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  background-color: transparent;
+  color: #fca5a5; /* error text */
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-delete-token:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: #fca5a5;
+}
+
+/* ── Token display — glassmorphism field (legacy) ──────────────── */
+
+.token-display {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  border-radius: 8px;
+}
+
+.token-display code {
+  flex: 1;
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  word-break: break-all;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+/* ── Buttons — glassmorphism + neon hover glow ─────────────────── */

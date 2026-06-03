@@ -195,7 +195,7 @@ describe('ProfilePage', () => {
       await userEvent.click(generateBtn)
 
       await waitFor(() => {
-        expect(screen.getByTestId('new-token-display')).toBeInTheDocument()
+        expect(screen.getByTestId('legacy-token-display')).toBeInTheDocument()
       })
 
       expect(apiClient.apiPost).toHaveBeenCalledWith(
@@ -263,7 +263,7 @@ describe('ProfilePage', () => {
   })
 
   describe('copy token', () => {
-    it('should copy token to clipboard and show confirmation', async () => {
+    it('should copy legacy token to clipboard and show confirmation', async () => {
       const mockClipboard = {
         writeText: vi.fn().mockResolvedValue(undefined),
       }
@@ -278,16 +278,16 @@ describe('ProfilePage', () => {
         expect(screen.getByTestId('generate-token-btn')).toBeInTheDocument()
       })
 
-      // Generate token first
+      // Generate token first (legacy quick generate flow)
       const generateBtn = screen.getByTestId('generate-token-btn')
       await userEvent.click(generateBtn)
 
       await waitFor(() => {
-        expect(screen.getByTestId('new-token-display')).toBeInTheDocument()
+        expect(screen.getByTestId('legacy-token-display')).toBeInTheDocument()
       })
 
-      // Click copy button
-      const copyBtn = screen.getByTestId('copy-new-token-btn')
+      // Click copy button on legacy display
+      const copyBtn = screen.getByTestId('copy-token-btn')
       await userEvent.click(copyBtn)
 
       expect(mockClipboard.writeText).toHaveBeenCalledWith('test-token-value')
