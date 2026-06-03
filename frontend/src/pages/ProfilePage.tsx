@@ -41,6 +41,15 @@ interface ApiTokenInfo {
   createdAt: string;
 }
 
+// ── Unified token card data (combines stored + API tokens) ────────────
+interface TokenCardData {
+  tokenId: number;
+  name: string;
+  accessToken?: string; // only available for stored tokens
+  expiresAt: string | null;
+  createdAt: string;
+}
+
 export default function ProfilePage() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -244,96 +253,52 @@ export default function ProfilePage() {
     }
   }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id, storedTokens]);
 
-  const [deleteToast, setDeleteToast] = useState<string | null>(null);
+  // ── Computed: merge stored tokens + API tokens into unified list ────
+  const tokenCards = useCallback((): TokenCardData[] => {
+    if (storedTokens.length === 0 && apiTokens.length === 0) return [];
 
-  // Delete a named API token (inline — no confirm)
-  const handleDeleteApiToken = useCallback(async (tokenId: number, tokenName: string) => {
-    try {
-      await apiDelete(`${API_BASE_URL}/auth/token/${tokenId}`);
-      
-      // Remove from localStorage too
-      const updatedStored = storedTokens.filter(t => t.tokenId !== tokenId);
-      setStoredTokens(updatedStored);
-      localStorage.setItem(STORED_NAMED_TOKENS_KEY, JSON.stringify(updatedStored));
-      
-      // Refresh the tokens list
-      if (profile?.id) {
-        const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
-        setApiTokens(tokens);
+    // Build a map from stored tokens (they have accessToken)
+    const storedMap = new Map<number, StoredToken>();
+    storedTokens.forEach((t) => storedMap.set(t.tokenId, t));
+
+    // Start with API tokens (no accessToken available)
+    const cards: TokenCardData[] = apiTokens.map((t) => ({
+      tokenId: t.tokenId,
+      name: t.name,
+      expiresAt: t.expiresAt ? new Date(t.expiresAt).toISOString() : null,
+      createdAt: t.createdAt,
+    }));
+
+    // Overlay stored tokens (they have accessToken for copy)
+    storedMap.forEach((stored) => {
+      const idx = cards.findIndex((c) => c.tokenId === stored.tokenId);
+      if (idx >= 0) {
+        cards[idx] = { ...cards[idx], accessToken: stored.accessToken };
+      } else {
+        // Stored token not in API list yet — add it
+        cards.push({
+          tokenId: stored.tokenId,
+          name: stored.name,
+          accessToken: stored.accessToken,
+          expiresAt: stored.expiresAt ? new Date(stored.expiresAt).toISOString() : null,
+          createdAt: stored.createdAt,
+        });
       }
+    });
 
-      // Show delete toast
-      setDeleteToast(`Token "${tokenName}" deleted`);
-      setTimeout(() => setDeleteToast(null), 3000);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete token';
-      setUpdateError(message);
-    }
-  }, [profile?.id, storedTokens]);
+    return cards;
+  }, [storedTokens, apiTokens]);
 
-  const copyToClipboard = useCallback((text: string) => {
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
-        setTokenCopied(true);
-        setTimeout(() => setTokenCopied(false), 2000);
-      }).catch(() => {
-        const textarea = document.createElement('textarea');
-        textarea.value = text;
-        textarea.style.position = 'fixed';
-        textarea.style.opacity = '0';
-        document.body.appendChild(textarea);
-        textarea.select();
-        try {
-          document.execCommand('copy');
-          setTokenCopied(true);
-          setTimeout(() => setTokenCopied(false), 2000);
-        } catch {
-          setUpdateError('Failed to copy token');
-        } finally {
-          document.body.removeChild(textarea);
-        }
-      });
-    } else {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      try {
-        document.execCommand('copy');
-        setTokenCopied(true);
-        setTimeout(() => setTokenCopied(false), 2000);
-      } catch {
-        setUpdateError('Failed to copy token');
-      } finally {
-        document.body.removeChild(textarea);
-      }
-    }
-  }, []);
-
-  const handleCopyToken = useCallback(() => {
-    if (generatedToken) {
-      copyToClipboard(generatedToken);
-    }
-  }, [generatedToken, copyToClipboard]);
-
-  const handleLogout = useCallback(() => {
-    logout();
-    navigate('/login');
-  }, [logout, navigate]);
-
-  // Format expiration date for display
+  // ── Format helpers ────────────────────────────────────────────────
   const formatExpiration = (expiresAt: string | null): string => {
     if (!expiresAt) return 'Never';
     try {
-      return new Date(expiresAt).toLocaleString();
+      return new Date(expiresAt).toLocaleDateString();
     } catch {
       return expiresAt;
     }
   };
 
-  // Check if token is expired
   const isTokenExpired = (expiresAt: string | null): boolean => {
     if (!expiresAt) return false;
     try {
@@ -342,6 +307,94 @@ export default function ProfilePage() {
       return false;
     }
   };
+
+  // ── Token preview (first 20 chars + ellipsis) ─────────────────────
+  const tokenPreview = (token: string): string => {
+    if (!token) return '';
+    return token.length > 20 ? `${token.slice(0, 20)}…` : token;
+  };
+
+  // ── Copy handler with per-token feedback ───────────────────────────
+  const [copiedTokenId, setCopiedTokenId] = useState<number | null>(null);
+
+  const handleCopyStoredToken = useCallback((tokenId: number, accessToken: string) => {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(accessToken).then(() => {
+        setCopiedTokenId(tokenId);
+        setTimeout(() => setCopiedTokenId(null), 2000);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = accessToken;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        setCopiedTokenId(tokenId);
+        setTimeout(() => setCopiedTokenId(null), 2000);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+  }, []);
+
+  // ── Delete handler with toast ─────────────────────────────────────
+  const [deleteToast, setDeleteToast] = useState<string | null>(null);
+
+  const handleDeleteToken = useCallback(async (tokenId: number, tokenName: string) => {
+    try {
+      await apiDelete(`${API_BASE_URL}/auth/token/${tokenId}`);
+
+      // Remove from localStorage too
+      const updatedStored = storedTokens.filter((t) => t.tokenId !== tokenId);
+      setStoredTokens(updatedStored);
+      localStorage.setItem(STORED_NAMED_TOKENS_KEY, JSON.stringify(updatedStored));
+
+      // Refresh the tokens list
+      if (profile?.id) {
+        const tokens = await apiGet<ApiTokenInfo[]>(`${API_BASE_URL}/auth/tokens`);
+        setApiTokens(tokens);
+      }
+
+      setDeleteToast(`Token "${tokenName}" deleted`);
+      setTimeout(() => setDeleteToast(null), 3000);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to delete token';
+      setUpdateError(message);
+    }
+  }, [profile?.id, storedTokens]);
+
+  const handleLogout = useCallback(() => {
+    logout();
+    navigate('/login');
+  }, [logout, navigate]);
+
+  // ── Legacy token copy (for the quick generate flow) ────────────────
+  const handleCopyLegacyToken = useCallback(() => {
+    if (!generatedToken) return;
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(generatedToken).then(() => {
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000);
+      });
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = generatedToken;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+  }, [generatedToken]);
 
   if (isLoadingProfile) {
     return (
@@ -471,7 +524,7 @@ export default function ProfilePage() {
         {/* Named Token Creation Form */}
         <div className="form-group" style={{ marginTop: '16px' }}>
           <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Create New Token</h3>
-          
+
           <div className="form-group">
             <label htmlFor="token-name" className="form-label">Token Name</label>
             <input
@@ -527,108 +580,63 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        {/* Existing Tokens List */}
-        <div style={{ marginTop: '24px' }}>
-          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Your Tokens</h3>
-          
-          {isFetchingTokens ? (
+        {/* Unified Token Cards */}
+        <div className="token-cards" data-testid="api-tokens-list">
+          {isFetchingTokens && storedTokens.length === 0 ? (
             <p style={{ fontSize: '14px', color: '#6b7280' }}>Loading tokens...</p>
-          ) : apiTokens.length === 0 ? (
+          ) : tokenCards.length === 0 ? (
             <p style={{ fontSize: '14px', color: '#6b7280' }}>No API tokens yet. Create one above.</p>
           ) : (
-            <div data-testid="api-tokens-list">
-              {apiTokens.map((token) => (
+            tokenCards.map((token) => {
+              const hasAccessToken = !!token.accessToken;
+              return (
                 <div
-                  key={token.tokenId}
-                  className={`profile-info-card ${isTokenExpired(token.expiresAt) ? 'expired-token' : ''}`}
-                  style={{ marginBottom: '8px', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
+                  key={`${token.tokenId}-${token.name}`}
+                  className={`token-card ${isTokenExpired(token.expiresAt) ? 'expired' : ''}`}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <strong>{token.name}</strong>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                        Created: {new Date(token.createdAt).toLocaleString()}
+                  <div className="token-card-info">
+                    <div className="token-card-name">{token.name}</div>
+                    {hasAccessToken && (
+                      <div className="token-card-preview" title={token.accessToken}>
+                        {tokenPreview(token.accessToken)}
                       </div>
-                      <div style={{ fontSize: '12px', color: isTokenExpired(token.expiresAt) ? '#dc2626' : '#6b7280', marginTop: '2px' }}>
+                    )}
+                    <div className="token-card-meta">
+                      <span>Created: {new Date(token.createdAt).toLocaleDateString()}</span>
+                      <span className={isTokenExpired(token.expiresAt) ? 'expired-text' : ''}>
                         Expires: {formatExpiration(token.expiresAt)}
-                        {isTokenExpired(token.expiresAt) && ' (expired)'}
-                      </div>
+                      </span>
                     </div>
+                  </div>
+
+                  <div className="token-card-actions">
+                    {hasAccessToken && (
+                      <button
+                        onClick={() => handleCopyStoredToken(token.tokenId, token.accessToken!)}
+                        className={`btn-copy-token ${copiedTokenId === token.tokenId ? 'copied' : ''}`}
+                        data-testid={`copy-stored-token-${token.tokenId}`}
+                      >
+                        {copiedTokenId === token.tokenId ? '✓ Copied!' : 'Copy'}
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleDeleteApiToken(token.tokenId, token.name)}
-                      className="btn btn-small btn-danger"
-                      style={{ fontSize: '12px', padding: '4px 8px' }}
+                      onClick={() => handleDeleteToken(token.tokenId, token.name)}
+                      className="btn-delete-token"
                       data-testid={`delete-token-${token.tokenId}`}
                     >
                       Delete
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
         </div>
 
-        {/* Generated Token Display (for newly created tokens) */}
-        {generatedToken && (
-          <div style={{ marginTop: '16px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>New Token</h3>
-            <div className="token-display" data-testid="new-token-display">
-              <code>{generatedToken.slice(0, 40)}...</code>
-              <button
-                onClick={handleCopyToken}
-                className="btn btn-small copy-btn"
-                data-testid="copy-new-token-btn"
-              >
-                {tokenCopied ? '✓ Copied!' : 'Copy'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Stored Named Tokens — persist in localStorage, copy anytime */}
-        {storedTokens.length > 0 && (
-          <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
-            <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Your Stored Tokens</h3>
-            <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
-              Generated tokens are saved locally — copy them whenever you need.
-            </p>
-            <div data-testid="stored-tokens-list">
-              {storedTokens.map((token) => (
-                <div
-                  key={`${token.tokenId}-${token.name}`}
-                  className={`profile-info-card ${isTokenExpired(token.expiresAt) ? 'expired-token' : ''}`}
-                  style={{ marginBottom: '8px', padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb' }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <strong>{token.name}</strong>
-                      {token.expiresAt && (
-                        <div style={{ fontSize: '12px', color: isTokenExpired(token.expiresAt) ? '#dc2626' : '#6b7280', marginTop: '4px' }}>
-                          Expires: {formatExpiration(token.expiresAt)}
-                          {isTokenExpired(token.expiresAt) && ' (expired)'}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => copyToClipboard(token.accessToken)}
-                      className="btn btn-small"
-                      style={{ fontSize: '12px', padding: '4px 8px' }}
-                      data-testid={`copy-stored-token-${token.tokenId}`}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Legacy single token generation (backward compatible) */}
-        <div style={{ marginTop: '24px', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+        <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
           <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Quick Generate Token</h3>
-          
+
           {/* Expiration date picker */}
           <div className="form-group">
             <label htmlFor="token-expiry" className="form-label">Token Expiration</label>
@@ -676,7 +684,7 @@ export default function ProfilePage() {
             <div className="token-display" data-testid="legacy-token-display">
               <code>{generatedToken.slice(0, 40)}...</code>
               <button
-                onClick={handleCopyToken}
+                onClick={handleCopyLegacyToken}
                 className="btn btn-small copy-btn"
                 data-testid="copy-token-btn"
               >
