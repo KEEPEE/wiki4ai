@@ -3,6 +3,7 @@ package com.wiki4ai.service;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
@@ -50,11 +51,12 @@ public class DocumentService {
 
     /**
      * Get paginated documents in a project, ordered by update date (newest first).
+     * Returns DocumentSummaryDTO (without content field) to keep list responses lightweight.
      */
-    public Page<DocumentDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable, String username) {
+    public Page<DocumentSummaryDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable, String username) {
         permissionService.checkPermission(username, projectId, Permission.READ);
         return documentRepository.findByProjectIdOrderByUpdatedAtDesc(projectId, pageable)
-                .map(this::convertToDTO);
+                .map(this::convertToSummaryDTO);
     }
 
     /**
@@ -518,6 +520,26 @@ public class DocumentService {
                 .build();
     }
 
+    /**
+     * Convert Document entity to lightweight Summary DTO (without content field).
+     * Used for paginated list responses to keep payloads small.
+     */
+    private DocumentSummaryDTO convertToSummaryDTO(Document document) {
+        List<Long> linkedDocIds = document.getLinkedDocuments().stream()
+                .map(Document::getId)
+                .collect(Collectors.toList());
+
+        return DocumentSummaryDTO.builder()
+                .id(document.getId())
+                .title(document.getTitle())
+                .slug(document.getSlug())
+                .projectId(document.getProject().getId())
+                .linkedDocuments(linkedDocIds)
+                .createdAt(document.getCreatedAt())
+                .updatedAt(document.getUpdatedAt())
+                .build();
+    }
+
     // ==================== BACKWARD COMPATIBILITY OVERLOADS (no username param) ====================
     // These delegate to the permission-aware methods with null username, which skips permission checks.
     // Used by existing unit tests that don't set up security context.
@@ -526,7 +548,7 @@ public class DocumentService {
         return getDocumentsByProject(projectId, null);
     }
 
-    public Page<DocumentDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable) {
+    public Page<DocumentSummaryDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable) {
         return getDocumentsByProjectPaginated(projectId, pageable, null);
     }
 

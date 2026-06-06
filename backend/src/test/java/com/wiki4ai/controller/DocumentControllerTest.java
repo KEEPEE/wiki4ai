@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
@@ -157,13 +158,25 @@ class DocumentControllerTest {
     @DisplayName("GET /api/v1/projects/{projectSlug}/documents - List documents (paginated)")
     class GetDocumentsTests {
 
+        private DocumentSummaryDTO createSampleSummary() {
+            return DocumentSummaryDTO.builder()
+                    .id(1L)
+                    .title("Test Document")
+                    .slug("test-document")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+        }
+
         @Test
         @DisplayName("Should return 200 with paginated documents and metadata")
         void shouldReturnPaginatedDocuments() throws Exception {
             // given
             mockProjectResolution("test-project");
-            DocumentDTO doc = createSampleDocument();
-            Page<DocumentDTO> page = new PageImpl<>(List.of(doc));
+            DocumentSummaryDTO doc = createSampleSummary();
+            Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc));
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
@@ -182,7 +195,7 @@ class DocumentControllerTest {
         void shouldReturnEmptyPage() throws Exception {
             // given
             mockProjectResolution("test-project");
-            Page<DocumentDTO> emptyPage = new PageImpl<>(List.of());
+            Page<DocumentSummaryDTO> emptyPage = new PageImpl<>(List.of());
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(emptyPage);
 
             // when & then
@@ -198,11 +211,11 @@ class DocumentControllerTest {
         void shouldReturnPageWithParams() throws Exception {
             // given
             mockProjectResolution("test-project");
-            DocumentDTO doc1 = DocumentDTO.builder().id(1L).title("Doc 1").slug("doc-1").projectId(1L)
+            DocumentSummaryDTO doc1 = DocumentSummaryDTO.builder().id(1L).title("Doc 1").slug("doc-1").projectId(1L)
                     .linkedDocuments(List.of()).createdAt(now).updatedAt(now).build();
-            DocumentDTO doc2 = DocumentDTO.builder().id(2L).title("Doc 2").slug("doc-2").projectId(1L)
+            DocumentSummaryDTO doc2 = DocumentSummaryDTO.builder().id(2L).title("Doc 2").slug("doc-2").projectId(1L)
                     .linkedDocuments(List.of()).createdAt(now).updatedAt(now).build();
-            Page<DocumentDTO> page = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(1, 10), 25);
+            Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(1, 10), 25);
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
@@ -221,8 +234,8 @@ class DocumentControllerTest {
         void shouldUseDefaultPaginationParams() throws Exception {
             // given
             mockProjectResolution("test-project");
-            DocumentDTO doc = createSampleDocument();
-            Page<DocumentDTO> page = new PageImpl<>(List.of(doc), PageRequest.of(0, 50), 1);
+            DocumentSummaryDTO doc = createSampleSummary();
+            Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc), PageRequest.of(0, 50), 1);
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
 
             // when & then
@@ -230,6 +243,27 @@ class DocumentControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.number").value(0))
                     .andExpect(jsonPath("$.size").value(50));
+        }
+
+        @Test
+        @DisplayName("Should NOT include content field in paginated list response")
+        void shouldNotIncludeContentFieldInListResponse() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentSummaryDTO doc = createSampleSummary();
+            Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc));
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
+
+            // when & then - verify content field is absent from list items
+            mockMvc.perform(get("/api/v1/projects/test-project/documents"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].id").exists())
+                    .andExpect(jsonPath("$.content[0].title").exists())
+                    .andExpect(jsonPath("$.content[0].slug").exists())
+                    .andExpect(jsonPath("$.content[0].projectId").exists())
+                    .andExpect(jsonPath("$.content[0].createdAt").exists())
+                    .andExpect(jsonPath("$.content[0].updatedAt").exists())
+                    .andExpect(jsonPath("$.content[0].content").doesNotExist());
         }
     }
 
@@ -934,7 +968,7 @@ class DocumentControllerTest {
         @DisplayName("Controller should have proper Tag annotation")
         void shouldHaveTagAnnotation() throws Exception {
             mockProjectResolution("test-project");
-            Page<DocumentDTO> emptyPage = new PageImpl<>(List.of());
+            Page<DocumentSummaryDTO> emptyPage = new PageImpl<>(List.of());
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(emptyPage);
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
                     .andExpect(status().isOk()); // Will fail if controller not registered
@@ -944,7 +978,7 @@ class DocumentControllerTest {
         @DisplayName("All CRUD endpoints should be properly mapped")
         void shouldHaveAllEndpointsMapped() throws Exception {
             mockProjectResolution("test-project");
-            Page<DocumentDTO> emptyPage = new PageImpl<>(List.of());
+            Page<DocumentSummaryDTO> emptyPage = new PageImpl<>(List.of());
             given(documentService.getDocumentsByProjectPaginated(eq(1L), any())).willReturn(emptyPage);
             // Verify that all endpoints are properly mapped by checking status codes
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))

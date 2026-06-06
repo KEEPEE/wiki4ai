@@ -962,6 +962,76 @@ class TestListDocumentsPaginatedResponse:
         assert "size=50" in url_str
 
 
+# ─── Tests: list_documents strips content field ──────────────────────────
+
+class TestListDocumentsStripsContentField:
+    """Tests that list_documents explicitly excludes the 'content' field from each document."""
+
+    @patch("mcp_server.urlopen")
+    def test_content_field_stripped_from_response(self, mock_urlopen):
+        """list_documents strips 'content' field even if backend returns it (defensive)."""
+        from mcp_server import list_documents
+
+        # Simulate backend response that includes content field (legacy or edge case)
+        page_response = {
+            "content": [
+                {
+                    "id": 1,
+                    "title": "Doc One",
+                    "slug": "doc-one",
+                    "content": "# This is long markdown content\nthat should be stripped.",
+                    "projectId": 1,
+                    "createdAt": "2024-01-01T00:00:00",
+                    "updatedAt": "2024-01-01T00:00:00",
+                },
+            ],
+            "totalElements": 1,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_documents("my-project")
+
+        assert len(result) == 1
+        doc = result[0]
+        # Verify metadata fields are present
+        assert doc["id"] == 1
+        assert doc["title"] == "Doc One"
+        assert doc["slug"] == "doc-one"
+        assert doc["projectId"] == 1
+        # Verify content field is NOT in the response
+        assert "content" not in doc
+
+    @patch("mcp_server.urlopen")
+    def test_content_field_stripped_from_multiple_documents(self, mock_urlopen):
+        """list_documents strips 'content' from all documents in a batch."""
+        from mcp_server import list_documents
+
+        page_response = {
+            "content": [
+                {"id": 1, "title": "Doc A", "slug": "doc-a", "content": "Long content A"},
+                {"id": 2, "title": "Doc B", "slug": "doc-b", "content": "Long content B"},
+                {"id": 3, "title": "Doc C", "slug": "doc-c", "content": "Long content C"},
+            ],
+            "totalElements": 3,
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(page_response).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+        result = list_documents("my-project")
+
+        assert len(result) == 3
+        for doc in result:
+            assert "content" not in doc, f"Document {doc['title']} still has content field"
+            assert "id" in doc
+            assert "title" in doc
+            assert "slug" in doc
+
+
 # ─── Smoke Tests: Existing Tools Still Work ──────────────────────────────
 
 class TestExistingToolsSmokeTest:

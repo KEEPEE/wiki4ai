@@ -4,6 +4,7 @@ import com.wiki4ai.dto.CopyRequestDTO;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
@@ -77,10 +78,10 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Zoznam dokumentov v projekte (paginovaný)", description = "Vráti paginovaný zoznam dokumentov v rámci projektu. Podporuje parametre page a size pre navigáciu medzi stránkami.")
+    @Operation(summary = "Zoznam dokumentov v projekte (paginovaný)", description = "Vráti paginovaný zoznam dokumentov v rámci projektu. Podporuje parametre page a size pre navigáciu medzi stránkami. Odozva neobsahuje 'content' pole pre menšiu veľkosť response.")
     @ApiResponse(responseCode = "200", description = "Paginovaný zoznam dokumentov úspešne načítaný")
     @GetMapping
-    public ResponseEntity<Page<DocumentDTO>> getDocuments(
+    public ResponseEntity<Page<DocumentSummaryDTO>> getDocuments(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Číslo stránky (0-indexed, default 0)") @RequestParam(required = false, defaultValue = "0") int page,
             @Parameter(description = "Veľkosť stránky (default 50, max 100)") @RequestParam(required = false, defaultValue = "50") int size) {
