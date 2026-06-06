@@ -112,8 +112,8 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </header>
 
-        {/* Page content */}
-        <div className="flex-1 max-w-7xl mx-auto w-full p-4 relative z-[3]">
+        {/* Page content — flex column so child pages can use flex: 1 to fill height */}
+        <div className="flex-1 max-w-7xl mx-auto w-full p-4 relative z-[3] flex flex-col min-h-0">
           {children || <Outlet />}
         </div>
       </main>
