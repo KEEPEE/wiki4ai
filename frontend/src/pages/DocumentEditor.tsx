@@ -251,11 +251,13 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         {/* Preview pane */}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className="preview-pane">
-            {content.trim() ? (
-              <ReactMarkdown>{content}</ReactMarkdown>
-            ) : (
-              <p className="empty-preview">Začnite písať markdown pre náhľad...</p>
-            )}
+            <div className="preview-content">
+              {content.trim() ? (
+                <ReactMarkdown>{content}</ReactMarkdown>
+              ) : (
+                <p className="empty-preview">Začnite písať markdown pre náhľad...</p>
+              )}
+            </div>
           </div>
         )}
       </div>
