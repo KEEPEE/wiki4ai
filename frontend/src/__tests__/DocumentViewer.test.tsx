@@ -12,6 +12,7 @@ import DocumentViewer from '../pages/DocumentViewer'
 // Mock dependencies
 vi.mock('../services/documentApi', () => ({
   documentApi: {
+    get: vi.fn(),
     getContent: vi.fn(),
     getBacklinks: vi.fn(),
   },
@@ -46,8 +47,10 @@ describe('DocumentViewer', () => {
   describe('Loading state', () => {
     it('should show loading indicator while fetching document', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockImplementation(() => 
-        new Promise(resolve => setTimeout(() => resolve({ title: 'Test', content: '# Hello', wikiLinks: [] }), 100))
+      vi.mocked(documentApi.get).mockImplementation(() => 
+        new Promise(resolve => setTimeout(() => resolve({
+          id: 1, title: 'Test', slug: 'test', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
+        }), 100))
       )
 
       renderWithProviders(<DocumentViewer />)
@@ -59,7 +62,7 @@ describe('DocumentViewer', () => {
   describe('Error state', () => {
     it('should show error message when fetch fails', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockRejectedValue(new Error('Not found'))
+      vi.mocked(documentApi.get).mockRejectedValue(new Error('Not found'))
 
       renderWithProviders(<DocumentViewer />)
 
@@ -70,7 +73,7 @@ describe('DocumentViewer', () => {
 
     it('should show back to project button on error', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockRejectedValue(new Error('Not found'))
+      vi.mocked(documentApi.get).mockRejectedValue(new Error('Not found'))
 
       renderWithProviders(<DocumentViewer />)
 
@@ -83,10 +86,8 @@ describe('DocumentViewer', () => {
   describe('Document display', () => {
     it('should render document title in h1 heading', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document',
-        content: '# Hello World\nThis is test content.',
-        wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello World\nThis is test content.', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
@@ -101,8 +102,8 @@ describe('DocumentViewer', () => {
 
     it('should show breadcrumb navigation', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
@@ -115,8 +116,8 @@ describe('DocumentViewer', () => {
 
     it('should show edit button', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
@@ -126,23 +127,51 @@ describe('DocumentViewer', () => {
         expect(screen.getByText('Upraviť')).toBeInTheDocument()
       })
     })
-  })
 
-  describe('Wiki links', () => {
-    it('should render markdown viewer when document loads', async () => {
+    it('should render markdown content', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document',
-        content: 'Some content with [[WikiLink]]',
-        wikiLinks: ['wiki-link'],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello World\nThis is test content.', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
       renderWithProviders(<DocumentViewer />)
 
       await waitFor(() => {
-        // The markdown viewer should be rendered
-        expect(screen.getByText('Upraviť')).toBeInTheDocument()
+        expect(screen.getByText('Hello World')).toBeInTheDocument()
+      })
+    })
+
+    it('should show empty content message when document has no content', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'Empty Document', slug: 'empty-document', content: '', projectId: 1, createdAt: '', updatedAt: ''
+      })
+      vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
+
+      renderWithProviders(<DocumentViewer />)
+
+      await waitFor(() => {
+        expect(screen.getByText(/no content yet/)).toBeInTheDocument()
+      })
+    })
+  })
+
+  describe('Wiki links', () => {
+    it('should extract and display wiki links from markdown content', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', 
+        content: 'Some content with [[WikiLink]] and [[Another Doc]]', 
+        projectId: 1, createdAt: '', updatedAt: ''
+      })
+      vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
+
+      renderWithProviders(<DocumentViewer />)
+
+      await waitFor(() => {
+        // Wiki links section should be rendered
+        expect(screen.getByText(/Prepojenia/)).toBeInTheDocument()
       })
     })
   })
@@ -150,8 +179,8 @@ describe('DocumentViewer', () => {
   describe('Edit navigation', () => {
     it('should navigate to editor when edit button is clicked', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
@@ -169,11 +198,11 @@ describe('DocumentViewer', () => {
   describe('Backlinks section', () => {
     it('should render backlinks section in Document Viewer', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '# Hello', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([
-        { id: 1, title: 'Related Doc', slug: 'related-doc', content: null, projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 2, title: 'Related Doc', slug: 'related-doc', content: null, projectId: 1, createdAt: '', updatedAt: '' },
       ])
 
       renderWithProviders(<DocumentViewer />)
@@ -185,13 +214,13 @@ describe('DocumentViewer', () => {
 
     it('should show correct count of backlinks', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '# Hello', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([
-        { id: 1, title: 'Doc A', slug: 'doc-a', content: null, projectId: 1, createdAt: '', updatedAt: '' },
-        { id: 2, title: 'Doc B', slug: 'doc-b', content: null, projectId: 1, createdAt: '', updatedAt: '' },
-        { id: 3, title: 'Doc C', slug: 'doc-c', content: null, projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 2, title: 'Doc A', slug: 'doc-a', content: null, projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 3, title: 'Doc B', slug: 'doc-b', content: null, projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 4, title: 'Doc C', slug: 'doc-c', content: null, projectId: 1, createdAt: '', updatedAt: '' },
       ])
 
       renderWithProviders(<DocumentViewer />)
@@ -203,11 +232,11 @@ describe('DocumentViewer', () => {
 
     it('should navigate to correct document when backlink is clicked', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '# Hello', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([
-        { id: 1, title: 'Related Doc', slug: 'related-doc', content: null, projectId: 1, createdAt: '', updatedAt: '' },
+        { id: 2, title: 'Related Doc', slug: 'related-doc', content: null, projectId: 1, createdAt: '', updatedAt: '' },
       ])
 
       renderWithProviders(<DocumentViewer />)
@@ -222,8 +251,8 @@ describe('DocumentViewer', () => {
 
     it('should show "No documents link to this page" when no backlinks', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '# Hello', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
@@ -236,8 +265,8 @@ describe('DocumentViewer', () => {
 
     it('should show count of 0 when no backlinks', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getContent).mockResolvedValue({
-        title: 'My Document', content: '# Hello', wikiLinks: [],
+      vi.mocked(documentApi.get).mockResolvedValue({
+        id: 1, title: 'My Document', slug: 'my-document', content: '# Hello', projectId: 1, createdAt: '', updatedAt: ''
       })
       vi.mocked(documentApi.getBacklinks).mockResolvedValue([])
 
