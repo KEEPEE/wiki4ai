@@ -2,6 +2,7 @@ package com.wiki4ai.service;
 
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
+import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.model.Document;
@@ -1381,7 +1382,7 @@ class DocumentServiceTest {
                     .thenReturn(docPage);
 
             // when
-            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 10));
+            Page<DocumentSummaryDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 10));
 
             // then
             assertThat(result).isNotNull();
@@ -1403,7 +1404,7 @@ class DocumentServiceTest {
                     .thenReturn(emptyPage);
 
             // when
-            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 50));
+            Page<DocumentSummaryDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 50));
 
             // then
             assertThat(result.getContent()).isEmpty();
@@ -1426,7 +1427,7 @@ class DocumentServiceTest {
                     .thenReturn(docPage);
 
             // when
-            Page<DocumentDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(1, 10));
+            Page<DocumentSummaryDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(1, 10));
 
             // then
             assertThat(result.getContent()).hasSize(1);
@@ -1434,6 +1435,34 @@ class DocumentServiceTest {
             assertThat(result.getSize()).isEqualTo(10);
             assertThat(result.getTotalElements()).isEqualTo(23);
             assertThat(result.isFirst()).isFalse();
+        }
+
+        @Test
+        @DisplayName("Should NOT include content field in summary DTO")
+        void shouldNotIncludeContentFieldInSummary() {
+            // given
+            Document doc = Document.builder()
+                    .id(1L).title("Doc 1").content("This is the full markdown content that should not appear").slug("doc-1")
+                    .project(testProject).linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.now()).updatedAt(LocalDateTime.now())
+                    .build();
+            Page<Document> docPage = new PageImpl<>(List.of(doc), PageRequest.of(0, 10), 1);
+
+            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+                    .thenReturn(docPage);
+
+            // when
+            Page<DocumentSummaryDTO> result = documentService.getDocumentsByProjectPaginated(1L, PageRequest.of(0, 10));
+
+            // then - verify summary has all fields except content
+            DocumentSummaryDTO summary = result.getContent().get(0);
+            assertThat(summary.getId()).isEqualTo(1L);
+            assertThat(summary.getTitle()).isEqualTo("Doc 1");
+            assertThat(summary.getSlug()).isEqualTo("doc-1");
+            assertThat(summary.getProjectId()).isEqualTo(1L);
+            assertThat(summary.getCreatedAt()).isNotNull();
+            assertThat(summary.getUpdatedAt()).isNotNull();
+            // The summary DTO simply doesn't have a getContent() method, so content is excluded by design
         }
     }
 }

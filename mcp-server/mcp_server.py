@@ -255,17 +255,25 @@ def delete_project(slug: str) -> dict:
 def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dict]:
     """List documents in a project (paginated).
 
-    The backend returns a paginated response. This function extracts the
-    document list from the 'content' field of the pagination wrapper.
+    The backend returns a paginated response with DocumentSummaryDTO objects
+    that exclude the 'content' field to keep responses lightweight.
+    This function extracts the document list from the pagination wrapper
+    and strips any 'content' field defensively.
 
     Args:
         project_slug: The URL-friendly slug of the project (required)
         page: Page number, 0-indexed (default: 0)
         size: Number of documents per page, max 100 (default: 50)
+
+    Returns:
+        List of document summaries (id, title, slug, projectId, linkedDocuments, createdAt, updatedAt).
+        The 'content' field is explicitly excluded to keep responses small.
     """
     response = _api_request("GET", f"/v1/projects/{project_slug}/documents?page={page}&size={size}")
     # Backend returns a Spring Data Page object: {"content": [...], "totalElements": N, ...}
-    return response.get("content", [])
+    documents = response.get("content", [])
+    # Strip 'content' field from each document defensively (backend already excludes it)
+    return [{k: v for k, v in doc.items() if k != "content"} for doc in documents]
 
 
 def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:
