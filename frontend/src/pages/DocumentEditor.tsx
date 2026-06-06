@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
+import DocumentLinks from '../components/DocumentLinks';
 import { documentApi } from '../services/documentApi';
 import { useDocuments } from '../hooks/useDocuments';
 import { useDebounce } from '../hooks/useDebounce';
@@ -264,6 +265,11 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         <span className="word-count">{getWordCount(content)} words</span>
         <span className="char-count">{getCharCount(content)} characters</span>
       </footer>
+
+      {/* Document Links Management - only when editing existing document */}
+      {isEditing && projectSlug && docSlug && (
+        <DocumentLinks projectSlug={projectSlug} docSlug={docSlug} />
+      )}
     </div>
   );
 };

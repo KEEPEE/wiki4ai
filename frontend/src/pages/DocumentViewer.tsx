@@ -8,7 +8,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MarkdownViewer from '../components/MarkdownViewer';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
-import DocumentLinks from '../components/DocumentLinks';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
 import './DocumentViewer.css';
@@ -129,7 +128,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
         <MarkdownViewer content={content} wikiLinks={wikiLinks} onLinkClick={handleLinkClick} />
       </div>
 
-      {/* Backlinks Section - Linked from */}
+      {/* Backlinks Section - Linked from (read-only) */}
       <section className="backlinks-section" aria-label="Linked from">
         <h3>🔗 Linked from ({backlinks.length})</h3>
         {backlinks.length > 0 ? (
@@ -150,9 +149,6 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
           <p className="no-backlinks">No documents link to this page</p>
         )}
       </section>
-
-      {/* Document Links Management */}
-      <DocumentLinks projectSlug={projectSlug} docSlug={docSlug} onRefresh={loadDocument} />
     </div>
   );
 };

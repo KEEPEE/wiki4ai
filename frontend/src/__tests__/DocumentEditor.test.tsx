@@ -13,6 +13,8 @@ import DocumentEditor from '../pages/DocumentEditor'
 vi.mock('../services/documentApi', () => ({
   documentApi: {
     get: vi.fn(),
+    getLinks: vi.fn().mockResolvedValue([]),
+    getBacklinks: vi.fn().mockResolvedValue([]),
   },
 }))
 
