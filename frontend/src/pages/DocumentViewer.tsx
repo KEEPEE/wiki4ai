@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import MarkdownPreview from '../components/MarkdownPreview';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
 import { documentApi } from '../services/documentApi';
@@ -166,9 +166,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       {/* Document Content — rendered markdown preview */}
       <div className="document-content">
         {content.trim() ? (
-          <div className="markdown-viewer">
-            <ReactMarkdown>{content}</ReactMarkdown>
-          </div>
+          <MarkdownPreview content={content} />
         ) : (
           <p className="empty-preview">This document has no content yet. Click "Upraviť" to add content.</p>
         )}
