@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MarkdownViewer from '../components/MarkdownViewer'
 
@@ -18,7 +18,7 @@ describe('slugify utility', () => {
       />
     )
 
-    // Wiki link appears in both content and links section - use getAllByText
+    // Wiki link appears in both content (via MarkdownPreview) and links section
     const links = screen.getAllByText('Špeciálny')
     expect(links.length).toBeGreaterThanOrEqual(1)
   })
@@ -100,7 +100,7 @@ describe('MarkdownViewer', () => {
     it('should render wiki-style links [[Document]] in content', () => {
       render(<MarkdownViewer content="Check out [[My Document]] for more info." />)
 
-      // Wiki link appears twice: once in content, once in links section
+      // Wiki link appears twice: once in content (via MarkdownPreview), once in links section
       const links = screen.getAllByText('My Document')
       expect(links.length).toBeGreaterThanOrEqual(1)
     })
@@ -109,17 +109,19 @@ describe('MarkdownViewer', () => {
       const onLinkClick = vi.fn()
       const user = userEvent.setup()
 
-      render(
+      const { container } = render(
         <MarkdownViewer 
           content="Check [[Test Doc]]" 
           onLinkClick={onLinkClick}
         />
       )
 
-      // The links section has explicit onClick handlers
-      // Get the link from the links-section (second occurrence)
-      const links = screen.getAllByText('Test Doc')
-      await user.click(links[1])
+      // Target the link specifically within the links-section for reliable clicking
+      const linksSection = container.querySelector('.links-section') as HTMLElement | null
+      expect(linksSection).toBeInTheDocument()
+      
+      const linkInSection = within(linksSection!).getByText('Test Doc')
+      await user.click(linkInSection)
 
       expect(onLinkClick).toHaveBeenCalledWith('test-doc')
     })

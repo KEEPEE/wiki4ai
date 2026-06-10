@@ -1,5 +1,12 @@
 /**
  * CSS styles for Markdown Viewer component — Nexaverse dark mode with glassmorphism.
+ * 
+ * Structure:
+ *   .markdown-viewer
+ *     .content-area
+ *       .markdown-preview  (from MarkdownPreview component)
+ *         h1, h2, p, pre, etc.
+ *     .links-section
  */
 
 /* ── Main Container — Glass Panel ─────────────────────────────── */
@@ -15,18 +22,41 @@
   color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
 
+/* ── Content Area — wraps MarkdownPreview or raw HTML ─────────── */
+
+.content-area {
+  min-height: 1rem;
+}
+
+/* When MarkdownPreview is nested, remove its own glass styling to avoid double panels */
+.content-area > .markdown-preview {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+}
+
 /* ── Markdown Content — Typography & Elements ─────────────────── */
 
+.content-area h1,
 .markdown-content h1,
+.content-area h2,
 .markdown-content h2,
+.content-area h3,
 .markdown-content h3 {
   font-family: 'Syne', sans-serif;
   margin-top: 1.5rem;
   margin-bottom: 0.75rem;
 }
 
+.content-area h4,
 .markdown-content h4,
+.content-area h5,
 .markdown-content h5,
+.content-area h6,
 .markdown-content h6 {
   font-family: 'Syne', sans-serif;
   color: rgba(255, 255, 255, 0.8);
@@ -34,6 +64,7 @@
   margin-bottom: 0.5rem;
 }
 
+.content-area h1,
 .markdown-content h1 {
   font-size: 2rem;
   background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
@@ -42,6 +73,7 @@
   background-clip: text;
 }
 
+.content-area h2,
 .markdown-content h2 {
   font-size: 1.5rem;
   background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
@@ -50,11 +82,13 @@
   background-clip: text;
 }
 
+.content-area h3,
 .markdown-content h3 {
   font-size: 1.25rem;
   color: rgba(255, 255, 255, 0.9);
 }
 
+.content-area p,
 .markdown-content p {
   margin-bottom: 1rem;
   color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
@@ -120,6 +154,7 @@
 
 /* ── Wiki Links — Gradient Underline Hover ────────────────────── */
 
+.content-area a.wiki-link,
 .markdown-content a.wiki-link,
 .links-section li a.wiki-link {
   color: var(--primary); /* #00f0ff cyan */
@@ -129,6 +164,7 @@
 }
 
 /* Gradient underline via background trick */
+.content-area a.wiki-link::after,
 .markdown-content a.wiki-link::after,
 .links-section li a.wiki-link::after {
   content: '';
@@ -144,6 +180,7 @@
   transition: background-size 0.3s ease;
 }
 
+.content-area a.wiki-link:hover::after,
 .markdown-content a.wiki-link:hover::after,
 .links-section li a.wiki-link:hover::after {
   background-size: 100% 2px;
