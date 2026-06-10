@@ -1,0 +1,69 @@
+/**
+ * MarkdownEditor — Dark theme styling for Monaco Editor.
+ *
+ * Matches the project's cyan/magenta neon aesthetic (Nexaverse-inspired).
+ */
+
+/* ── Container ─────────────────────────────────────────────────── */
+
+.markdown-editor {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  background: rgba(10, 10, 30, 0.6);
+  backdrop-filter: blur(10px);
+}
+
+/* ── Monaco Editor overrides for dark theme ───────────────────── */
+
+.markdown-editor .monaco-editor {
+  --vscode-editor-background: rgba(10, 10, 30, 0.85);
+  --vscode-editor-foreground: #e0e0e0;
+  --vscode-lineNumberForeground: rgba(0, 240, 255, 0.5);
+  --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.15);
+  --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.3);
+}
+
+/* ── Line numbers — cyan accent ───────────────────────────────── */
+
+.markdown-editor .monaco-editor .margin .line-numbers {
+  color: rgba(0, 240, 255, 0.5) !important;
+}
+
+/* ── Current line highlight ───────────────────────────────────── */
+
+.markdown-editor .monaco-editor .current-line {
+  background: rgba(0, 240, 255, 0.06) !important;
+}
+
+/* ── Scrollbar styling ────────────────────────────────────────── */
+
+.markdown-editor .monaco-editor .scrollbar {
+  --vscode-scrollbar-slider-background: rgba(0, 240, 255, 0.15);
+  --vscode-scrollbar-slider-hoverBackground: rgba(0, 240, 255, 0.3);
+}
+
+/* ── Read-only mode visual indicator ──────────────────────────── */
+
+.markdown-editor.read-only {
+  border-color: rgba(255, 0, 212, 0.2);
+  opacity: 0.85;
+}
+
+/* ── Focus outline — neon glow effect ─────────────────────────── */
+
+.markdown-editor .monaco-editor:focus {
+  outline: none;
+}
+
+.markdown-editor .monaco-editor:focus-within {
+  border-color: rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.1);
+}
+
+/* ── Loading placeholder ──────────────────────────────────────── */
+
+.markdown-editor .monaco-editor .overflow-guard {
+  background: rgba(10, 10, 30, 0.85);
+}
