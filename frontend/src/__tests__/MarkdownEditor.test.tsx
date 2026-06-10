@@ -93,26 +93,29 @@ describe('MarkdownEditor', () => {
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument();
   });
 
-  it('should not set inline height for default "100%" (uses CSS flex instead)', () => {
+  it('should use CSS flex layout on wrapper (no inline height)', () => {
     render(<MarkdownEditor />);
     const container = screen.getByTestId('monaco-editor').parentElement!;
-    // When height is "100%", the wrapper relies on CSS flex: 1 layout,
-    // not an inline style. This prevents the editor from collapsing when
-    // parent containers don't have explicit pixel heights.
-    expect(container).not.toHaveStyle({ height: '100%' });
+    // The outer .markdown-editor wrapper uses CSS flex: 1 to fill parent.
+    // No inline height style is needed on the wrapper itself.
     expect(container.style.height).toBe('');
   });
 
-  it('should apply custom string height', () => {
-    render(<MarkdownEditor height="500px" />);
-    const container = screen.getByTestId('monaco-editor').parentElement;
-    expect(container).toHaveStyle({ height: '500px' });
+  it('should pass height="100%" to Monaco Editor by default', () => {
+    render(<MarkdownEditor />);
+    // Monaco's internal wrapper needs an explicit height to fill the flex parent.
+    // Without it, Monaco defaults to auto-height and collapses to ~20px.
+    expect(screen.getByTestId('editor-height')).toHaveTextContent('100%');
   });
 
-  it('should convert numeric height to pixels', () => {
+  it('should apply custom string height to Monaco Editor', () => {
+    render(<MarkdownEditor height="500px" />);
+    expect(screen.getByTestId('editor-height')).toHaveTextContent('500px');
+  });
+
+  it('should convert numeric height to pixels for Monaco Editor', () => {
     render(<MarkdownEditor height={400} />);
-    const container = screen.getByTestId('monaco-editor').parentElement;
-    expect(container).toHaveStyle({ height: '400px' });
+    expect(screen.getByTestId('editor-height')).toHaveTextContent('400px');
   });
 
   it('should have markdown-editor CSS class on wrapper', () => {
