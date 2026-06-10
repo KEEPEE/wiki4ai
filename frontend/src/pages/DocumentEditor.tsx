@@ -239,7 +239,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         {/* Editor pane */}
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div className="editor-pane">
-            <MarkdownEditor value={content} onChange={(val) => setContent(val || '')} height="100%" />
+            <MarkdownEditor value={content} onChange={(val) => setContent(val || '')} />
           </div>
         )}
 

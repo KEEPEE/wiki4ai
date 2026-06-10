@@ -28,12 +28,11 @@ vi.mock('../hooks/useDebounce', () => ({
 
 // Mock MarkdownEditor (Monaco Editor wrapper) — renders a simple textarea for testing
 vi.mock('../components/MarkdownEditor', () => ({
-  default: function MockMarkdownEditor({ value, onChange, height }: { value?: string; onChange?: (val: string | undefined) => void; height?: string | number }) {
+  default: function MockMarkdownEditor({ value, onChange }: { value?: string; onChange?: (val: string | undefined) => void }) {
     return (
       <textarea
         className="mock-markdown-editor"
         data-testid="monaco-editor-input"
-        style={{ height }}
         value={value || ''}
         placeholder="Upravte markdown obsah..."
         onChange={(e) => onChange?.(e.target.value)}
