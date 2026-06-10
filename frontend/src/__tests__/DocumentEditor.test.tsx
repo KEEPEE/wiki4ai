@@ -26,6 +26,30 @@ vi.mock('../hooks/useDebounce', () => ({
   useDebounce: vi.fn((value: string) => value),
 }))
 
+// Mock MarkdownEditor (Monaco Editor wrapper) — renders a simple textarea for testing
+vi.mock('../components/MarkdownEditor', () => ({
+  default: function MockMarkdownEditor({ value, onChange, height }: { value?: string; onChange?: (val: string | undefined) => void; height?: string | number }) {
+    return (
+      <textarea
+        className="mock-markdown-editor"
+        data-testid="monaco-editor-input"
+        style={{ height }}
+        value={value || ''}
+        placeholder="Upravte markdown obsah..."
+        onChange={(e) => onChange?.(e.target.value)}
+      />
+    );
+  },
+}))
+
+// Mock MarkdownPreview — renders rendered content simply
+vi.mock('../components/MarkdownPreview', () => ({
+  default: function MockMarkdownPreview({ content }: { content?: string }) {
+    if (!content) return <div className="markdown-preview"><p className="markdown-preview__empty">No content</p></div>;
+    return <div className="markdown-preview" data-testid="markdown-preview">{content}</div>;
+  },
+}))
+
 function renderWithProviders(ui: React.ReactElement, { route = '/projects/test-project/documents/my-doc/edit' } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
