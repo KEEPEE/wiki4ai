@@ -1,0 +1,215 @@
+/**
+ * CSS styles for MarkdownPreview component — Nexaverse dark mode with glassmorphism.
+ */
+
+/* ── Main Container ─────────────────────────────────────────────── */
+
+.markdown-preview {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 1rem 0;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.7;
+  font-size: 1rem;
+}
+
+/* ── Empty State ────────────────────────────────────────────────── */
+
+.markdown-preview__empty {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+/* ── Headings ───────────────────────────────────────────────────── */
+
+.markdown-preview h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin: 0.67em 0 0.5em;
+  color: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.3em;
+}
+
+.markdown-preview h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  color: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.25em;
+}
+
+.markdown-preview h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 1em 0 0.3em;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.markdown-preview h4 {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 1em 0 0.3em;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.markdown-preview h5 {
+  font-size: 1em;
+  font-weight: 600;
+  margin: 1em 0 0.3em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.markdown-preview h6 {
+  font-size: 0.9em;
+  font-weight: 600;
+  margin: 1em 0 0.3em;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ── Paragraphs & Text ──────────────────────────────────────────── */
+
+.markdown-preview p {
+  margin: 1em 0;
+}
+
+.markdown-preview strong {
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.markdown-preview em {
+  font-style: italic;
+}
+
+/* ── Links ──────────────────────────────────────────────────────── */
+
+.markdown-preview a {
+  color: var(--primary, #00f0ff);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+
+.markdown-preview a:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+
+/* ── Code Blocks ────────────────────────────────────────────────── */
+
+.markdown-preview pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.markdown-preview pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+  line-height: 1.6;
+}
+
+/* ── Inline Code ────────────────────────────────────────────────── */
+
+.markdown-preview code {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ── Blockquotes ────────────────────────────────────────────────── */
+
+.markdown-preview blockquote {
+  border-left: 4px solid var(--primary, #00f0ff);
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  background: rgba(0, 240, 255, 0.05);
+  border-radius: 0 8px 8px 0;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.markdown-preview blockquote p {
+  margin: 0;
+}
+
+/* ── Lists ──────────────────────────────────────────────────────── */
+
+.markdown-preview ul {
+  list-style-type: disc;
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-preview ol {
+  list-style-type: decimal;
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.markdown-preview li {
+  margin: 0.3em 0;
+}
+
+/* ── Horizontal Rule ────────────────────────────────────────────── */
+
+.markdown-preview hr {
+  border: none;
+  height: 1px;
+  background: var(--glass-border);
+  margin: 2em 0;
+}
+
+/* ── Tables (GFM) ───────────────────────────────────────────────── */
+
+.markdown-preview table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+  font-size: 0.95em;
+}
+
+.markdown-preview thead {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.markdown-preview th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid var(--glass-border);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.markdown-preview td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--glass-border);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.markdown-preview tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* ── Strikethrough (GFM) ────────────────────────────────────────── */
+
+.markdown-preview del {
+  color: rgba(255, 255, 255, 0.4);
+}
