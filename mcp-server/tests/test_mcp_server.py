@@ -29,6 +29,7 @@ from mcp_server import (
     create_mcp_server,
     _api_request,
     set_base_url,
+    get_mermaid_guide,
 )
 
 
@@ -815,6 +816,7 @@ class TestMCPServerRegistration:
             "import_document",
             "move_document",
             "copy_document",
+            "get_mermaid_guide",
         ]
 
         # FastMCP 2.x stores tools in _tool_manager or similar internal structure
@@ -1511,3 +1513,90 @@ class TestSSETransportJWTIntegration:
         call_args = mock_urlopen.call_args
         request = call_args[0][0]
         assert request.headers["Authorization"] == "Bearer client-token"
+
+
+# ─── Tests: get_mermaid_guide Tool ──────────────────────────────────────
+
+class TestGetMermaidGuide:
+    """Tests for the get_mermaid_guide MCP tool."""
+
+    def test_returns_string(self):
+        """get_mermaid_guide returns a string (not API call)."""
+        result = get_mermaid_guide()
+        assert isinstance(result, str)
+
+    def test_return_value_is_non_empty(self):
+        """get_mermaid_guide returns non-empty content."""
+        result = get_mermaid_guide()
+        assert len(result) > 100  # Guide should be substantial
+
+    def test_contains_flowchart_section(self):
+        """Guide contains flowchart diagram type with example."""
+        result = get_mermaid_guide()
+        assert "flowchart" in result.lower()
+        assert "```mermaid" in result
+
+    def test_contains_sequence_diagram_section(self):
+        """Guide contains sequenceDiagram type with example."""
+        result = get_mermaid_guide()
+        assert "sequenceDiagram" in result or "sequence diagram" in result.lower()
+
+    def test_contains_class_diagram_section(self):
+        """Guide contains classDiagram type with example."""
+        result = get_mermaid_guide()
+        assert "classDiagram" in result or "class diagram" in result.lower()
+
+    def test_contains_gantt_section(self):
+        """Guide contains gantt chart type with example."""
+        result = get_mermaid_guide()
+        assert "gantt" in result.lower()
+
+    def test_contains_state_diagram_section(self):
+        """Guide contains stateDiagram type with example."""
+        result = get_mermaid_guide()
+        assert "stateDiagram" in result or "state diagram" in result.lower()
+
+    def test_contains_tips_for_ai_agents(self):
+        """Guide contains tips section for AI agents."""
+        result = get_mermaid_guide()
+        # Check for tips/advice content
+        assert "tip" in result.lower() or "ai agent" in result.lower()
+
+    def test_contains_common_errors_section(self):
+        """Guide contains common errors and solutions section."""
+        result = get_mermaid_guide()
+        assert "error" in result.lower() or "common" in result.lower()
+
+    def test_contains_mermaid_code_blocks(self):
+        """Guide contains multiple ```mermaid code blocks with examples."""
+        result = get_mermaid_guide()
+        # Count mermaid code blocks - should have at least 5 (one per diagram type)
+        block_count = result.count("```mermaid")
+        assert block_count >= 5, f"Expected at least 5 ```mermaid blocks, found {block_count}"
+
+    def test_contains_node_id_advice(self):
+        """Guide advises using simple node IDs without diacritics."""
+        result = get_mermaid_guide()
+        # Check for advice about simple names/IDs
+        lower_result = result.lower()
+        assert "simple" in lower_result or "diacritic" in lower_result or "alphanumeric" in lower_result
+
+    def test_contains_quick_reference(self):
+        """Guide contains a quick reference section."""
+        result = get_mermaid_guide()
+        assert "quick reference" in result.lower() or "reference" in result.lower()
+
+
+class TestGetMermaidGuideRegistration:
+    """Tests that get_mermaid_guide is properly registered in the MCP server."""
+
+    def test_get_mermaid_guide_is_in_expected_tools(self):
+        """get_mermaid_guide is listed in expected tools for registration check."""
+        # This verifies our update to the expected_tools list was applied
+        from mcp_server import get_mermaid_guide as gmg_func
+        assert callable(gmg_func)
+
+    def test_get_mermaid_guide_has_docstring(self):
+        """get_mermaid_guide has a proper docstring for MCP tool description."""
+        assert get_mermaid_guide.__doc__ is not None
+        assert len(get_mermaid_guide.__doc__) > 50

@@ -279,10 +279,22 @@ def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dic
 def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:
     """Create a new wiki document within a project.
 
+    Supports standard Markdown and Mermaid diagrams. For Mermaid, wrap diagram
+    code in ` ```mermaid ` blocks. Example:
+
+        ```mermaid
+        flowchart TD
+            A[Start] --> B{Decision}
+            B -->|Yes| C[Action]
+            B -->|No| D[End]
+        ```
+
+    Use `get_mermaid_guide` for a complete reference with all 5 diagram types.
+
     Args:
         project_slug: The URL-friendly slug of the project (required)
         title: The title of the document (required)
-        content: Markdown content for the document (optional)
+        content: Markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
     """
     body = {"title": title}
     if content is not None:
@@ -448,6 +460,166 @@ def search_documents(project_slug: str, keyword: str) -> list[dict]:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/search?keyword={encoded_keyword}")
 
 
+# ─── Mermaid Guide Tool ──────────────────────────────────────────────────────
+
+def get_mermaid_guide() -> str:
+    """Get a complete Mermaid diagram guide for AI agents.
+
+    Returns a comprehensive guide covering Mermaid syntax, 5 diagram types
+    with working examples, tips for AI agents, and common error solutions.
+    The guide is designed to be used directly by AI agents when creating
+    documents that contain Mermaid diagrams.
+
+    Returns:
+        Complete Mermaid guide as a markdown-formatted string.
+    """
+    return """# Mermaid Diagram Guide for AI Agents
+
+## Overview
+
+Mermaid allows you to create diagrams and visualizations using text and code, similar to Markdown. In Wiki4AI documents, wrap your Mermaid code in ` ```mermaid ` code blocks:
+
+```markdown
+```mermaid
+flowchart TD
+    A --> B
+```
+```
+
+## Supported Diagram Types
+
+### 1. Flowchart (flowchart)
+
+Create flowcharts and process diagrams with nodes and connections.
+
+```mermaid
+flowchart TD
+    Start([Start]) --> Check{Condition?}
+    Check -->|Yes| Action1[Do Something]
+    Check -->|No| Action2[Do Other Thing]
+    Action1 --> End([End])
+    Action2 --> End
+```
+
+**Key syntax:**
+- `TD` = top-down, `LR` = left-right, `BT` = bottom-top, `RL` = right-left
+- `-->` for arrows, `-.->` for dashed, ooo----> for dotted
+- Node shapes: `(round)`, `[rect]`, `({diamond})`, `([parallelogram])`, `((circle))`
+
+### 2. Sequence Diagram (sequenceDiagram)
+
+Show interactions between participants over time.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API
+    participant DB
+    User->>API: Send Request
+    API->>DB: Query Data
+    DB-->>API: Return Results
+    API-->>User: Response
+```
+
+**Key syntax:**
+- `participant` or `actor` to define participants
+- `->>` for solid arrows, `-->>` for dashed (responses)
+- `Note right of X:` for annotations
+
+### 3. Class Diagram (classDiagram)
+
+Model class relationships and structures.
+
+```mermaid
+classDiagram
+    class Animal {
+        +String name
+        +int age
+        +makeSound() void
+    }
+    class Dog {
+        +String breed
+        +fetch() void
+    }
+    Animal <|-- Dog
+    Dog --> Toy: playsWith
+```
+
+**Key syntax:**
+- `<|--` inheritance, `*--` composition, `o--` aggregation, `-->` association
+- `+` public, `-` private, `#` protected, `~` package-private
+- `{abstract}` for abstract classes/methods
+
+### 4. Gantt Chart (gantt)
+
+Visualize project timelines and schedules.
+
+```mermaid
+gantt
+    title Project Timeline
+    dateFormat  YYYY-MM-DD
+    section Planning
+    Requirements      :a1, 2026-01-01, 14d
+    Design            :after a1, 10d
+    section Development
+    Sprint 1          :a2, after a1, 14d
+    Sprint 2          :after a2, 14d
+```
+
+**Key syntax:**
+- `section` to group tasks
+- `:name, start, duration` or `:after dependency, duration`
+- Use `crit` for critical path items
+
+### 5. State Diagram (stateDiagram-v2)
+
+Model state transitions in systems.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Active: Start
+    Active --> Paused: Pause
+    Paused --> Active: Resume
+    Active --> [*]: Stop
+```
+
+**Key syntax:**
+- `[*]` represents the initial and final states
+- `State1 --> State2: Event/Label` for transitions
+- Use `note right of State:` for annotations
+
+## Tips for AI Agents
+
+1. **Use simple node IDs without diacritics or special characters.** Prefer `StartNode` over `ŠtartovýUzel`.
+2. **Test your syntax** before embedding in documents. Mermaid is strict about formatting.
+3. **Keep diagrams focused** — one diagram per concept, avoid overcrowding.
+4. **Use consistent styling** — pick a direction (TD/LR) and stick with it within one diagram.
+5. **Always wrap in ` ```mermaid ` blocks** — without the language tag, Mermaid won't render.
+6. **Avoid circular references** in flowcharts unless intentional (use different arrow styles to distinguish).
+
+## Common Errors and Solutions
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| Diagram doesn't render | Missing ` ```mermaid ` wrapper | Add the language tag before your code block |
+| Invalid character in ID | Diacritics or spaces in node names | Use alphanumeric IDs: `Node1` not `Môj Uzel` |
+| Circular dependency error | Flowchart has a cycle without proper syntax | Break cycles with intermediate nodes or use subgraphs |
+| Missing closing bracket | Unclosed node definition `(Round Node` | Ensure all brackets are paired: `(Round Node)` |
+| Syntax error on arrow | Using `->` instead of `-->` | Mermaid requires double arrows: `A --> B` |
+
+## Quick Reference
+
+- **Flowchart:** `flowchart TD`, nodes with `-->` connections
+- **Sequence:** `sequenceDiagram`, participants with `->>` messages
+- **Class:** `classDiagram`, classes with `<|--` inheritance
+- **Gantt:** `gantt`, sections with dated tasks
+- **State:** `stateDiagram-v2`, states with `-->` transitions
+
+For more examples and advanced features, visit: https://mermaid.js.org/
+"""
+
+
 # ─── Import Tools ─────────────────────────────────────────────────────────────
 
 def import_document(project_slug: str, title: str, content: str) -> dict:
@@ -527,6 +699,7 @@ def create_mcp_server() -> FastMCP:
         import_document,
         move_document,
         copy_document,
+        get_mermaid_guide,
     ]:
         mcp.tool()(func)
 
