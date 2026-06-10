@@ -6,7 +6,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
+import MarkdownEditor from '../components/MarkdownEditor';
+import MarkdownPreview from '../components/MarkdownPreview';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
 import DocumentLinks from '../components/DocumentLinks';
@@ -238,26 +239,18 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         {/* Editor pane */}
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div className="editor-pane">
-            <textarea
-              className="markdown-input"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={isEditing ? 'Upravte markdown obsah...' : 'Napíšte markdown obsah...'}
-              spellCheck={false}
-            />
+            <MarkdownEditor value={content} onChange={(val) => setContent(val || '')} height="100%" />
           </div>
         )}
 
         {/* Preview pane */}
         {(viewMode === 'preview' || viewMode === 'split') && (
           <div className="preview-pane">
-            <div className="preview-content">
-              {content.trim() ? (
-                <ReactMarkdown>{content}</ReactMarkdown>
-              ) : (
-                <p className="empty-preview">Začnite písať markdown pre náhľad...</p>
-              )}
-            </div>
+            {content.trim() ? (
+              <MarkdownPreview content={content} />
+            ) : (
+              <p className="empty-preview">Začnite písať markdown pre náhľad...</p>
+            )}
           </div>
         )}
       </div>
