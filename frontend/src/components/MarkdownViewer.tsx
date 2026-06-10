@@ -1,10 +1,12 @@
 /**
  * Markdown Viewer component.
- * Renders markdown content with support for wiki-style links [[Document]].
- * Supports both raw markdown (parsed client-side) and pre-rendered HTML from the backend.
+ * Renders markdown content via MarkdownPreview (with Mermaid support) and
+ * supports wiki-style links [[Document]] with click handling.
+ * Supports both raw markdown and pre-rendered HTML from the backend.
  */
 
 import React, { useMemo } from 'react';
+import MarkdownPreview from './MarkdownPreview';
 import './MarkdownViewer.css';
 
 interface MarkdownViewerProps {
@@ -45,163 +47,6 @@ function slugify(text: string): string {
 }
 
 /**
- * Simple markdown parser that handles basic syntax and wiki-style links.
- * In production, consider using a library like react-markdown or marked.
- */
-function parseMarkdown(content: string): React.ReactNode[] {
-  if (!content) return [<p key="empty" className="empty-content">No content</p>];
-
-  const lines = content.split('\n');
-  const elements: React.ReactNode[] = [];
-  let inCodeBlock = false;
-  let codeContent: string[] = [];
-  let keyIndex = 0;
-
-  for (const line of lines) {
-    // Code blocks
-    if (line.startsWith('```')) {
-      if (inCodeBlock) {
-        elements.push(
-          <pre key={`code-${keyIndex++}`} className="code-block">
-            <code>{codeContent.join('\n')}</code>
-          </pre>
-        );
-        codeContent = [];
-        inCodeBlock = false;
-      } else {
-        if (elements.length > 0 && elements[elements.length - 1] !== '\n') {
-          elements.push('\n');
-        }
-        inCodeBlock = true;
-      }
-      continue;
-    }
-
-    if (inCodeBlock) {
-      codeContent.push(line);
-      continue;
-    }
-
-    // Headings
-    if (line.startsWith('### ')) {
-      elements.push(<h3 key={`h3-${keyIndex++}`}>{parseInline(line.slice(4))}</h3>);
-      continue;
-    }
-    if (line.startsWith('## ')) {
-      elements.push(<h2 key={`h2-${keyIndex++}`}>{parseInline(line.slice(3))}</h2>);
-      continue;
-    }
-    if (line.startsWith('# ')) {
-      elements.push(<h1 key={`h1-${keyIndex++}`}>{parseInline(line.slice(2))}</h1>);
-      continue;
-    }
-
-    // Horizontal rule
-    if (line.trim() === '---') {
-      elements.push(<hr key={`hr-${keyIndex++}`} />);
-      continue;
-    }
-
-    // Unordered list
-    if (line.match(/^\s*[-*+]\s/)) {
-      const itemText = line.replace(/^\s*[-*+]\s/, '');
-      elements.push(<li key={`li-${keyIndex++}`}>{parseInline(itemText)}</li>);
-      continue;
-    }
-
-    // Ordered list
-    if (line.match(/^\s*\d+\.\s/)) {
-      const itemText = line.replace(/^\s*\d+\.\s/, '');
-      elements.push(<li key={`oli-${keyIndex++}`} className="ordered-list-item">
-        {parseInline(itemText)}
-      </li>);
-      continue;
-    }
-
-    // Blockquote
-    if (line.startsWith('> ')) {
-      elements.push(
-        <blockquote key={`bq-${keyIndex++}`}>
-          {parseInline(line.slice(2))}
-        </blockquote>
-      );
-      continue;
-    }
-
-    // Empty line
-    if (line.trim() === '') {
-      continue;
-    }
-
-    // Regular paragraph
-    elements.push(<p key={`p-${keyIndex++}`}>{parseInline(line)}</p>);
-  }
-
-  // Wrap consecutive <li> elements in <ul>
-  const wrapped: React.ReactNode[] = [];
-  let listItems: React.ReactNode[] = [];
-  for (const el of elements) {
-    if (React.isValidElement(el)) {
-      const props = el.props as { className?: string };
-      if (props?.className === 'ordered-list-item') {
-        listItems.push(el);
-      } else {
-        if (listItems.length > 0) {
-          wrapped.push(<ul key={`ul-${keyIndex++}`}>{listItems}</ul>);
-          listItems = [];
-        }
-        wrapped.push(el);
-      }
-    } else {
-      wrapped.push(el);
-    }
-  }
-  if (listItems.length > 0) {
-    wrapped.push(<ul key={`ul-${keyIndex++}`}>{listItems}</ul>);
-  }
-
-  return wrapped.length > 0 ? wrapped : [<p key="empty">No content</p>];
-}
-
-/**
- * Parse inline markdown: bold, italic, code, and wiki links.
- */
-function parseInline(text: string): React.ReactNode {
-  // Split by wiki-style links [[Document]]
-  const parts = text.split(/\[\[([^\]]+)\]\]/g);
-  const result: React.ReactNode[] = [];
-
-  parts.forEach((part, index) => {
-    if (index % 2 === 1) {
-      // This is a wiki link target
-      result.push(
-        <a key={`link-${index}`} href="#" className="wiki-link" data-wiki-target={part}>
-          {part}
-        </a>
-      );
-    } else {
-      // Regular text - parse bold and italic
-      const segments = part.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
-      segments.forEach((seg, segIndex) => {
-        if (seg.startsWith('**') && seg.endsWith('**')) {
-          result.push(<strong key={`b-${index}-${segIndex}`}>{seg.slice(2, -2)}</strong>);
-        } else if (seg.startsWith('*') && seg.endsWith('*')) {
-          result.push(<em key={`i-${index}-${segIndex}`}>{seg.slice(1, -1)}</em>);
-        } else if (seg.startsWith('`') && seg.endsWith('`')) {
-          result.push(
-            <code key={`c-${index}-${segIndex}`}>{seg.slice(1, -1)}</code>
-          );
-        } else {
-          result.push(seg);
-        }
-      });
-    }
-  });
-
-  return result;
-}
-
-/**
  * Extract wiki-style link targets from raw markdown content.
  * Returns an array of document names found in [[Document]] syntax.
  */
@@ -209,6 +54,14 @@ function extractWikiLinks(content: string): string[] {
   const matches = content.match(/\[\[([^\]]+)\]\]/g);
   if (!matches) return [];
   return [...new Set(matches.map(m => m.slice(2, -2)))];
+}
+
+/**
+ * Preprocess markdown content: convert [[Wiki Link]] syntax to HTML anchor tags
+ * that MarkdownPreview (via react-markdown) will render inline.
+ */
+function preprocessWikiLinks(content: string): string {
+  return content.replace(/\[\[([^\]]+)\]\]/g, '<a href="#" class="wiki-link" data-wiki-target="$1">$1</a>');
 }
 
 const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
@@ -222,14 +75,20 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
     [propWikiLinks, content]
   );
 
-  // Parse markdown to React elements (for raw markdown) or render HTML directly
+  // Determine rendering mode: HTML vs markdown vs empty
   const renderedContent = useMemo(() => {
-    // Check if content looks like pre-rendered HTML (contains HTML tags)
+    if (!content) {
+      return null;
+    }
+
+    // Check if content looks like pre-rendered HTML (contains HTML tags but not markdown headings)
     if (/<[a-z][\s\S]*>/i.test(content) && !content.includes('#')) {
       return <div dangerouslySetInnerHTML={{ __html: content }} />;
     }
-    // Otherwise parse as markdown
-    return <>{parseMarkdown(content)}</>;
+
+    // Preprocess wiki links then render via MarkdownPreview (with Mermaid support)
+    const processedContent = preprocessWikiLinks(content);
+    return <MarkdownPreview content={processedContent} className="markdown-content" />;
   }, [content]);
 
   const handleWikiLinkClick = (target: string, e: React.MouseEvent) => {
@@ -241,11 +100,9 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
 
   return (
     <div className="markdown-viewer">
-      <div className="markdown-content">{renderedContent}</div>
-
-      {/* Clickable wiki links rendered as inline elements */}
+      {/* Main content area — markdown or HTML */}
       <div
-        className="wiki-links-container"
+        className="content-area"
         onClick={(e) => {
           const target = e.target as HTMLElement;
           if (target.classList.contains('wiki-link')) {
@@ -255,9 +112,11 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
             }
           }
         }}
-      />
+      >
+        {renderedContent}
+      </div>
 
-      {/* Links section */}
+      {/* Links section — extracted wiki links as clickable chips */}
       {wikiLinks.length > 0 && (
         <div className="links-section">
           <h3>Prepojenia</h3>
