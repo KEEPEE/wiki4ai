@@ -11,9 +11,18 @@ import MarkdownEditor from '../components/MarkdownEditor';
 
 // Mock @monaco-editor/react — the real Editor requires Web Workers + iframes
 vi.mock('@monaco-editor/react', () => ({
-  default: vi.fn(({ language, value, onChange, theme, options, height }: any) => {
+  default: vi.fn(({ language, value, onChange, theme, options, height, onMount }: any) => {
     // readOnly is passed via options.readOnly in Monaco Editor API
     const isReadOnly = options?.readOnly ?? false;
+    
+    // Simulate onMount callback being called with a mock editor
+    if (onMount) {
+      onMount({
+        layout: vi.fn(),
+        getValue: () => value,
+      });
+    }
+    
     return (
       <div data-testid="monaco-editor" className="mocked-monaco">
         <span data-testid="editor-language">{language}</span>
@@ -93,29 +102,12 @@ describe('MarkdownEditor', () => {
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument();
   });
 
-  it('should use CSS flex layout on wrapper (no inline height)', () => {
+  it('should pass a numeric pixel height to Monaco Editor (from ResizeObserver)', () => {
     render(<MarkdownEditor />);
-    const container = screen.getByTestId('monaco-editor').parentElement!;
-    // The outer .markdown-editor wrapper uses CSS flex: 1 to fill parent.
-    // No inline height style is needed on the wrapper itself.
-    expect(container.style.height).toBe('');
-  });
-
-  it('should pass height="100%" to Monaco Editor by default', () => {
-    render(<MarkdownEditor />);
-    // Monaco's internal wrapper needs an explicit height to fill the flex parent.
-    // Without it, Monaco defaults to auto-height and collapses to ~20px.
-    expect(screen.getByTestId('editor-height')).toHaveTextContent('100%');
-  });
-
-  it('should apply custom string height to Monaco Editor', () => {
-    render(<MarkdownEditor height="500px" />);
-    expect(screen.getByTestId('editor-height')).toHaveTextContent('500px');
-  });
-
-  it('should convert numeric height to pixels for Monaco Editor', () => {
-    render(<MarkdownEditor height={400} />);
-    expect(screen.getByTestId('editor-height')).toHaveTextContent('400px');
+    // The component uses ResizeObserver to measure container height.
+    // In jsdom, clientHeight returns 0, so the default fallback of 600 is used.
+    const heightValue = screen.getByTestId('editor-height').textContent;
+    expect(heightValue).toMatch(/^\d+$/); // Should be a numeric pixel value
   });
 
   it('should have markdown-editor CSS class on wrapper', () => {
@@ -124,22 +116,11 @@ describe('MarkdownEditor', () => {
     expect(wrapper).toHaveClass('markdown-editor');
   });
 
-  it('should pass correct height to internal Editor component', () => {
-    render(<MarkdownEditor height="600px" />);
-    expect(screen.getByTestId('editor-height')).toHaveTextContent('600px');
-  });
-
-  it('should convert numeric height prop for internal Editor', () => {
-    render(<MarkdownEditor height={350} />);
-    expect(screen.getByTestId('editor-height')).toHaveTextContent('350px');
-  });
-
   it('should have proper TypeScript interface (compile-time check)', () => {
     // This test verifies the component accepts all documented props without errors
     const props: any = {
       value: 'test',
       onChange: () => {},
-      height: '100%',
       readOnly: false,
     };
     render(<MarkdownEditor {...props} />);

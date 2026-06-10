@@ -5,10 +5,12 @@
  * - Syntax highlighting for markdown
  * - Dark theme styled to match the project's cyan/magenta neon aesthetic
  * - Configurable height, read-only mode, and change callbacks
+ * - Uses ResizeObserver for reliable container height measurement
  */
 
-import React from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 import './MarkdownEditor.css';
 
 export interface MarkdownEditorProps {
@@ -16,8 +18,6 @@ export interface MarkdownEditorProps {
   value?: string;
   /** Callback fired when the editor content changes */
   onChange?: (value: string | undefined) => void;
-  /** Editor height — CSS value or number (pixels). Default: "100%" */
-  height?: string | number;
   /** Whether the editor is read-only. Default: false */
   readOnly?: boolean;
 }
@@ -25,28 +25,66 @@ export interface MarkdownEditorProps {
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   value = '',
   onChange,
-  height = '100%',
   readOnly = false,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const [editorHeight, setEditorHeight] = useState<number>(600);
+
+  // Use ResizeObserver to measure the actual container height in pixels.
+  // This is more reliable than CSS percentage heights because Monaco Editor
+  // internally creates an iframe that needs explicit pixel dimensions.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // Initial measurement
+    const updateHeight = () => {
+      const newHeight = container.clientHeight;
+      if (newHeight > 0) {
+        setEditorHeight(newHeight);
+      }
+    };
+    updateHeight();
+
+    // Watch for size changes
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Force Monaco to relayout after height changes
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.layout();
+    }
+  }, [editorHeight]);
+
   const handleEditorChange = (newValue: string | undefined) => {
     if (onChange) {
       onChange(newValue);
     }
   };
 
-  // Always pass a height to Monaco's Editor component.
-  // The parent .markdown-editor gets its computed pixel height from CSS flex layout,
-  // so height="100%" on Monaco's inner wrapper correctly fills the available space.
-  // Without an explicit height, Monaco defaults to auto-height and collapses to ~20px.
-  const resolvedHeight = typeof height === 'number' ? `${height}px` : height;
+  const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
+    editorRef.current = editor;
+    // Force initial layout after mount
+    requestAnimationFrame(() => {
+      editor.layout();
+    });
+  }, []);
 
   return (
-    <div className="markdown-editor">
+    <div className="markdown-editor" ref={containerRef}>
       <Editor
         language="markdown"
         value={value}
         onChange={handleEditorChange}
-        height={resolvedHeight}
+        onMount={handleEditorMount}
+        height={editorHeight}
         theme="wiki4ai-dark"
         options={{
           minimap: { enabled: false },
