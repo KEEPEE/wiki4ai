@@ -93,11 +93,14 @@ describe('MarkdownEditor', () => {
     expect(screen.getByTestId('monaco-editor')).toBeInTheDocument();
   });
 
-  it('should apply default height of "100%"', () => {
+  it('should not set inline height for default "100%" (uses CSS flex instead)', () => {
     render(<MarkdownEditor />);
-    const container = screen.getByTestId('monaco-editor').parentElement;
-    // The wrapper div should have inline style with height: 100%
-    expect(container).toHaveStyle({ height: '100%' });
+    const container = screen.getByTestId('monaco-editor').parentElement!;
+    // When height is "100%", the wrapper relies on CSS flex: 1 layout,
+    // not an inline style. This prevents the editor from collapsing when
+    // parent containers don't have explicit pixel heights.
+    expect(container).not.toHaveStyle({ height: '100%' });
+    expect(container.style.height).toBe('');
   });
 
   it('should apply custom string height', () => {

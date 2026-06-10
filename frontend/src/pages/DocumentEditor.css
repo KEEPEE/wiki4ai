@@ -251,6 +251,7 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   min-height: 0; /* critical for nested flex height calculation */
+  height: 100%; /* fill parent .editor-body so child % heights resolve correctly */
 }
 
 /* Markdown textarea — Nexaverse form style */
@@ -297,6 +298,7 @@
   overflow-y: auto;
   background: var(--dark-1);
   min-height: 0; /* critical for nested flex height calculation */
+  height: 100%; /* fill parent .editor-body so child % heights resolve correctly */
 }
 
 /* Inner content wrapper — padded area inside scrollable pane */

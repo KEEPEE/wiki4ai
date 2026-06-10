@@ -34,13 +34,21 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }
   };
 
+  // When height is "100%" (default), rely on CSS flex layout instead of explicit height.
+  // This prevents the editor from collapsing to content size when parent
+  // containers don't have explicit pixel heights set.
+  const isDefaultHeight = typeof height === 'string' && height === '100%';
+  const explicitHeight = isDefaultHeight
+    ? undefined
+    : (typeof height === 'number' ? `${height}px` : height);
+
   return (
-    <div className="markdown-editor" style={{ height }}>
+    <div className="markdown-editor" style={isDefaultHeight ? undefined : { height }}>
       <Editor
         language="markdown"
         value={value}
         onChange={handleEditorChange}
-        height={typeof height === 'number' ? `${height}px` : height}
+        {...(explicitHeight ? { height: explicitHeight } : {})}
         theme="wiki4ai-dark"
         options={{
           minimap: { enabled: false },
