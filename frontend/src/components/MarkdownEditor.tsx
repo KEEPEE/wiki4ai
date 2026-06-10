@@ -34,21 +34,19 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }
   };
 
-  // When height is "100%" (default), rely on CSS flex layout instead of explicit height.
-  // This prevents the editor from collapsing to content size when parent
-  // containers don't have explicit pixel heights set.
-  const isDefaultHeight = typeof height === 'string' && height === '100%';
-  const explicitHeight = isDefaultHeight
-    ? undefined
-    : (typeof height === 'number' ? `${height}px` : height);
+  // Always pass a height to Monaco's Editor component.
+  // The parent .markdown-editor gets its computed pixel height from CSS flex layout,
+  // so height="100%" on Monaco's inner wrapper correctly fills the available space.
+  // Without an explicit height, Monaco defaults to auto-height and collapses to ~20px.
+  const resolvedHeight = typeof height === 'number' ? `${height}px` : height;
 
   return (
-    <div className="markdown-editor" style={isDefaultHeight ? undefined : { height }}>
+    <div className="markdown-editor">
       <Editor
         language="markdown"
         value={value}
         onChange={handleEditorChange}
-        {...(explicitHeight ? { height: explicitHeight } : {})}
+        height={resolvedHeight}
         theme="wiki4ai-dark"
         options={{
           minimap: { enabled: false },

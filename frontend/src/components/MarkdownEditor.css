@@ -15,6 +15,13 @@
   backdrop-filter: blur(10px);
   flex: 1; /* fill parent flex container (e.g. .editor-pane) */
   min-height: 0; /* critical for nested flex height calculation */
+  display: flex; /* make Monaco's inner wrapper stretch via align-items */
+  align-items: stretch;
+}
+
+/* Monaco Editor react wrapper creates an inner div — force it to fill parent */
+.markdown-editor > :nth-child(1) {
+  height: 100% !important;
 }
 
 /* ── Monaco Editor overrides for dark theme ───────────────────── */
