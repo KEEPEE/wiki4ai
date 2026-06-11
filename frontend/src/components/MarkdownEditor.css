@@ -1,7 +1,15 @@
 /**
  * MarkdownEditor — Dark theme styling for Monaco Editor.
  *
- * Matches the project's cyan/magenta neon aesthetic (Nexaverse-inspired).
+ * Refined color palette for better readability and dark theme consistency:
+ * - Line numbers: white at 30% opacity (subtle, not cyan)
+ * - Cursor: bright cyan (#00f0ff)
+ * - Selection: subtle cyan highlight
+ * - Find widget: themed to match the editor
+ * - Scrollbar: consistent cyan tones
+ * - Active line: gentle cyan glow
+ *
+ * Matches the project's Nexaverse-inspired aesthetic.
  */
 
 /* ── Container ─────────────────────────────────────────────────── */
@@ -17,33 +25,39 @@
   min-height: 0; /* critical for nested flex height calculation */
 }
 
-/* ── Monaco Editor overrides for dark theme ───────────────────── */
+/* ── Monaco Editor VS Code CSS custom properties ──────────────── */
+/* These control internal Monaco theming elements that CSS alone cannot target */
 
 .markdown-editor .monaco-editor {
-  --vscode-editor-background: rgba(10, 10, 30, 0.85);
-  --vscode-editor-foreground: #e0e0e0;
-  --vscode-lineNumberForeground: rgba(0, 240, 255, 0.5);
-  --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.15);
-  --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.3);
+  --vscode-editor-background: #12121f;                        /* matches var(--dark-2) */
+  --vscode-editor-foreground: rgba(255, 255, 255, 0.7);       /* soft white text */
+  --vscode-lineNumberForeground: rgba(255, 255, 255, 0.3);    /* subtle white line numbers */
+  --vscode-editorLineNumberForeground: rgba(255, 255, 255, 0.3);
+  --vscode-editorCursorForeground: #00f0ff;                    /* cyan cursor */
+  --vscode-editorSelectionBackground: rgba(0, 240, 255, 0.15); /* subtle cyan selection */
+  --vscode-findWidget-background: rgba(0, 240, 255, 0.1);     /* find widget background */
+  --vscode-findWidget-foreground: #00f0ff;                     /* find widget text */
+  --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.12);
+  --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
 }
 
-/* ── Line numbers — cyan accent ───────────────────────────────── */
+/* ── Line numbers — white at 30% opacity (not cyan) ──────────── */
 
 .markdown-editor .monaco-editor .margin .line-numbers {
-  color: rgba(0, 240, 255, 0.5) !important;
+  color: rgba(255, 255, 255, 0.3) !important;
 }
 
-/* ── Current line highlight ───────────────────────────────────── */
+/* ── Current line highlight — subtle cyan glow (0.08 opacity) ── */
 
 .markdown-editor .monaco-editor .current-line {
-  background: rgba(0, 240, 255, 0.06) !important;
+  background: rgba(0, 240, 255, 0.08) !important;
 }
 
 /* ── Scrollbar styling ────────────────────────────────────────── */
 
 .markdown-editor .monaco-editor .scrollbar {
-  --vscode-scrollbar-slider-background: rgba(0, 240, 255, 0.15);
-  --vscode-scrollbar-slider-hoverBackground: rgba(0, 240, 255, 0.3);
+  --vscode-scrollbar-slider-background: rgba(0, 240, 255, 0.12);
+  --vscode-scrollbar-slider-hoverBackground: rgba(0, 240, 255, 0.25);
 }
 
 /* ── Read-only mode visual indicator ──────────────────────────── */
@@ -67,5 +81,5 @@
 /* ── Loading placeholder ──────────────────────────────────────── */
 
 .markdown-editor .monaco-editor .overflow-guard {
-  background: rgba(10, 10, 30, 0.85);
+  background: #12121f;
 }

@@ -4,6 +4,7 @@
  * Features:
  * - Syntax highlighting for markdown
  * - Dark theme styled to match the project's cyan/magenta neon aesthetic
+ * - Refined color palette: white line numbers (30%), cyan cursor, subtle selection highlight
  * - Configurable height, read-only mode, and change callbacks
  * - Uses ResizeObserver for reliable container height measurement
  * - MarkdownToolbar with formatting buttons above the editor
@@ -33,6 +34,42 @@ export interface MarkdownEditorProps {
 interface InsertSelection {
   startOffset: number;
   endOffset: number;
+}
+
+/**
+ * Define the "wiki4ai-dark" Monaco theme with refined colors.
+ * Called on editor mount to register the custom theme.
+ *
+ * Color palette:
+ * - Background: #12121f (deep dark matching --dark-2)
+ * - Foreground: rgba(255, 255, 255, 0.7) soft white text
+ * - Line numbers: rgba(255, 255, 255, 0.3) subtle white (not cyan)
+ * - Cursor: #00f0ff bright cyan
+ * - Selection: rgba(0, 240, 255, 0.15) gentle cyan highlight
+ * - Find widget: cyan-themed background and text
+ * - Scrollbar: consistent cyan tones at low opacity
+ * - Current line: rgba(0, 240, 255, 0.08) subtle glow
+ */
+function defineWiki4aiTheme() {
+  monaco.editor.defineTheme('wiki4ai-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '', foreground: 'FFFFFF', background: '12121F' },
+    ],
+    colors: {
+      'editor.background': '#12121f',
+      'editor.foreground': 'rgba(255, 255, 255, 0.7)',
+      'editor.lineNumberForeground': 'rgba(255, 255, 255, 0.3)',
+      'editorCursor.foreground': '#00f0ff',
+      'editor.selectionBackground': 'rgba(0, 240, 255, 0.15)',
+      'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
+      'editor.findWidget.foreground': '#00f0ff',
+      'scrollbarSlider.background': 'rgba(0, 240, 255, 0.12)',
+      'scrollbarSlider.hoverBackground': 'rgba(0, 240, 255, 0.25)',
+      'editor.lineHighlightBackground': 'rgba(0, 240, 255, 0.08)',
+    },
+  });
 }
 
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -84,6 +121,17 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
   const handleEditorMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     editorRef.current = ed;
+
+    // Register the custom wiki4ai-dark theme on first mount.
+    // Guard against mock environments (tests) where defineTheme may not exist.
+    if (typeof monaco.editor.defineTheme === 'function') {
+      try {
+        defineWiki4aiTheme();
+      } catch {
+        // Theme already defined or definition failed — non-fatal in test env
+      }
+    }
+
     // Force initial layout after mount
     requestAnimationFrame(() => {
       ed.layout();
