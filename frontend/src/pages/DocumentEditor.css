@@ -56,8 +56,127 @@
 
 .editor-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 1rem;
   align-items: center;
+}
+
+/* Autosave controls group */
+.autosave-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.3rem 0.75rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-Lfilter: blur(10px);
+}
+
+/* Custom toggle switch */
+.autosave-toggle {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 18px;
+}
+
+.autosave-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  transition: .4s;
+  border-radius: 34px;
+  border: 1px solid var(--glass-border);
+}
+
+.toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 12px;
+  width: 12px;
+  left: 3px;
+  bottom: 2px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .toggle-slider {
+  background: rgba(0, 240, 255, 0.2);
+  border-color: var(--primary);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+}
+
+input:checked + .toggle-slider:before {
+  transform: translateX(16px);
+  background-color: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+}
+
+/* Autosave interval dropdown */
+.autosave-dropdown {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: rgba(255, 255, 255, 0.6);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.3s ease;
+}
+
+.autosave-dropdown:hover {
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Compact save status indicator */
+.save-status-compact {
+  font-size: 0.75rem;
+  font-family: 'Outfit', sans-serif;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.save-status-compact.saving {
+  color: #00f0ff !important;
+}
+
+.save-status-compact.saved {
+  color: var(--color-success-text) !important;
+}
+
+.save-status-compact.unsaved {
+  color: #fbbf24 !important;
+}
+
+.save-status-compact.error {
+  color: var(--color-error-text) !important;
+}
+
+.save-status-compact::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 5px currentColor;
 }
 
 /* ── View mode toggle container — pill button group ─────────────── */
