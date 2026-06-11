@@ -9,10 +9,19 @@ import mermaid from 'mermaid';
 import './MermaidDiagram.css';
 
 // Initialize mermaid once — idempotent call
+// Dark theme with custom variables for Nexaverse cyan/magenta neon aesthetic
 mermaid.initialize({
   startOnLoad: false,
-  theme: 'default',
+  theme: 'dark',
   securityLevel: 'loose',
+  themeVariables: {
+    primaryColor: '#1a1a2e',
+    primaryTextColor: 'rgba(255, 255, 255, 0.85)',
+    secondaryColor: '#16213e',
+    tertiaryColor: '#0f3460',
+    lineColor: '#00f0ff',
+    fontSize: '14px',
+  },
 });
 
 // Global counter for unique diagram IDs
