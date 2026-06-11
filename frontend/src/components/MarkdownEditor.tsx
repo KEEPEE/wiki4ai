@@ -59,10 +59,10 @@ function defineWiki4aiTheme() {
     ],
     colors: {
       'editor.background': '#12121f',
-      'editor.foreground': 'rgba(255, 255, 255, 0.8)',
-      'editor.lineNumberForeground': 'rgba(0, 240, 255, 0.4)',
+      'editor.foreground': '#ffffff',
+      'editor.lineNumberForeground': '#666666',
       'editorCursor.foreground': '#00f0ff',
-      'editor.selectionBackground': 'rgba(0, 240, 255, 0.15)',
+      'editor.selectionBackground': 'rgba(0, 240, 255, 0.2)',
       'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
       'editor.findWidget.foreground': '#00f0ff',
       'scrollbarSlider.background': 'rgba(0, 240, 255, 0.12)',
