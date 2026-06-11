@@ -204,6 +204,9 @@ def get_project(slug: str) -> dict:
 
     Args:
         slug: The URL-friendly slug of the project (e.g., 'python', 'machine-learning')
+
+    Returns:
+        Project object with id, name, slug, description, documentCount, createdAt, updatedAt
     """
     return _api_request("GET", f"/v1/projects/{slug}")
 
@@ -224,10 +227,15 @@ def create_project(name: str, description: Optional[str] = None) -> dict:
 def update_project(slug: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
     """Update an existing project by its slug.
 
+    Only provided fields are updated (partial update). Omitted fields remain unchanged.
+
     Args:
         slug: The URL-friendly slug of the project to update (required)
         name: New name for the project (optional, max 255 chars)
         description: New description for the project (optional, max 1000 chars)
+
+    Returns:
+        Updated project object with id, name, slug, description, documentCount, createdAt, updatedAt
     """
     body = {}
     if name is not None:
@@ -333,6 +341,9 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
     Args:
         project_slug: The URL-friendly slug of the project (required)
         doc_slug: The URL-friendly slug of the document (required)
+
+    Returns:
+        DocumentDTO with id, title, slug, content, projectId, createdAt, updatedAt
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
@@ -340,11 +351,16 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
 def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
     """Update an existing document by its slug within a project.
 
+    Only provided fields are updated (partial update). Omitted fields remain unchanged.
+
     Args:
         project_slug: The URL-friendly slug of the project (required)
         doc_slug: The URL-friendly slug of the document to update (required)
         title: New title for the document (optional)
         content: New markdown content for the document (optional)
+
+    Returns:
+        Updated DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
     """
     body = {}
     if title is not None:
@@ -387,10 +403,13 @@ def get_document_content(project_slug: str, doc_slug: str) -> dict:
 def add_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
     """Add a wiki link from one document to another within the same project.
 
+    Note: target_document_id is an integer ID (not the document slug). Use list_documents() to find IDs.
+
     Args:
         project_slug: The URL-friendly slug of the project (required)
         doc_slug: The source document's slug (required)
-        target_document_id: The ID of the target document to link to (required)
+        target_document_id: The integer ID of the target document to link to (required).
+            Not the slug — use list_documents() first to find the correct ID.
 
     Returns:
         Updated source document with the new link included
@@ -402,13 +421,15 @@ def add_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
 def remove_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
     """Remove a wiki link between two documents within the same project.
 
+    Note: target_document_id is an integer ID (not the document slug). Use list_documents() to find IDs.
+
     Args:
         project_slug: The URL-friendly slug of the project (required)
         doc_slug: The source document's slug (required)
-        target_document_id: The ID of the target document to unlink from (required)
+        target_document_id: The integer ID of the target document to unlink from (required)
 
     Returns:
-        Confirmation message on success
+        Confirmation message on success, or raises error if the link doesn't exist
     """
     _api_request("DELETE", f"/v1/projects/{project_slug}/documents/{doc_slug}/links/{target_document_id}")
     return {"message": f"Link removed: '{doc_slug}' → document {target_document_id}"}
