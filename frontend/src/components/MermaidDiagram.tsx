@@ -2,9 +2,15 @@
  * MermaidDiagram component.
  * Renders Mermaid syntax code as an SVG diagram using the mermaid library.
  * Supports loading states, error handling, and multiple independent diagrams on one page.
+ *
+ * Key design decisions:
+ * - Stable ID based on content hash (not a global counter) to prevent duplicate ID errors
+ *   when components rapidly mount/unmount during split-view editing
+ * - useEffect cleanup removes mermaid's DOM element to prevent memory leaks
+ * - Cancelled flag prevents race conditions where stale async results overwrite state
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import mermaid from 'mermaid';
 import './MermaidDiagram.css';
 
@@ -24,8 +30,19 @@ mermaid.initialize({
   },
 });
 
-// Global counter for unique diagram IDs
-let diagramIdCounter = 0;
+/**
+ * Simple hash function for generating stable diagram IDs from content.
+ * Uses DJB2 algorithm — fast, deterministic, good distribution.
+ */
+function simpleHash(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
 
 interface MermaidDiagramProps {
   /** Mermaid syntax code to render */
@@ -39,11 +56,16 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Each instance gets a stable unique ID
-  const diagramId = useRef(`mermaid-diagram-${diagramIdCounter++}`);
+  // Stable ID based on content hash — same diagram code always produces the same ID.
+  // This prevents duplicate ID errors when components rapidly mount/unmount during editing.
+  const stableId = useMemo(
+    () => `mermaid-${simpleHash(code.slice(0, 100))}`,
+    [code],
+  );
 
-  const renderDiagram = useCallback(async () => {
-    if (!code || !code.trim()) {
+  useEffect(() => {
+    // Handle empty/whitespace-only input
+    if (!code?.trim()) {
       setSvg(null);
       setError(null);
       setIsLoading(false);
@@ -54,21 +76,36 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
     setError(null);
     setSvg(null);
 
-    try {
-      // mermaid.render() returns { svg: string }
-      const { svg: renderedSvg } = await mermaid.render(diagramId.current, code);
-      setSvg(renderedSvg);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to render diagram';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [code]);
+    let cancelled = false;
 
-  useEffect(() => {
-    renderDiagram();
-  }, [renderDiagram]);
+    mermaid.render(stableId, code)
+      .then(({ svg: renderedSvg }) => {
+        if (!cancelled) {
+          setSvg(renderedSvg);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          const message = err instanceof Error ? err.message : 'Failed to render diagram';
+          setError(message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      // Clean up mermaid's temporary DOM element to prevent duplicate ID errors
+      // and memory leaks when the component unmounts or code changes rapidly
+      const el = document.getElementById(stableId);
+      if (el) {
+        el.remove();
+      }
+    };
+  }, [code, stableId]);
 
   return (
     <div className={`mermaid-diagram ${className ?? ''}`}>
