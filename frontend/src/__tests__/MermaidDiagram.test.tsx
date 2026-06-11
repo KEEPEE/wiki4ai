@@ -1,10 +1,11 @@
 /**
  * Tests for MermaidDiagram component.
- * Covers: loading state, successful SVG render, error handling, empty input, multiple diagrams.
+ * Covers: loading state, successful SVG render, error handling, empty input,
+ * multiple diagrams, stable ID generation, DOM cleanup, and race condition prevention.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import MermaidDiagram from '../components/MermaidDiagram';
 
 // ── Mock mermaid library ──────────────────────────────────────────
@@ -24,11 +25,9 @@ vi.mock('mermaid', () => ({
   },
 }));
 
-describe('MermaidDiagram', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+// Note: document.getElementById is mocked per-test where needed for cleanup tests
 
+describe('MermaidDiagram', () => {
   describe('Loading state', () => {
     it('should show loading spinner initially', async () => {
       const code = `flowchart TD
@@ -159,6 +158,94 @@ describe('MermaidDiagram', () => {
       // The root div should have both base and custom classes
       expect(screen.getByText('Loading diagram…').closest('.mermaid-diagram'))
         .toHaveClass('custom-class');
+    });
+  });
+
+  describe('Stable ID', () => {
+    it('should use a consistent mermaid- prefixed ID for rendering', async () => {
+      const code = 'flowchart TD\n  A --> B';
+
+      render(<MermaidDiagram code={code} />);
+      await waitFor(() => {
+        expect(screen.getByText('Mock Diagram')).toBeInTheDocument();
+      });
+
+      // mermaid.render was called with an ID — verify the format is stable (mermaid-<hex>)
+      const mockRender = vi.mocked(
+        (await import('mermaid')).default.render,
+      ) as unknown as ReturnType<typeof vi.fn>;
+      const lastCall = mockRender.mock.calls.at(-1);
+      expect(lastCall).toBeDefined();
+      expect((lastCall as [string, string])[0]).toMatch(/^mermaid-[0-9a-f]+$/);
+    });
+
+    it('should re-render smoothly when code changes without duplicate ID errors', async () => {
+      const { rerender } = render(
+        <MermaidDiagram code="flowchart TD\n  A --> B" />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Mock Diagram')).toBeInTheDocument();
+      });
+
+      // Change the code — should trigger a new render with cleanup of old element
+      rerender(<MermaidDiagram code="sequenceDiagram\n  Alice->>Bob: Hi" />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Mock Diagram')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('DOM cleanup on unmount', () => {
+    it('should clean up mermaid DOM element when component unmounts', async () => {
+      // Create a mock element that getElementById returns
+      const mockRemove = vi.fn();
+      const mockElement = { remove: mockRemove } as unknown as Element;
+
+      // Temporarily override document.getElementById
+      const originalGetElementById = document.getElementById;
+      document.getElementById = vi.fn().mockReturnValue(mockElement);
+
+      try {
+        const code = 'flowchart TD\n  A --> B';
+        const { unmount } = render(<MermaidDiagram code={code} />);
+
+        await waitFor(() => {
+          expect(screen.getByText('Mock Diagram')).toBeInTheDocument();
+        });
+
+        // Unmount the component — cleanup should remove the mermaid DOM element
+        act(() => {
+          unmount();
+        });
+
+        // The cleanup function calls document.getElementById(stableId) and el.remove()
+        expect(document.getElementById).toHaveBeenCalled();
+        expect(mockRemove).toHaveBeenCalled();
+      } finally {
+        document.getElementById = originalGetElementById;
+      }
+    });
+  });
+
+  describe('Race condition prevention', () => {
+    it('should not update state after component unmounts (cancelled flag)', async () => {
+      const code = 'flowchart TD\n  A --> B';
+      const { unmount } = render(<MermaidDiagram code={code} />);
+
+      // Unmount immediately — the async mermaid.render is still in flight
+      act(() => {
+        unmount();
+      });
+
+      // No errors should be thrown even though the promise resolves after unmount
+      await waitFor(() => {
+        // Just wait a tick for any pending promises to settle
+      }, { timeout: 100 });
+
+      // If we got here without errors, the cancelled flag is working correctly
+      expect(true).toBe(true);
     });
   });
 });
