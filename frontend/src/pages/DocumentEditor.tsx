@@ -23,7 +23,7 @@ interface DocumentEditorProps {
   onSave?: (content: string) => void;
 }
 
-const AUTO_SAVE_DELAY = 2000; // Auto-save every 2 seconds after changes
+const AUTO_SAVE_DELAY_DEFAULT = 2000; // Default auto-save every 2 seconds
 
 /**
  * Calculate the number of words in a text string.
@@ -53,6 +53,14 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'saving' | 'unsaved' | 'error'>('idle');
+  const [autosaveEnabled, setAutosaveEnabled] = useState(() => {
+    const saved = localStorage.getItem('wiki4ai-autosave-enabled');
+    return saved === null ? true : saved === 'true';
+  });
+  const [autosaveInterval, setAutosaveInterval] = useState(() => {
+    const saved = localStorage.getItem('wiki4ai-autosave-interval');
+    return saved === null ? AUTO_SAVE_DELAY_DEFAULT : parseInt(saved, 10);
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('split');
 
   // Track last saved content to detect unsaved changes
@@ -63,8 +71,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const { updateDocument, createDocument } = useDocuments(projectSlug || '');
 
   // Debounced content for auto-save
-  const debouncedContent = useDebounce(content, AUTO_SAVE_DELAY);
-  const debouncedTitle = useDebounce(title, AUTO_SAVE_DELAY);
+  const debouncedContent = useDebounce(content, autosaveInterval);
+  const debouncedTitle = useDebounce(title, autosaveInterval);
 
   // Load existing document data when editing
   useEffect(() => {
@@ -127,11 +135,11 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     }
   }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate]);
 
-  // Trigger auto-save when debounced values change (2s after last keystroke)
+  // Trigger auto-save when debounced values change (and autosave is enabled)
   useEffect(() => {
-    if (!debouncedTitle.trim()) return;
+    if (!debouncedTitle.trim() || !autosaveEnabled) return;
     handleAutoSave();
-  }, [handleAutoSave, debouncedContent, debouncedTitle]);
+  }, [handleAutoSave, debouncedContent, debouncedTitle, autosaveEnabled]);
 
   const handleManualSave = async () => {
     if (!projectSlug || !title.trim()) return;
@@ -169,6 +177,20 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     setViewMode(mode);
   };
 
+  const toggleAutosave = () => {
+    setAutosaveEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem('wiki4ai-autosave-enabled', String(next));
+      return next;
+    });
+  };
+
+  const handleIntervalChange = (val: string) => {
+    const interval = parseInt(val, 10);
+    setAutosaveInterval(interval);
+    localStorage.setItem('wiki4ai-autosave-interval', String(interval));
+  };
+
   if (loading) {
     return (
       <div className="document-editor">
@@ -198,6 +220,36 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         />
 
         <div className="editor-actions">
+          {/* Autosave Controls */}
+          <div className="autosave-controls">
+            <label className="autosave-toggle">
+              <input
+                type="checkbox"
+                checked={autosaveEnabled}
+                onChange={toggleAutosave}
+                aria-label="Enable autosave"
+              />
+              <span className="toggle-slider"></span>
+            </label>
+            <select 
+              className="autosave-dropdown" 
+              value={autosaveInterval} 
+              onChange={(e) => handleIntervalChange(e.target.value)}
+              aria-label="Autosave interval"
+            >
+              <option value={1000}>1s</option>
+              <option value={2000}>2s</option>
+              <option value={5000}>5s</option>
+              <option value={10000}>10s</option>
+              <option value={30000}>30s</option>
+            </select>
+            {saveStatus !== 'idle' && (
+              <div className={`save-status-compact ${saveStatus}`} data-testid="save-status">
+                {saveStatus === 'saving' ? 'Ukladá sa...' : saveStatus === 'saved' ? 'Uložené' : saveStatus === 'unsaved' ? 'Neuložené zmeny' : saveStatus === 'error' ? 'Chyba' : ''}
+              </div>
+            )}
+          </div>
+
           {/* View mode toggle — three pill buttons */}
           <div className="view-mode-toggle" data-testid="view-mode-toggle">
             {viewModes.map((mode) => (
@@ -227,15 +279,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
         </div>
       </header>
 
-      {/* Save status indicator */}
-      {saveStatus !== 'idle' && (
-        <div className={`save-status ${saveStatus}`} data-testid="save-status">
-          {saveStatus === 'saving' ? 'Ukladá sa...' : saveStatus === 'saved' ? 'Uložené' : saveStatus === 'unsaved' ? 'Neuložené zmeny' : saveStatus === 'error' ? 'Chyba pri ukladaní' : ''}
-        </div>
-      )}
-
-      {/* Editor body */}
-      <div className={`editor-body view-mode-${viewMode}`}>
+       {/* Editor body */}
+       <div className={`editor-body view-mode-${viewMode}`}>
         {/* Editor pane */}
         {(viewMode === 'edit' || viewMode === 'split') && (
           <div className="editor-pane">
