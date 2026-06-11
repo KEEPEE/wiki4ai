@@ -188,35 +188,76 @@ def jwt_token_middleware(request: StarletteRequest, call_next):
 # ─── Health Tools ─────────────────────────────────────────────────────────────
 
 def health_check() -> dict:
-    """Check if the Wiki4AI backend is healthy and running."""
+    """Check if the Wiki4AI backend is healthy and running.
+
+    Use this first to verify connectivity before making other API calls.
+    This endpoint does not require authentication.
+
+    Returns:
+        Dict with status information (e.g., {"status": "UP"}).
+    """
     return _api_request("GET", "/health")
 
 
 # ─── Project Tools ────────────────────────────────────────────────────────────
 
 def list_projects() -> list[dict]:
-    """List all wiki projects. Returns a list of project objects with id, name, slug, description, documentCount, createdAt, updatedAt."""
+    """List all wiki projects accessible to the current user.
+
+    Use this to discover available projects before working with documents.
+    Each project has a unique `slug` that you use in other tools (e.g., list_documents, create_document).
+
+    Returns:
+        List of project objects. Each contains:
+        - id (int): Internal numeric ID
+        - name (str): Human-readable project name
+        - slug (str): URL-friendly identifier used in all other API calls
+        - description (str): Project description
+        - documentCount (int): Number of documents in the project
+        - createdAt (str): ISO 8601 creation timestamp
+        - updatedAt (str): ISO 8601 last update timestamp
+
+    Example:
+        projects = list_projects()
+        # Use projects[0]['slug'] to reference a project in other tools
+    """
     return _api_request("GET", "/v1/projects")
 
 
 def get_project(slug: str) -> dict:
-    """Get a specific project by its URL-friendly slug.
+    """Get detailed information about a specific project by its URL-friendly slug.
+
+    Use this to verify a project exists and see its metadata (document count, description).
 
     Args:
-        slug: The URL-friendly slug of the project (e.g., 'python', 'machine-learning')
+        slug: The URL-friendly slug of the project (e.g., 'python', 'machine-learning').
+            Get slugs from list_projects() or from URLs.
 
     Returns:
-        Project object with id, name, slug, description, documentCount, createdAt, updatedAt
+        Project object with id, name, slug, description, documentCount, createdAt, updatedAt.
+
+    Example:
+        get_project("my-wiki-project")  # Returns project details including document count
     """
     return _api_request("GET", f"/v1/projects/{slug}")
 
 
 def create_project(name: str, description: Optional[str] = None) -> dict:
-    """Create a new wiki project.
+    """Create a new wiki project for organizing documents.
+
+    The slug is auto-generated from the name (lowercase, spaces replaced with hyphens).
+    After creation, use the returned `slug` to add documents to this project.
 
     Args:
-        name: The name of the project (required, max 255 chars)
-        description: An optional description of the project (max 1000 chars)
+        name: The name of the project (required, max 255 chars). A unique slug is auto-generated from this.
+        description: An optional description of the project purpose (max 1000 chars).
+
+    Returns:
+        Created project object with id, name, slug, description, documentCount (0), createdAt, updatedAt.
+
+    Example:
+        create_project("My Documentation", description="Technical docs for my project")
+        # Returns: {"id": 5, "name": "My Documentation", "slug": "my-documentation", ...}
     """
     body = {"name": name}
     if description:
@@ -225,17 +266,18 @@ def create_project(name: str, description: Optional[str] = None) -> dict:
 
 
 def update_project(slug: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
-    """Update an existing project by its slug.
-
-    Only provided fields are updated (partial update). Omitted fields remain unchanged.
+    """Update an existing project by its slug. Partial update - only provided fields change.
 
     Args:
-        slug: The URL-friendly slug of the project to update (required)
-        name: New name for the project (optional, max 255 chars)
-        description: New description for the project (optional, max 1000 chars)
+        slug: The URL-friendly slug of the project to update (required).
+        name: New name for the project (optional, max 255 chars). Changing name also changes the slug.
+        description: New description for the project (optional, max 1000 chars).
 
     Returns:
-        Updated project object with id, name, slug, description, documentCount, createdAt, updatedAt
+        Updated project object with id, name, slug, description, documentCount, createdAt, updatedAt.
+
+    Example:
+        update_project("my-wiki", description="Updated description")  # Only updates description
     """
     body = {}
     if name is not None:
@@ -246,13 +288,18 @@ def update_project(slug: str, name: Optional[str] = None, description: Optional[
 
 
 def delete_project(slug: str) -> dict:
-    """Delete a project by its slug.
+    """Permanently delete a project and ALL its documents. This action is irreversible.
+
+    WARNING: This deletes the project AND all documents within it. Use with caution.
 
     Args:
-        slug: The URL-friendly slug of the project to delete (required)
+        slug: The URL-friendly slug of the project to delete (required).
 
     Returns:
-        Confirmation message on success
+        Confirmation message on success.
+
+    Example:
+        delete_project("old-project")  # Deletes project and all its documents permanently
     """
     _api_request("DELETE", f"/v1/projects/{slug}")
     return {"message": f"Project '{slug}' deleted successfully"}
@@ -261,21 +308,31 @@ def delete_project(slug: str) -> dict:
 # ─── Document Tools ───────────────────────────────────────────────────────────
 
 def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dict]:
-    """List documents in a project (paginated).
+    """List documents in a project (paginated). Does NOT include document content.
 
-    The backend returns a paginated response with DocumentSummaryDTO objects
-    that exclude the 'content' field to keep responses lightweight.
-    This function extracts the document list from the pagination wrapper
-    and strips any 'content' field defensively.
+    Use this to get an overview of all documents in a project, including their IDs and slugs.
+    To read actual content, use get_document() or get_document_content().
+
+    IMPORTANT: The returned list does NOT include the 'content' field. Each item contains only metadata.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        page: Page number, 0-indexed (default: 0)
-        size: Number of documents per page, max 100 (default: 50)
+        project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+        page: Page number, 0-indexed (default: 0). Use for pagination when there are many documents.
+        size: Number of documents per page, max 100 (default: 50).
 
     Returns:
-        List of document summaries (id, title, slug, projectId, linkedDocuments, createdAt, updatedAt).
-        The 'content' field is explicitly excluded to keep responses small.
+        List of document summaries. Each contains:
+        - id (int): Internal numeric ID (used by add_link/remove_link)
+        - title (str): Document title
+        - slug (str): URL-friendly identifier for this document
+        - projectId (int): Parent project ID
+        - linkedDocuments (list[int]): IDs of linked documents
+        - createdAt (str), updatedAt (str): ISO 8601 timestamps
+
+    Example:
+        docs = list_documents("my-project")
+        # Use docs[0]['slug'] with get_document() to read content
+        # Use docs[0]['id'] with add_link() to create wiki links
     """
     response = _api_request("GET", f"/v1/projects/{project_slug}/documents?page={page}&size={size}")
     # Backend returns a Spring Data Page object: {"content": [...], "totalElements": N, ...}
@@ -287,22 +344,22 @@ def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dic
 def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:
     """Create a new wiki document within a project.
 
-    Supports standard Markdown and Mermaid diagrams. For Mermaid, wrap diagram
-    code in ` ```mermaid ` blocks. Example:
-
-        ```mermaid
-        flowchart TD
-            A[Start] --> B{Decision}
-            B -->|Yes| C[Action]
-            B -->|No| D[End]
-        ```
-
-    Use `get_mermaid_guide` for a complete reference with all 5 diagram types.
+    The slug is auto-generated from the title (lowercase, spaces to hyphens, diacritics transliterated).
+    Supports standard Markdown and Mermaid diagrams in ` ```mermaid ` code blocks.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        title: The title of the document (required)
+        project_slug: The URL-friendly slug of the target project (required). Get from list_projects().
+        title: The title of the document (required). A unique slug is auto-generated from this.
         content: Markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
+
+    Returns:
+        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt.
+
+    Example:
+        create_document("my-project", "Getting Started", "# Welcome\n\nThis is the intro doc.")
+        # Returns: {"id": 10, "title": "Getting Started", "slug": "getting-started", ...}
+
+    For Mermaid diagrams, call get_mermaid_guide() first for syntax reference.
     """
     body = {"title": title}
     if content is not None:
@@ -313,17 +370,25 @@ def create_document(project_slug: str, title: str, content: Optional[str] = None
 def batch_create_documents(project_slug: str, documents: list[dict]) -> list[dict]:
     """Create multiple wiki documents within a project in a single call.
 
-    Each document dict should have:
-        - title (str, required): The title of the document
-        - content (str, optional): Markdown content for the document
+    More efficient than calling create_document() repeatedly when creating many documents.
+    Each document dict must have at minimum a 'title' key.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        documents: List of document dicts with 'title' and optional 'content' keys
+        project_slug: The URL-friendly slug of the target project (required).
+        documents: List of document dicts. Each MUST have:
+            - title (str, required): The title of the document
+            - content (str, optional): Markdown content for the document
 
     Returns:
         List of created DocumentDTO objects, one per input document.
         Each contains id, title, slug, projectId, createdAt, updatedAt.
+
+    Example:
+        batch_create_documents("my-project", [
+            {"title": "Chapter 1", "content": "# Chapter 1\nContent here..."},
+            {"title": "Chapter 2", "content": "# Chapter 2\nMore content..."},
+            {"title": "Appendix"}  # content is optional
+        ])
     """
     results = []
     for doc in documents:
@@ -336,14 +401,21 @@ def batch_create_documents(project_slug: str, documents: list[dict]) -> list[dic
 
 
 def get_document(project_slug: str, doc_slug: str) -> dict:
-    """Get a specific document by its slug within a project.
+    """Get a specific document by its slug within a project. INCLUDES full markdown content.
+
+    Use this when you need to read the complete document including its raw markdown content.
+    For rendered HTML with wiki links resolved, use get_document_content() instead.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The URL-friendly slug of the document (required)
+        project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+        doc_slug: The URL-friendly slug of the document (required). Get from list_documents().
 
     Returns:
-        DocumentDTO with id, title, slug, content, projectId, createdAt, updatedAt
+        DocumentDTO with id, title, slug, content (full markdown), projectId, createdAt, updatedAt.
+
+    Example:
+        doc = get_document("my-project", "getting-started")
+        print(doc["content"])  # Full markdown content of the document
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
@@ -351,13 +423,20 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
 def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
     """Update an existing document by its slug within a project.
 
-    Only provided fields are updated (partial update). Omitted fields remain unchanged.
+    PARTIAL UPDATE: Only provided fields are updated. Omitted fields remain unchanged.
+
+    IMPORTANT FOR AI AGENTS: You MUST include the `title` parameter when calling this tool,
+    even if you are only updating the content. Always pass both `title` and `content` together.
+    Calling with only `content` (without `title`) has been observed to cause issues.
+
+    Example usage:
+        update_document("my-project", "my-doc", title="My Document Title", content="# Updated Content\n...")
 
     Args:
         project_slug: The URL-friendly slug of the project (required)
         doc_slug: The URL-friendly slug of the document to update (required)
-        title: New title for the document (optional)
-        content: New markdown content for the document (optional)
+        title: New title for the document. REQUIRED - always include this parameter, even when only updating content.
+        content: New markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
 
     Returns:
         Updated DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
@@ -371,14 +450,19 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
 
 
 def delete_document(project_slug: str, doc_slug: str) -> dict:
-    """Delete a document by its slug within a project.
+    """Permanently delete a document from a project. This action is irreversible.
+
+    WARNING: This deletes the document permanently. Any wiki links pointing to this document become broken.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The URL-friendly slug of the document to delete (required)
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The URL-friendly slug of the document to delete (required). Get from list_documents().
 
     Returns:
-        Confirmation message on success
+        Confirmation message on success.
+
+    Example:
+        delete_document("my-project", "outdated-document")  # Permanently removes the document
     """
     _api_request("DELETE", f"/v1/projects/{project_slug}/documents/{doc_slug}")
     return {"message": f"Document '{doc_slug}' deleted successfully"}
@@ -387,13 +471,26 @@ def delete_document(project_slug: str, doc_slug: str) -> dict:
 def get_document_content(project_slug: str, doc_slug: str) -> dict:
     """Get a document's content with rendered HTML and extracted wiki links.
 
+    Use this when you need the rendered HTML version of a document (markdown converted to HTML).
+    Also extracts [[WikiLink]] references and resolves linked documents.
+
+    Difference from get_document(): This returns htmlContent (rendered) instead of raw markdown content.
+
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The URL-friendly slug of the document (required)
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The URL-friendly slug of the document (required). Get from list_documents().
 
     Returns:
-        Document content including id, title, htmlContent (rendered markdown),
-        wikiLinks (extracted [[WikiLink]] titles), and linkedDocuments.
+        Document content object with:
+        - id (int): Document ID
+        - title (str): Document title
+        - htmlContent (str): Markdown rendered as HTML, with wiki links as <a> tags
+        - wikiLinks (list[str]): Extracted [[WikiLink]] titles found in the content
+        - linkedDocuments (list[dict]): Full details of documents this document links to
+
+    Example:
+        content = get_document_content("my-project", "overview")
+        print(content["htmlContent"])  # Rendered HTML with wiki links as <a> tags
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/content")
 
@@ -403,16 +500,29 @@ def get_document_content(project_slug: str, doc_slug: str) -> dict:
 def add_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
     """Add a wiki link from one document to another within the same project.
 
-    Note: target_document_id is an integer ID (not the document slug). Use list_documents() to find IDs.
+    CRITICAL: target_document_id is an INTEGER ID (not the slug!). You MUST call list_documents() first
+    to get the numeric id of the target document. Using the slug here will fail.
+
+    Workflow:
+        1. docs = list_documents(project_slug)  # Get all documents with their IDs
+        2. target_id = next(d['id'] for d in docs if d['slug'] == 'target-doc-slug')
+        3. add_link(project_slug, 'source-doc-slug', target_id)
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The source document's slug (required)
-        target_document_id: The integer ID of the target document to link to (required).
-            Not the slug — use list_documents() first to find the correct ID.
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The slug of the SOURCE document that will contain the link (required).
+        target_document_id: The INTEGER ID of the TARGET document to link TO (required).
+            NOT THE SLUG - use list_documents() first to find the correct numeric id.
 
     Returns:
-        Updated source document with the new link included
+        Updated source document with the new link included in linkedDocuments list.
+
+    Example:
+        # First, find the target document's integer ID
+        docs = list_documents("my-project")
+        target_id = [d['id'] for d in docs if d['slug'] == 'api-reference'][0]
+        # Then add the link
+        add_link("my-project", "getting-started", target_id)
     """
     body = {"targetDocumentId": target_document_id}
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/links", body)
@@ -421,42 +531,61 @@ def add_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
 def remove_link(project_slug: str, doc_slug: str, target_document_id: int) -> dict:
     """Remove a wiki link between two documents within the same project.
 
-    Note: target_document_id is an integer ID (not the document slug). Use list_documents() to find IDs.
+    CRITICAL: target_document_id is an INTEGER ID (not the slug!). Same as add_link - use list_documents() to find IDs.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The source document's slug (required)
-        target_document_id: The integer ID of the target document to unlink from (required)
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The slug of the SOURCE document that contains the link to remove (required).
+        target_document_id: The INTEGER ID of the TARGET document to unlink from (required).
+            NOT THE SLUG - use list_documents() first to find the correct numeric id.
 
     Returns:
-        Confirmation message on success, or raises error if the link doesn't exist
+        Confirmation message on success, or raises error if the link doesn't exist.
+
+    Example:
+        docs = list_documents("my-project")
+        target_id = [d['id'] for d in docs if d['slug'] == 'old-reference'][0]
+        remove_link("my-project", "getting-started", target_id)
     """
     _api_request("DELETE", f"/v1/projects/{project_slug}/documents/{doc_slug}/links/{target_document_id}")
     return {"message": f"Link removed: '{doc_slug}' → document {target_document_id}"}
 
 
 def get_links(project_slug: str, doc_slug: str) -> list[dict]:
-    """Get all documents that a specific document links to.
+    """Get all documents that a specific document links to (outgoing links).
+
+    Use this to see what other documents are referenced from a given document.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The source document's slug (required)
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The slug of the source document to check (required). Get from list_documents().
 
     Returns:
-        List of linked document objects
+        List of linked document objects with id, title, slug, and other metadata.
+        Empty list if the document has no outgoing links.
+
+    Example:
+        links = get_links("my-project", "overview")  # See what docs 'overview' links to
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/links")
 
 
 def get_backlinks(project_slug: str, doc_slug: str) -> list[dict]:
-    """Get all documents that link to a specific document (backlinks).
+    """Get all documents that link TO a specific document (incoming/backlinks).
+
+    Use this to find which documents reference a given document. Helpful for understanding
+    documentation dependencies before deleting or restructuring documents.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The target document's slug (required)
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The slug of the TARGET document to check backlinks for (required). Get from list_documents().
 
     Returns:
-        List of document objects that reference the given document via wiki links
+        List of document objects that have wiki links pointing to this document.
+        Empty list if no documents link to this one.
+
+    Example:
+        backlinks = get_backlinks("my-project", "api-reference")  # Who links TO 'api-reference'?
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/backlinks")
 
@@ -464,17 +593,23 @@ def get_backlinks(project_slug: str, doc_slug: str) -> list[dict]:
 # ─── Search Tools ─────────────────────────────────────────────────────────────
 
 def search_documents(project_slug: str, keyword: str) -> list[dict]:
-    """Search for documents within a project by keyword.
+    """Search for documents within a project by keyword. Searches both titles and content.
 
-    Searches document titles and content for the given keyword and returns
-    matching documents. The keyword must be at least 2 characters long.
+    Use this to find documents when you don't know the exact slug but know what they contain.
+    The keyword must be at least 2 characters long. Results include an excerpt showing context.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        keyword: The search keyword to find in document titles and content (min 2 chars)
+        project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+        keyword: Search term to find in document titles and content (min 2 chars). Whitespace is trimmed.
 
     Returns:
-        List of matching document objects with id, title, slug, excerpt, createdAt, updatedAt
+        List of matching document objects with id, title, slug, excerpt (context snippet), createdAt, updatedAt.
+        Empty list if no documents match the search term.
+
+    Example:
+        results = search_documents("my-project", "authentication")  # Find docs about authentication
+        for doc in results:
+            print(f"{doc['title']}: {doc['excerpt']}...")
     """
     from urllib.parse import quote_plus as _quote_plus
     encoded_keyword = _quote_plus(keyword.strip())
@@ -644,56 +779,70 @@ For more examples and advanced features, visit: https://mermaid.js.org/
 # ─── Import Tools ─────────────────────────────────────────────────────────────
 
 def import_document(project_slug: str, title: str, content: str) -> dict:
-    """Import a document from raw markdown content string into a project.
+    """Import a document from raw markdown content string directly into a project.
 
-    Useful when an AI agent has markdown content in memory and wants to
-    import it directly into the wiki without going through file upload.
+    Use this when you have complete markdown content in memory and want to create a document
+    without going through file upload. Both title AND content are required (unlike create_document).
+
+    Difference from create_document(): import_document requires content parameter, while
+    create_document allows content to be optional (creates empty document if omitted).
 
     Args:
-        project_slug: The URL-friendly slug of the target project (required)
-        title: The title of the document to create (required)
-        content: The raw markdown content for the document (required)
+        project_slug: The URL-friendly slug of the target project (required). Get from list_projects().
+        title: The title of the document to create (required). A unique slug is auto-generated.
+        content: The raw markdown content for the document (REQUIRED). Supports Mermaid diagrams in ` ```mermaid ` blocks.
 
     Returns:
-        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
+        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt.
+
+    Example:
+        import_document("my-project", "API Guide", "# API Reference\n\n## Endpoints\n...")
     """
     body = {"title": title, "content": content}
     return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
 
 
 def move_document(project_slug: str, doc_slug: str, target_project_slug: str) -> dict:
-    """Move a document from one project to another.
+    """Move a document from one project to another. Document is REMOVED from source project.
 
-    The document is removed from the source project and added to the target
-    project. All links within the source project are preserved where possible.
+    The document is removed from the source project and added to the target project.
+    Wiki links within the source project are preserved where possible (links pointing TO this doc remain).
 
     Args:
-        project_slug: The URL-friendly slug of the source project (required)
-        doc_slug: The URL-friendly slug of the document to move (required)
-        target_project_slug: The URL-friendly slug of the target project (required)
+        project_slug: The URL-friendly slug of the SOURCE project (required). Get from list_projects().
+        doc_slug: The URL-friendly slug of the document to move (required). Get from list_documents().
+        target_project_slug: The URL-friendly slug of the TARGET project (required). Must already exist.
 
     Returns:
-        Updated DocumentDTO in the new project with id, title, slug, projectId, createdAt, updatedAt
+        Updated DocumentDTO in the new project with id, title, slug, projectId (changed), createdAt, updatedAt.
+
+    Example:
+        move_document("draft-project", "my-doc", "published-project")  # Moves doc between projects
     """
     body = {"targetProjectSlug": target_project_slug}
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/move", body)
 
 
 def copy_document(project_slug: str, doc_slug: str, target_project_slug: Optional[str] = None) -> dict:
-    """Copy a document to another project (or within the same project).
+    """Copy a document to another project (or within the same project). Original is preserved.
 
-    Creates a duplicate of the specified document in the target project.
-    If target_project_slug is not provided, the document is copied within
-    the same source project.
+    Creates a duplicate of the specified document. The original document remains unchanged.
+    If target_project_slug is not provided, copies within the same source project (creates a sibling).
 
     Args:
-        project_slug: The URL-friendly slug of the source project (required)
-        doc_slug: The URL-friendly slug of the document to copy (required)
-        target_project_slug: The URL-friendly slug of the target project (optional).
-            If not provided, copies within the same project.
+        project_slug: The URL-friendly slug of the SOURCE project (required). Get from list_projects().
+        doc_slug: The URL-friendly slug of the document to copy (required). Get from list_documents().
+        target_project_slug: The URL-friendly slug of the TARGET project (optional).
+            If not provided, copies within the same source project.
 
     Returns:
-        New DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
+        New DocumentDTO with a new id and slug, title, projectId, createdAt, updatedAt.
+
+    Example:
+        # Copy to different project
+        copy_document("source-project", "template-doc", "target-project")
+        # Duplicate within same project
+        copy_document("my-project", "chapter-1")  # Creates 'chapter-1-copy' or similar
     """
     body = {}
     if target_project_slug is not None:
