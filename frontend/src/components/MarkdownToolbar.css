@@ -8,14 +8,159 @@
 .markdown-toolbar {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: var(--glass-bg);
+  gap: 6px;
+  padding: 8px 16px;
+  background: rgba(15, 15, 35, 0.6);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--glass-border);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
+
+/* Desktop toolbar — visible by default, hidden on mobile */
+.markdown-toolbar-desktop {
+  display: flex;
+}
+
+/* Mobile toolbar — hidden by default, shown below 768px */
+.markdown-toolbar-mobile {
+  display: none;
+}
+
+/* ── Toolbar Buttons (pill-style) ──────────────────────────── */
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: 'Outfit', sans-serif;
+}
+
+.toolbar-btn:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: rgba(0, 240, 255, 0.5);
+  color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.2);
+}
+
+.toolbar-btn:active {
+  transform: translateY(0);
+  background: rgba(0, 240, 255, 0.25);
+}
+
+/* ── Heading Dropdown ─────────────────────────────────────── */
+
+.toolbar-dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dropdown-toggle:hover {
+  background: rgba(0, 240, 255, 0.1);
+  border-color: rgba(0, 240, 255, 0.3);
+  color: var(--primary);
+}
+
+.dropdown-toggle.active {
+  background: rgba(0, 240, 255, 0.15) !important;
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 80px;
+  background: #1a1a2e;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dropdown-menu button {
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.dropdown-menu button:hover {
+  background: rgba(0, 240, 255, 0.15);
+  color: var(--primary);
+}
+
+/* ── Mobile Dropdown Menu ─────────────────────────────────── */
+
+.toolbar-mobile-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #1a1a2e;
+  border: 1px solid var(--glass-border);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.15);
+  z-index: 100;
+}
+
+.toolbar-mobile-dropdown .toolbar-dropdown {
+  width: 100%;
+}
+
+.toolbar-mobile-dropdown .dropdown-menu {
+  position: fixed; /* Break out of overflow */
+  top: 60px;
+  left: 12px;
+  right: 12px;
+}
+
 
 /* Desktop toolbar — visible by default, hidden on mobile */
 .markdown-toolbar-desktop {
