@@ -6,11 +6,14 @@
  * - Dark theme styled to match the project's cyan/magenta neon aesthetic
  * - Configurable height, read-only mode, and change callbacks
  * - Uses ResizeObserver for reliable container height measurement
+ * - MarkdownToolbar with formatting buttons above the editor
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
+import * as monaco from 'monaco-editor';
+import MarkdownToolbar from './MarkdownToolbar';
 import './MarkdownEditor.css';
 
 export interface MarkdownEditorProps {
@@ -20,6 +23,16 @@ export interface MarkdownEditorProps {
   onChange?: (value: string | undefined) => void;
   /** Whether the editor is read-only. Default: false */
   readOnly?: boolean;
+}
+
+/**
+ * Selection range for placing cursor after insertion.
+ * { startOffset, endOffset } are character offsets within the inserted text
+ * where the cursor should be positioned (or a selection made).
+ */
+interface InsertSelection {
+  startOffset: number;
+  endOffset: number;
 }
 
 const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
@@ -69,16 +82,69 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }
   };
 
-  const handleEditorMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
-    editorRef.current = editor;
+  const handleEditorMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
+    editorRef.current = ed;
     // Force initial layout after mount
     requestAnimationFrame(() => {
-      editor.layout();
+      ed.layout();
     });
+  }, []);
+
+  /**
+   * Insert text at the current cursor position in Monaco editor.
+   * Optionally places the cursor (or selection) within the inserted text.
+   */
+  const handleInsert = useCallback((text: string, selection?: InsertSelection) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+
+    const model = ed.getModel();
+    if (!model) return;
+
+    const position = ed.getPosition();
+    if (!position) return;
+
+    // Use the editor's executeEdits API for proper undo/redo support
+    const range = new monaco.Range(
+      position.lineNumber,
+      position.column,
+      position.lineNumber,
+      position.column,
+    );
+
+    ed.executeEdits('markdown-toolbar-insert', [
+      {
+        range,
+        text: text,
+      },
+    ]);
+
+    // If a selection was specified, place cursor/selection within the inserted text
+    if (selection) {
+      const startCol = position.column + selection.startOffset;
+      const endCol = position.column + selection.endOffset;
+      ed.setPosition({ lineNumber: position.lineNumber, column: startCol });
+      if (startCol !== endCol) {
+        const selRange = new monaco.Range(
+          position.lineNumber,
+          startCol,
+          position.lineNumber,
+          endCol,
+        );
+        ed.setSelection(selRange);
+      }
+    }
+
+    // Focus the editor after insertion so user can continue typing immediately
+    ed.focus();
   }, []);
 
   return (
     <div className="markdown-editor" ref={containerRef}>
+      {/* Formatting toolbar above the Monaco editor */}
+      {!readOnly && (
+        <MarkdownToolbar onInsert={handleInsert} />
+      )}
       <Editor
         language="markdown"
         value={value}
