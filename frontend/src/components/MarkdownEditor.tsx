@@ -59,8 +59,8 @@ function defineWiki4aiTheme() {
     ],
     colors: {
       'editor.background': '#12121f',
-      'editor.foreground': 'rgba(255, 255, 255, 0.7)',
-      'editor.lineNumberForeground': 'rgba(255, 255, 255, 0.3)',
+      'editor.foreground': 'rgba(255, 255, 255, 0.8)',
+      'editor.lineNumberForeground': 'rgba(0, 240, 255, 0.4)',
       'editorCursor.foreground': '#00f0ff',
       'editor.selectionBackground': 'rgba(0, 240, 255, 0.15)',
       'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
