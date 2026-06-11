@@ -20,6 +20,12 @@ vi.mock('@monaco-editor/react', () => ({
       onMount({
         layout: vi.fn(),
         getValue: () => value,
+        getPosition: () => ({ lineNumber: 1, column: 1 }),
+        getModel: () => ({ getValue: () => value }),
+        executeEdits: vi.fn(),
+        setPosition: vi.fn(),
+        setSelection: vi.fn(),
+        focus: vi.fn(),
       });
     }
     
@@ -39,6 +45,19 @@ vi.mock('@monaco-editor/react', () => ({
       </div>
     );
   }),
+}));
+
+// Mock monaco-editor direct import (used by MarkdownEditor for Range class)
+vi.mock('monaco-editor', () => ({
+  Range: vi.fn((startLine, startCol, endLine, endCol) => ({
+    startLineNumber: startLine,
+    startColumn: startCol,
+    endLineNumber: endLine,
+    endColumn: endCol,
+  })),
+  editor: {
+    IStandaloneCodeEditor: {},
+  },
 }));
 
 describe('MarkdownEditor', () => {
