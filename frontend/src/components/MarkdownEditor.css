@@ -41,8 +41,12 @@
   --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
 }
 
+.markdown-editor .monaco-editor .margin {
+  background-color: #12121f !important;
+}
+
 .markdown-editor .monaco-editor .margin .line-numbers {
-  color: rgba(0, 240, 255, 0.5) !important;
+  color: #666666 !important;
 }
 
 /* ── Current line highlight — subtle cyan glow (0.08 opacity) ── */
