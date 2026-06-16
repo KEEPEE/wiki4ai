@@ -857,21 +857,29 @@ def create_mcp_server() -> FastMCP:
 
     mcp = FastMCP("wiki4ai")
 
-    # Register tools - fastmcp >= 2.12.0 uses @mcp.tool decorator pattern
-    # For pre-defined functions, use the tool() method as a decorator wrapper
-    for func in [
-        health_check,
-        list_projects, get_project, create_project, update_project, delete_project,
-        list_documents, create_document, batch_create_documents, get_document, update_document,
-        delete_document, get_document_content,
-        add_link, remove_link, get_links, get_backlinks,
-        search_documents,
-        import_document,
-        move_document,
-        copy_document,
-        get_mermaid_guide,
-    ]:
-        mcp.tool()(func)
+    # Register tools using add_tool() for clean tool names (e.g., list_projects instead of tool_list_projects_post)
+    mcp.add_tool(health_check)
+    mcp.add_tool(list_projects)
+    mcp.add_tool(get_project)
+    mcp.add_tool(create_project)
+    mcp.add_tool(update_project)
+    mcp.add_tool(delete_project)
+    mcp.add_tool(list_documents)
+    mcp.add_tool(create_document)
+    mcp.add_tool(batch_create_documents)
+    mcp.add_tool(get_document)
+    mcp.add_tool(update_document)
+    mcp.add_tool(delete_document)
+    mcp.add_tool(get_document_content)
+    mcp.add_tool(add_link)
+    mcp.add_tool(remove_link)
+    mcp.add_tool(get_links)
+    mcp.add_tool(get_backlinks)
+    mcp.add_tool(search_documents)
+    mcp.add_tool(import_document)
+    mcp.add_tool(move_document)
+    mcp.add_tool(copy_document)
+    mcp.add_tool(get_mermaid_guide)
 
     return mcp
 
