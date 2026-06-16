@@ -35,6 +35,11 @@ except ImportError:
     print("ERROR: fastmcp is required. Install with: pip install fastmcp")
     sys.exit(1)
 
+# ─── MCP Instance (created at module level so @mcp.resource decorators work) ──
+
+mcp = FastMCP("wiki4ai")
+
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 DEFAULT_BASE_URL = "http://localhost:8080/api"
@@ -310,13 +315,22 @@ def delete_project(slug: str) -> dict:
 def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dict]:
     """List documents in a project (paginated). Does NOT include document content.
 
-    Use this to get an overview of all documents in a project, including their IDs and slugs.
-    To read actual content, use get_document() or get_document_content().
+    Use this FIRST to discover all documents in a project before reading them.
+    
+    WORKFLOW — How to read ALL documents in a project:
+        1. Call list_documents("servers") → returns list of document metadata (titles, slugs, IDs)
+        2. For each document, call get_document(project_slug, doc['slug']) to read raw markdown content
+           OR call get_document_content(project_slug, doc['slug']) for rendered HTML + extracted links
+        3. Use the resource shortcuts below for direct access:
+           - wiki://project-slug/doc-slug → returns raw markdown (via MCP Resource)
+           - wiki://project-slug/doc-slug/html → returns rendered HTML (via MCP Resource)
 
     IMPORTANT: The returned list does NOT include the 'content' field. Each item contains only metadata.
+    You MUST call get_document() or get_document_content() separately to read actual content.
 
     Args:
         project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+            Examples: "servers", "overview", "machine-learning"
         page: Page number, 0-indexed (default: 0). Use for pagination when there are many documents.
         size: Number of documents per page, max 100 (default: 50).
 
@@ -329,10 +343,20 @@ def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dic
         - linkedDocuments (list[int]): IDs of linked documents
         - createdAt (str), updatedAt (str): ISO 8601 timestamps
 
-    Example:
-        docs = list_documents("my-project")
-        # Use docs[0]['slug'] with get_document() to read content
-        # Use docs[0]['id'] with add_link() to create wiki links
+    Example — Read all docs in "servers" project:
+        # Step 1: List all documents
+        docs = list_documents("servers")
+        for doc in docs:
+            print(f"{doc['title']} ({doc['slug']})")
+        
+        # Step 2: Read each document's content
+        for doc in docs:
+            markdown = get_document("servers", doc["slug"])["content"]
+            html = get_document_content("servers", doc["slug"])["htmlContent"]
+
+    Example — Single document read:
+        list_documents("servers")       # → [{"id": 1, "title": "Overview", "slug": "overview", ...}]
+        get_document("servers", "overview")   # → {"content": "# Overview\\n...", "title": "Overview", ...}
     """
     response = _api_request("GET", f"/v1/projects/{project_slug}/documents?page={page}&size={size}")
     # Backend returns a Spring Data Page object: {"content": [...], "totalElements": N, ...}
@@ -406,16 +430,31 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
     Use this when you need to read the complete document including its raw markdown content.
     For rendered HTML with wiki links resolved, use get_document_content() instead.
 
+    WORKFLOW — Reading all documents in a project:
+        1. list_documents("servers") → returns [{"slug": "overview", "title": "Overview", ...}]
+        2. For each doc, call get_document("servers", slug) to read raw markdown content
+    
+    Alternative workflows:
+        - Use get_document_content() if you need rendered HTML + extracted wiki links
+        - Use MCP Resources directly (wiki://project-slug/doc-slug) for raw markdown access
+
     Args:
         project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+            Examples: "servers", "overview", "machine-learning"
         doc_slug: The URL-friendly slug of the document (required). Get from list_documents().
+            Examples: "overview", "getting-started", "api-reference"
 
     Returns:
         DocumentDTO with id, title, slug, content (full markdown), projectId, createdAt, updatedAt.
 
-    Example:
-        doc = get_document("my-project", "getting-started")
-        print(doc["content"])  # Full markdown content of the document
+    Example — Read all docs in "servers":
+        docs = list_documents("servers")
+        for doc in docs:
+            result = get_document("servers", doc["slug"])
+            print(f"{doc['title']}: {result['content'][:100]}...")
+
+    Example — Single document read:
+        get_document("servers", "overview")  # → {"content": "# Overview\\n...", "title": "Overview", ...}
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
@@ -474,23 +513,41 @@ def get_document_content(project_slug: str, doc_slug: str) -> dict:
     Use this when you need the rendered HTML version of a document (markdown converted to HTML).
     Also extracts [[WikiLink]] references and resolves linked documents.
 
-    Difference from get_document(): This returns htmlContent (rendered) instead of raw markdown content.
+    WORKFLOW — Reading all documents in a project:
+        1. list_documents("servers") → get list of slugs
+        2. For each doc, call get_document_content("servers", slug) for rendered HTML + links
+    
+    Alternative workflows:
+        - Use get_document() instead if you need raw markdown content (not rendered HTML)
+        - Use MCP Resources directly (wiki://slug/doc-slug or wiki://slug/doc-slug/html) 
+          when your agent supports MCP Resources
+
+    Difference from get_document(): This returns htmlContent (rendered HTML) instead of raw markdown.
 
     Args:
-        project_slug: The URL-friendly slug of the project (required).
+        project_slug: The URL-friendly slug of the project (required). Get from list_projects().
+            Examples: "servers", "overview", "machine-learning"
         doc_slug: The URL-friendly slug of the document (required). Get from list_documents().
+            Examples: "overview", "getting-started", "api-reference"
 
     Returns:
         Document content object with:
         - id (int): Document ID
         - title (str): Document title
-        - htmlContent (str): Markdown rendered as HTML, with wiki links as <a> tags
+        - htmlContent (str): Markdown rendered as HTML, with wiki links resolved as <a> tags
         - wikiLinks (list[str]): Extracted [[WikiLink]] titles found in the content
         - linkedDocuments (list[dict]): Full details of documents this document links to
 
-    Example:
-        content = get_document_content("my-project", "overview")
-        print(content["htmlContent"])  # Rendered HTML with wiki links as <a> tags
+    Example — Read all docs and extract their HTML + links:
+        docs = list_documents("servers")
+        for doc in docs:
+            result = get_document_content("servers", doc["slug"])
+            print(f"Title: {result['title']}")
+            print(f"HTML length: {len(result['htmlContent'])}")
+            print(f"Wiki links found: {result['wikiLinks']}")
+
+    Example — Single document read:
+        get_document_content("servers", "overview")  # → {"htmlContent": "<h1>Overview</h1>...", ...}
     """
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/content")
 
@@ -850,12 +907,78 @@ def copy_document(project_slug: str, doc_slug: str, target_project_slug: Optiona
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/copy", body)
 
 
-# ─── MCP Server Setup ────────────────────────────────────────────────────────
+# ─── MCP Resources (for agents that support resource reading) ────────────────
+
+@mcp.resource("wiki://{project_slug}/{doc_slug}")
+async def get_document_markdown_resource(project_slug: str, doc_slug: str) -> str:
+    """Read the raw markdown content of a wiki document.
+
+    This is an MCP Resource that agents can read directly without calling a tool.
+    Use this for fast access to document markdown content.
+
+    WORKFLOW — Reading all documents in a project via Resources:
+        1. list_documents("servers") → get list of slugs from the tools API
+        2. Read wiki://servers/overview → returns raw markdown content directly
+    
+    Args:
+        project_slug: URL-friendly slug of the project (e.g., 'servers', 'overview')
+        doc_slug: URL-friendly slug of the document (from list_documents())
+
+    Returns:
+        Raw markdown text content of the document
+
+    Example — Agent reads a resource directly:
+        # Instead of calling get_document() tool, agent can read:
+        wiki://servers/overview  → "# Overview\\n\\nThis is the server documentation..."
+        wiki://servers/api-reference  → "## API Endpoints\\n\\nGET /api/v1/..."
+
+    Example — Read all docs in project via resources:
+        list_documents("servers")  # → [{"slug": "overview", ...}, {"slug": "api-ref", ...}]
+        # Then read each resource: wiki://servers/{slug}
+    """
+    result = _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
+    return result.get("content", "")
+
+
+@mcp.resource("wiki://{project_slug}/{doc_slug}/html")
+async def get_document_html_resource(project_slug: str, doc_slug: str) -> str:
+    """Read rendered HTML content of a wiki document.
+
+    This is an MCP Resource that agents can read directly without calling a tool.
+    Use this when you need formatted/structured output or extracted links.
+
+    WORKFLOW — Reading documents via HTML Resources:
+        1. list_documents("servers") → get list of slugs from the tools API
+        2. Read wiki://servers/overview/html → returns rendered HTML + link metadata
+    
+    Args:
+        project_slug: URL-friendly slug of the project (e.g., 'servers', 'overview')
+        doc_slug: URL-friendly slug of the document (from list_documents())
+
+    Returns:
+        Rendered HTML content string with wiki links resolved as <a> tags
+
+    Example — Agent reads an HTML resource directly:
+        # Instead of calling get_document_content() tool, agent can read:
+        wiki://servers/overview/html  → "<h1>Overview</h1><p>This is the server documentation...</p>"
+
+    Note: For extracted wiki links and linked document details, use the 
+          get_document_content() tool instead.
+    """
+    result = _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}/content")
+    return result.get("htmlContent", "")
+
+
+# ─── MCP Server Setup ──────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
-    """Create and configure the Wiki4AI MCP server with all tools."""
+    """Create and configure the Wiki4AI MCP server with all tools.
 
-    mcp = FastMCP("wiki4ai")
+    Returns the module-level mcp instance that already has resources registered
+    via @mcp.resource decorators. Tools are added here for explicit registration.
+    """
+    # Use the existing module-level mcp instance (resources auto-registered)
+    global mcp
 
     # Register tools using add_tool() for clean tool names (e.g., list_projects instead of tool_list_projects_post)
     mcp.add_tool(health_check)
@@ -881,6 +1004,8 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(copy_document)
     mcp.add_tool(get_mermaid_guide)
 
+    # MCP Resources are auto-registered by FastMCP via @mcp.resource decorators above.
+    # No need for explicit add_resource() calls — the decorated functions are already registered.
     return mcp
 
 
