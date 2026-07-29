@@ -187,7 +187,7 @@ def jwt_token_middleware(request: StarletteRequest, call_next):
     finally:
         # Reset the context variable after request completes
         if 'token_var' in locals():
-            token_var.reset()
+            jwt_token_context.reset(token_var)
 
 
 # ─── Health Tools ─────────────────────────────────────────────────────────────
@@ -1109,7 +1109,7 @@ def main():
                             await self.app(scope, receive, send)
                         finally:
                             if token_var is not None:
-                                token_var.reset()
+                                jwt_token_context.reset(token_var)
                     else:
                         await self.app(scope, receive, send)
             
