@@ -50,6 +50,9 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name = "vault_master_password_hash")
+    private String vaultMasterPasswordHash;
+
     /**
      * One-to-one relationship with RefreshToken.
      * A user has at most one active refresh token.
@@ -97,6 +100,13 @@ public class User {
      */
     public void setRefreshToken(RefreshToken refreshToken) {
         this.refreshToken = refreshToken;
+    }
+
+    /**
+     * Set the vault master password hash.
+     */
+    public void setVaultMasterPasswordHash(String vaultMasterPasswordHash) {
+        this.vaultMasterPasswordHash = vaultMasterPasswordHash;
     }
 
     @PrePersist

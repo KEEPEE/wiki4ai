@@ -3,6 +3,7 @@ package com.wiki4ai.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
 import com.wiki4ai.repository.UserRepository;
+import com.wiki4ai.service.VaultMasterPasswordService;
 import com.wiki4ai.service.VaultService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +52,9 @@ class VaultControllerTest {
 
     @MockBean
     private UserRepository userRepository;
+
+    @MockBean
+    private VaultMasterPasswordService masterPasswordService;
 
     private static final Long TEST_USER_ID = 1L;
     private static final String TEST_USERNAME = "testuser";
