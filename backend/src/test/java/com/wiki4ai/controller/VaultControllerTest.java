@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -394,6 +395,122 @@ class VaultControllerTest {
 
             // when & then
             mockMvc.perform(get("/api/v1/vault/entries"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message").value("Authentication required"));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /api/v1/vault/search - Search entries")
+    class SearchEntriesTests {
+
+        @Test
+        @DisplayName("Should return 200 with matching entries by title")
+        void shouldReturnEntriesMatchingTitle() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            given(vaultService.searchEntries(eq(TEST_USER_ID), eq("Test"), isNull())).willReturn(results);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search")
+                            .param("q", "Test"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].id").value(1));
+
+            verify(vaultService).searchEntries(eq(TEST_USER_ID), eq("Test"), isNull());
+        }
+
+        @Test
+        @DisplayName("Should return 200 with matching entries by URL")
+        void shouldReturnEntriesMatchingUrl() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            given(vaultService.searchEntries(eq(TEST_USER_ID), eq("example"), isNull())).willReturn(results);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search")
+                            .param("q", "example"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with entries filtered by group_path prefix")
+        void shouldReturnEntriesFilteredByGroupPath() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            given(vaultService.searchEntries(eq(TEST_USER_ID), eq("Test"), eq("work"))).willReturn(results);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search")
+                            .param("q", "Test")
+                            .param("groupPath", "work"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1));
+
+            verify(vaultService).searchEntries(eq(TEST_USER_ID), eq("Test"), eq("work"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with empty list when no matches")
+        void shouldReturnEmptyListWhenNoMatches() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(vaultService.searchEntries(eq(TEST_USER_ID), eq("nonexistent"), isNull())).willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search")
+                            .param("q", "nonexistent"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with empty list when query is blank")
+        void shouldReturnEmptyListWhenQueryBlank() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(vaultService.searchEntries(eq(TEST_USER_ID), eq(""), isNull())).willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search")
+                            .param("q", ""))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 403 when no authentication present")
+        void shouldReturnForbiddenWhenNotAuthenticated() throws Exception {
+            // given - no auth set up
+            SecurityContextHolder.clearContext();
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/search").param("q", "test"))
                     .andExpect(status().isForbidden())
                     .andExpect(jsonPath("$.message").value("Authentication required"));
         }
