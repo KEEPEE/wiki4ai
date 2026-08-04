@@ -1,6 +1,9 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.EncryptedField;
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
+import com.wiki4ai.dto.VaultEntryRequestDTO;
+import com.wiki4ai.dto.VaultEntryResponseDTO;
 import com.wiki4ai.model.VaultEntry;
 import com.wiki4ai.repository.VaultEntryRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -8,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,38 +31,42 @@ public class VaultService {
      * Create a new vault entry for the given user.
      */
     @Transactional
-    public EncryptedVaultEntryDTO createEntry(Long userId, EncryptedVaultEntryDTO dto) {
+    public VaultEntryResponseDTO createEntry(Long userId, VaultEntryRequestDTO dto) {
         validateCreateDTO(dto);
+
+        byte[] usernameEncrypted = decodeEncryptedField(dto.getUsernameEncrypted());
+        byte[] passwordEncrypted = decodeEncryptedField(dto.getPasswordEncrypted());
+        byte[] notesEncrypted = decodeEncryptedField(dto.getNotesEncrypted());
 
         VaultEntry entry = VaultEntry.builder()
                 .userId(userId)
                 .title(dto.getTitle())
-                .usernameEncrypted(dto.getUsernameEncrypted())
-                .passwordEncrypted(dto.getPasswordEncrypted())
-                .notesEncrypted(dto.getNotesEncrypted())
+                .usernameEncrypted(usernameEncrypted)
+                .passwordEncrypted(passwordEncrypted)
+                .notesEncrypted(notesEncrypted)
                 .url(dto.getUrl())
                 .groupPath(dto.getGroupPath())
-                .iv(dto.getIv())
+                .iv(extractIv(dto.getPasswordEncrypted()))
                 .build();
 
         VaultEntry saved = vaultEntryRepository.save(entry);
-        return convertToDTO(saved);
+        return convertToResponseDTO(saved);
     }
 
     /**
      * Get all vault entries for a user.
      */
-    public List<EncryptedVaultEntryDTO> getEntriesByUser(Long userId) {
+    public List<VaultEntryResponseDTO> getEntriesByUser(Long userId) {
         return vaultEntryRepository.findByUserId(userId)
                 .stream()
-                .map(this::convertToDTO)
+                .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
 
     /**
      * Get a single vault entry by ID, verifying ownership.
      */
-    public EncryptedVaultEntryDTO getEntryById(Long id, Long userId) {
+    public VaultEntryResponseDTO getEntryById(Long id, Long userId) {
         VaultEntry entry = vaultEntryRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Vault entry not found with id: " + id));
 
@@ -66,14 +74,14 @@ public class VaultService {
             throw new IllegalArgumentException("Vault entry does not belong to the specified user");
         }
 
-        return convertToDTO(entry);
+        return convertToResponseDTO(entry);
     }
 
     /**
      * Update an existing vault entry, verifying ownership.
      */
     @Transactional
-    public EncryptedVaultEntryDTO updateEntry(Long id, Long userId, EncryptedVaultEntryDTO dto) {
+    public VaultEntryResponseDTO updateEntry(Long id, Long userId, VaultEntryRequestDTO dto) {
         VaultEntry entry = vaultEntryRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Vault entry not found with id: " + id));
 
@@ -83,16 +91,20 @@ public class VaultService {
 
         validateUpdateDTO(dto);
 
+        byte[] usernameEncrypted = decodeEncryptedField(dto.getUsernameEncrypted());
+        byte[] passwordEncrypted = decodeEncryptedField(dto.getPasswordEncrypted());
+        byte[] notesEncrypted = decodeEncryptedField(dto.getNotesEncrypted());
+
         entry.setTitle(dto.getTitle());
-        entry.setUsernameEncrypted(dto.getUsernameEncrypted());
-        entry.setPasswordEncrypted(dto.getPasswordEncrypted());
-        entry.setNotesEncrypted(dto.getNotesEncrypted());
+        entry.setUsernameEncrypted(usernameEncrypted);
+        entry.setPasswordEncrypted(passwordEncrypted);
+        entry.setNotesEncrypted(notesEncrypted);
         entry.setUrl(dto.getUrl());
         entry.setGroupPath(dto.getGroupPath());
-        entry.setIv(dto.getIv());
+        entry.setIv(extractIv(dto.getPasswordEncrypted()));
 
         VaultEntry saved = vaultEntryRepository.save(entry);
-        return convertToDTO(saved);
+        return convertToResponseDTO(saved);
     }
 
     /**
@@ -114,7 +126,7 @@ public class VaultService {
      * Search vault entries by title and URL for a specific user.
      * Optionally filters by group_path prefix.
      */
-    public List<EncryptedVaultEntryDTO> searchEntries(Long userId, String query, String groupPathPrefix) {
+    public List<VaultEntryResponseDTO> searchEntries(Long userId, String query, String groupPathPrefix) {
         if (query == null || query.isBlank()) {
             return List.of();
         }
@@ -129,13 +141,13 @@ public class VaultService {
         }
 
         return entries.stream()
-                .map(this::convertToDTO)
+                .map(this::convertToResponseDTO)
                 .collect(Collectors.toList());
     }
 
     // ==================== VALIDATION ====================
 
-    private void validateCreateDTO(EncryptedVaultEntryDTO dto) {
+    private void validateCreateDTO(VaultEntryRequestDTO dto) {
         if (dto == null) {
             throw new IllegalArgumentException("DTO cannot be null");
         }
@@ -143,14 +155,14 @@ public class VaultService {
             throw new IllegalArgumentException("Title is required");
         }
         if (dto.getPasswordEncrypted() == null) {
-            throw new IllegalArgumentException("Password encrypted blob is required");
+            throw new IllegalArgumentException("Password encrypted field is required");
         }
-        if (dto.getIv() == null) {
-            throw new IllegalArgumentException("IV is required");
+        if (dto.getPasswordEncrypted().getIv() == null || dto.getPasswordEncrypted().getIv().isBlank()) {
+            throw new IllegalArgumentException("IV is required in password encrypted field");
         }
     }
 
-    private void validateUpdateDTO(EncryptedVaultEntryDTO dto) {
+    private void validateUpdateDTO(VaultEntryRequestDTO dto) {
         if (dto == null) {
             throw new IllegalArgumentException("DTO cannot be null");
         }
@@ -161,16 +173,43 @@ public class VaultService {
 
     // ==================== CONVERSION ====================
 
-    private EncryptedVaultEntryDTO convertToDTO(VaultEntry entry) {
-        return EncryptedVaultEntryDTO.builder()
+    private VaultEntryResponseDTO convertToResponseDTO(VaultEntry entry) {
+        return VaultEntryResponseDTO.builder()
                 .id(entry.getId())
                 .title(entry.getTitle())
-                .usernameEncrypted(entry.getUsernameEncrypted())
-                .passwordEncrypted(entry.getPasswordEncrypted())
-                .notesEncrypted(entry.getNotesEncrypted())
+                .usernameEncrypted(toEncryptedField(entry.getUsernameEncrypted(), entry.getIv()))
+                .passwordEncrypted(toEncryptedField(entry.getPasswordEncrypted(), entry.getIv()))
+                .notesEncrypted(toEncryptedField(entry.getNotesEncrypted(), null))
                 .url(entry.getUrl())
                 .groupPath(entry.getGroupPath())
-                .iv(entry.getIv())
+                .createdAt(entry.getCreatedAt())
+                .updatedAt(entry.getUpdatedAt())
                 .build();
+    }
+
+    private EncryptedField toEncryptedField(byte[] data, byte[] iv) {
+        if (data == null || data.length == 0) {
+            return null;
+        }
+        var builder = EncryptedField.builder()
+                .ciphertext(Base64.getEncoder().encodeToString(data));
+        if (iv != null && iv.length > 0) {
+            builder.iv(Base64.getEncoder().encodeToString(iv));
+        }
+        return builder.build();
+    }
+
+    private byte[] decodeEncryptedField(EncryptedField field) {
+        if (field == null || field.getCiphertext() == null || field.getCiphertext().isBlank()) {
+            return null;
+        }
+        return Base64.getDecoder().decode(field.getCiphertext());
+    }
+
+    private byte[] extractIv(EncryptedField field) {
+        if (field == null || field.getIv() == null || field.getIv().isBlank()) {
+            return null;
+        }
+        return Base64.getDecoder().decode(field.getIv());
     }
 }

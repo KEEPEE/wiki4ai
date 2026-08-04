@@ -4,6 +4,8 @@ import com.wiki4ai.dto.EncryptedVaultEntryDTO;
 import com.wiki4ai.dto.SetMasterPasswordRequestDTO;
 import com.wiki4ai.dto.VerifyMasterPasswordRequestDTO;
 import com.wiki4ai.dto.VaultEntryImportDTO;
+import com.wiki4ai.dto.VaultEntryRequestDTO;
+import com.wiki4ai.dto.VaultEntryResponseDTO;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
 import com.wiki4ai.service.VaultImportService;
@@ -72,18 +74,18 @@ public class VaultController {
     @ApiResponse(responseCode = "201", description = "Entry úspešne vytvorená")
     @ApiResponse(responseCode = "400", description = "Neplatný vstup (chýbajúce povinné polia)")
     @PostMapping("/entries")
-    public ResponseEntity<EncryptedVaultEntryDTO> createEntry(@RequestBody EncryptedVaultEntryDTO dto) {
+    public ResponseEntity<VaultEntryResponseDTO> createEntry(@RequestBody VaultEntryRequestDTO dto) {
         Long userId = getCurrentUserId();
-        EncryptedVaultEntryDTO created = vaultService.createEntry(userId, dto);
+        VaultEntryResponseDTO created = vaultService.createEntry(userId, dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @Operation(summary = "Zoznam všetkých entries pre používateľa", description = "Vráti všetky šifrované vault entry pre prihláseného používateľa.")
     @ApiResponse(responseCode = "200", description = "Zoznam entries úspešne načítaný")
     @GetMapping("/entries")
-    public ResponseEntity<List<EncryptedVaultEntryDTO>> getEntries() {
+    public ResponseEntity<List<VaultEntryResponseDTO>> getEntries() {
         Long userId = getCurrentUserId();
-        List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(userId);
+        List<VaultEntryResponseDTO> entries = vaultService.getEntriesByUser(userId);
         return ResponseEntity.ok(entries);
     }
 
@@ -92,10 +94,10 @@ public class VaultController {
     @ApiResponse(responseCode = "403", description = "Entry nepatrí prihlásenému používateľovi")
     @ApiResponse(responseCode = "404", description = "Entry nebol nájdená")
     @GetMapping("/entries/{id}")
-    public ResponseEntity<EncryptedVaultEntryDTO> getEntry(
+    public ResponseEntity<VaultEntryResponseDTO> getEntry(
             @Parameter(description = "ID vault entry") @PathVariable Long id) {
         Long userId = getCurrentUserId();
-        EncryptedVaultEntryDTO entry = vaultService.getEntryById(id, userId);
+        VaultEntryResponseDTO entry = vaultService.getEntryById(id, userId);
         return ResponseEntity.ok(entry);
     }
 
@@ -104,11 +106,11 @@ public class VaultController {
     @ApiResponse(responseCode = "403", description = "Entry nepatrí prihlásenému používateľovi")
     @ApiResponse(responseCode = "404", description = "Entry nebol nájdená")
     @PutMapping("/entries/{id}")
-    public ResponseEntity<EncryptedVaultEntryDTO> updateEntry(
+    public ResponseEntity<VaultEntryResponseDTO> updateEntry(
             @Parameter(description = "ID vault entry") @PathVariable Long id,
-            @RequestBody EncryptedVaultEntryDTO dto) {
+            @RequestBody VaultEntryRequestDTO dto) {
         Long userId = getCurrentUserId();
-        EncryptedVaultEntryDTO updated = vaultService.updateEntry(id, userId, dto);
+        VaultEntryResponseDTO updated = vaultService.updateEntry(id, userId, dto);
         return ResponseEntity.ok(updated);
     }
 
@@ -127,11 +129,11 @@ public class VaultController {
     @Operation(summary = "Vyhľadať entries", description = "Hľadanie vault entries podľa title a URL. Voliteľný filter podľa group_path prefixu.")
     @ApiResponse(responseCode = "200", description = "Výsledky vyhľadávania")
     @GetMapping("/search")
-    public ResponseEntity<List<EncryptedVaultEntryDTO>> searchEntries(
+    public ResponseEntity<List<VaultEntryResponseDTO>> searchEntries(
             @Parameter(description = "Hľadaný text (title alebo URL)") @RequestParam String q,
             @Parameter(description = "Filter podľa group_path prefixu") @RequestParam(required = false) String groupPath) {
         Long userId = getCurrentUserId();
-        List<EncryptedVaultEntryDTO> results = vaultService.searchEntries(userId, q, groupPath);
+        List<VaultEntryResponseDTO> results = vaultService.searchEntries(userId, q, groupPath);
         return ResponseEntity.ok(results);
     }
 
@@ -194,11 +196,11 @@ public class VaultController {
     @Operation(summary = "Export entries do CSV/JSON", description = "Vráti všetky šifrované vault entry pre prihláseného používateľa. Backend vracia encrypted blobs, frontend dešifruje a formátuje.")
     @ApiResponse(responseCode = "200", description = "Encrypted entries na export")
     @GetMapping("/export")
-    public ResponseEntity<List<EncryptedVaultEntryDTO>> exportEntries(
+    public ResponseEntity<List<VaultEntryResponseDTO>> exportEntries(
             @Parameter(description = "Formát exportu (csv alebo json) - backend vracia vždy JSON encrypted data, frontend formátuje")
             @RequestParam(required = false, defaultValue = "json") String format) {
         Long userId = getCurrentUserId();
-        List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(userId);
+        List<VaultEntryResponseDTO> entries = vaultService.getEntriesByUser(userId);
         return ResponseEntity.ok(entries);
     }
 }
