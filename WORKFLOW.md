@@ -1,31 +1,30 @@
 # Agent Workflow — wiki4ai Project
 
-This document defines the standard workflow for all agents working on tasks (User Stories) in the **wiki4ai** Taiga project.
+This document defines the standard workflow for all agents working on tasks in the **wiki4ai** Jira project.
+
+Jira board: https://keepee777.atlassian.net/jira/software/projects/WIKI4AI/boards/35/backlog
 
 ---
 
-## 1. Pick a Story
+## 1. Pick a Task
 
-- Query the **wiki4ai** Taiga project for User Stories with status **`New`** or **`Ready`**.
-- Select one story to work on.
-
-> **NOTE — Status values are INTEGER IDs, not strings.**  
-> Always use integer status IDs when updating story statuses via the API: `44` (New), `45` (Ready), `46` (In progress), `47` (Ready for test), `48` (Done). Do NOT pass string values.
+- Query the **WIKI4AI** Jira project for issues that are ready to be worked on (e.g., in backlog or To Do).
+- Select one issue to work on.
 
 ---
 
-## 2. Set Status to `In progress`
+## 2. Set Status to `In Progress`
 
-- Update the chosen story's status from `New` / `Ready` → **`In progress`** (status ID: **`46`**).
-- Use integer status IDs only (see note above).
+- Update the chosen issue's status to **`In Progress`**.
+- Use the appropriate transition via Jira API or UI.
 
 ---
 
-## 3. Implement the Story
+## 3. Implement the Task
 
-- Begin implementing the selected User Story.
+- Begin implementing the selected task/issue.
 - **You may install any tools, runtimes, or dependencies** you need on this Linux machine to complete the work (e.g., Java, Python, Node.js, compilers, libraries, etc.).
-- Follow the story requirements and description carefully.
+- Follow the issue requirements and description carefully.
 
 ---
 
@@ -69,13 +68,12 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 ---
 
-## 8. Update Taiga Story
+## 8. Update Jira Issue
 
-- Open the same User Story in Taiga and update it:
+- Open the same issue in Jira and update it:
   - **Append** an implementation description (do NOT delete existing content).
   - Describe what was implemented, how it was done, and any relevant details.
-- Change the story status to **`Done`** (status ID: **`48`**).
-- Use integer status IDs for the status (`48`), not strings.
+- Transition the issue to a completed status (e.g., `Done`, `Resolved`, or equivalent).
 
 ---
 
@@ -83,32 +81,20 @@ This document defines the standard workflow for all agents working on tasks (Use
 
 - After completing all previous steps, send a completion message via Discord using the MCP tool.
 - Post the message to the **`wiki4ai`** channel on the **`keepees server`**.
-- The message should summarize what was accomplished (story ID, subject, key changes made).
-
----
-
-## Taiga User Story Status Reference
-
-| Status Name | Integer ID | Description |
-|-------------|------------|-------------|
-| New | 44 | Default initial state |
-| Ready | 45 | Story is ready to be worked on |
-| In progress | 46 | Currently being implemented |
-| Ready for test | 47 | Implementation complete, awaiting testing |
-| Done | 48 | Completed and verified |
+- The message should summarize what was accomplished (issue key, summary, key changes made).
 
 ---
 
 ## Summary Checklist
 
-| Step | Action | Status Value (integer ID) |
-|------|--------|---------------------------|
-| 1 | Pick a `New` or `Ready` story from Taiga wiki4ai | — |
-| 2 | Set status to In progress | `46` |
-| 3 | Implement the story (install tools as needed) | — |
+| Step | Action |
+|------|--------|
+| 1 | Pick a task from Jira WIKI4AI project backlog | — |
+| 2 | Set status to In Progress in Jira | — |
+| 3 | Implement the task (install tools as needed) | — |
 | 4 | Build / compile project | — |
 | 5 | Write & run tests (if applicable) | — |
 | 6 | Commit with English message, push to `main` | — |
 | 7 | Run `bash scripts/check_pipeline.sh` and wait for success | — |
-| 8 | Append description + set status to Done in Taiga | `48` |
+| 8 | Append description + transition issue to Done in Jira | — |
 | 9 | Send Discord notification to #wiki4ai on keepees server | — |
