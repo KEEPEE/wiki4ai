@@ -4,7 +4,7 @@
  */
 
 import type { BackendVaultEntry, CreateVaultEntryDto, UpdateVaultEntryDto } from '../types/vault';
-import { apiGet, apiPost, apiPut, apiDelete } from './apiClient';
+import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -63,5 +63,15 @@ export const vaultApi = {
     const params = new URLSearchParams({ q: query });
     if (groupPath) params.append('groupPath', groupPath);
     return apiGet(`${API_BASE_URL}/vault/search?${params.toString()}`);
+  },
+
+  /**
+   * Import entries from a KDBX file. Returns plaintext entries for frontend to encrypt and save.
+   */
+  importFromKdbx: (file: File, password: string): Promise<Array<{ title: string; username?: string; password: string; url?: string; notes?: string; groupPath?: string }>> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('password', password);
+    return apiPostFormData(`${API_BASE_URL}/vault/import/kdbx`, formData);
   },
 };

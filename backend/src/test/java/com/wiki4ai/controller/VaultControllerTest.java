@@ -2,7 +2,9 @@ package com.wiki4ai.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
+import com.wiki4ai.dto.VaultEntryImportDTO;
 import com.wiki4ai.repository.UserRepository;
+import com.wiki4ai.service.VaultImportService;
 import com.wiki4ai.service.VaultMasterPasswordService;
 import com.wiki4ai.service.VaultService;
 import jakarta.persistence.EntityNotFoundException;
@@ -56,6 +58,9 @@ class VaultControllerTest {
     @MockBean
     private VaultMasterPasswordService masterPasswordService;
 
+    @MockBean
+    private VaultImportService importService;
+
     private static final Long TEST_USER_ID = 1L;
     private static final String TEST_USERNAME = "testuser";
 
@@ -99,6 +104,10 @@ class VaultControllerTest {
                 .groupPath("personal")
                 .iv(new byte[]{10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25})
                 .build();
+    }
+
+    private org.springframework.mock.web.MockMultipartFile createMockFile(String name, byte[] content) {
+        return new org.springframework.mock.web.MockMultipartFile("file", name, "application/octet-stream", content);
     }
 
     @Nested
@@ -576,6 +585,99 @@ class VaultControllerTest {
 
             mockMvc.perform(delete("/api/v1/vault/entries/1"))
                     .andExpect(status().isNoContent());
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/vault/import/kdbx - Import from KDBX")
+    class ImportFromKdbxTests {
+
+        @Test
+        @DisplayName("Should return 200 with imported entries")
+        void shouldImportEntriesSuccessfully() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<VaultEntryImportDTO> entries = List.of(
+                    VaultEntryImportDTO.builder()
+                            .title("Test Entry")
+                            .username("testuser")
+                            .password("secret123")
+                            .url("https://example.com")
+                            .groupPath("work/accounts")
+                            .build()
+            );
+
+            given(importService.importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("password123")))
+                    .willReturn(entries);
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
+                            .file(createMockFile("test.kdbx", new byte[]{1, 2, 3}))
+                            .param("password", "password123"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].title").value("Test Entry"))
+                    .andExpect(jsonPath("$[0].username").value("testuser"));
+
+            verify(importService).importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("password123"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when file is empty")
+        void shouldReturnBadRequestWhenFileEmpty() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
+                            .file(createMockFile("", new byte[0]))
+                            .param("password", "password123"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 409 when password is invalid")
+        void shouldReturnConflictWhenPasswordInvalid() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(importService.importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("wrong")))
+                    .willThrow(new IllegalArgumentException("Invalid password or corrupted KDBX file"));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
+                            .file(createMockFile("test.kdbx", new byte[]{1, 2, 3}))
+                            .param("password", "wrong"))
+                    .andExpect(status().isConflict());
+        }
+
+        @Test
+        @DisplayName("Should return 400 when file is corrupted")
+        void shouldReturnBadRequestWhenFileCorrupted() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(importService.importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("password")))
+                    .willThrow(new java.io.IOException("Failed to parse KDBX"));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
+                            .file(createMockFile("test.kdbx", new byte[]{1, 2, 3}))
+                            .param("password", "password"))
+                    .andExpect(status().isBadRequest());
         }
     }
 }
