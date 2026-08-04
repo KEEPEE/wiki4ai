@@ -11,6 +11,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import ProfilePage from './pages/ProfilePage'
 import AdminUsersPage from './pages/AdminUsersPage'
+import VaultPage from './pages/VaultPage'
 
 // Lazy-load components that have heavy dependencies (e.g., react-force-graph requires AFRAME)
 const GraphViewPage = lazy(() => import('./pages/GraphViewPage'))
@@ -31,6 +32,7 @@ function App() {
             {/* Main app routes with Layout - all protected */}
             <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
               <Route index element={<Dashboard />} />
+              <Route path="vault" element={<VaultPage />} />
               <Route path="profile" element={<ProfilePage />} />
               <Route path="admin/users" element={<AdminUsersPage />} />
               <Route path="projects/:slug" element={<ProjectDetail />} />
