@@ -1,13 +1,105 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useVault } from '../contexts/VaultContext';
 import { useVaultEntries } from '../hooks/useVaultEntries';
-import type { VaultEntry, VaultEntryData } from '../types/vault';
+import type { VaultEntry, VaultEntryData, BackendVaultEntry } from '../types/vault';
 import VaultEntryForm from '../components/VaultEntryForm';
 import type { VaultEntryFormData } from '../components/VaultEntryForm';
 import VaultSetupScreen from '../components/VaultSetupScreen';
 import VaultUnlockScreen from '../components/VaultUnlockScreen';
 import { vaultApi } from '../services/vaultApi';
+import { deriveKey, decrypt } from '../services/encryptionService';
 import './VaultPage.css';
+
+interface DecryptedExportEntry {
+  title: string;
+  username?: string;
+  password: string;
+  url?: string;
+  groupPath?: string;
+  notes?: string;
+}
+
+async function decryptEntriesForExport(backendEntries: BackendVaultEntry[], masterPassword: string, salt: Uint8Array): Promise<DecryptedExportEntry[]> {
+  const key = await deriveKey(masterPassword, salt);
+
+  return Promise.all(
+    backendEntries.map(async (entry) => {
+      try {
+        const usernameDecrypted = await decrypt(new Uint8Array(entry.usernameEncrypted), new Uint8Array(entry.iv), key);
+        const passwordDecrypted = await decrypt(new Uint8Array(entry.passwordEncrypted), new Uint8Array(entry.iv), key);
+
+        let notesDecrypted: string | undefined;
+        if (entry.notesEncrypted) {
+          try {
+            notesDecrypted = await decrypt(new Uint8Array(entry.notesEncrypted), new Uint8Array(entry.iv), key);
+          } catch {
+            notesDecrypted = undefined;
+          }
+        }
+
+        return {
+          title: entry.title,
+          username: usernameDecrypted ? JSON.parse(usernameDecrypted) : undefined,
+          password: JSON.parse(passwordDecrypted),
+          url: entry.url,
+          groupPath: entry.groupPath,
+          notes: notesDecrypted ? JSON.parse(notesDecrypted) : undefined,
+        };
+      } catch {
+        return {
+          title: entry.title,
+          password: '[decryption failed]',
+          url: entry.url,
+          groupPath: entry.groupPath,
+        };
+      }
+    }),
+  );
+}
+
+function escapeCsvField(value: string | undefined): string {
+  if (value === undefined || value === null) return '';
+  const str = String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function generateCsvContent(entries: DecryptedExportEntry[]): string {
+  const headers = ['title', 'username', 'password', 'url', 'group_path', 'notes'];
+  const lines = [headers.join(',')];
+
+  for (const entry of entries) {
+    const row = [
+      escapeCsvField(entry.title),
+      escapeCsvField(entry.username),
+      escapeCsvField(entry.password),
+      escapeCsvField(entry.url),
+      escapeCsvField(entry.groupPath),
+      escapeCsvField(entry.notes),
+    ];
+    lines.push(row.join(','));
+  }
+
+  return lines.join('\n');
+}
+
+function generateJsonContent(entries: DecryptedExportEntry[]): string {
+  return JSON.stringify(entries, null, 2);
+}
+
+function downloadFile(content: string, filename: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
 interface GroupedEntries {
   [groupPath: string]: VaultEntry[];
@@ -59,6 +151,25 @@ const VaultPage: React.FC = () => {
   const [importPassword, setImportPassword] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Export state
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showExportMenu && exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   // Group entries by group_path
   const groupedEntries = useMemo<GroupedEntries>(() => {
@@ -213,6 +324,31 @@ const VaultPage: React.FC = () => {
     }
   };
 
+  const handleExport = async (format: 'csv' | 'json') => {
+    if (!vault.config || entries.length === 0) return;
+
+    setIsExporting(true);
+    setExportError(null);
+    setShowExportMenu(false);
+
+    try {
+      const backendEntries = await vaultApi.getExportEntries();
+      const decryptedEntries = await decryptEntriesForExport(backendEntries, vault.config.masterPassword, vault.config.salt);
+
+      if (format === 'csv') {
+        const content = generateCsvContent(decryptedEntries);
+        downloadFile(content, `vault-export-${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8');
+      } else {
+        const content = generateJsonContent(decryptedEntries);
+        downloadFile(content, `vault-export-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+      }
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export entries');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const openCreateForm = () => {
     setEditingEntry(null);
     setShowForm(true);
@@ -258,6 +394,68 @@ const VaultPage: React.FC = () => {
           <button onClick={openImportModal} className="btn-import" data-testid="vault-import-button">
             Import KDBX
           </button>
+          <div ref={exportMenuRef} className="export-menu-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
+            <button
+              type="button"
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              disabled={entries.length === 0 || isExporting}
+              className="btn-import"
+              data-testid="vault-export-button"
+            >
+              Export
+            </button>
+            {showExportMenu && (
+              <div className="export-dropdown" style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: 4,
+                backgroundColor: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: 6,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                zIndex: 50,
+                minWidth: 140,
+              }}>
+                <button
+                  type="button"
+                  onClick={() => handleExport('csv')}
+                  disabled={isExporting}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'none',
+                    textAlign: 'left',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                  }}
+                  data-testid="vault-export-csv-button"
+                >
+                  Export as CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('json')}
+                  disabled={isExporting}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'none',
+                    textAlign: 'left',
+                    cursor: isExporting ? 'not-allowed' : 'pointer',
+                    fontSize: 14,
+                  }}
+                  data-testid="vault-export-json-button"
+                >
+                  Export as JSON
+                </button>
+              </div>
+            )}
+          </div>
           <div className="search-bar">
             <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -284,6 +482,12 @@ const VaultPage: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {exportError && (
+        <div style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: 4, marginBottom: 12 }} data-testid="vault-export-error">
+          {exportError}
+        </div>
+      )}
 
       {/* Entry Form (Create/Edit) */}
       {showForm && (

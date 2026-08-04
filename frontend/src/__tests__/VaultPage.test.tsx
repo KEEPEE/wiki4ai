@@ -43,6 +43,19 @@ vi.mock('../hooks/useVaultEntries', () => ({
   useVaultEntries: vi.fn(),
 }))
 
+// Mock vaultApi for export tests
+vi.mock('../services/vaultApi', () => ({
+  vaultApi: {
+    getAll: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
+    search: vi.fn(),
+    importFromKdbx: vi.fn(),
+    getExportEntries: vi.fn(),
+  },
+}))
+
 // Mock VaultContext - vault is unlocked with config ready
 const mockVaultConfig = {
   masterPassword: 'test-password',
@@ -723,6 +736,190 @@ describe('VaultPage', () => {
       // Netflix entry has no username - should not show "devuser" near it
       const netflixEntry = screen.getByTestId('vault-entry-2')
       expect(netflixEntry.textContent).not.toContain('devuser')
+    })
+  })
+
+  describe('Export functionality', () => {
+    const mockEntries = [
+      { id: 1, title: 'GitHub', url: 'https://github.com', groupPath: '/Work', data: { username: 'devuser', password: 'gh-pass' }, createdAt: '', updatedAt: '' },
+      { id: 2, title: 'Netflix', url: 'https://netflix.com', groupPath: '/Personal', data: { password: 'netflix-pass' }, createdAt: '', updatedAt: '' },
+    ]
+
+    beforeEach(() => {
+      vi.clearAllMocks()
+      mockLocalStorage.clear()
+    })
+
+    it('should show export button when entries exist', async () => {
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      expect(exportButton).not.toBeDisabled()
+    })
+
+    it('should disable export button when no entries', async () => {
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      expect(exportButton).toBeDisabled()
+    })
+
+    it('should open export dropdown when clicking export button', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      await user.click(exportButton)
+
+      expect(screen.getByTestId('vault-export-csv-button')).toBeInTheDocument()
+      expect(screen.getByTestId('vault-export-json-button')).toBeInTheDocument()
+    })
+
+    it('should fetch encrypted entries and trigger CSV download', async () => {
+      const user = userEvent.setup()
+
+      Object.defineProperty(window, 'Blob', { value: vi.fn(), writable: true })
+
+      const createObjectURLMock = vi.fn(() => 'mock-url')
+      URL.createObjectURL = createObjectURLMock as any
+
+      const revokeObjectURLMock = vi.fn()
+      URL.revokeObjectURL = revokeObjectURLMock as any
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { vaultApi } = await import('../services/vaultApi')
+      vi.mocked(vaultApi.getExportEntries).mockResolvedValue([
+        {
+          id: 1,
+          title: 'Test Entry',
+          usernameEncrypted: [1, 2, 3],
+          passwordEncrypted: [4, 5, 6],
+          notesEncrypted: null,
+          iv: new Array(12).fill(1),
+        },
+      ])
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      await user.click(exportButton)
+
+      const csvButton = screen.getByTestId('vault-export-csv-button')
+      await user.click(csvButton)
+
+      await waitFor(() => {
+        expect(vaultApi.getExportEntries).toHaveBeenCalled()
+      })
+    })
+
+    it('should fetch encrypted entries and trigger JSON download', async () => {
+      const user = userEvent.setup()
+
+      Object.defineProperty(window, 'Blob', { value: vi.fn(), writable: true })
+
+      const createObjectURLMock = vi.fn(() => 'mock-url')
+      URL.createObjectURL = createObjectURLMock as any
+
+      const revokeObjectURLMock = vi.fn()
+      URL.revokeObjectURL = revokeObjectURLMock as any
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { vaultApi } = await import('../services/vaultApi')
+      vi.mocked(vaultApi.getExportEntries).mockResolvedValue([
+        {
+          id: 1,
+          title: 'Test Entry',
+          usernameEncrypted: [1, 2, 3],
+          passwordEncrypted: [4, 5, 6],
+          notesEncrypted: null,
+          iv: new Array(12).fill(1),
+        },
+      ])
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      await user.click(exportButton)
+
+      const jsonButton = screen.getByTestId('vault-export-json-button')
+      await user.click(jsonButton)
+
+      await waitFor(() => {
+        expect(vaultApi.getExportEntries).toHaveBeenCalled()
+      })
+    })
+
+    it('should show error message when export fails', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { vaultApi } = await import('../services/vaultApi')
+      vi.mocked(vaultApi.getExportEntries).mockRejectedValue(new Error('Network error'))
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-button')).toBeInTheDocument()
+      })
+
+      const exportButton = screen.getByTestId('vault-export-button')
+      await user.click(exportButton)
+
+      const csvButton = screen.getByTestId('vault-export-csv-button')
+      await user.click(csvButton)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-export-error')).toBeInTheDocument()
+      })
+
+      const errorElement = screen.getByTestId('vault-export-error')
+      expect(errorElement.textContent).toContain('Network error')
     })
   })
 })

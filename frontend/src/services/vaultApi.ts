@@ -74,4 +74,10 @@ export const vaultApi = {
     formData.append('password', password);
     return apiPostFormData(`${API_BASE_URL}/vault/import/kdbx`, formData);
   },
+
+  /**
+   * Get all encrypted vault entries for export. Backend returns encrypted blobs, frontend decrypts and formats.
+   */
+  getExportEntries: (): Promise<BackendVaultEntry[]> =>
+    apiGet(`${API_BASE_URL}/vault/export`),
 };
