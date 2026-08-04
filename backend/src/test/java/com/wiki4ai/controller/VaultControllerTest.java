@@ -680,4 +680,101 @@ class VaultControllerTest {
                     .andExpect(status().isBadRequest());
         }
     }
+
+    @Nested
+    @DisplayName("GET /api/v1/vault/export - Export entries")
+    class ExportEntriesTests {
+
+        @Test
+        @DisplayName("Should return 200 with encrypted entries for export (json format)")
+        void shouldExportEntriesWithJsonFormat() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L), createSampleEntry(2L));
+            given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/export")
+                            .param("format", "json"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].id").value(1))
+                    .andExpect(jsonPath("$[0].title").value("Test Entry"));
+
+            verify(vaultService).getEntriesByUser(TEST_USER_ID);
+        }
+
+        @Test
+        @DisplayName("Should return 200 with encrypted entries for export (csv format)")
+        void shouldExportEntriesWithCsvFormat() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L));
+            given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
+
+            // when & then - backend returns same JSON regardless of format param
+            mockMvc.perform(get("/api/v1/vault/export")
+                            .param("format", "csv"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0].id").value(1));
+
+            verify(vaultService).getEntriesByUser(TEST_USER_ID);
+        }
+
+        @Test
+        @DisplayName("Should return 200 with empty list when no entries")
+        void shouldExportEmptyList() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(List.of());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/export"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with default json format when no format param")
+        void shouldExportWithDefaultFormat() throws Exception {
+            // given
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L));
+            given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/export"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return 403 when no authentication present")
+        void shouldReturnForbiddenWhenNotAuthenticated() throws Exception {
+            // given - no auth set up
+            SecurityContextHolder.clearContext();
+
+            // when & then
+            mockMvc.perform(get("/api/v1/vault/export"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message").value("Authentication required"));
+        }
+    }
 }

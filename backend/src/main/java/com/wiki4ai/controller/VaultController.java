@@ -190,4 +190,15 @@ public class VaultController {
             throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
         }
     }
+
+    @Operation(summary = "Export entries do CSV/JSON", description = "Vráti všetky šifrované vault entry pre prihláseného používateľa. Backend vracia encrypted blobs, frontend dešifruje a formátuje.")
+    @ApiResponse(responseCode = "200", description = "Encrypted entries na export")
+    @GetMapping("/export")
+    public ResponseEntity<List<EncryptedVaultEntryDTO>> exportEntries(
+            @Parameter(description = "Formát exportu (csv alebo json) - backend vracia vždy JSON encrypted data, frontend formátuje")
+            @RequestParam(required = false, defaultValue = "json") String format) {
+        Long userId = getCurrentUserId();
+        List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(userId);
+        return ResponseEntity.ok(entries);
+    }
 }

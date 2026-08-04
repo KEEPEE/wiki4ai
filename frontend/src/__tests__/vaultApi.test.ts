@@ -266,4 +266,55 @@ describe('vaultApi', () => {
       )
     })
   })
+
+  describe('getExportEntries', () => {
+    it('should return all encrypted entries for export', async () => {
+      const mockEntries = [
+        {
+          id: 1,
+          title: 'Entry 1',
+          url: 'https://example.com',
+          groupPath: '/work',
+          usernameEncrypted: [1, 2, 3],
+          passwordEncrypted: [4, 5, 6],
+          notesEncrypted: [7, 8, 9],
+          iv: [10, 11, 12],
+        },
+      ]
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockEntries,
+      })
+
+      const result = await vaultApi.getExportEntries()
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/vault/export',
+        expect.objectContaining({ method: 'GET' }),
+      )
+      expect(result).toEqual(mockEntries)
+    })
+
+    it('should return empty array when no entries exist', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+
+      const result = await vaultApi.getExportEntries()
+
+      expect(result).toEqual([])
+    })
+
+    it('should throw error when API call fails', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+      })
+
+      await expect(vaultApi.getExportEntries()).rejects.toThrow()
+    })
+  })
 })
