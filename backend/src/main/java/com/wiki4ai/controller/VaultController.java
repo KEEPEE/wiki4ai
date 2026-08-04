@@ -1,7 +1,11 @@
 package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
+import com.wiki4ai.dto.SetMasterPasswordRequestDTO;
+import com.wiki4ai.dto.VerifyMasterPasswordRequestDTO;
+import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import com.wiki4ai.service.VaultMasterPasswordService;
 import com.wiki4ai.service.VaultService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -28,6 +32,7 @@ public class VaultController {
 
     private final VaultService vaultService;
     private final UserRepository userRepository;
+    private final VaultMasterPasswordService masterPasswordService;
 
     /**
      * Get the current authenticated user ID from SecurityContext.
@@ -41,6 +46,20 @@ public class VaultController {
         String username = auth.getName();
         return userRepository.findByUsername(username)
                 .map(u -> u.getId())
+                .orElseThrow(() -> new AccessDeniedException("User not found"));
+    }
+
+    /**
+     * Get the current authenticated User entity from SecurityContext.
+     */
+    private User getCurrentUser() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !auth.isAuthenticated() || auth.getName() == null) {
+            throw new AccessDeniedException("Authentication required");
+        }
+
+        String username = auth.getName();
+        return userRepository.findByUsername(username)
                 .orElseThrow(() -> new AccessDeniedException("User not found"));
     }
 
@@ -109,5 +128,39 @@ public class VaultController {
         Long userId = getCurrentUserId();
         List<EncryptedVaultEntryDTO> results = vaultService.searchEntries(userId, q, groupPath);
         return ResponseEntity.ok(results);
+    }
+
+    @Operation(summary = "Skontrolovať stav master password", description = "Vráti informáciu či má používateľ nastavené master password pre vault.")
+    @ApiResponse(responseCode = "200", description = "Stav master password")
+    @GetMapping("/master-password/status")
+    public ResponseEntity<Boolean> getMasterPasswordStatus() {
+        User user = getCurrentUser();
+        boolean isSet = masterPasswordService.isPasswordSet(user.getVaultMasterPasswordHash());
+        return ResponseEntity.ok(isSet);
+    }
+
+    @Operation(summary = "Nastaviť master password", description = "Uloží hash master password pre používateľa. Hash je vypočítaný na kliente (PBKDF2).")
+    @ApiResponse(responseCode = "200", description = "Master password nastavené")
+    @PostMapping("/master-password/set")
+    public ResponseEntity<Void> setMasterPassword(@RequestBody SetMasterPasswordRequestDTO request) {
+        User user = getCurrentUser();
+        String hash = masterPasswordService.hashPassword(request.getMasterPasswordHash());
+        user.setVaultMasterPasswordHash(hash);
+        userRepository.save(user);
+        return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Overiť master password", description = "Overí či je zadaný hash správny pre používateľa.")
+    @ApiResponse(responseCode = "200", description = "Master password je správne")
+    @ApiResponse(responseCode = "401", description = "Master password je nesprávne")
+    @PostMapping("/master-password/verify")
+    public ResponseEntity<Void> verifyMasterPassword(@RequestBody VerifyMasterPasswordRequestDTO request) {
+        User user = getCurrentUser();
+
+        if (!masterPasswordService.verifyPassword(request.getMasterPasswordHash(), user.getVaultMasterPasswordHash())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok().build();
     }
 }

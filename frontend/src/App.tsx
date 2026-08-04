@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
+import { VaultProvider } from './contexts/VaultContext'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
 import LoadingScreen from './components/LoadingScreen'
@@ -24,7 +25,8 @@ function App() {
       <LoadingScreen />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <VaultProvider>
+            <Routes>
             {/* Auth pages - standalone, no Layout wrapper */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
@@ -76,6 +78,7 @@ function App() {
               />
             </Route>
           </Routes>
+        </VaultProvider>
         </AuthProvider>
       </BrowserRouter>
     </>

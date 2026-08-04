@@ -1,40 +1,49 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useVault } from '../contexts/VaultContext';
 import { useVaultEntries } from '../hooks/useVaultEntries';
 import type { VaultEntry, VaultEntryData } from '../types/vault';
 import VaultEntryForm from '../components/VaultEntryForm';
 import type { VaultEntryFormData } from '../components/VaultEntryForm';
+import VaultSetupScreen from '../components/VaultSetupScreen';
+import VaultUnlockScreen from '../components/VaultUnlockScreen';
 import './VaultPage.css';
-
-const VAULT_MASTER_PASSWORD_KEY = 'wiki4ai_vault_master_password';
-const VAULT_SALT_KEY = 'wiki4ai_vault_salt';
-
-function getVaultConfig() {
-  const masterPassword = localStorage.getItem(VAULT_MASTER_PASSWORD_KEY);
-  const saltB64 = localStorage.getItem(VAULT_SALT_KEY);
-  if (!masterPassword || !saltB64) return null;
-  try {
-    const saltBytes = Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0));
-    return { masterPassword, salt: saltBytes };
-  } catch {
-    return null;
-  }
-}
-
-function initVaultConfig(): { masterPassword: string; salt: Uint8Array } {
-  const masterPassword = crypto.randomUUID();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  localStorage.setItem(VAULT_MASTER_PASSWORD_KEY, masterPassword);
-  localStorage.setItem(VAULT_SALT_KEY, btoa(String.fromCharCode(...salt)));
-  return { masterPassword, salt };
-}
 
 interface GroupedEntries {
   [groupPath: string]: VaultEntry[];
 }
 
 const VaultPage: React.FC = () => {
-  const config = useMemo(() => getVaultConfig() ?? initVaultConfig(), []);
-  const { entries, isLoading, error, createEntry, updateEntry } = useVaultEntries(config);
+  const vault = useVault();
+
+  useEffect(() => {
+    if (!vault.isUnlocked && vault.hasMasterPasswordSet === null) {
+      vault.checkStatus();
+    }
+  }, [vault]);
+
+  // Show setup screen if no master password set yet
+  if (vault.hasMasterPasswordSet === false && !vault.isLoading) {
+    return <VaultSetupScreen />;
+  }
+
+  // Show unlock screen if locked and has master password
+  if (!vault.isUnlocked && vault.hasMasterPasswordSet === true && !vault.isLoading) {
+    return <VaultUnlockScreen />;
+  }
+
+  // Show loading while checking status or setting up/unlocking
+  if (vault.isLoading || vault.config === null) {
+    return (
+      <div className="vault-page">
+        <div className="loading-state">
+          <div className="spinner" />
+          <p>Loading vault...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const { entries, isLoading, error, createEntry, updateEntry } = useVaultEntries(vault.config);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);

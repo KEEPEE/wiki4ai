@@ -484,3 +484,205 @@
     width: 100%;
   }
 }
+
+/* ── Vault Setup Screen ───────────────────────────────── */
+
+.vault-setup-screen,
+.vault-unlock-screen {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.vault-setup-card,
+.vault-unlock-card {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  padding: 2.5rem;
+  max-width: 480px;
+  width: 100%;
+  text-align: center;
+}
+
+.vault-setup-icon,
+.vault-unlock-icon {
+  margin-bottom: 1.5rem;
+  color: var(--primary);
+}
+
+.vault-setup-title,
+.vault-unlock-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.75rem;
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.vault-setup-description,
+.vault-unlock-description {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  line-height: 1.6;
+}
+
+/* ── Vault Forms ─────────────────────────────────────── */
+
+.vault-setup-form,
+.vault-unlock-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.vault-input-group {
+  text-align: left;
+}
+
+.vault-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.375rem;
+  font-weight: 500;
+}
+
+.vault-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.vault-input {
+  width: 100%;
+  padding: 0.875rem 3rem 0.875rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 0.95rem;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.vault-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.vault-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+}
+
+.vault-input-error {
+  border-color: #ff4757 !important;
+}
+
+.vault-toggle-visibility {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+/* ── Password Requirements ───────────────────────────── */
+
+.vault-password-requirements {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+}
+
+.vault-requirement {
+  font-size: 0.8rem;
+}
+
+.vault-requirement-fail {
+  color: #ff4757;
+}
+
+.vault-requirement-pass {
+  color: #2ed573;
+}
+
+/* ── Buttons ─────────────────────────────────────────── */
+
+.vault-primary-button {
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
+  color: var(--dark-1);
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow var(--transition-base), transform var(--transition-fast), opacity var(--transition-base);
+}
+
+.vault-primary-button:hover:not(:disabled) {
+  box-shadow: 0 0 25px rgba(0, 240, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+.vault-primary-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.vault-primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.vault-button-loading {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ── Error & Security Messages ─────────────────────── */
+
+.vault-error-message {
+  background: rgba(255, 71, 87, 0.1);
+  border: 1px solid rgba(255, 71, 87, 0.3);
+  color: #ff4757;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.vault-security-note {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 1.25rem;
+  line-height: 1.5;
+}
+
+/* ── Responsive for Setup/Unlock Screens ───────────── */
+
+@media (max-width: 480px) {
+  .vault-setup-card,
+  .vault-unlock-card {
+    padding: 1.75rem 1.25rem;
+  }
+
+  .vault-setup-title,
+  .vault-unlock-title {
+    font-size: 1.5rem;
+  }
+}

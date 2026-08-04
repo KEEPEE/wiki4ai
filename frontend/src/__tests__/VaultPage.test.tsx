@@ -43,6 +43,27 @@ vi.mock('../hooks/useVaultEntries', () => ({
   useVaultEntries: vi.fn(),
 }))
 
+// Mock VaultContext - vault is unlocked with config ready
+const mockVaultConfig = {
+  masterPassword: 'test-password',
+  salt: new Uint8Array(16),
+}
+
+vi.mock('../contexts/VaultContext', () => ({
+  useVault: vi.fn(() => ({
+    isUnlocked: true,
+    isLoading: false,
+    config: mockVaultConfig,
+    key: null as CryptoKey | null,
+    hasMasterPasswordSet: true,
+    error: null,
+    unlock: vi.fn(),
+    setupVault: vi.fn(),
+    lock: vi.fn(),
+    checkStatus: vi.fn(),
+  })),
+}))
+
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: {
