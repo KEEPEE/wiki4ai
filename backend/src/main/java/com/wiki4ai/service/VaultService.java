@@ -110,6 +110,29 @@ public class VaultService {
         vaultEntryRepository.delete(entry);
     }
 
+    /**
+     * Search vault entries by title and URL for a specific user.
+     * Optionally filters by group_path prefix.
+     */
+    public List<EncryptedVaultEntryDTO> searchEntries(Long userId, String query, String groupPathPrefix) {
+        if (query == null || query.isBlank()) {
+            return List.of();
+        }
+
+        List<VaultEntry> entries;
+        if (groupPathPrefix != null && !groupPathPrefix.isBlank()) {
+            entries = vaultEntryRepository.findByUserIdAndGroupPathStartingWithAndTitleContainingIgnoreCaseOrUrlContainingIgnoreCase(
+                    userId, groupPathPrefix, query, query);
+        } else {
+            entries = vaultEntryRepository.findByUserIdAndTitleContainingIgnoreCaseOrUrlContainingIgnoreCase(
+                    userId, query, query);
+        }
+
+        return entries.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
     // ==================== VALIDATION ====================
 
     private void validateCreateDTO(EncryptedVaultEntryDTO dto) {

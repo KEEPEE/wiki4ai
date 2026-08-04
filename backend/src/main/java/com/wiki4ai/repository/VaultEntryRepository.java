@@ -12,4 +12,10 @@ public interface VaultEntryRepository extends JpaRepository<VaultEntry, Long> {
     List<VaultEntry> findByUserId(Long userId);
 
     List<VaultEntry> findByUserIdAndGroupPathContaining(Long userId, String path);
+
+    List<VaultEntry> findByUserIdAndTitleContainingIgnoreCaseOrUrlContainingIgnoreCase(
+            Long userId, String titleQuery, String urlQuery);
+
+    List<VaultEntry> findByUserIdAndGroupPathStartingWithAndTitleContainingIgnoreCaseOrUrlContainingIgnoreCase(
+            Long userId, String groupPathPrefix, String titleQuery, String urlQuery);
 }
