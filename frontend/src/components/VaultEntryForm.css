@@ -1,0 +1,239 @@
+/**
+ * CSS styles for VaultEntryForm — Nexaverse dark mode with glassmorphism.
+ */
+
+.vault-entry-form {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.vault-entry-form h3 {
+  margin-top: 0;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Form Fields ─────────────────────────────────────── */
+
+.form-field {
+  margin-bottom: 1rem;
+}
+
+.form-field label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
+  font-weight: 500;
+}
+
+.form-field input,
+.form-field textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 20px var(--glow-cyan);
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* ── Field Errors ───────────────────────────────────── */
+
+.field-error {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-error-text);
+  margin-top: 0.25rem;
+}
+
+.form-error {
+  color: var(--color-error-text);
+  background: var(--color-error-bg);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ── Password Field ─────────────────────────────────── */
+
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-wrapper input {
+  padding-right: 2.5rem;
+}
+
+.toggle-password-btn {
+  position: absolute;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  transition: transform var(--transition-fast);
+}
+
+.toggle-password-btn:hover {
+  transform: scale(1.15);
+}
+
+.password-actions {
+  margin-top: 0.35rem;
+}
+
+.generate-password-btn {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--transition-base);
+}
+
+.generate-password-btn:hover {
+  color: #00d4e6;
+  text-decoration: underline;
+}
+
+/* ── Group Path Autocomplete ───────────────────────── */
+
+.group-path-wrapper {
+  position: relative;
+}
+
+.group-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--dark-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0;
+  list-style: none;
+  max-height: 160px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.group-suggestions li {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.group-suggestions li:hover {
+  background: rgba(0, 240, 255, 0.1);
+  color: var(--primary);
+}
+
+/* ── Form Actions ───────────────────────────────────── */
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 0.625rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
+  color: var(--dark-1);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 0 20px var(--glow-cyan);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Responsive ─────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .vault-entry-form {
+    padding: 1rem;
+  }
+
+  .form-actions {
+    flex-direction: column-reverse;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+}
