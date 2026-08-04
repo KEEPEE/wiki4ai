@@ -83,7 +83,8 @@ public class GlobalExceptionHandler {
 
     /**
      * Handle illegal argument exceptions (e.g., duplicate name, invalid file format).
-     * Returns 409 Conflict for business rule violations or 400 Bad Request for validation errors.
+     * Returns 403 Forbidden for ownership violations, 409 Conflict for business rule violations,
+     * or 400 Bad Request for validation errors.
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(
@@ -92,11 +93,18 @@ public class GlobalExceptionHandler {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now().toString());
 
-        // Distinguish between validation errors (400) and business rule violations (409)
-        if (ex.getMessage() != null && ex.getMessage().contains("Invalid file format")) {
+        String message = ex.getMessage() != null ? ex.getMessage() : "";
+
+        // Ownership/access violations (e.g., vault entry belongs to another user) -> 403
+        if (message.contains("does not belong")) {
+            body.put("status", HttpStatus.FORBIDDEN.value());
+            body.put("error", "Forbidden");
+        } else if (message.contains("Invalid file format")) {
+            // Validation errors -> 400
             body.put("status", HttpStatus.BAD_REQUEST.value());
             body.put("error", "Bad Request");
         } else {
+            // Business rule violations -> 409
             body.put("status", HttpStatus.CONFLICT.value());
             body.put("error", "Conflict");
         }
