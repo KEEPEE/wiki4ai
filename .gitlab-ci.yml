@@ -19,8 +19,6 @@ variables:
 build-backend:
   stage: build_and_push
   image: docker:29
-  tags:
-    - docker
   services:
     - docker:dind
   timeout: 60m
@@ -37,8 +35,6 @@ build-backend:
 build-frontend:
   stage: build_and_push
   image: docker:29
-  tags:
-    - docker
   services:
     - docker:dind
   timeout: 60m
@@ -55,8 +51,6 @@ build-frontend:
 build-mcp:
   stage: build_and_push
   image: docker:29
-  tags:
-    - docker
   services:
     - docker:dind
   timeout: 30m
