@@ -297,6 +297,13 @@
   font-weight: 500;
 }
 
+.entry-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.edit-button,
 .copy-button {
   background: none;
   border: none;

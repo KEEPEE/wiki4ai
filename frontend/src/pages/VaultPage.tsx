@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { useVaultEntries } from '../hooks/useVaultEntries';
 import type { VaultEntry, VaultEntryData } from '../types/vault';
+import VaultEntryForm from '../components/VaultEntryForm';
+import type { VaultEntryFormData } from '../components/VaultEntryForm';
 import './VaultPage.css';
 
 const VAULT_MASTER_PASSWORD_KEY = 'wiki4ai_vault_master_password';
@@ -32,21 +34,14 @@ interface GroupedEntries {
 
 const VaultPage: React.FC = () => {
   const config = useMemo(() => getVaultConfig() ?? initVaultConfig(), []);
-  const { entries, isLoading, error, createEntry } = useVaultEntries(config);
+  const { entries, isLoading, error, createEntry, updateEntry } = useVaultEntries(config);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<VaultEntry | null>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-
-  // Form state
-  const [newTitle, setNewTitle] = useState('');
-  const [newUrl, setNewUrl] = useState('');
-  const [newGroupPath, setNewGroupPath] = useState('');
-  const [newUsername, setNewUsername] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newNotes, setNewNotes] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Group entries by group_path
   const groupedEntries = useMemo<GroupedEntries>(() => {
@@ -104,34 +99,53 @@ const VaultPage: React.FC = () => {
     }
   }, []);
 
-  // Handle create entry form submission
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
+  const handleFormSubmit = async (formData: VaultEntryFormData) => {
+    setFormError(null);
 
-    setCreateError(null);
     try {
-      const data: VaultEntryData = { password: newPassword };
-      if (newUsername.trim()) data.username = newUsername.trim();
-      if (newNotes.trim()) data.notes = newNotes.trim();
+      const data: VaultEntryData = { password: formData.password };
+      if (formData.username.trim()) data.username = formData.username.trim();
+      if (formData.notes.trim()) data.notes = formData.notes.trim();
 
-      await createEntry({
-        title: newTitle.trim(),
-        url: newUrl.trim() || undefined,
-        groupPath: newGroupPath.trim() || undefined,
-        data,
-      });
+      if (editingEntry) {
+        await updateEntry({
+          id: editingEntry.id,
+          updates: {
+            title: formData.title.trim(),
+            url: formData.url.trim() || undefined,
+            groupPath: formData.groupPath.trim() || undefined,
+            data,
+          },
+        });
+      } else {
+        await createEntry({
+          title: formData.title.trim(),
+          url: formData.url.trim() || undefined,
+          groupPath: formData.groupPath.trim() || undefined,
+          data,
+        });
+      }
 
-      setNewTitle('');
-      setNewUrl('');
-      setNewGroupPath('');
-      setNewUsername('');
-      setNewPassword('');
-      setNewNotes('');
-      setShowCreateForm(false);
+      closeForm();
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create entry');
+      setFormError(err instanceof Error ? err.message : 'Failed to save entry');
     }
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingEntry(null);
+    setFormError(null);
+  };
+
+  const openCreateForm = () => {
+    setEditingEntry(null);
+    setShowForm(true);
+  };
+
+  const openEditForm = (entry: VaultEntry) => {
+    setEditingEntry(entry);
+    setShowForm(true);
   };
 
   // Loading state
@@ -193,71 +207,22 @@ const VaultPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Create Entry Form */}
-      {showCreateForm && (
-        <form onSubmit={handleCreate} className="create-form">
-          <h3>Add New Entry</h3>
-          <input
-            type="text"
-            placeholder="Title (e.g., GitHub)"
-            value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
-            required
-            autoFocus
-            data-testid="vault-new-title-input"
-          />
-          <input
-            type="url"
-            placeholder="URL (optional)"
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            data-testid="vault-new-url-input"
-          />
-          <input
-            type="text"
-            placeholder="Group path (e.g., /Work, /Personal)"
-            value={newGroupPath}
-            onChange={(e) => setNewGroupPath(e.target.value)}
-            data-testid="vault-new-group-path-input"
-          />
-          <input
-            type="text"
-            placeholder="Username (optional)"
-            value={newUsername}
-            onChange={(e) => setNewUsername(e.target.value)}
-            data-testid="vault-new-username-input"
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            required
-            data-testid="vault-new-password-input"
-          />
-          <textarea
-            placeholder="Notes (optional)"
-            value={newNotes}
-            onChange={(e) => setNewNotes(e.target.value)}
-            rows={3}
-            data-testid="vault-new-notes-input"
-          />
-          {createError && <p className="error">{createError}</p>}
-          <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={false}>
-              Add Entry
-            </button>
-            <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
-              Cancel
-            </button>
-          </div>
-        </form>
+      {/* Entry Form (Create/Edit) */}
+      {showForm && (
+        <VaultEntryForm
+          entry={editingEntry}
+          existingGroups={allGroups}
+          onSubmit={handleFormSubmit}
+          onCancel={closeForm}
+          isSubmitting={false}
+          error={formError}
+        />
       )}
 
       {/* Main Content */}
-      {!showCreateForm && (
+      {!showForm && (
         <>
-          <button onClick={() => setShowCreateForm(true)} className="btn-create-new" data-testid="vault-add-entry-button">
+          <button onClick={openCreateForm} className="btn-create-new" data-testid="vault-add-entry-button">
             + Add New Entry
           </button>
 
@@ -267,7 +232,7 @@ const VaultPage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               <p className="empty-text">No entries in your vault yet.</p>
-              <button onClick={() => setShowCreateForm(true)} className="btn-primary">
+              <button onClick={openCreateForm} className="btn-primary">
                 Add your first entry!
               </button>
             </div>
@@ -305,15 +270,26 @@ const VaultPage: React.FC = () => {
                           <div key={entry.id} className="entry-card" data-testid={`vault-entry-${entry.id}`}>
                             <div className="entry-header">
                               <h3 className="entry-title">{entry.title}</h3>
-                              <button
-                                type="button"
-                                className="copy-button"
-                                onClick={() => copyPassword(entry)}
-                                aria-label={`Copy password for ${entry.title}`}
-                                data-testid={`vault-copy-password-${entry.id}`}
-                              >
-                                {copiedId === entry.id ? '✓' : '📋'}
-                              </button>
+                              <div className="entry-actions">
+                                <button
+                                  type="button"
+                                  className="edit-button"
+                                  onClick={() => openEditForm(entry)}
+                                  aria-label={`Edit ${entry.title}`}
+                                  data-testid={`vault-edit-entry-${entry.id}`}
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  type="button"
+                                  className="copy-button"
+                                  onClick={() => copyPassword(entry)}
+                                  aria-label={`Copy password for ${entry.title}`}
+                                  data-testid={`vault-copy-password-${entry.id}`}
+                                >
+                                  {copiedId === entry.id ? '✓' : '📋'}
+                                </button>
+                              </div>
                             </div>
                             <div className="entry-details">
                               {entry.url && (
