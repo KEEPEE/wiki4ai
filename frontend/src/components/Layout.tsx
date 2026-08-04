@@ -58,6 +58,20 @@ export default function Layout({ children }: LayoutProps) {
           <div className="flex items-center gap-3" data-testid="auth-section">
             {isAuthenticated && user ? (
               <>
+                <Link
+                  to="/vault"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-purple-600 flex items-center gap-1.5"
+                  style={{
+                    background: '#8b5cf6',
+                  }}
+                  data-testid="nav-vault"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 7h-3a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
+                    <rect x="10" y="11" width="4" height="4" rx="1" />
+                  </svg>
+                  Vault
+                </Link>
                 {(user as any).role === 'ADMIN' && (
                   <Link
                     to="/admin/users"
