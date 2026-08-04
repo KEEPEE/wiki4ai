@@ -3,8 +3,10 @@ package com.wiki4ai.controller;
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
 import com.wiki4ai.dto.SetMasterPasswordRequestDTO;
 import com.wiki4ai.dto.VerifyMasterPasswordRequestDTO;
+import com.wiki4ai.dto.VaultEntryImportDTO;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import com.wiki4ai.service.VaultImportService;
 import com.wiki4ai.service.VaultMasterPasswordService;
 import com.wiki4ai.service.VaultService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,7 +19,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -33,6 +37,7 @@ public class VaultController {
     private final VaultService vaultService;
     private final UserRepository userRepository;
     private final VaultMasterPasswordService masterPasswordService;
+    private final VaultImportService importService;
 
     /**
      * Get the current authenticated user ID from SecurityContext.
@@ -162,5 +167,27 @@ public class VaultController {
         }
 
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Import entries z KDBX súboru", description = "Načíta a dešifruje KDBX súbor, vráti entries ako JSON pre ďalší import do vaultu.")
+    @ApiResponse(responseCode = "200", description = "Entries úspešne importované")
+    @ApiResponse(responseCode = "400", description = "Neplatný súbor alebo heslo")
+    @PostMapping("/import/kdbx")
+    public ResponseEntity<List<VaultEntryImportDTO>> importFromKdbx(
+            @Parameter(description = "KDBX súbor na import") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "Heslo pre KDBX súbor") @RequestParam("password") String password) {
+
+        if (file.isEmpty()) {
+            throw new IllegalArgumentException("Invalid file format: no file provided");
+        }
+
+        try {
+            List<VaultEntryImportDTO> entries = importService.importFromKdbx(file.getInputStream(), password);
+            return ResponseEntity.ok(entries);
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
+        }
     }
 }

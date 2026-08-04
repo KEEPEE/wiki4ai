@@ -6,6 +6,7 @@ import VaultEntryForm from '../components/VaultEntryForm';
 import type { VaultEntryFormData } from '../components/VaultEntryForm';
 import VaultSetupScreen from '../components/VaultSetupScreen';
 import VaultUnlockScreen from '../components/VaultUnlockScreen';
+import { vaultApi } from '../services/vaultApi';
 import './VaultPage.css';
 
 interface GroupedEntries {
@@ -51,6 +52,13 @@ const VaultPage: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Import state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPassword, setImportPassword] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
 
   // Group entries by group_path
   const groupedEntries = useMemo<GroupedEntries>(() => {
@@ -147,6 +155,64 @@ const VaultPage: React.FC = () => {
     setFormError(null);
   };
 
+  // Import handlers
+  const openImportModal = () => {
+    setShowImportModal(true);
+    setImportFile(null);
+    setImportPassword('');
+    setImportError(null);
+  };
+
+  const closeImportModal = () => {
+    setShowImportModal(false);
+    setImportFile(null);
+    setImportPassword('');
+    setImportError(null);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!importFile) {
+      setImportError('Please select a KDBX file');
+      return;
+    }
+
+    if (!importPassword.trim()) {
+      setImportError('Please enter the database password');
+      return;
+    }
+
+    setIsImporting(true);
+    setImportError(null);
+
+    try {
+      const entries = await vaultApi.importFromKdbx(importFile, importPassword);
+
+      if (entries.length === 0) {
+        setImportError('No entries found in the KDBX file');
+        return;
+      }
+
+      for (const entry of entries) {
+        const data: VaultEntryData = { password: entry.password };
+        if (entry.username?.trim()) data.username = entry.username.trim();
+        if (entry.notes?.trim()) data.notes = entry.notes.trim();
+
+        await createEntry({
+          title: entry.title || 'Untitled',
+          url: entry.url?.trim() || undefined,
+          groupPath: entry.groupPath?.trim() || undefined,
+          data,
+        });
+      }
+
+      closeImportModal();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Failed to import KDBX file');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const openCreateForm = () => {
     setEditingEntry(null);
     setShowForm(true);
@@ -189,6 +255,9 @@ const VaultPage: React.FC = () => {
       <header className="vault-header">
         <h1>Vault</h1>
         <div className="vault-actions">
+          <button onClick={openImportModal} className="btn-import" data-testid="vault-import-button">
+            Import KDBX
+          </button>
           <div className="search-bar">
             <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -320,6 +389,65 @@ const VaultPage: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="import-modal-overlay" data-testid="vault-import-modal">
+          <div className="import-modal">
+            <h2>Import from KDBX</h2>
+            <p className="import-description">Upload a KeePass (.kdbx) database file to import entries into your vault.</p>
+
+            <div className="import-field">
+              <label htmlFor="kdbx-file-input">KDBX File</label>
+              <input
+                id="kdbx-file-input"
+                type="file"
+                accept=".kdbx"
+                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                disabled={isImporting}
+                data-testid="vault-import-file-input"
+              />
+              {importFile && <span className="file-name">{importFile.name}</span>}
+            </div>
+
+            <div className="import-field">
+              <label htmlFor="kdbx-password-input">Database Password</label>
+              <input
+                id="kdbx-password-input"
+                type="password"
+                placeholder="Enter KDBX password"
+                value={importPassword}
+                onChange={(e) => setImportPassword(e.target.value)}
+                disabled={isImporting}
+                data-testid="vault-import-password-input"
+              />
+            </div>
+
+            {importError && <p className="import-error">{importError}</p>}
+
+            <div className="import-actions">
+              <button
+                type="button"
+                onClick={closeImportModal}
+                disabled={isImporting}
+                className="btn-secondary"
+                data-testid="vault-import-cancel-button"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImportSubmit}
+                disabled={!importFile || !importPassword.trim() || isImporting}
+                className="btn-primary"
+                data-testid="vault-import-submit-button"
+              >
+                {isImporting ? 'Importing...' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
