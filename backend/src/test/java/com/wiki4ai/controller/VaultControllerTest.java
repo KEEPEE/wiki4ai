@@ -1,8 +1,10 @@
 package com.wiki4ai.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.wiki4ai.dto.EncryptedVaultEntryDTO;
+import com.wiki4ai.dto.EncryptedField;
 import com.wiki4ai.dto.VaultEntryImportDTO;
+import com.wiki4ai.dto.VaultEntryRequestDTO;
+import com.wiki4ai.dto.VaultEntryResponseDTO;
 import com.wiki4ai.repository.UserRepository;
 import com.wiki4ai.service.VaultImportService;
 import com.wiki4ai.service.VaultMasterPasswordService;
@@ -81,28 +83,33 @@ class VaultControllerTest {
         SecurityContextHolder.setContext(context);
     }
 
-    private EncryptedVaultEntryDTO createSampleEntry(Long id) {
-        return EncryptedVaultEntryDTO.builder()
+    private VaultEntryResponseDTO createSampleEntry(Long id) {
+        return VaultEntryResponseDTO.builder()
                 .id(id)
                 .title("Test Entry")
-                .usernameEncrypted(new byte[]{1, 2, 3})
-                .passwordEncrypted(new byte[]{4, 5, 6})
-                .notesEncrypted(new byte[]{7, 8, 9})
+                .usernameEncrypted(createEncryptedField("AQID", "Cg=="))
+                .passwordEncrypted(createEncryptedField("BAUG", "Cg=="))
+                .notesEncrypted(createEncryptedField("Bw==", "Cg=="))
                 .url("https://example.com")
                 .groupPath("work/accounts")
-                .iv(new byte[]{10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25})
                 .build();
     }
 
-    private EncryptedVaultEntryDTO createSampleCreateDto() {
-        return EncryptedVaultEntryDTO.builder()
+    private VaultEntryRequestDTO createSampleCreateDto() {
+        return VaultEntryRequestDTO.builder()
                 .title("New Entry")
-                .usernameEncrypted(new byte[]{1, 2, 3})
-                .passwordEncrypted(new byte[]{4, 5, 6})
+                .usernameEncrypted(createEncryptedField("AQID", "Cg=="))
+                .passwordEncrypted(createEncryptedField("BAUG", "Cg=="))
                 .notesEncrypted(null)
                 .url("https://newsite.com")
                 .groupPath("personal")
-                .iv(new byte[]{10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25})
+                .build();
+    }
+
+    private EncryptedField createEncryptedField(String ciphertext, String iv) {
+        return EncryptedField.builder()
+                .ciphertext(ciphertext)
+                .iv(iv)
                 .build();
     }
 
@@ -123,8 +130,8 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO dto = createSampleCreateDto();
-            EncryptedVaultEntryDTO created = createSampleEntry(1L);
+            VaultEntryRequestDTO dto = createSampleCreateDto();
+            VaultEntryResponseDTO created = createSampleEntry(1L);
             given(vaultService.createEntry(eq(TEST_USER_ID), any())).willReturn(created);
 
             // when & then
@@ -147,9 +154,8 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder()
-                    .passwordEncrypted(new byte[]{1})
-                    .iv(new byte[16])
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder()
+                    .passwordEncrypted(createEncryptedField("AQ==", "Cg=="))
                     .build();
 
             given(vaultService.createEntry(eq(TEST_USER_ID), any()))
@@ -177,7 +183,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L), createSampleEntry(2L));
+            List<VaultEntryResponseDTO> entries = List.of(createSampleEntry(1L), createSampleEntry(2L));
             given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
 
             // when & then
@@ -220,7 +226,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO entry = createSampleEntry(1L);
+            VaultEntryResponseDTO entry = createSampleEntry(1L);
             given(vaultService.getEntryById(eq(1L), eq(TEST_USER_ID))).willReturn(entry);
 
             // when & then
@@ -280,8 +286,8 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO dto = createSampleCreateDto();
-            EncryptedVaultEntryDTO updated = createSampleEntry(1L);
+            VaultEntryRequestDTO dto = createSampleCreateDto();
+            VaultEntryResponseDTO updated = createSampleEntry(1L);
             given(vaultService.updateEntry(eq(1L), eq(TEST_USER_ID), any())).willReturn(updated);
 
             // when & then
@@ -303,7 +309,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO dto = createSampleCreateDto();
+            VaultEntryRequestDTO dto = createSampleCreateDto();
             given(vaultService.updateEntry(eq(99L), eq(TEST_USER_ID), any()))
                     .willThrow(new IllegalArgumentException("Vault entry does not belong to the specified user"));
 
@@ -324,7 +330,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO dto = createSampleCreateDto();
+            VaultEntryRequestDTO dto = createSampleCreateDto();
             given(vaultService.updateEntry(eq(999L), eq(TEST_USER_ID), any()))
                     .willThrow(new EntityNotFoundException("Vault entry not found with id: 999"));
 
@@ -426,7 +432,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            List<VaultEntryResponseDTO> results = List.of(createSampleEntry(1L));
             given(vaultService.searchEntries(eq(TEST_USER_ID), eq("Test"), isNull())).willReturn(results);
 
             // when & then
@@ -448,7 +454,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            List<VaultEntryResponseDTO> results = List.of(createSampleEntry(1L));
             given(vaultService.searchEntries(eq(TEST_USER_ID), eq("example"), isNull())).willReturn(results);
 
             // when & then
@@ -467,7 +473,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> results = List.of(createSampleEntry(1L));
+            List<VaultEntryResponseDTO> results = List.of(createSampleEntry(1L));
             given(vaultService.searchEntries(eq(TEST_USER_ID), eq("Test"), eq("work"))).willReturn(results);
 
             // when & then
@@ -558,7 +564,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            EncryptedVaultEntryDTO entry = createSampleEntry(1L);
+            VaultEntryResponseDTO entry = createSampleEntry(1L);
 
             given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(List.of(entry));
             given(vaultService.createEntry(eq(TEST_USER_ID), any())).willReturn(entry);
@@ -694,7 +700,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L), createSampleEntry(2L));
+            List<VaultEntryResponseDTO> entries = List.of(createSampleEntry(1L), createSampleEntry(2L));
             given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
 
             // when & then
@@ -717,7 +723,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L));
+            List<VaultEntryResponseDTO> entries = List.of(createSampleEntry(1L));
             given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
 
             // when & then - backend returns same JSON regardless of format param
@@ -756,7 +762,7 @@ class VaultControllerTest {
                     com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
             ));
 
-            List<EncryptedVaultEntryDTO> entries = List.of(createSampleEntry(1L));
+            List<VaultEntryResponseDTO> entries = List.of(createSampleEntry(1L));
             given(vaultService.getEntriesByUser(TEST_USER_ID)).willReturn(entries);
 
             // when & then

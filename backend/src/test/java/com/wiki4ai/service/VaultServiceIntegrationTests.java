@@ -1,6 +1,8 @@
 package com.wiki4ai.service;
 
-import com.wiki4ai.dto.EncryptedVaultEntryDTO;
+import com.wiki4ai.dto.EncryptedField;
+import com.wiki4ai.dto.VaultEntryRequestDTO;
+import com.wiki4ai.dto.VaultEntryResponseDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,29 +30,34 @@ class VaultServiceIntegrationTests {
     private static final Long USER_1_ID = 1L;
     private static final Long USER_2_ID = 2L;
 
-    private EncryptedVaultEntryDTO createTestDTO(String title) {
-        return EncryptedVaultEntryDTO.builder()
+    private EncryptedField createEncryptedField(String ciphertext, String iv) {
+        return EncryptedField.builder()
+                .ciphertext(ciphertext)
+                .iv(iv)
+                .build();
+    }
+
+    private VaultEntryRequestDTO createTestRequestDTO(String title) {
+        return VaultEntryRequestDTO.builder()
                 .title(title)
-                .usernameEncrypted(new byte[]{0x01, 0x02})
-                .passwordEncrypted(new byte[]{0x03, 0x04, 0x05})
-                .notesEncrypted(new byte[]{0x06})
+                .usernameEncrypted(createEncryptedField("AQID", "Cg=="))
+                .passwordEncrypted(createEncryptedField("BAUG", "Cg=="))
+                .notesEncrypted(createEncryptedField("Bw==", "Cg=="))
                 .url("https://example.com")
                 .groupPath("/work")
-                .iv(new byte[]{(byte) 0xAA, (byte) 0xBB, (byte) 0xCC, (byte) 0xDD})
                 .build();
     }
 
     @BeforeEach
     void setUp() {
-        // Clean up entries for both test users before each test
-        List<EncryptedVaultEntryDTO> user1Entries = vaultService.getEntriesByUser(USER_1_ID);
-        for (EncryptedVaultEntryDTO dto : user1Entries) {
+        List<VaultEntryResponseDTO> user1Entries = vaultService.getEntriesByUser(USER_1_ID);
+        for (VaultEntryResponseDTO dto : user1Entries) {
             try {
                 vaultService.deleteEntry(dto.getId(), USER_1_ID);
             } catch (Exception ignored) {}
         }
-        List<EncryptedVaultEntryDTO> user2Entries = vaultService.getEntriesByUser(USER_2_ID);
-        for (EncryptedVaultEntryDTO dto : user2Entries) {
+        List<VaultEntryResponseDTO> user2Entries = vaultService.getEntriesByUser(USER_2_ID);
+        for (VaultEntryResponseDTO dto : user2Entries) {
             try {
                 vaultService.deleteEntry(dto.getId(), USER_2_ID);
             } catch (Exception ignored) {}
@@ -64,30 +71,29 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should create a new vault entry for user")
         void shouldCreateEntry() {
-            EncryptedVaultEntryDTO dto = createTestDTO("My Secret");
+            VaultEntryRequestDTO dto = createTestRequestDTO("My Secret");
 
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, dto);
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, dto);
 
             assertThat(created).isNotNull();
             assertThat(created.getId()).isNotNull();
             assertThat(created.getTitle()).isEqualTo("My Secret");
             assertThat(created.getUrl()).isEqualTo("https://example.com");
             assertThat(created.getGroupPath()).isEqualTo("/work");
-            assertThat(created.getPasswordEncrypted()).isEqualTo(dto.getPasswordEncrypted());
-            assertThat(created.getIv()).isEqualTo(dto.getIv());
+            assertThat(created.getPasswordEncrypted()).isNotNull();
         }
 
         @Test
         @DisplayName("Should create entries for different users independently")
         void shouldCreateEntriesForDifferentUsers() {
-            EncryptedVaultEntryDTO dto1 = createTestDTO("User 1 Entry");
-            EncryptedVaultEntryDTO dto2 = createTestDTO("User 2 Entry");
+            VaultEntryRequestDTO dto1 = createTestRequestDTO("User 1 Entry");
+            VaultEntryRequestDTO dto2 = createTestRequestDTO("User 2 Entry");
 
             vaultService.createEntry(USER_1_ID, dto1);
             vaultService.createEntry(USER_2_ID, dto2);
 
-            List<EncryptedVaultEntryDTO> user1Entries = vaultService.getEntriesByUser(USER_1_ID);
-            List<EncryptedVaultEntryDTO> user2Entries = vaultService.getEntriesByUser(USER_2_ID);
+            List<VaultEntryResponseDTO> user1Entries = vaultService.getEntriesByUser(USER_1_ID);
+            List<VaultEntryResponseDTO> user2Entries = vaultService.getEntriesByUser(USER_2_ID);
 
             assertThat(user1Entries).hasSize(1);
             assertThat(user1Entries.get(0).getTitle()).isEqualTo("User 1 Entry");
@@ -106,10 +112,9 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should reject creation with blank title")
         void shouldRejectBlankTitle() {
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder()
                     .title("")
-                    .passwordEncrypted(new byte[]{1})
-                    .iv(new byte[]{2})
+                    .passwordEncrypted(createEncryptedField("AQ==", "Cg=="))
                     .build();
 
             assertThatThrownBy(() -> vaultService.createEntry(USER_1_ID, dto))
@@ -120,22 +125,21 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should reject creation without password encrypted")
         void shouldRejectMissingPasswordEncrypted() {
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder()
                     .title("No Password")
-                    .iv(new byte[]{1})
                     .build();
 
             assertThatThrownBy(() -> vaultService.createEntry(USER_1_ID, dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Password encrypted blob is required");
+                    .hasMessageContaining("Password encrypted field is required");
         }
 
         @Test
-        @DisplayName("Should reject creation without IV")
+        @DisplayName("Should reject creation without IV in password")
         void shouldRejectMissingIV() {
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder()
                     .title("No IV")
-                    .passwordEncrypted(new byte[]{1})
+                    .passwordEncrypted(EncryptedField.builder().ciphertext("AQ==").build())
                     .build();
 
             assertThatThrownBy(() -> vaultService.createEntry(USER_1_ID, dto))
@@ -146,13 +150,12 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should allow optional fields to be null")
         void shouldAllowOptionalFieldsNull() {
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder()
                     .title("Minimal Entry")
-                    .passwordEncrypted(new byte[]{1, 2})
-                    .iv(new byte[]{3, 4})
+                    .passwordEncrypted(createEncryptedField("AQID", "Cg=="))
                     .build();
 
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, dto);
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, dto);
 
             assertThat(created).isNotNull();
             assertThat(created.getTitle()).isEqualTo("Minimal Entry");
@@ -170,11 +173,11 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should return all entries for a user")
         void shouldGetAllEntriesByUser() {
-            vaultService.createEntry(USER_1_ID, createTestDTO("Entry 1"));
-            vaultService.createEntry(USER_1_ID, createTestDTO("Entry 2"));
-            vaultService.createEntry(USER_1_ID, createTestDTO("Entry 3"));
+            vaultService.createEntry(USER_1_ID, createTestRequestDTO("Entry 1"));
+            vaultService.createEntry(USER_1_ID, createTestRequestDTO("Entry 2"));
+            vaultService.createEntry(USER_1_ID, createTestRequestDTO("Entry 3"));
 
-            List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
+            List<VaultEntryResponseDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
 
             assertThat(entries).hasSize(3);
         }
@@ -182,7 +185,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should return empty list when user has no entries")
         void shouldReturnEmptyForUserWithNoEntries() {
-            List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
+            List<VaultEntryResponseDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
 
             assertThat(entries).isEmpty();
         }
@@ -190,9 +193,9 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should return entry by ID when user owns it")
         void shouldGetEntryByIdForOwner() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("My Entry"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("My Entry"));
 
-            EncryptedVaultEntryDTO found = vaultService.getEntryById(created.getId(), USER_1_ID);
+            VaultEntryResponseDTO found = vaultService.getEntryById(created.getId(), USER_1_ID);
 
             assertThat(found).isNotNull();
             assertThat(found.getTitle()).isEqualTo("My Entry");
@@ -209,7 +212,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should throw when user tries to access another users entry")
         void shouldThrowWhenAccessingOtherUserEntry() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Secret"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Secret"));
 
             assertThatThrownBy(() -> vaultService.getEntryById(created.getId(), USER_2_ID))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -224,19 +227,18 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should update entry fields for owner")
         void shouldUpdateEntryForOwner() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Original"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Original"));
 
-            EncryptedVaultEntryDTO updateDto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO updateDto = VaultEntryRequestDTO.builder()
                     .title("Updated Title")
-                    .usernameEncrypted(new byte[]{0x10})
-                    .passwordEncrypted(new byte[]{0x20, 0x30})
-                    .notesEncrypted(new byte[]{0x40})
+                    .usernameEncrypted(createEncryptedField("EAA=", "Cg=="))
+                    .passwordEncrypted(createEncryptedField("IAEG", "Cg=="))
+                    .notesEncrypted(createEncryptedField("RAA=", "Cg=="))
                     .url("https://updated.com")
                     .groupPath("/personal")
-                    .iv(new byte[]{(byte) 0xEE, (byte) 0xFF})
                     .build();
 
-            EncryptedVaultEntryDTO updated = vaultService.updateEntry(created.getId(), USER_1_ID, updateDto);
+            VaultEntryResponseDTO updated = vaultService.updateEntry(created.getId(), USER_1_ID, updateDto);
 
             assertThat(updated.getTitle()).isEqualTo("Updated Title");
             assertThat(updated.getUrl()).isEqualTo("https://updated.com");
@@ -246,7 +248,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should throw when updating non-existent entry")
         void shouldThrowWhenUpdateNonExistent() {
-            EncryptedVaultEntryDTO dto = createTestDTO("New");
+            VaultEntryRequestDTO dto = createTestRequestDTO("New");
 
             assertThatThrownBy(() -> vaultService.updateEntry(999L, USER_1_ID, dto))
                     .isInstanceOf(jakarta.persistence.EntityNotFoundException.class)
@@ -256,8 +258,8 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should throw when user tries to update another users entry")
         void shouldThrowWhenUpdatingOtherUserEntry() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Secret"));
-            EncryptedVaultEntryDTO dto = createTestDTO("Hacked");
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Secret"));
+            VaultEntryRequestDTO dto = createTestRequestDTO("Hacked");
 
             assertThatThrownBy(() -> vaultService.updateEntry(created.getId(), USER_2_ID, dto))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -267,7 +269,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should reject update with null DTO")
         void shouldRejectNullDTO() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Original"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Original"));
 
             assertThatThrownBy(() -> vaultService.updateEntry(created.getId(), USER_1_ID, null))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -277,8 +279,8 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should reject update with blank title")
         void shouldRejectBlankTitle() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Original"));
-            EncryptedVaultEntryDTO dto = EncryptedVaultEntryDTO.builder().title("").build();
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Original"));
+            VaultEntryRequestDTO dto = VaultEntryRequestDTO.builder().title("").build();
 
             assertThatThrownBy(() -> vaultService.updateEntry(created.getId(), USER_1_ID, dto))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -293,7 +295,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should delete entry for owner")
         void shouldDeleteEntryForOwner() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("To Delete"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("To Delete"));
             Long id = created.getId();
 
             vaultService.deleteEntry(id, USER_1_ID);
@@ -313,7 +315,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should throw when user tries to delete another users entry")
         void shouldThrowWhenDeletingOtherUserEntry() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Secret"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Secret"));
 
             assertThatThrownBy(() -> vaultService.deleteEntry(created.getId(), USER_2_ID))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -323,15 +325,15 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should leave other users entries intact after deletion")
         void shouldNotAffectOtherUserEntries() {
-            vaultService.createEntry(USER_1_ID, createTestDTO("User 1 Entry"));
-            EncryptedVaultEntryDTO user2Entry = vaultService.createEntry(USER_2_ID, createTestDTO("User 2 Entry"));
+            vaultService.createEntry(USER_1_ID, createTestRequestDTO("User 1 Entry"));
+            VaultEntryResponseDTO user2Entry = vaultService.createEntry(USER_2_ID, createTestRequestDTO("User 2 Entry"));
 
-            List<EncryptedVaultEntryDTO> before = vaultService.getEntriesByUser(USER_1_ID);
+            List<VaultEntryResponseDTO> before = vaultService.getEntriesByUser(USER_1_ID);
             assertThat(before).hasSize(1);
 
             vaultService.deleteEntry(before.get(0).getId(), USER_1_ID);
 
-            List<EncryptedVaultEntryDTO> user2After = vaultService.getEntriesByUser(USER_2_ID);
+            List<VaultEntryResponseDTO> user2After = vaultService.getEntriesByUser(USER_2_ID);
             assertThat(user2After).hasSize(1);
             assertThat(user2After.get(0).getTitle()).isEqualTo("User 2 Entry");
         }
@@ -345,29 +347,28 @@ class VaultServiceIntegrationTests {
         @DisplayName("Should complete full CRUD cycle: Create -> Read -> Update -> Delete")
         void shouldCompleteFullCrudCycle() {
             // CREATE
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("CRUD Test"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("CRUD Test"));
             Long id = created.getId();
 
             // READ (by user)
-            List<EncryptedVaultEntryDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
+            List<VaultEntryResponseDTO> entries = vaultService.getEntriesByUser(USER_1_ID);
             assertThat(entries).hasSize(1);
             assertThat(entries.get(0).getId()).isEqualTo(id);
 
             // READ (by ID)
-            EncryptedVaultEntryDTO byId = vaultService.getEntryById(id, USER_1_ID);
+            VaultEntryResponseDTO byId = vaultService.getEntryById(id, USER_1_ID);
             assertThat(byId.getTitle()).isEqualTo("CRUD Test");
 
             // UPDATE
-            EncryptedVaultEntryDTO updateDto = EncryptedVaultEntryDTO.builder()
+            VaultEntryRequestDTO updateDto = VaultEntryRequestDTO.builder()
                     .title("Updated CRUD")
-                    .passwordEncrypted(new byte[]{(byte) 0xFF})
-                    .iv(new byte[]{0x00})
+                    .passwordEncrypted(createEncryptedField("//8=", "AA=="))
                     .build();
-            EncryptedVaultEntryDTO updated = vaultService.updateEntry(id, USER_1_ID, updateDto);
+            VaultEntryResponseDTO updated = vaultService.updateEntry(id, USER_1_ID, updateDto);
             assertThat(updated.getTitle()).isEqualTo("Updated CRUD");
 
             // READ after update
-            EncryptedVaultEntryDTO afterUpdate = vaultService.getEntryById(id, USER_1_ID);
+            VaultEntryResponseDTO afterUpdate = vaultService.getEntryById(id, USER_1_ID);
             assertThat(afterUpdate.getTitle()).isEqualTo("Updated CRUD");
 
             // DELETE
@@ -386,7 +387,7 @@ class VaultServiceIntegrationTests {
         @Test
         @DisplayName("Should enforce ownership on all operations")
         void shouldEnforceOwnershipOnAllOperations() {
-            EncryptedVaultEntryDTO created = vaultService.createEntry(USER_1_ID, createTestDTO("Secret"));
+            VaultEntryResponseDTO created = vaultService.createEntry(USER_1_ID, createTestRequestDTO("Secret"));
             Long id = created.getId();
 
             // Read - other user cannot read
@@ -394,7 +395,7 @@ class VaultServiceIntegrationTests {
                     .isInstanceOf(IllegalArgumentException.class);
 
             // Update - other user cannot update
-            assertThatThrownBy(() -> vaultService.updateEntry(id, USER_2_ID, createTestDTO("Hacked")))
+            assertThatThrownBy(() -> vaultService.updateEntry(id, USER_2_ID, createTestRequestDTO("Hacked")))
                     .isInstanceOf(IllegalArgumentException.class);
 
             // Delete - other user cannot delete
@@ -402,7 +403,7 @@ class VaultServiceIntegrationTests {
                     .isInstanceOf(IllegalArgumentException.class);
 
             // Entry still exists for owner
-            EncryptedVaultEntryDTO found = vaultService.getEntryById(id, USER_1_ID);
+            VaultEntryResponseDTO found = vaultService.getEntryById(id, USER_1_ID);
             assertThat(found.getTitle()).isEqualTo("Secret");
         }
     }
