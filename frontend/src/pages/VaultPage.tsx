@@ -28,19 +28,21 @@ async function decryptEntriesForExport(backendEntries: BackendVaultEntry[], mast
         const usernameDecrypted = await decrypt(new Uint8Array(entry.usernameEncrypted), new Uint8Array(entry.iv), key);
         const passwordDecrypted = await decrypt(new Uint8Array(entry.passwordEncrypted), new Uint8Array(entry.iv), key);
 
-        let notesDecrypted: string | undefined;
+        let notesDecrypted: string | null;
         if (entry.notesEncrypted) {
           try {
             notesDecrypted = await decrypt(new Uint8Array(entry.notesEncrypted), new Uint8Array(entry.iv), key);
           } catch {
-            notesDecrypted = undefined;
+            notesDecrypted = null;
           }
+        } else {
+          notesDecrypted = null;
         }
 
         return {
           title: entry.title,
           username: usernameDecrypted ? JSON.parse(usernameDecrypted) : undefined,
-          password: JSON.parse(passwordDecrypted),
+          password: passwordDecrypted ? JSON.parse(passwordDecrypted) : '[decryption failed]',
           url: entry.url,
           groupPath: entry.groupPath,
           notes: notesDecrypted ? JSON.parse(notesDecrypted) : undefined,

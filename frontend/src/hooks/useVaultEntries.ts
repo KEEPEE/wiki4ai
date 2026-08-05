@@ -55,7 +55,7 @@ async function decryptEntryData(backendEntry: BackendVaultEntry, keyBytes: Uint8
     keyBytes,
   );
 
-  let notesDecrypted: string | undefined;
+  let notesDecrypted: string | null;
   if (backendEntry.notesEncrypted) {
     try {
       notesDecrypted = await decrypt(
@@ -64,13 +64,15 @@ async function decryptEntryData(backendEntry: BackendVaultEntry, keyBytes: Uint8
         keyBytes,
       );
     } catch {
-      notesDecrypted = undefined;
+      notesDecrypted = null;
     }
+  } else {
+    notesDecrypted = null;
   }
 
   return {
     username: usernameDecrypted ? JSON.parse(usernameDecrypted) : undefined,
-    password: JSON.parse(passwordDecrypted),
+    password: passwordDecrypted ? JSON.parse(passwordDecrypted) : '[decryption failed]',
     notes: notesDecrypted ? JSON.parse(notesDecrypted) : undefined,
   };
 }

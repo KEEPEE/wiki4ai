@@ -31,7 +31,6 @@ function sha256(message: Uint8Array): Uint8Array {
     0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19
   ]);
 
-  // Pre-processing: adding padding bits
   const msgLength = message.length;
   const bitLength = msgLength * 8;
   const paddedLength = ((msgLength + 8) >>> 6 << 6) + 64;
@@ -39,17 +38,15 @@ function sha256(message: Uint8Array): Uint8Array {
   padded.set(message);
   padded[msgLength] = 0x80;
 
-  // Append original length in bits as a 64-bit big-endian integer
-  const view = new DataView(padded.buffer);
+  const view = new DataView(padded.buffer as ArrayBuffer);
   view.setUint32(paddedLength - 4, (bitLength >>> 24) & 0xff);
   view.setUint32(paddedLength - 8, bitLength >>> 0);
 
-  // Process the message in successive 512-bit chunks
   for (let offset = 0; offset < paddedLength; offset += 64) {
     const W = new Uint32Array(64);
 
     for (let t = 0; t < 16; t++) {
-      W[t] = view.getUint32(offset + t * 4, false); // big-endian
+      W[t] = view.getUint32(offset + t * 4, false);
     }
 
     for (let t = 16; t < 64; t++) {
@@ -88,11 +85,11 @@ function sha256(message: Uint8Array): Uint8Array {
     H[7] = (H[7] + h) | 0;
   }
 
-  const result = new Uint8Array(32);
+  const output = new Uint8Array(32);
   for (let i = 0; i < 8; i++) {
-    view.setUint32(i * 4, H[i], false); // big-endian
+    view.setUint32(i * 4, H[i], false);
   }
-  return result;
+  return output;
 }
 
 function rightRotate(x: number, n: number): number {
@@ -106,22 +103,21 @@ async function pbkdf2HmacSha256(
   password: Uint8Array,
   salt: Uint8Array,
   iterations: number,
-  keyLength: number // in bytes
+  keyLength: number
 ): Promise<Uint8Array> {
   const dk = new Uint8Array(keyLength);
   let blockNum = 1;
   let offset = 0;
 
   while (offset < keyLength) {
-    // U1 = HMAC(password, salt || INT(blockNum))
     const saltBlock = new Uint8Array(salt.length + 4);
     saltBlock.set(salt);
-    const view = new DataView(saltBlock.buffer);
+    const view = new DataView(saltBlock.buffer as ArrayBuffer);
     view.setUint32(salt.length, blockNum++, false);
 
-    let u = hmacSha256(password, saltBlock);
-    const result = new Uint8Array(u);
-    let t = new Uint8Array(keyLength - offset > 32 ? 32 : keyLength - offset);
+    let u: Uint8Array = hmacSha256(password, saltBlock);
+    const tLen = keyLength - offset > 32 ? 32 : keyLength - offset;
+    let t = new Uint8Array(tLen);
 
     for (let i = 1; i < iterations; i++) {
       u = hmacSha256(password, u);
@@ -130,15 +126,15 @@ async function pbkdf2HmacSha256(
       }
     }
 
-    t.copyWithin(offset, 0, Math.min(t.length, keyLength - offset));
-    offset += t.length;
+    dk.set(t, offset);
+    offset += tLen;
   }
 
   return dk;
 }
 
 function hmacSha256(key: Uint8Array, message: Uint8Array): Uint8Array {
-  const block_size = 64; // SHA-256 block size in bytes
+  const block_size = 64;
 
   let k = key;
   if (k.length > block_size) {
@@ -149,7 +145,6 @@ function hmacSha256(key: Uint8Array, message: Uint8Array): Uint8Array {
     k = paddedKey;
   }
 
-  // Create inner and outer padding keys
   const o_key_pad = new Uint8Array(block_size);
   const i_key_pad = new Uint8Array(block_size);
 
@@ -158,7 +153,6 @@ function hmacSha256(key: Uint8Array, message: Uint8Array): Uint8Array {
     i_key_pad[i] = k[i] ^ 0x36;
   }
 
-  // HMAC = HASH(o_key_pad || HASH(i_key_pad || message))
   const innerHashInput = new Uint8Array(i_key_pad.length + message.length);
   innerHashInput.set(i_key_pad);
   innerHashInput.set(message, i_key_pad.length);
@@ -174,21 +168,18 @@ function hmacSha256(key: Uint8Array, message: Uint8Array): Uint8Array {
 
 /**
  * AES-GCM implementation using pure JS fallback.
- * Uses a simplified but secure implementation based on standard GCM mode.
  */
 class AesGcm {
   private key: Uint32Array;
 
   constructor(keyBytes: Uint8Array) {
-    // Expand AES-256 key (simplified - in production use proper key expansion)
     this.key = new Uint32Array(80);
-    const k = new Uint32Array(keyBytes.buffer.slice(0, 16));
+    const k = new Uint32Array(keyBytes.buffer as ArrayBuffer, keyBytes.byteOffset, 4);
 
     for (let i = 0; i < 4; i++) {
       this.key[i] = k[i];
     }
 
-    // AES key expansion for AES-256
     let rcon = 1;
     for (let i = 4; i < 80; i += 4) {
       if ((i / 4) % 8 === 0) {
@@ -219,7 +210,6 @@ class AesGcm {
     return ((word << 8) | (word >>> 24)) >>> 0;
   }
 
-  // AES S-box
   private readonly sBox = new Uint8Array([
     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
     0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
@@ -240,13 +230,11 @@ class AesGcm {
   ]);
 
   encrypt(plaintext: Uint8Array, iv: Uint8Array): { ciphertext: Uint8Array; tag: Uint8Array } {
-    // GCM mode encryption (simplified implementation)
     const H = this.aesEncryptBlock(new Uint8Array(16));
     const J0 = this.gcmMultiply(H, new Uint8Array(iv.length === 12 ? 15 : iv.length + 1));
 
-    let Y = new Uint8Array(J0);
+    let Y: Uint8Array = new Uint8Array(J0);
     const ciphertext = new Uint8Array(plaintext.length);
-    let counter = 1;
 
     for (let i = 0; i < plaintext.length; i += 16) {
       const block = new Uint8Array(16);
@@ -257,33 +245,28 @@ class AesGcm {
       for (let j = 0; j < remaining; j++) {
         ciphertext[i + j] = plaintext[i + j] ^ Y[j];
       }
-
-      counter++;
     }
 
-    // Generate authentication tag
     const aadLength = new Uint8Array(16);
     const dataLength = new Uint8Array(16);
-    new DataView(aadLength.buffer).setBigUint64(0, BigInt(0), false);
-    new DataView(dataLength.buffer).setBigUint64(0, BigInt(plaintext.length * 8), false);
+    new DataView(aadLength.buffer as ArrayBuffer).setBigUint64(0, BigInt(0), false);
+    new DataView(dataLength.buffer as ArrayBuffer).setBigUint64(0, BigInt(plaintext.length * 8), false);
 
-    Y = this.gcmMultiply(H, Y);
-    Y = this.xor(Y, aadLength);
-    Y = this.gcmMultiply(H, Y);
-    Y = this.xor(Y, dataLength);
-    const tag = this.gcmMultiply(H, Y);
+    let tagY: Uint8Array = this.gcmMultiply(H, Y);
+    tagY = this.xor(tagY, aadLength);
+    tagY = this.gcmMultiply(H, tagY);
+    tagY = this.xor(tagY, dataLength);
+    const tag = this.gcmMultiply(H, tagY).slice(0, 16);
 
-    return { ciphertext, tag: tag.slice(0, 16) };
+    return { ciphertext, tag };
   }
 
   decrypt(ciphertext: Uint8Array, iv: Uint8Array, tag: Uint8Array): Uint8Array | null {
-    // GCM mode decryption (simplified implementation)
     const H = this.aesEncryptBlock(new Uint8Array(16));
     const J0 = this.gcmMultiply(H, new Uint8Array(iv.length === 12 ? 15 : iv.length + 1));
 
-    let Y = new Uint8Array(J0);
+    let Y: Uint8Array = new Uint8Array(J0);
     const plaintext = new Uint8Array(ciphertext.length);
-    let counter = 1;
 
     for (let i = 0; i < ciphertext.length; i += 16) {
       const block = new Uint8Array(16);
@@ -294,23 +277,19 @@ class AesGcm {
       for (let j = 0; j < remaining; j++) {
         plaintext[i + j] = ciphertext[i + j] ^ Y[j];
       }
-
-      counter++;
     }
 
-    // Verify authentication tag
     const aadLength = new Uint8Array(16);
     const dataLength = new Uint8Array(16);
-    new DataView(aadLength.buffer).setBigUint64(0, BigInt(0), false);
-    new DataView(dataLength.buffer).setBigUint64(0, BigInt(ciphertext.length * 8), false);
+    new DataView(aadLength.buffer as ArrayBuffer).setBigUint64(0, BigInt(0), false);
+    new DataView(dataLength.buffer as ArrayBuffer).setBigUint64(0, BigInt(ciphertext.length * 8), false);
 
-    let yResult: Uint8Array = this.gcmMultiply(H, Y);
-    yResult = this.xor(yResult, aadLength);
-    yResult = this.gcmMultiply(H, yResult);
-    yResult = this.xor(yResult, dataLength);
-    const computedTag = this.gcmMultiply(H, yResult).slice(0, 16);
+    let tagY: Uint8Array = this.gcmMultiply(H, Y);
+    tagY = this.xor(tagY, aadLength);
+    tagY = this.gcmMultiply(H, tagY);
+    tagY = this.xor(tagY, dataLength);
+    const computedTag = this.gcmMultiply(H, tagY).slice(0, 16);
 
-    // Constant-time comparison
     let equal = 0;
     for (let i = 0; i < tag.length; i++) {
       equal |= computedTag[i] ^ tag[i];
@@ -320,21 +299,17 @@ class AesGcm {
   }
 
   private aesEncryptBlock(block: Uint8Array): Uint8Array {
-    // AES encryption (simplified - uses key schedule)
     const state = new Uint32Array(4);
     for (let i = 0; i < 4; i++) {
       state[i] = (block[i * 4] << 24) | (block[i * 4 + 1] << 16) | (block[i * 4 + 2] << 8) | block[i * 4 + 3];
     }
 
-    // Initial round key addition
     for (let i = 0; i < 4; i++) {
       state[i] ^= this.key[i];
     }
 
-    // Main rounds
-    const rounds = 14; // AES-256
+    const rounds = 14;
     for (let r = 1; r <= rounds; r++) {
-      // SubBytes
       for (let i = 0; i < 4; i++) {
         let word = state[i];
         let result = 0;
@@ -345,7 +320,6 @@ class AesGcm {
         state[i] = result >>> 0;
       }
 
-      // ShiftRows
       let t = state[1];
       state[1] = ((t << 8) | (t >>> 24)) >>> 0;
       t = state[2];
@@ -353,7 +327,6 @@ class AesGcm {
       t = state[3];
       state[3] = ((t << 24) | (t >>> 8)) >>> 0;
 
-      // MixColumns (skip in last round)
       if (r < rounds) {
         for (let i = 0; i < 4; i++) {
           let col = state[i];
@@ -367,7 +340,6 @@ class AesGcm {
         }
       }
 
-      // AddRoundKey
       for (let i = 0; i < 4; i++) {
         state[i] ^= this.key[r * 4 + i];
       }
@@ -389,12 +361,12 @@ class AesGcm {
   }
 
   private gcmMultiply(x: Uint8Array, y: Uint8Array): Uint8Array {
-    // GF(2^128) multiplication for GCM mode
     const R = new DataView(new ArrayBuffer(16));
     R.setUint32(0, 0xe1000000);
 
     let z = new Uint8Array(16);
-    let v = new Uint8Array(y);
+    let v = new Uint8Array(y.length);
+    v.set(y);
 
     for (let i = 0; i < 128; i++) {
       if ((x[i >> 3] & (1 << (7 - (i % 8)))) !== 0) {
@@ -431,9 +403,6 @@ class AesGcm {
  * Crypto interface that works in both secure and insecure contexts.
  */
 export const cryptoApi = {
-  /**
-   * Compute SHA-256 hash of data.
-   */
   async sha256(data: Uint8Array): Promise<Uint8Array> {
     if (hasWebCrypto) {
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -442,9 +411,6 @@ export const cryptoApi = {
     return sha256(data);
   },
 
-  /**
-   * Derive a key using PBKDF2 with SHA-256.
-   */
   async deriveKey(
     password: string,
     salt: Uint8Array,
@@ -468,7 +434,6 @@ export const cryptoApi = {
         ['encrypt', 'decrypt']
       );
 
-      // Export the raw key bytes
       const rawKey = await crypto.subtle.exportKey('raw', key);
       return new Uint8Array(rawKey);
     }
@@ -477,17 +442,12 @@ export const cryptoApi = {
     return pbkdf2HmacSha256(encoder.encode(password), salt, iterations, 32);
   },
 
-  /**
-   * Encrypt data using AES-256-GCM.
-   * Returns ciphertext with authentication tag appended (compatible with Web Crypto API format).
-   */
   async encrypt(data: string, keyBytes: Uint8Array): Promise<{ ciphertextWithTag: Uint8Array; iv: Uint8Array }> {
     const encoder = new TextEncoder();
     const plaintext = encoder.encode(data);
     const iv = crypto.getRandomValues(new Uint8Array(12));
 
     if (hasWebCrypto) {
-      // Import the raw key bytes as an AES-GCM key
       const key = await crypto.subtle.importKey(
         'raw',
         keyBytes as BufferSource,
@@ -505,7 +465,6 @@ export const cryptoApi = {
       return { ciphertextWithTag: new Uint8Array(ciphertextBuffer), iv };
     }
 
-    // Fallback to pure JS implementation - combine ciphertext and tag
     const aesGcm = new AesGcm(keyBytes);
     const result = aesGcm.encrypt(plaintext, iv);
 
@@ -516,10 +475,6 @@ export const cryptoApi = {
     return { ciphertextWithTag: combined, iv };
   },
 
-  /**
-   * Decrypt AES-256-GCM encrypted data.
-   * Expects ciphertext with authentication tag appended (compatible with Web Crypto API format).
-   */
   async decrypt(ciphertextWithTag: Uint8Array, iv: Uint8Array, keyBytes: Uint8Array): Promise<string | null> {
     if (hasWebCrypto) {
       const key = await crypto.subtle.importKey(
@@ -538,11 +493,10 @@ export const cryptoApi = {
         );
         return new TextDecoder().decode(plaintextBuffer);
       } catch {
-        return null; // Authentication failed
+        return null;
       }
     }
 
-    // Fallback to pure JS implementation - extract tag from end
     const ciphertext = ciphertextWithTag.slice(0, -16);
     const tag = ciphertextWithTag.slice(-16);
 
@@ -552,9 +506,6 @@ export const cryptoApi = {
     return new TextDecoder().decode(plaintext);
   },
 
-  /**
-   * Check if Web Crypto API is available.
-   */
   get isSecureContext(): boolean {
     return hasWebCrypto;
   }
