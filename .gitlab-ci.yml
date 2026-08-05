@@ -22,6 +22,7 @@ build-backend:
   services:
     - docker:dind
   timeout: 60m
+  retry: 2
   script:
     - echo "Building backend Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
@@ -38,6 +39,7 @@ build-frontend:
   services:
     - docker:dind
   timeout: 60m
+  retry: 2
   script:
     - echo "Building frontend Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
@@ -54,6 +56,7 @@ build-mcp:
   services:
     - docker:dind
   timeout: 30m
+  retry: 2
   script:
     - echo "Building MCP server Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
