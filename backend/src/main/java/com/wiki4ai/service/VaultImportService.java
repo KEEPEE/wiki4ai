@@ -25,12 +25,17 @@ public class VaultImportService {
     public List<VaultEntryImportDTO> importFromKdbx(java.io.InputStream file, String password) throws IOException {
         byte[] passwordBytes = password.getBytes(StandardCharsets.UTF_8);
 
-        try (ByteArrayInputStream bais = new ByteArrayInputStream(readAllBytes(file))) {
+        byte[] fileBytes = readAllBytes(file);
+        
+        try (ByteArrayInputStream bais = new ByteArrayInputStream(fileBytes)) {
             KdbxHeader header = readOuterHeader(bais);
             
             List<Credentials> candidateCredentials = buildCandidateCredentials(passwordBytes, header);
             
             for (Credentials credentials : candidateCredentials) {
+                // Reset stream position before each attempt
+                bais.reset();
+                
                 try {
                     Database<?, ?, ?, ?> database = JacksonDatabase.load(credentials, bais);
                     List<VaultEntryImportDTO> entries = new ArrayList<>();
@@ -54,8 +59,11 @@ public class VaultImportService {
     private List<Credentials> buildCandidateCredentials(byte[] passwordBytes, KdbxHeader header) {
         List<Credentials> candidates = new ArrayList<>();
         
-        byte[] sha256Hash = hashSha256(passwordBytes);
+        // Try direct password bytes first (works for older KDBX v3.x formats)
+        candidates.add(new KdbxCreds(passwordBytes));
         
+        // Also try SHA-256 hash of password (for newer KDBX formats)
+        byte[] sha256Hash = hashSha256(passwordBytes);
         candidates.add(new KdbxCreds(sha256Hash));
 
         return candidates;
