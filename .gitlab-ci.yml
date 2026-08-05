@@ -32,7 +32,7 @@ build-backend:
     - docker system prune -af || true
     - echo "Building backend Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
-    - docker build --no-cache --progress=plain -t ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ./backend
+    - docker build --no-cache --progress=plain --provenance=false --sbom=false -t ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ./backend
     - docker tag ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:latest
     - docker push ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
     - docker push ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:latest
@@ -51,7 +51,7 @@ build-frontend:
     - docker system prune -af || true
     - echo "Building frontend Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
-    - docker build --no-cache --progress=plain -f ./frontend/Dockerfile.frontend -t ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker build --no-cache --progress=plain --provenance=false --sbom=false -f ./frontend/Dockerfile.frontend -t ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
     - docker tag ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest
     - docker push ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
     - docker push ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest
@@ -70,7 +70,7 @@ build-mcp:
     - docker system prune -af || true
     - echo "Building MCP server Docker image..."
     - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
-    - docker build --no-cache --progress=plain -f ./Dockerfile.mcp -t ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
+    - docker build --no-cache --progress=plain --provenance=false --sbom=false -f ./Dockerfile.mcp -t ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} .
     - docker tag ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
     - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
     - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
