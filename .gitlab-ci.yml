@@ -7,6 +7,10 @@ stages:
 
 variables:
   DOCKER_BUILDKIT: "1"
+  DOCKER_HOST: tcp://docker:2376
+  DOCKER_TLS_CERTDIR: "/certs"
+  DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
+  DOCKER_TLS_VERIFY: 1
   IMAGE_REGISTRY: git.keepee.duckdns.org/services/wiki4ai
   SERVER_IP: "192.168.77.177"
   SERVER_USER: "keepee"
