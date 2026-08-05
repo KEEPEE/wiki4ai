@@ -4,9 +4,9 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { VaultEntry, CreateVaultEntryDto, UpdateVaultEntryDto, BackendVaultEntry, VaultEntryData } from '../types/vault';
+import type { VaultEntry, CreateVaultEntryDto, UpdateVaultEntryDto, BackendVaultEntry, VaultEntryData, EncryptedField } from '../types/vault';
 import { vaultApi } from '../services/vaultApi';
-import { deriveKey, encrypt, decrypt } from '../services/encryptionService';
+import { deriveKey, encrypt, decrypt, bytesToBase64, base64ToBytes } from '../services/encryptionService';
 
 const VAULT_ENTRIES_QUERY_KEY = ['vault', 'entries'] as const;
 const SEARCH_VAULT_ENTRIES_QUERY_KEY = (query: string, groupPath?: string) => ['vault', 'search', query, groupPath] as const;
@@ -17,56 +17,47 @@ export interface VaultEncryptionConfig {
 }
 
 interface EncryptedFields {
-  usernameEncrypted: Uint8Array;
-  passwordEncrypted: Uint8Array;
-  notesEncrypted: Uint8Array | null;
-  iv: Uint8Array;
+  usernameEncrypted?: EncryptedField;
+  passwordEncrypted: EncryptedField;
+  notesEncrypted?: EncryptedField;
 }
 
+// The backend persists a single IV per vault entry (see VaultEntry.iv), shared across
+// username/password/notes, so all three fields must be encrypted with the same IV.
 async function encryptEntryData(data: VaultEntryData, keyBytes: Uint8Array): Promise<EncryptedFields> {
-  const usernameJson = data.username ? JSON.stringify(data.username) : '';
-  const passwordJson = JSON.stringify(data.password);
-  const notesJson = data.notes ? JSON.stringify(data.notes) : null;
-
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
-  const usernameEncrypted = await encrypt(usernameJson, keyBytes);
-  const passwordEncrypted = await encrypt(passwordJson, keyBytes);
-  const notesEncrypted = notesJson ? await encrypt(notesJson, keyBytes) : null;
+  const passwordResult = await encrypt(JSON.stringify(data.password), keyBytes, iv);
+  const passwordEncrypted: EncryptedField = { ciphertext: bytesToBase64(passwordResult.ciphertext), iv: bytesToBase64(iv) };
 
-  return {
-    usernameEncrypted: usernameEncrypted.ciphertext,
-    passwordEncrypted: passwordEncrypted.ciphertext,
-    notesEncrypted: notesEncrypted?.ciphertext ?? null,
-    iv,
-  };
+  let usernameEncrypted: EncryptedField | undefined;
+  if (data.username) {
+    const result = await encrypt(JSON.stringify(data.username), keyBytes, iv);
+    usernameEncrypted = { ciphertext: bytesToBase64(result.ciphertext), iv: bytesToBase64(iv) };
+  }
+
+  let notesEncrypted: EncryptedField | undefined;
+  if (data.notes) {
+    const result = await encrypt(JSON.stringify(data.notes), keyBytes, iv);
+    notesEncrypted = { ciphertext: bytesToBase64(result.ciphertext), iv: bytesToBase64(iv) };
+  }
+
+  return { usernameEncrypted, passwordEncrypted, notesEncrypted };
+}
+
+async function decryptField(field: EncryptedField | null | undefined, keyBytes: Uint8Array): Promise<string | null> {
+  if (!field?.ciphertext || !field.iv) return null;
+  return decrypt(base64ToBytes(field.ciphertext), base64ToBytes(field.iv), keyBytes);
 }
 
 async function decryptEntryData(backendEntry: BackendVaultEntry, keyBytes: Uint8Array): Promise<VaultEntryData> {
-  const usernameDecrypted = await decrypt(
-    new Uint8Array(backendEntry.usernameEncrypted),
-    new Uint8Array(backendEntry.iv),
-    keyBytes,
-  );
-
-  const passwordDecrypted = await decrypt(
-    new Uint8Array(backendEntry.passwordEncrypted),
-    new Uint8Array(backendEntry.iv),
-    keyBytes,
-  );
+  const passwordDecrypted = await decryptField(backendEntry.passwordEncrypted, keyBytes);
+  const usernameDecrypted = await decryptField(backendEntry.usernameEncrypted, keyBytes);
 
   let notesDecrypted: string | null;
-  if (backendEntry.notesEncrypted) {
-    try {
-      notesDecrypted = await decrypt(
-        new Uint8Array(backendEntry.notesEncrypted),
-        new Uint8Array(backendEntry.iv),
-        keyBytes,
-      );
-    } catch {
-      notesDecrypted = null;
-    }
-  } else {
+  try {
+    notesDecrypted = await decryptField(backendEntry.notesEncrypted, keyBytes);
+  } catch {
     notesDecrypted = null;
   }
 

@@ -823,10 +823,11 @@ describe('VaultPage', () => {
         {
           id: 1,
           title: 'Test Entry',
-          usernameEncrypted: [1, 2, 3],
-          passwordEncrypted: [4, 5, 6],
+          usernameEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' },
+          passwordEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' },
           notesEncrypted: null,
-          iv: new Array(12).fill(1),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       ])
 
@@ -868,10 +869,11 @@ describe('VaultPage', () => {
         {
           id: 1,
           title: 'Test Entry',
-          usernameEncrypted: [1, 2, 3],
-          passwordEncrypted: [4, 5, 6],
+          usernameEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' },
+          passwordEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' },
           notesEncrypted: null,
-          iv: new Array(12).fill(1),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         },
       ])
 
@@ -1247,30 +1249,31 @@ describe('VaultPage', () => {
 
       const { useVaultEntries } = await import('../hooks/useVaultEntries');
       const { vaultApi } = await import('../services/vaultApi');
-      const { deriveKey, encrypt } = await import('../services/encryptionService');
+      const { deriveKey, encrypt, bytesToBase64 } = await import('../services/encryptionService');
 
       vi.mocked(useVaultEntries).mockReturnValue({
         entries: [], isLoading: false, error: null, refetch: vi.fn(),
         createEntry: vi.fn().mockImplementation(async (entry) => {
           const key = await deriveKey(mockVaultConfig.masterPassword, mockVaultConfig.salt);
 
-          const usernameJson = entry.data.username ? JSON.stringify(entry.data.username) : '';
+          // Backend persists a single shared IV per entry, so all fields must use the same one.
+          const iv = crypto.getRandomValues(new Uint8Array(12));
+
+          const usernameJson = entry.data.username ? JSON.stringify(entry.data.username) : null;
           const passwordJson = JSON.stringify(entry.data.password);
           const notesJson = entry.data.notes ? JSON.stringify(entry.data.notes) : null;
 
-          const iv = crypto.getRandomValues(new Uint8Array(12));
-          const usernameEncrypted = await encrypt(usernameJson, key);
-          const passwordEncrypted = await encrypt(passwordJson, key);
-          const notesEncrypted = notesJson ? await encrypt(notesJson, key) : null;
+          const passwordEncrypted = await encrypt(passwordJson, key, iv);
+          const usernameEncrypted = usernameJson ? await encrypt(usernameJson, key, iv) : null;
+          const notesEncrypted = notesJson ? await encrypt(notesJson, key, iv) : null;
 
           const dto = {
             title: entry.title,
             url: entry.url,
             groupPath: entry.groupPath,
-            usernameEncrypted: Array.from(usernameEncrypted.ciphertext),
-            passwordEncrypted: Array.from(passwordEncrypted.ciphertext),
-            notesEncrypted: notesEncrypted ? Array.from(notesEncrypted.ciphertext) : null,
-            iv: Array.from(iv),
+            usernameEncrypted: usernameEncrypted ? { ciphertext: bytesToBase64(usernameEncrypted.ciphertext), iv: bytesToBase64(iv) } : undefined,
+            passwordEncrypted: { ciphertext: bytesToBase64(passwordEncrypted.ciphertext), iv: bytesToBase64(iv) },
+            notesEncrypted: notesEncrypted ? { ciphertext: bytesToBase64(notesEncrypted.ciphertext), iv: bytesToBase64(iv) } : undefined,
           };
 
           return vaultApi.create(dto as any);
@@ -1280,7 +1283,8 @@ describe('VaultPage', () => {
 
       vi.mocked(vaultApi.create).mockResolvedValue({
         id: 99, title: 'Test Entry', url: undefined, groupPath: undefined,
-        usernameEncrypted: [], passwordEncrypted: [], notesEncrypted: null, iv: [],
+        usernameEncrypted: null, passwordEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' }, notesEncrypted: null,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
       });
 
       const mockEntries = [
@@ -1310,8 +1314,9 @@ describe('VaultPage', () => {
 
       // Verify encrypted data was sent, not plaintext
       expect(createCall.passwordEncrypted).toBeDefined();
-      expect(Array.isArray(createCall.passwordEncrypted)).toBe(true);
-      expect(createCall.passwordEncrypted.length).toBeGreaterThan(10);
+      expect(typeof createCall.passwordEncrypted.ciphertext).toBe('string');
+      expect(createCall.passwordEncrypted.ciphertext).not.toBe('plaintext-secret');
+      expect(createCall.passwordEncrypted.ciphertext.length).toBeGreaterThan(10);
     });
   })
 })

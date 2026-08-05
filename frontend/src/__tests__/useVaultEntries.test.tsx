@@ -23,6 +23,8 @@ vi.mock('../services/encryptionService', () => ({
   deriveKey: vi.fn(),
   encrypt: vi.fn(),
   decrypt: vi.fn(),
+  bytesToBase64: (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes)),
+  base64ToBytes: (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)),
 }))
 
 // Mock vaultApi module at the top level
@@ -52,15 +54,17 @@ const mockConfig = {
 }
 
 function createMockBackendEntry(id: number, title: string): BackendVaultEntry {
+  const field = { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' } // arbitrary valid base64
   return {
     id,
     title,
     url: `https://example.com/${id}`,
     groupPath: '/test',
-    usernameEncrypted: [1, 2, 3],
-    passwordEncrypted: [4, 5, 6],
-    notesEncrypted: [7, 8, 9],
-    iv: [10, 11, 12],
+    usernameEncrypted: field,
+    passwordEncrypted: field,
+    notesEncrypted: field,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   }
 }
 

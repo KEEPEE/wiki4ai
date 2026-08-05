@@ -7,7 +7,7 @@ import type { VaultEntryFormData } from '../components/VaultEntryForm';
 import VaultSetupScreen from '../components/VaultSetupScreen';
 import VaultUnlockScreen from '../components/VaultUnlockScreen';
 import { vaultApi } from '../services/vaultApi';
-import { deriveKey, decrypt } from '../services/encryptionService';
+import { deriveKey, decrypt, base64ToBytes } from '../services/encryptionService';
 import './VaultPage.css';
 
 interface DecryptedExportEntry {
@@ -25,13 +25,15 @@ async function decryptEntriesForExport(backendEntries: BackendVaultEntry[], mast
   return Promise.all(
     backendEntries.map(async (entry) => {
       try {
-        const usernameDecrypted = await decrypt(new Uint8Array(entry.usernameEncrypted), new Uint8Array(entry.iv), key);
-        const passwordDecrypted = await decrypt(new Uint8Array(entry.passwordEncrypted), new Uint8Array(entry.iv), key);
+        const usernameDecrypted = entry.usernameEncrypted
+          ? await decrypt(base64ToBytes(entry.usernameEncrypted.ciphertext), base64ToBytes(entry.usernameEncrypted.iv), key)
+          : null;
+        const passwordDecrypted = await decrypt(base64ToBytes(entry.passwordEncrypted.ciphertext), base64ToBytes(entry.passwordEncrypted.iv), key);
 
         let notesDecrypted: string | null;
         if (entry.notesEncrypted) {
           try {
-            notesDecrypted = await decrypt(new Uint8Array(entry.notesEncrypted), new Uint8Array(entry.iv), key);
+            notesDecrypted = await decrypt(base64ToBytes(entry.notesEncrypted.ciphertext), base64ToBytes(entry.notesEncrypted.iv), key);
           } catch {
             notesDecrypted = null;
           }
@@ -116,31 +118,10 @@ const VaultPage: React.FC = () => {
     }
   }, [vault]);
 
-  // Hooks must be called BEFORE any conditional returns to avoid React error #310
+  // All hooks must be called unconditionally, BEFORE any conditional returns,
+  // to avoid React error #310 (rendered more hooks than during the previous render).
   const vaultEntriesHook = useVaultEntries(vault.config ?? null);
   const { entries, isLoading, error, createEntry, updateEntry } = vaultEntriesHook;
-
-  // Show setup screen if no master password set yet OR vault needs re-initialization (new browser/device)
-  if (!vault.isLoading && (vault.hasMasterPasswordSet === false || vault.needsReinit)) {
-    return <VaultSetupScreen isReinit={vault.needsReinit} />;
-  }
-
-  // Show unlock screen if locked and has master password
-  if (!vault.isUnlocked && vault.hasMasterPasswordSet === true && !vault.isLoading) {
-    return <VaultUnlockScreen />;
-  }
-
-  // Show loading while checking status or setting up/unlocking
-  if (vault.isLoading || vault.config === null) {
-    return (
-      <div className="vault-page">
-        <div className="loading-state">
-          <div className="spinner" />
-          <p>Loading vault...</p>
-        </div>
-      </div>
-    );
-  }
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -230,6 +211,28 @@ const VaultPage: React.FC = () => {
       setTimeout(() => setCopiedId(null), 2000);
     }
   }, []);
+
+  // Show setup screen if no master password set yet OR vault needs re-initialization (new browser/device)
+  if (!vault.isLoading && (vault.hasMasterPasswordSet === false || vault.needsReinit)) {
+    return <VaultSetupScreen isReinit={vault.needsReinit} />;
+  }
+
+  // Show unlock screen if locked and has master password
+  if (!vault.isUnlocked && vault.hasMasterPasswordSet === true && !vault.isLoading) {
+    return <VaultUnlockScreen />;
+  }
+
+  // Show loading while checking status or setting up/unlocking
+  if (vault.isLoading || vault.config === null) {
+    return (
+      <div className="vault-page">
+        <div className="loading-state">
+          <div className="spinner" />
+          <p>Loading vault...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleFormSubmit = async (formData: VaultEntryFormData) => {
     setFormError(null);

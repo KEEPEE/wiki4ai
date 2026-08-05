@@ -179,7 +179,7 @@ public class VaultService {
                 .title(entry.getTitle())
                 .usernameEncrypted(toEncryptedField(entry.getUsernameEncrypted(), entry.getIv()))
                 .passwordEncrypted(toEncryptedField(entry.getPasswordEncrypted(), entry.getIv()))
-                .notesEncrypted(toEncryptedField(entry.getNotesEncrypted(), null))
+                .notesEncrypted(toEncryptedField(entry.getNotesEncrypted(), entry.getIv()))
                 .url(entry.getUrl())
                 .groupPath(entry.getGroupPath())
                 .createdAt(entry.getCreatedAt())

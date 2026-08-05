@@ -9,6 +9,8 @@ import { vaultApi } from '../services/vaultApi'
 const mockFetch = vi.fn() as any
 window.fetch = mockFetch
 
+const mockField = { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' }
+
 describe('vaultApi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -23,10 +25,9 @@ describe('vaultApi', () => {
           title: 'Entry 1',
           url: 'https://example.com',
           groupPath: '/work',
-          usernameEncrypted: [1, 2, 3],
-          passwordEncrypted: [4, 5, 6],
-          notesEncrypted: [7, 8, 9],
-          iv: [10, 11, 12],
+          usernameEncrypted: mockField,
+          passwordEncrypted: mockField,
+          notesEncrypted: mockField,
         },
       ]
 
@@ -73,10 +74,9 @@ describe('vaultApi', () => {
         title: 'New Entry',
         url: 'https://new.com',
         groupPath: '/personal',
-        usernameEncrypted: [1],
-        passwordEncrypted: [2],
+        usernameEncrypted: mockField,
+        passwordEncrypted: mockField,
         notesEncrypted: null,
-        iv: [3],
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -88,10 +88,8 @@ describe('vaultApi', () => {
         title: 'New Entry',
         url: 'https://new.com',
         groupPath: '/personal',
-        usernameEncrypted: new Uint8Array([1]),
-        passwordEncrypted: new Uint8Array([2]),
-        notesEncrypted: null,
-        iv: new Uint8Array([3]),
+        usernameEncrypted: mockField,
+        passwordEncrypted: mockField,
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -102,17 +100,15 @@ describe('vaultApi', () => {
             title: 'New Entry',
             url: 'https://new.com',
             groupPath: '/personal',
-            usernameEncrypted: [1],
-            passwordEncrypted: [2],
-            notesEncrypted: null,
-            iv: [3],
+            usernameEncrypted: mockField,
+            passwordEncrypted: mockField,
           }),
         }),
       )
       expect(result).toEqual(mockResponse)
     })
 
-    it('should convert Uint8Array to number arrays in request body', async () => {
+    it('should send EncryptedField (Base64 ciphertext/iv) objects, not raw byte arrays', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ id: 1, title: 'Test' }),
@@ -120,19 +116,19 @@ describe('vaultApi', () => {
 
       await vaultApi.create({
         title: 'Test',
-        usernameEncrypted: new Uint8Array([255, 0, 128]),
-        passwordEncrypted: new Uint8Array([10, 20]),
-        notesEncrypted: new Uint8Array([30]),
-        iv: new Uint8Array([40]),
+        usernameEncrypted: mockField,
+        passwordEncrypted: mockField,
+        notesEncrypted: mockField,
       })
 
       const callArgs = mockFetch.mock.calls[0][1] as { body: string }
       const body = JSON.parse(callArgs.body)
 
-      expect(body.usernameEncrypted).toEqual([255, 0, 128])
-      expect(body.passwordEncrypted).toEqual([10, 20])
-      expect(body.notesEncrypted).toEqual([30])
-      expect(body.iv).toEqual([40])
+      expect(body.usernameEncrypted).toEqual(mockField)
+      expect(body.passwordEncrypted).toEqual(mockField)
+      expect(body.notesEncrypted).toEqual(mockField)
+      expect(typeof body.passwordEncrypted.ciphertext).toBe('string')
+      expect(typeof body.passwordEncrypted.iv).toBe('string')
     })
 
     it('should handle optional fields correctly', async () => {
@@ -143,10 +139,7 @@ describe('vaultApi', () => {
 
       await vaultApi.create({
         title: 'Minimal Entry',
-        usernameEncrypted: new Uint8Array([1]),
-        passwordEncrypted: new Uint8Array([2]),
-        notesEncrypted: null,
-        iv: new Uint8Array([3]),
+        passwordEncrypted: mockField,
       })
 
       const callArgs = mockFetch.mock.calls[0][1] as { body: string }
@@ -154,6 +147,7 @@ describe('vaultApi', () => {
 
       expect(body.url).toBeUndefined()
       expect(body.groupPath).toBeUndefined()
+      expect(body.usernameEncrypted).toBeUndefined()
     })
   })
 
@@ -168,8 +162,7 @@ describe('vaultApi', () => {
 
       const result = await vaultApi.update(1, {
         title: 'Updated Entry',
-        passwordEncrypted: new Uint8Array([5]),
-        iv: new Uint8Array([6]),
+        passwordEncrypted: mockField,
       })
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -178,8 +171,7 @@ describe('vaultApi', () => {
           method: 'PUT',
           body: JSON.stringify({
             title: 'Updated Entry',
-            passwordEncrypted: [5],
-            iv: [6],
+            passwordEncrypted: mockField,
           }),
         }),
       )
@@ -221,7 +213,7 @@ describe('vaultApi', () => {
   describe('search', () => {
     it('should search entries by query string', async () => {
       const mockResults = [
-        { id: 1, title: 'Matching Entry', usernameEncrypted: [], passwordEncrypted: [], iv: [] },
+        { id: 1, title: 'Matching Entry', usernameEncrypted: null, passwordEncrypted: mockField, notesEncrypted: null },
       ]
 
       mockFetch.mockResolvedValueOnce({
@@ -275,10 +267,9 @@ describe('vaultApi', () => {
           title: 'Entry 1',
           url: 'https://example.com',
           groupPath: '/work',
-          usernameEncrypted: [1, 2, 3],
-          passwordEncrypted: [4, 5, 6],
-          notesEncrypted: [7, 8, 9],
-          iv: [10, 11, 12],
+          usernameEncrypted: mockField,
+          passwordEncrypted: mockField,
+          notesEncrypted: mockField,
         },
       ]
 
