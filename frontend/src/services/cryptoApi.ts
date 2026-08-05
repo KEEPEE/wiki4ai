@@ -442,10 +442,10 @@ export const cryptoApi = {
     return pbkdf2HmacSha256(encoder.encode(password), salt, iterations, 32);
   },
 
-  async encrypt(data: string, keyBytes: Uint8Array): Promise<{ ciphertextWithTag: Uint8Array; iv: Uint8Array }> {
+  async encrypt(data: string, keyBytes: Uint8Array, providedIv?: Uint8Array): Promise<{ ciphertextWithTag: Uint8Array; iv: Uint8Array }> {
     const encoder = new TextEncoder();
     const plaintext = encoder.encode(data);
-    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const iv = providedIv ?? crypto.getRandomValues(new Uint8Array(12));
 
     if (hasWebCrypto) {
       const key = await crypto.subtle.importKey(
@@ -457,7 +457,7 @@ export const cryptoApi = {
       );
 
       const ciphertextBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
+        { name: 'AES-GCM', iv: iv as BufferSource },
         key,
         plaintext
       );

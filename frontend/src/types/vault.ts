@@ -7,6 +7,16 @@ export interface EncryptedVaultEntry {
   iv: Uint8Array;
 }
 
+/**
+ * Wire format for an encrypted field, matching the backend's EncryptedField DTO:
+ * ciphertext/iv are Base64-encoded strings, not raw byte arrays.
+ */
+export interface EncryptedField {
+  ciphertext: string;
+  iv: string;
+  salt?: string;
+}
+
 export interface VaultEntryData {
   username?: string;
   password: string;
@@ -27,20 +37,18 @@ export interface CreateVaultEntryDto {
   title: string;
   url?: string;
   groupPath?: string;
-  usernameEncrypted: Uint8Array;
-  passwordEncrypted: Uint8Array;
-  notesEncrypted: Uint8Array | null;
-  iv: Uint8Array;
+  usernameEncrypted?: EncryptedField;
+  passwordEncrypted: EncryptedField;
+  notesEncrypted?: EncryptedField;
 }
 
 export interface UpdateVaultEntryDto {
   title?: string;
   url?: string;
   groupPath?: string;
-  usernameEncrypted?: Uint8Array;
-  passwordEncrypted?: Uint8Array;
-  notesEncrypted?: Uint8Array | null;
-  iv?: Uint8Array;
+  usernameEncrypted?: EncryptedField;
+  passwordEncrypted?: EncryptedField;
+  notesEncrypted?: EncryptedField;
 }
 
 export interface BackendVaultEntry {
@@ -48,8 +56,9 @@ export interface BackendVaultEntry {
   title: string;
   url?: string;
   groupPath?: string;
-  usernameEncrypted: number[];
-  passwordEncrypted: number[];
-  notesEncrypted: number[] | null;
-  iv: number[];
+  usernameEncrypted: EncryptedField | null;
+  passwordEncrypted: EncryptedField;
+  notesEncrypted: EncryptedField | null;
+  createdAt: string;
+  updatedAt: string;
 }

@@ -2,6 +2,7 @@
 # Build Docker images (backend + frontend + mcp) and push to GitLab Registry, then deploy to server
 
 stages:
+  - test
   - build_and_push
   - deploy-to-server
 
@@ -17,6 +18,32 @@ variables:
   BACKEND_IMAGE_NAME: "backend"
   FRONTEND_IMAGE_NAME: "frontend"
   MCP_IMAGE_NAME: "mcp"
+
+# ── Test stage - gates build/deploy so broken code never reaches production ────
+
+test-backend:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - cd backend
+    - mvn -q test
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+test-frontend:
+  stage: test
+  image: node:22
+  script:
+    - cd frontend
+    - npm ci
+    - npx tsc --noEmit -p tsconfig.app.json
+    - npm run test:run
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  # Note: `npm run lint` is intentionally NOT run here yet - the codebase has ~260
+  # pre-existing eslint errors unrelated to this fix. Once those are cleaned up,
+  # add `npm run lint` here too - it's the check that would have caught the
+  # react-hooks/rules-of-hooks violation that caused React error #310 in VaultPage.
 
 # ── Build and push Docker images to GitLab Registry ────────────────────────────
 
