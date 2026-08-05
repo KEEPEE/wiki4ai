@@ -89,14 +89,21 @@ function backendToVaultEntry(backendEntry: BackendVaultEntry, data: VaultEntryDa
   };
 }
 
-export function useVaultEntries(config: VaultEncryptionConfig) {
+export function useVaultEntries(config: VaultEncryptionConfig | null) {
   const queryClient = useQueryClient();
 
-  const deriveKeyFn = async () => deriveKey(config.masterPassword, config.salt);
+  // Disable all queries/mutations when config is not available (vault locked/not set up)
+  const isEnabled = !!config;
 
-  // Fetch all vault entries and decrypt them
+  const deriveKeyFn = async () => {
+    if (!config) throw new Error('Vault encryption config not available');
+    return deriveKey(config.masterPassword, config.salt);
+  };
+
+  // Fetch all vault entries and decrypt them (disabled when no config)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: VAULT_ENTRIES_QUERY_KEY,
+    enabled: isEnabled,
     queryFn: async () => {
       const backendEntries = await vaultApi.getAll();
       const key = await deriveKeyFn();
@@ -122,9 +129,10 @@ export function useVaultEntries(config: VaultEncryptionConfig) {
     },
   });
 
-  // Create vault entry mutation with optimistic update
+  // Create vault entry mutation with optimistic update (disabled when no config)
   const createMutation = useMutation({
     mutationFn: async (entry: { title: string; url?: string; groupPath?: string; data: VaultEntryData }) => {
+      if (!config) throw new Error('Vault encryption config not available');
       const key = await deriveKeyFn();
       const encryptedFields = await encryptEntryData(entry.data, key);
 
@@ -165,9 +173,10 @@ export function useVaultEntries(config: VaultEncryptionConfig) {
     },
   });
 
-  // Update vault entry mutation with optimistic update
+  // Update vault entry mutation with optimistic update (disabled when no config)
   const updateMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: Partial<{ title: string; url: string; groupPath: string }> & { data?: VaultEntryData } }) => {
+      if (!config) throw new Error('Vault encryption config not available');
       const key = await deriveKeyFn();
 
       if (updates.data) {
@@ -221,9 +230,12 @@ export function useVaultEntries(config: VaultEncryptionConfig) {
     },
   });
 
-  // Delete vault entry mutation with optimistic update
+  // Delete vault entry mutation with optimistic update (disabled when no config)
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => vaultApi.delete(id),
+    mutationFn: async (id: number) => {
+      if (!config) throw new Error('Vault encryption config not available');
+      return vaultApi.delete(id);
+    },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: VAULT_ENTRIES_QUERY_KEY });
       const previousEntries = queryClient.getQueryData<VaultEntry[]>(VAULT_ENTRIES_QUERY_KEY) ?? [];
@@ -262,13 +274,20 @@ export function useVaultEntries(config: VaultEncryptionConfig) {
 /**
  * Custom React hook for searching vault entries.
  */
-export function useSearchVaultEntries(config: VaultEncryptionConfig, query: string, groupPath?: string) {
+export function useSearchVaultEntries(config: VaultEncryptionConfig | null, query: string, groupPath?: string) {
   const trimmedQuery = query.trim();
 
-  const deriveKeyFn = async () => deriveKey(config.masterPassword, config.salt);
+  // Disable search when no config or no query
+  const isEnabled = !!config && !!trimmedQuery;
+
+  const deriveKeyFn = async () => {
+    if (!config) throw new Error('Vault encryption config not available');
+    return deriveKey(config.masterPassword, config.salt);
+  };
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: SEARCH_VAULT_ENTRIES_QUERY_KEY(trimmedQuery, groupPath),
+    enabled: isEnabled,
     queryFn: async () => {
       const backendEntries = await vaultApi.search(trimmedQuery, groupPath);
       const key = await deriveKeyFn();
@@ -292,7 +311,6 @@ export function useSearchVaultEntries(config: VaultEncryptionConfig, query: stri
         }),
       );
     },
-    enabled: !!trimmedQuery,
   });
 
   return {

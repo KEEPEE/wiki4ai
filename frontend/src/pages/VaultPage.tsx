@@ -116,6 +116,10 @@ const VaultPage: React.FC = () => {
     }
   }, [vault]);
 
+  // Hooks must be called BEFORE any conditional returns to avoid React error #310
+  const vaultEntriesHook = useVaultEntries(vault.config ?? null);
+  const { entries, isLoading, error, createEntry, updateEntry } = vaultEntriesHook;
+
   // Show setup screen if no master password set yet
   if (vault.hasMasterPasswordSet === false && !vault.isLoading) {
     return <VaultSetupScreen />;
@@ -137,8 +141,6 @@ const VaultPage: React.FC = () => {
       </div>
     );
   }
-
-  const { entries, isLoading, error, createEntry, updateEntry } = useVaultEntries(vault.config);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showForm, setShowForm] = useState(false);
