@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { apiGet, apiPost, apiDelete, getRedirectFromUrl } from '../services/apiClient'
+import { apiGet, apiPost, apiDelete, apiPostFormData, getRedirectFromUrl } from '../services/apiClient'
 
 // Mock fetch globally
 const mockFetch = vi.fn() as any
@@ -131,6 +131,27 @@ describe('apiClient', () => {
       await apiDelete('/api/v1/items/1')
 
       expect(mockFetch.mock.calls[0][1].method).toBe('DELETE')
+    })
+
+    it('apiPostFormData must NOT set a Content-Type header, so the browser can set multipart/form-data with the correct boundary', async () => {
+      // Regression test: apiRequest used to unconditionally default to
+      // Content-Type: application/json, which overrode the browser's
+      // auto-generated multipart boundary and made the backend reject file
+      // uploads (KDBX import) with "Current request is not a multipart request".
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      })
+
+      const formData = new FormData()
+      formData.append('file', new Blob(['dummy']), 'test.kdbx')
+      formData.append('password', 'secret')
+
+      await apiPostFormData('/api/v1/vault/import/kdbx', formData)
+
+      const callArgs = mockFetch.mock.calls[0][1]
+      expect(callArgs.headers['Content-Type']).toBeUndefined()
+      expect(callArgs.body).toBe(formData)
     })
   })
 

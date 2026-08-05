@@ -108,9 +108,15 @@ export async function apiRequest(
 ): Promise<Response> {
   const { skipAuth = false, headers: extraHeaders = {}, ...restOptions } = options;
 
+  // FormData bodies (file uploads) must NOT get an explicit Content-Type - the
+  // browser sets `multipart/form-data; boundary=...` automatically when it
+  // serializes the body, and a manually-set header here would override that
+  // with no boundary, which the backend can't parse as multipart at all.
+  const isFormData = typeof FormData !== 'undefined' && restOptions.body instanceof FormData;
+
   // Build headers
   const baseHeaders: Record<string, string> = {};
-  if (!skipAuth && !(extraHeaders as Record<string, string>)['Content-Type']) {
+  if (!skipAuth && !isFormData && !(extraHeaders as Record<string, string>)['Content-Type']) {
     baseHeaders['Content-Type'] = 'application/json';
   }
 

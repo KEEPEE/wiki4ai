@@ -599,6 +599,25 @@ class VaultControllerTest {
     class ImportFromKdbxTests {
 
         @Test
+        @DisplayName("Should return 400 (not 500) when the request is not sent as multipart/form-data")
+        void shouldReturnBadRequestWhenNotMultipart() throws Exception {
+            // given - reproduces the real bug: a client (buggy frontend fetch wrapper)
+            // sending Content-Type: application/json instead of multipart/form-data for
+            // a file upload. Spring throws MultipartException while binding @RequestParam
+            // MultipartFile, before the controller method body (and its try/catch) runs.
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/vault/import/kdbx")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
         @DisplayName("Should return 200 with imported entries")
         void shouldImportEntriesSuccessfully() throws Exception {
             // given
@@ -678,6 +697,26 @@ class VaultControllerTest {
 
             given(importService.importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("password")))
                     .willThrow(new java.io.IOException("Failed to parse KDBX"));
+
+            // when & then
+            mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
+                            .file(createMockFile("test.kdbx", new byte[]{1, 2, 3}))
+                            .param("password", "password"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("Should return 400 (not 500) when the parser throws an unchecked exception")
+        void shouldReturnBadRequestWhenParserThrowsUncheckedException() throws Exception {
+            // given - simulates a KeePassJava2 library exception (e.g. NullPointerException on a
+            // truncated/non-KDBX file) that VaultImportService doesn't wrap into IOException.
+            setupAuthenticatedUser();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(
+                    com.wiki4ai.model.User.builder().id(TEST_USER_ID).build()
+            ));
+
+            given(importService.importFromKdbx(org.mockito.ArgumentMatchers.any(), eq("password")))
+                    .willThrow(new NullPointerException("unexpected null in KDBX parser"));
 
             // when & then
             mockMvc.perform(multipart("/api/v1/vault/import/kdbx")
