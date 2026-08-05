@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useVault } from '../contexts/VaultContext';
 import { cryptoApi } from '../services/cryptoApi';
 
-const VaultSetupScreen: React.FC = () => {
+const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }) => {
   const { setupVault, isLoading, error } = useVault();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,9 +37,11 @@ const VaultSetupScreen: React.FC = () => {
           </svg>
         </div>
 
-        <h1 className="vault-setup-title">Set up your Vault</h1>
+        <h1 className="vault-setup-title">{isReinit ? 'Set up Vault for this browser' : 'Set up your Vault'}</h1>
         <p className="vault-setup-description">
-          Create a master password to encrypt and protect your vault entries. This password is used locally to decrypt your data and cannot be recovered if lost.
+          {isReinit
+            ? 'You are accessing Vault from a new browser or device. Please enter your master password again to initialize encryption for this environment. Use the same password as before.'
+            : 'Create a master password to encrypt and protect your vault entries. This password is used locally to decrypt your data and cannot be recovered if lost.'}
         </p>
 
         {error && (

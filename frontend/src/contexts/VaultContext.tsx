@@ -10,6 +10,7 @@ interface VaultContextType {
   config: VaultEncryptionConfig | null;
   keyBytes: Uint8Array | null; // Raw encryption key bytes (works in both secure and insecure contexts)
   hasMasterPasswordSet: boolean | null;
+  needsReinit: boolean; // True when backend has master password but browser lacks salt (new device/browser)
   error: string | null;
   unlock: (masterPasswordHash: string) => Promise<void>;
   setupVault: (masterPasswordHash: string) => Promise<void>;
@@ -37,6 +38,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const [config, setConfig] = useState<VaultEncryptionConfig | null>(null);
   const [keyBytes, setKeyBytes] = useState<Uint8Array | null>(null); // Raw key bytes instead of CryptoKey
   const [hasMasterPasswordSet, setHasMasterPasswordSet] = useState<boolean | null>(null);
+  const [needsReinit, setNeedsReinit] = useState(false); // True when salt is missing but master password exists on backend
   const [error, setError] = useState<string | null>(null);
 
   const getSaltFromStorage = useCallback((): Uint8Array | null => {
@@ -106,7 +108,12 @@ export function VaultProvider({ children }: VaultProviderProps) {
 
       const salt = getSaltFromStorage();
       if (!salt) {
-        throw new Error('Vault not initialized. Please set up your vault first.');
+        // Salt missing but master password hash exists on backend → new browser/device
+        // Signal parent to show setup screen instead of error
+        setNeedsReinit(true);
+        setError('Vault needs re-initialization for this browser. Please set up your vault again.');
+        setIsLoading(false);
+        return;
       }
 
       const derivedKey = await deriveKey(masterPasswordHash, salt);
@@ -169,7 +176,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   }, []);
 
   return (
-    <VaultContext.Provider value={{ isUnlocked, isLoading, config, keyBytes, hasMasterPasswordSet, error, unlock, setupVault, lock, checkStatus }}>
+    <VaultContext.Provider value={{ isUnlocked, isLoading, config, keyBytes, hasMasterPasswordSet, needsReinit, error, unlock, setupVault, lock, checkStatus }}>
       {children}
     </VaultContext.Provider>
   );

@@ -120,9 +120,9 @@ const VaultPage: React.FC = () => {
   const vaultEntriesHook = useVaultEntries(vault.config ?? null);
   const { entries, isLoading, error, createEntry, updateEntry } = vaultEntriesHook;
 
-  // Show setup screen if no master password set yet
-  if (vault.hasMasterPasswordSet === false && !vault.isLoading) {
-    return <VaultSetupScreen />;
+  // Show setup screen if no master password set yet OR vault needs re-initialization (new browser/device)
+  if (!vault.isLoading && (vault.hasMasterPasswordSet === false || vault.needsReinit)) {
+    return <VaultSetupScreen isReinit={vault.needsReinit} />;
   }
 
   // Show unlock screen if locked and has master password
