@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useVault } from '../contexts/VaultContext';
+import { cryptoApi } from '../services/cryptoApi';
 
 const VaultUnlockScreen: React.FC = () => {
   const { unlock, isLoading, error } = useVault();
@@ -14,7 +15,7 @@ const VaultUnlockScreen: React.FC = () => {
     const encoder = new TextEncoder();
     const passwordBuffer = encoder.encode(password);
 
-    const hashBuffer = await crypto.subtle.digest('SHA-256', passwordBuffer);
+    const hashBuffer = await cryptoApi.sha256(passwordBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const masterPasswordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
