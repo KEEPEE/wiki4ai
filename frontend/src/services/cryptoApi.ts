@@ -304,11 +304,11 @@ class AesGcm {
     new DataView(aadLength.buffer).setBigUint64(0, BigInt(0), false);
     new DataView(dataLength.buffer).setBigUint64(0, BigInt(ciphertext.length * 8), false);
 
-    Y = this.gcmMultiply(H, Y);
-    Y = this.xor(Y, aadLength);
-    Y = this.gcmMultiply(H, Y);
-    Y = this.xor(Y, dataLength);
-    const computedTag = this.gcmMultiply(H, Y).slice(0, 16);
+    let yResult: Uint8Array = this.gcmMultiply(H, Y);
+    yResult = this.xor(yResult, aadLength);
+    yResult = this.gcmMultiply(H, yResult);
+    yResult = this.xor(yResult, dataLength);
+    const computedTag = this.gcmMultiply(H, yResult).slice(0, 16);
 
     // Constant-time comparison
     let equal = 0;
@@ -409,7 +409,7 @@ class AesGcm {
 
       if (carry) {
         for (let j = 0; j < 4; j++) {
-          const wordView = new DataView(v.buffer, j * 4);
+          const wordView = new DataView(v.buffer as ArrayBuffer, j * 4);
           wordView.setUint32(0, wordView.getUint32(0) ^ R.getUint32(j * 4));
         }
       }
@@ -436,7 +436,8 @@ export const cryptoApi = {
    */
   async sha256(data: Uint8Array): Promise<Uint8Array> {
     if (hasWebCrypto) {
-      return crypto.subtle.digest('SHA-256', data);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return new Uint8Array(hashBuffer);
     }
     return sha256(data);
   },
@@ -460,7 +461,7 @@ export const cryptoApi = {
       );
 
       const key = await crypto.subtle.deriveKey(
-        { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+        { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
         keyMaterial,
         { name: 'AES-GCM', length: 256 },
         false,
@@ -489,7 +490,7 @@ export const cryptoApi = {
       // Import the raw key bytes as an AES-GCM key
       const key = await crypto.subtle.importKey(
         'raw',
-        keyBytes,
+        keyBytes as BufferSource,
         { name: 'AES-GCM' },
         false,
         ['encrypt']
@@ -523,7 +524,7 @@ export const cryptoApi = {
     if (hasWebCrypto) {
       const key = await crypto.subtle.importKey(
         'raw',
-        keyBytes,
+        keyBytes as BufferSource,
         { name: 'AES-GCM' },
         false,
         ['decrypt']
@@ -533,7 +534,7 @@ export const cryptoApi = {
         const plaintextBuffer = await crypto.subtle.decrypt(
           { name: 'AES-GCM', iv } as AesGcmParams,
           key,
-          ciphertextWithTag.slice() as unknown as BufferSource
+          ciphertextWithTag.slice() as BufferSource
         );
         return new TextDecoder().decode(plaintextBuffer);
       } catch {
