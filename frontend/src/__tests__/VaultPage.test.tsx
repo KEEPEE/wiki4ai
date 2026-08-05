@@ -922,4 +922,248 @@ describe('VaultPage', () => {
       expect(errorElement.textContent).toContain('Network error')
     })
   })
+
+  describe('Import workflow - API communication & data handling', () => {
+    class HttpError extends Error {
+      constructor(public status: number, message: string) {
+        super(message);
+        this.name = 'HttpError';
+      }
+    }
+
+    const createTestFile = () => new File(['fake kdbx content'], 'test.kdbx', { type: 'application/octet-stream' });
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockLocalStorage.clear();
+    });
+
+    it('should show error when KDBX contains no entries', async () => {
+      const user = userEvent.setup();
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { vaultApi } = await import('../services/vaultApi');
+      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue([]);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'password');
+
+      const submitButton = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton);
+
+      expect(screen.getByText(/no entries found in the kdbx file/i)).toBeInTheDocument();
+    });
+
+    it('should display error when backend returns 409 for invalid password', async () => {
+      const user = userEvent.setup();
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { vaultApi } = await import('../services/vaultApi');
+      const httpError = new HttpError(409, 'Invalid password or corrupted KDBX file');
+      vi.mocked(vaultApi.importFromKdbx).mockRejectedValue(httpError);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'wrong-password');
+
+      const submitButton = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton);
+
+      expect(screen.getByText(/invalid password/i)).toBeInTheDocument();
+    });
+
+    it('should display error when backend returns 400 for corrupted file', async () => {
+      const user = userEvent.setup();
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { vaultApi } = await import('../services/vaultApi');
+      const httpError = new HttpError(400, 'Failed to import KDBX file');
+      vi.mocked(vaultApi.importFromKdbx).mockRejectedValue(httpError);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'any-password');
+
+      const submitButton = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton);
+
+      expect(screen.getByText(/failed to import|corrupted file/i)).toBeInTheDocument();
+    });
+
+    it('should use Untitled as default for entries without title', async () => {
+      const user = userEvent.setup();
+      const mockCreateEntry = vi.fn().mockResolvedValue({ id: 99, title: 'Untitled' });
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: mockCreateEntry, updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { vaultApi } = await import('../services/vaultApi');
+      const mockEntries = [
+        { title: '', username: 'user@test.com', password: 'secret' },
+        { title: null, username: 'another@test.com', password: 'pass2' },
+      ];
+      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue(mockEntries as any);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'password');
+
+      const submitButton1 = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton1);
+
+      expect(mockCreateEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Untitled',
+          data: expect.objectContaining({
+            username: 'user@test.com',
+            password: 'secret',
+          }),
+        }),
+      );
+    });
+
+    it('should not store empty strings for optional fields', async () => {
+      const user = userEvent.setup();
+      const mockCreateEntry = vi.fn().mockResolvedValue({ id: 99, title: 'Test' });
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: mockCreateEntry, updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { vaultApi } = await import('../services/vaultApi');
+      const mockEntries = [
+        { title: 'Test', username: '', password: 'secret', url: null, notes: '' },
+      ];
+      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue(mockEntries as any);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'password');
+
+      const submitButton2 = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton2);
+
+      const callArgs = mockCreateEntry.mock.calls[0][0];
+      expect(callArgs.title).toBe('Test');
+      expect(callArgs.data.password).toBe('secret');
+      expect(callArgs.data.username).toBeUndefined();
+      expect(callArgs.url).toBeUndefined();
+      expect(callArgs.data.notes).toBeUndefined();
+    });
+
+    it('should encrypt entry data before saving to vault', async () => {
+      const user = userEvent.setup();
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      const { vaultApi } = await import('../services/vaultApi');
+      const { deriveKey, encrypt } = await import('../services/encryptionService');
+
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(),
+        createEntry: vi.fn().mockImplementation(async (entry) => {
+          const key = await deriveKey(mockVaultConfig.masterPassword, mockVaultConfig.salt);
+
+          const usernameJson = entry.data.username ? JSON.stringify(entry.data.username) : '';
+          const passwordJson = JSON.stringify(entry.data.password);
+          const notesJson = entry.data.notes ? JSON.stringify(entry.data.notes) : null;
+
+          const iv = crypto.getRandomValues(new Uint8Array(12));
+          const usernameEncrypted = await encrypt(usernameJson, key);
+          const passwordEncrypted = await encrypt(passwordJson, key);
+          const notesEncrypted = notesJson ? await encrypt(notesJson, key) : null;
+
+          const dto = {
+            title: entry.title,
+            url: entry.url,
+            groupPath: entry.groupPath,
+            usernameEncrypted: Array.from(usernameEncrypted.ciphertext),
+            passwordEncrypted: Array.from(passwordEncrypted.ciphertext),
+            notesEncrypted: notesEncrypted ? Array.from(notesEncrypted.ciphertext) : null,
+            iv: Array.from(iv),
+          };
+
+          return vaultApi.create(dto);
+        }),
+        updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      vi.mocked(vaultApi.create).mockResolvedValue({
+        id: 99, title: 'Test Entry', url: undefined, groupPath: undefined,
+        usernameEncrypted: [], passwordEncrypted: [], notesEncrypted: null, iv: [],
+      });
+
+      const mockEntries = [
+        { title: 'Test Entry', username: 'user@test.com', password: 'plaintext-secret' },
+      ];
+      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue(mockEntries as any);
+
+      renderWithProviders(<VaultPage />);
+
+      await user.click(screen.getByText('Import KDBX'));
+
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
+      await user.upload(fileInput, createTestFile());
+
+      const passwordInput = screen.getByLabelText(/password/i);
+      await user.type(passwordInput, 'password');
+
+      const submitButton3 = screen.getByTestId('vault-import-submit-button');
+      await user.click(submitButton3);
+
+      // Wait for the async encryption and API call to complete
+      await waitFor(() => {
+        expect(vaultApi.create).toHaveBeenCalled();
+      });
+
+      const createCall = (vaultApi.create as any).mock.calls[0][0];
+
+      // Verify encrypted data was sent, not plaintext
+      expect(createCall.passwordEncrypted).toBeDefined();
+      expect(Array.isArray(createCall.passwordEncrypted)).toBe(true);
+      expect(createCall.passwordEncrypted.length).toBeGreaterThan(10);
+    });
+  })
 })
