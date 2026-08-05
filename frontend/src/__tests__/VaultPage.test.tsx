@@ -67,7 +67,7 @@ vi.mock('../contexts/VaultContext', () => ({
     isUnlocked: true,
     isLoading: false,
     config: mockVaultConfig,
-    key: null as CryptoKey | null,
+    keyBytes: null as Uint8Array | null, // Changed from CryptoKey to raw bytes
     hasMasterPasswordSet: true,
     error: null,
     unlock: vi.fn(),
