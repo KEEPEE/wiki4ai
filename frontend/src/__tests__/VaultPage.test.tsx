@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -920,6 +920,152 @@ describe('VaultPage', () => {
 
       const errorElement = screen.getByTestId('vault-export-error')
       expect(errorElement.textContent).toContain('Network error')
+    })
+  })
+
+  describe('Import UI - modal, buttons, validation (F-01 to F-07)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      mockLocalStorage.clear()
+    })
+
+    it('F-01: should display Import KDBX button in header', async () => {
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      const importButton = screen.getByText('Import KDBX')
+      expect(importButton).toBeInTheDocument()
+    })
+
+    it('F-02: should open import modal when clicking Import KDBX button', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      const importButton = screen.getByText('Import KDBX')
+      await user.click(importButton)
+
+      const modal = screen.getByTestId('vault-import-modal')
+      expect(modal).toBeInTheDocument()
+    })
+
+    it('F-03: should disable submit button when file and password are missing', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await user.click(screen.getByText('Import KDBX'))
+
+      const submitButton = screen.getByTestId('vault-import-submit-button')
+      expect(submitButton).toBeDisabled()
+    })
+
+    it('F-04: should close modal and reset state when clicking Cancel', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await user.click(screen.getByText('Import KDBX'))
+      expect(screen.getByTestId('vault-import-modal')).toBeInTheDocument()
+
+      const cancelButton = screen.getByRole('button', { name: /cancel/i })
+      await user.click(cancelButton)
+
+      expect(screen.queryByTestId('vault-import-modal')).not.toBeInTheDocument()
+    })
+
+    it('F-05: should import entries successfully with valid file and password', async () => {
+      const user = userEvent.setup()
+      const mockEntries = [
+        { title: 'Test Entry', username: 'user@test.com', password: 'secret123' },
+      ]
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn().mockResolvedValue({ id: 99, title: 'Test Entry' }), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { vaultApi } = await import('../services/vaultApi')
+      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue(mockEntries)
+
+      renderWithProviders(<VaultPage />)
+
+      await user.click(screen.getByText('Import KDBX'))
+
+      // Upload file
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement
+      const testFile = new File(['fake kdbx content'], 'test.kdbx', { type: 'application/octet-stream' })
+      await user.upload(fileInput, testFile)
+
+      // Enter password
+      const passwordInput = screen.getByLabelText(/password/i)
+      await user.type(passwordInput, 'correct-password')
+
+      // Submit
+      const submitButton = screen.getByTestId('vault-import-submit-button')
+      await user.click(submitButton)
+
+      expect(vaultApi.importFromKdbx).toHaveBeenCalledWith(
+        testFile,
+        'correct-password',
+      )
+    })
+
+    it('F-06: should keep submit disabled when file is missing (validation)', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await user.click(screen.getByText('Import KDBX'))
+
+      // Enter password but no file selected
+      const passwordInput = screen.getByLabelText(/password/i)
+      await user.type(passwordInput, 'some-password')
+
+      // Submit button stays disabled - validation prevents submission without file
+      const submitButton = screen.getByTestId('vault-import-submit-button')
+      expect(submitButton).toBeDisabled()
+    })
+
+    it('F-07: should keep submit disabled when password is missing (validation)', async () => {
+      const user = userEvent.setup()
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await user.click(screen.getByText('Import KDBX'))
+
+      // Upload file but no password entered
+      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement
+      const testFile = new File(['fake kdbx content'], 'test.kdbx', { type: 'application/octet-stream' })
+      await user.upload(fileInput, testFile)
+
+      // Submit button stays disabled - validation prevents submission without password
+      const submitButton = screen.getByTestId('vault-import-submit-button')
+      expect(submitButton).toBeDisabled()
     })
   })
 
