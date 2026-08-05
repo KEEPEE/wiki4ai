@@ -364,8 +364,8 @@ class AesGcm {
     const R = new DataView(new ArrayBuffer(16));
     R.setUint32(0, 0xe1000000);
 
-    let z = new Uint8Array(16);
-    let v = new Uint8Array(y.length);
+    let z: Uint8Array = new Uint8Array(16);
+    let v: Uint8Array = new Uint8Array(y.length);
     v.set(y);
 
     for (let i = 0; i < 128; i++) {
@@ -405,7 +405,7 @@ class AesGcm {
 export const cryptoApi = {
   async sha256(data: Uint8Array): Promise<Uint8Array> {
     if (hasWebCrypto) {
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data as BufferSource);
       return new Uint8Array(hashBuffer);
     }
     return sha256(data);
