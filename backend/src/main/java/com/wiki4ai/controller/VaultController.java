@@ -206,6 +206,11 @@ public class VaultController {
             throw e;
         } catch (IOException e) {
             throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
+        } catch (Exception e) {
+            // Defense in depth: the KDBX parsing library can throw unchecked exceptions
+            // (e.g. on a truncated or non-KDBX file) that VaultImportService doesn't
+            // wrap. Surface those as a 400 instead of a raw 500.
+            throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
         }
     }
 

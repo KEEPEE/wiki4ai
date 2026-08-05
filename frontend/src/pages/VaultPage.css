@@ -305,17 +305,25 @@
 
 .edit-button,
 .copy-button {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  border-radius: 6px;
   font-size: 1.1rem;
   cursor: pointer;
-  padding: 0.25rem;
+  padding: 0.3rem 0.45rem;
   line-height: 1;
-  transition: transform var(--transition-fast);
+  min-width: 1.9rem;
+  min-height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform var(--transition-fast), background var(--transition-fast);
 }
 
+.edit-button:hover,
 .copy-button:hover {
-  transform: scale(1.2);
+  background: rgba(0, 240, 255, 0.12);
+  transform: scale(1.15);
 }
 
 .entry-details {

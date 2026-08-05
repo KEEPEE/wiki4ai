@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -128,6 +129,25 @@ public class GlobalExceptionHandler {
         body.put("message", "File size exceeds the maximum allowed size of 5MB");
 
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
+    }
+
+    /**
+     * Handle malformed multipart requests (e.g. missing/incorrect boundary because a
+     * client sent a non-multipart Content-Type for a file upload). Returns 400 Bad
+     * Request instead of a raw 500 - this happens during request argument binding,
+     * before the controller method body runs, so it can't be caught there.
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<Map<String, Object>> handleMultipartException(
+            MultipartException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "Bad Request");
+        body.put("message", "Invalid file upload request: " + ex.getMessage());
+
+        return ResponseEntity.badRequest().body(body);
     }
 
     /**
