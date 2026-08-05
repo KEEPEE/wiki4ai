@@ -81,7 +81,8 @@ public class VaultImportService {
     }
 
     private void extractEntriesRecursive(Group<?, ?, ?, ?> group, String parentPath, List<VaultEntryImportDTO> entries) {
-        String currentPath = parentPath.isEmpty() ? group.getName() : parentPath + "/" + group.getName();
+        String groupName = fixEncoding(group.getName());
+        String currentPath = parentPath.isEmpty() ? groupName : parentPath + "/" + groupName;
 
         for (Entry<?, ?, ?, ?> entry : group.getEntries()) {
             VaultEntryImportDTO dto = mapEntry(entry);
@@ -97,11 +98,11 @@ public class VaultImportService {
     }
 
     private VaultEntryImportDTO mapEntry(Entry<?, ?, ?, ?> entry) {
-        String title = entry.getProperty(Entry.STANDARD_PROPERTY_NAME_TITLE);
-        String username = entry.getUsername();
+        String title = fixEncoding(entry.getProperty(Entry.STANDARD_PROPERTY_NAME_TITLE));
+        String username = fixEncoding(entry.getUsername());
         String password = entry.getPassword();
-        String url = entry.getUrl();
-        String notes = entry.getProperty(Entry.STANDARD_PROPERTY_NAME_NOTES);
+        String url = fixEncoding(entry.getUrl());
+        String notes = fixEncoding(entry.getProperty(Entry.STANDARD_PROPERTY_NAME_NOTES));
 
         return VaultEntryImportDTO.builder()
                 .title(title != null ? title : "")
@@ -110,6 +111,34 @@ public class VaultImportService {
                 .url(url)
                 .notes(notes)
                 .build();
+    }
+
+    private String fixEncoding(String text) {
+        if (text == null || text.isEmpty()) return text;
+
+        long originalQuestionMarks = text.chars().filter(ch -> ch == '?').count();
+        if (originalQuestionMarks == 0) return text;
+
+        try {
+            byte[] bytes = text.getBytes(StandardCharsets.ISO_8859_1);
+
+            String fixedUtf8 = new String(bytes, StandardCharsets.UTF_8);
+            long utf8Qm = fixedUtf8.chars().filter(ch -> ch == '?').count();
+            if (utf8Qm < originalQuestionMarks) {
+                return fixedUtf8;
+            }
+
+            try {
+                String fixedCp1250 = new String(bytes, java.nio.charset.Charset.forName("CP1250"));
+                long cp1250Qm = fixedCp1250.chars().filter(ch -> ch == '?').count();
+                if (cp1250Qm < originalQuestionMarks) {
+                    return fixedCp1250;
+                }
+            } catch (Exception ignored) {}
+
+        } catch (Exception ignored) {}
+
+        return text;
     }
 
     private byte[] readAllBytes(java.io.InputStream is) throws IOException {

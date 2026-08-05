@@ -8,7 +8,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -121,6 +123,39 @@ class VaultImportServiceTest {
                     "Jira Login",
                     "Minimal Entry"
             );
+        }
+    }
+
+    @Test
+    @DisplayName("Should preserve UTF-8 characters in group names and entry fields")
+    void shouldPreserveUtf8Characters() throws IOException {
+        try (var inputStream = new ClassPathResource("real-world-sample.kdbx").getInputStream()) {
+            List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, "540413");
+
+            assertThat(entries).isNotEmpty();
+
+            boolean hasCorrectDiacritics = entries.stream()
+                    .map(VaultEntryImportDTO::getGroupPath)
+                    .anyMatch(path -> path != null && path.contains("Šablóny"));
+
+            assertThat(hasCorrectDiacritics)
+                    .as("Slovak diacritics should be preserved (e.g., Šablóny)")
+                    .isTrue();
+
+            boolean hasReplacementChars = entries.stream()
+                    .flatMap(e -> Stream.of(
+                            e.getTitle(),
+                            e.getUsername(),
+                            e.getUrl(),
+                            e.getNotes(),
+                            e.getGroupPath()
+                    ))
+                    .filter(s -> s != null && !s.isEmpty())
+                    .anyMatch(s -> s.contains("\uFFFD"));
+
+            assertThat(hasReplacementChars)
+                    .as("No fields should have Unicode replacement characters (encoding failure)")
+                    .isFalse();
         }
     }
 }
