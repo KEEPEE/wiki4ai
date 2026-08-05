@@ -430,7 +430,7 @@ export const cryptoApi = {
         { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
         keyMaterial,
         { name: 'AES-GCM', length: 256 },
-        false,
+        true, // extractable: true - needed to export raw key bytes for use with encrypt/decrypt methods
         ['encrypt', 'decrypt']
       );
 
