@@ -8,8 +8,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.InvalidParameterSpecException;
+import java.util.Arrays;
 import java.util.Base64;
-import java.util.Objects;
 
 @Service
 public class VaultMasterPasswordService {
@@ -49,7 +49,7 @@ public class VaultMasterPasswordService {
             byte[] expectedHash = Base64.getDecoder().decode(parts[1]);
             byte[] actualHash = deriveKey(masterPassword, salt);
 
-            return Objects.equals(actualHash, expectedHash);
+            return Arrays.equals(actualHash, expectedHash);
         } catch (Exception e) {
             throw new RuntimeException("Failed to verify master password", e);
         }
