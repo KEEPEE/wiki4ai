@@ -651,16 +651,16 @@ describe('VaultPage', () => {
         expect(screen.getByTestId('vault-copy-password-1')).toBeInTheDocument()
       })
 
-      // Click copy button - verify it triggers the visual feedback (checkmark)
+      // Click copy button - verify it triggers the visual feedback (checkmark icon)
       await user.click(screen.getByTestId('vault-copy-password-1'))
 
       // Check that clipboard API was called (userEvent's stub tracks calls)
       await waitFor(() => {
-        expect(screen.getByTestId('vault-copy-password-1')).toHaveTextContent('✓')
+        expect(screen.getByTestId('vault-copy-password-1').querySelector('path')?.getAttribute('d')).toBe('M5 13l4 4L19 7')
       })
     })
 
-    it('should show checkmark after copying', async () => {
+    it('should show checkmark icon after copying', async () => {
       const { useVaultEntries } = await import('../hooks/useVaultEntries')
       vi.mocked(useVaultEntries).mockReturnValue({
         entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
@@ -674,14 +674,102 @@ describe('VaultPage', () => {
         expect(screen.getByTestId('vault-copy-password-1')).toBeInTheDocument()
       })
 
-      // Initially shows clipboard icon
-      expect(screen.getByTestId('vault-copy-password-1')).toHaveTextContent('📋')
+      // Initially shows clipboard icon (not the checkmark)
+      expect(screen.getByTestId('vault-copy-password-1').querySelector('path')?.getAttribute('d')).not.toBe('M5 13l4 4L19 7')
 
       await user.click(screen.getByTestId('vault-copy-password-1'))
 
-      // After click, shows checkmark
+      // After click, shows checkmark icon
       await waitFor(() => {
-        expect(screen.getByTestId('vault-copy-password-1')).toHaveTextContent('✓')
+        expect(screen.getByTestId('vault-copy-password-1').querySelector('path')?.getAttribute('d')).toBe('M5 13l4 4L19 7')
+      })
+    })
+  })
+
+  describe('Delete entry', () => {
+    const mockEntries = [
+      { id: 1, title: 'GitHub', url: '', groupPath: '/Work', data: { password: 'gh-secret-pass' }, createdAt: '', updatedAt: '' },
+    ]
+
+    it('should show delete button on each entry', async () => {
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-delete-entry-1')).toBeInTheDocument()
+      })
+    })
+
+    it('should ask for confirmation and call deleteEntry when confirmed', async () => {
+      const user = userEvent.setup()
+      const mockDeleteEntry = vi.fn().mockResolvedValue(undefined)
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: mockDeleteEntry, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-delete-entry-1')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByTestId('vault-delete-entry-1'))
+
+      expect(window.confirm).toHaveBeenCalledWith(expect.stringContaining('GitHub'))
+      await waitFor(() => {
+        expect(mockDeleteEntry).toHaveBeenCalledWith(1)
+      })
+    })
+
+    it('should NOT call deleteEntry when confirmation is cancelled', async () => {
+      const user = userEvent.setup()
+      const mockDeleteEntry = vi.fn().mockResolvedValue(undefined)
+      vi.spyOn(window, 'confirm').mockReturnValue(false)
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: mockDeleteEntry, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-delete-entry-1')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByTestId('vault-delete-entry-1'))
+
+      expect(window.confirm).toHaveBeenCalled()
+      expect(mockDeleteEntry).not.toHaveBeenCalled()
+    })
+
+    it('should show an error message when delete fails', async () => {
+      const user = userEvent.setup()
+      const mockDeleteEntry = vi.fn().mockRejectedValue(new Error('Network error'))
+      vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries')
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: mockEntries, isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: mockDeleteEntry, isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<VaultPage />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-delete-entry-1')).toBeInTheDocument()
+      })
+
+      await user.click(screen.getByTestId('vault-delete-entry-1'))
+
+      await waitFor(() => {
+        expect(screen.getByTestId('vault-delete-error')).toHaveTextContent('Network error')
       })
     })
   })
