@@ -24,6 +24,7 @@ requiring server-side configuration.
 """
 
 import argparse
+import base64
 import contextvars
 import os
 import sys
@@ -907,6 +908,350 @@ def copy_document(project_slug: str, doc_slug: str, target_project_slug: Optiona
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/copy", body)
 
 
+# ─── Vault Crypto Helpers ─────────────────────────────────────────────────────
+# Vault entries are end-to-end encrypted: username/password/notes are encrypted
+# HERE, in this MCP server process, with a key derived from the user's master
+# password + a salt synced from the backend. The backend only ever stores and
+# returns opaque ciphertext for those three fields - it never sees plaintext.
+# title/url/groupPath are NOT encrypted (plain columns), so they can be listed
+# and searched without the master password.
+#
+# The crypto here must byte-for-byte match the webui's implementation
+# (frontend/src/services/encryptionService.ts + cryptoApi.ts) so that entries
+# created via MCP decrypt correctly in the browser, and vice versa:
+#   1. The raw master password is first hashed with SHA-256 (hex-encoded) -
+#      this hash, not the raw password, is what's sent to the backend for
+#      verify/set AND what's fed into PBKDF2 below.
+#   2. PBKDF2-HMAC-SHA256, 100_000 iterations, 32-byte key, salted with the
+#      Base64 salt from GET /vault/master-password/salt.
+#   3. AES-256-GCM, 12-byte random IV. The backend persists a single IV per
+#      entry shared across all three fields, so all three must be encrypted
+#      with the same IV.
+#   4. Each field's plaintext is JSON-encoded before encryption (so a bare
+#      string becomes `"like this"`) and JSON-decoded after decryption -
+#      matching JSON.stringify()/JSON.parse() on the frontend.
+
+import json as _vault_json
+import secrets as _vault_secrets
+
+try:
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+except ImportError:
+    AESGCM = None
+
+_VAULT_PBKDF2_ITERATIONS = 100_000
+_VAULT_KEY_LENGTH = 32  # AES-256
+_VAULT_IV_LENGTH = 12  # AES-GCM standard nonce size
+
+
+def _vault_require_crypto():
+    if AESGCM is None:
+        raise MCPToolError(
+            "The 'cryptography' package is required for vault operations. "
+            "Install it with: pip install cryptography"
+        )
+
+
+def _vault_password_hash(master_password: str) -> str:
+    """Reproduce the frontend's SHA-256(hex) preprocessing of the raw master password."""
+    import hashlib
+    return hashlib.sha256(master_password.encode("utf-8")).hexdigest()
+
+
+def _vault_derive_key(master_password_hash: str, salt_b64: str) -> bytes:
+    """Derive the AES-256 vault key via PBKDF2-HMAC-SHA256 (100k iterations)."""
+    import hashlib
+    salt = base64.b64decode(salt_b64)
+    return hashlib.pbkdf2_hmac(
+        "sha256", master_password_hash.encode("utf-8"), salt, _VAULT_PBKDF2_ITERATIONS, dklen=_VAULT_KEY_LENGTH
+    )
+
+
+def _vault_get_key(master_password: str) -> bytes:
+    """Verify the master password against the backend and derive the vault encryption key.
+
+    Raises MCPToolError with a clear, actionable message if the vault has not
+    been set up yet or the master password is incorrect.
+    """
+    if not master_password:
+        raise MCPToolError("master_password is required for this operation")
+
+    password_hash = _vault_password_hash(master_password)
+
+    try:
+        _api_request("POST", "/v1/vault/master-password/verify", {"masterPasswordHash": password_hash})
+    except MCPToolError as e:
+        if e.status_code == 401:
+            raise MCPToolError("Incorrect vault master password")
+        raise
+
+    try:
+        salt_response = _api_request("GET", "/v1/vault/master-password/salt")
+    except MCPToolError as e:
+        if e.status_code == 404:
+            raise MCPToolError(
+                "Vault master password verified, but no encryption salt is stored for this "
+                "user (pre-dates salt syncing). Set up the vault again via the webui "
+                "(Vault page) to fix this."
+            )
+        raise
+
+    return _vault_derive_key(password_hash, salt_response["salt"])
+
+
+def _vault_encrypt_field(value: str, key: bytes, iv: bytes) -> dict:
+    """Encrypt one vault field value into the wire format the backend expects: {ciphertext, iv} (Base64)."""
+    _vault_require_crypto()
+    plaintext = _vault_json.dumps(value).encode("utf-8")
+    ciphertext = AESGCM(key).encrypt(iv, plaintext, None)
+    return {
+        "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
+        "iv": base64.b64encode(iv).decode("ascii"),
+    }
+
+
+def _vault_decrypt_field(field: Optional[dict], key: bytes) -> Optional[str]:
+    """Decrypt one vault field. Returns None if the field is absent or fails to decrypt."""
+    if not field or not field.get("ciphertext") or not field.get("iv"):
+        return None
+    _vault_require_crypto()
+    try:
+        ciphertext = base64.b64decode(field["ciphertext"])
+        iv = base64.b64decode(field["iv"])
+        plaintext = AESGCM(key).decrypt(iv, ciphertext, None)
+        return _vault_json.loads(plaintext.decode("utf-8"))
+    except Exception:
+        return None
+
+
+def _vault_entry_metadata(entry: dict) -> dict:
+    """Metadata-only view of a vault entry (no decryption - these fields are plaintext on the backend)."""
+    return {
+        "id": entry.get("id"),
+        "title": entry.get("title"),
+        "url": entry.get("url"),
+        "groupPath": entry.get("groupPath"),
+        "createdAt": entry.get("createdAt"),
+        "updatedAt": entry.get("updatedAt"),
+    }
+
+
+def _vault_decrypt_entry(entry: dict, key: bytes) -> dict:
+    """Full decrypted view of a vault entry, including plaintext username/password/notes."""
+    return {
+        "id": entry.get("id"),
+        "title": entry.get("title"),
+        "url": entry.get("url"),
+        "groupPath": entry.get("groupPath"),
+        "username": _vault_decrypt_field(entry.get("usernameEncrypted"), key),
+        "password": _vault_decrypt_field(entry.get("passwordEncrypted"), key),
+        "notes": _vault_decrypt_field(entry.get("notesEncrypted"), key),
+        "createdAt": entry.get("createdAt"),
+        "updatedAt": entry.get("updatedAt"),
+    }
+
+
+# ─── Vault Tools ──────────────────────────────────────────────────────────────
+
+def vault_status() -> dict:
+    """Check whether the current user has a vault master password set up.
+
+    Call this before any other vault_* tool that takes a master_password, so you
+    can give the user a clear message instead of a confusing error. MCP tools
+    intentionally do NOT create the initial master password - choosing and
+    confirming it is a one-time, high-stakes action best done in the webui
+    (Vault page -> Set up Vault), which has proper confirm-password UX.
+
+    Returns:
+        Dict with "hasMasterPasswordSet" (bool).
+    """
+    is_set = _api_request("GET", "/v1/vault/master-password/status")
+    return {"hasMasterPasswordSet": bool(is_set)}
+
+
+def vault_list_entries() -> list[dict]:
+    """List all vault entries (metadata only: title, url, group, timestamps).
+
+    Does NOT require the master password and does NOT return usernames/passwords -
+    those are end-to-end encrypted and only decrypted by vault_get_entry(). Use
+    this to browse/organize entries before fetching a specific one's credentials.
+
+    Returns:
+        List of dicts with id, title, url, groupPath, createdAt, updatedAt.
+
+    Example:
+        entries = vault_list_entries()
+        # Use entries[0]['id'] with vault_get_entry() to read its credentials
+    """
+    entries = _api_request("GET", "/v1/vault/entries")
+    return [_vault_entry_metadata(e) for e in entries]
+
+
+def vault_search_entries(query: str, group_path: Optional[str] = None) -> list[dict]:
+    """Search vault entries by title/URL (metadata only, no master password needed).
+
+    Args:
+        query: Search text matched against title and URL (case-insensitive, required).
+        group_path: Optional group_path prefix filter (e.g., '/Work').
+
+    Returns:
+        List of matching entries (metadata only - see vault_list_entries).
+
+    Example:
+        vault_search_entries("github")
+    """
+    from urllib.parse import quote_plus as _quote_plus
+    params = f"?q={_quote_plus(query)}"
+    if group_path:
+        params += f"&groupPath={_quote_plus(group_path)}"
+    entries = _api_request("GET", f"/v1/vault/search{params}")
+    return [_vault_entry_metadata(e) for e in entries]
+
+
+def vault_get_entry(entry_id: int, master_password: str) -> dict:
+    """Get a single vault entry WITH its decrypted username/password/notes.
+
+    Requires the vault master password (same one used to unlock the webui vault)
+    to derive the decryption key. Decryption happens locally in this MCP server
+    process - the backend never sees the plaintext.
+
+    Args:
+        entry_id: Numeric ID of the entry (from vault_list_entries/vault_search_entries).
+        master_password: The vault master password.
+
+    Returns:
+        Dict with id, title, url, groupPath, username, password, notes (plaintext), createdAt, updatedAt.
+
+    Example:
+        vault_get_entry(42, "my-master-password")
+    """
+    key = _vault_get_key(master_password)
+    entry = _api_request("GET", f"/v1/vault/entries/{entry_id}")
+    return _vault_decrypt_entry(entry, key)
+
+
+def vault_create_entry(
+    title: str,
+    password: str,
+    master_password: str,
+    username: Optional[str] = None,
+    notes: Optional[str] = None,
+    url: Optional[str] = None,
+    group_path: Optional[str] = None,
+) -> dict:
+    """Add a new password entry to the vault, encrypted client-side (here) before sending.
+
+    The resulting entry is immediately visible and decryptable in the webui
+    vault with the same master password - MCP and webui share one vault.
+
+    Args:
+        title: Entry title (e.g., "GitHub"), required. Stored in plaintext.
+        password: The password to store, required. Encrypted before sending.
+        master_password: The vault master password used to derive the encryption key.
+        username: Optional username/email for this entry. Encrypted.
+        notes: Optional free-text notes. Encrypted.
+        url: Optional URL. Stored in PLAINTEXT (used for search/display, not encrypted).
+        group_path: Optional folder path (e.g., "/Work"). Stored in PLAINTEXT.
+
+    Returns:
+        Dict with id, title, url, groupPath, createdAt, updatedAt (no plaintext credentials echoed back).
+
+    Example:
+        vault_create_entry("GitHub", "s3cr3t!", "my-master-password", username="me@example.com")
+    """
+    key = _vault_get_key(master_password)
+    # One IV shared across all fields of this entry - the backend schema only
+    # persists a single IV per entry (see VaultEntry.iv), not one per field.
+    iv = _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+
+    body = {
+        "title": title,
+        "url": url,
+        "groupPath": group_path,
+        "passwordEncrypted": _vault_encrypt_field(password, key, iv),
+    }
+    if username:
+        body["usernameEncrypted"] = _vault_encrypt_field(username, key, iv)
+    if notes:
+        body["notesEncrypted"] = _vault_encrypt_field(notes, key, iv)
+
+    created = _api_request("POST", "/v1/vault/entries", body)
+    return _vault_entry_metadata(created)
+
+
+def vault_update_entry(
+    entry_id: int,
+    master_password: str,
+    title: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    notes: Optional[str] = None,
+    url: Optional[str] = None,
+    group_path: Optional[str] = None,
+) -> dict:
+    """Edit an existing vault entry. Only pass the fields you want to change.
+
+    The backend stores a full snapshot per entry (not a diff), so this tool
+    first fetches and decrypts the current entry, merges in your changes, and
+    re-submits the whole thing - any field left as None keeps its current value.
+
+    Args:
+        entry_id: Numeric ID of the entry to edit.
+        master_password: The vault master password.
+        title, username, password, notes, url, group_path: New values (optional).
+            Leave as None to keep the entry's current value for that field.
+
+    Returns:
+        Dict with id, title, url, groupPath, createdAt, updatedAt.
+
+    Example:
+        vault_update_entry(42, "my-master-password", password="new-s3cr3t!")
+    """
+    key = _vault_get_key(master_password)
+    current = _api_request("GET", f"/v1/vault/entries/{entry_id}")
+    decrypted = _vault_decrypt_entry(current, key)
+
+    new_title = title if title is not None else decrypted["title"]
+    new_username = username if username is not None else decrypted["username"]
+    new_password = password if password is not None else decrypted["password"]
+    new_notes = notes if notes is not None else decrypted["notes"]
+    new_url = url if url is not None else decrypted["url"]
+    new_group_path = group_path if group_path is not None else decrypted["groupPath"]
+
+    if not new_password:
+        raise MCPToolError("This entry has no password to preserve - a password value is required")
+
+    iv = _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+    body = {
+        "title": new_title,
+        "url": new_url,
+        "groupPath": new_group_path,
+        "passwordEncrypted": _vault_encrypt_field(new_password, key, iv),
+    }
+    if new_username:
+        body["usernameEncrypted"] = _vault_encrypt_field(new_username, key, iv)
+    if new_notes:
+        body["notesEncrypted"] = _vault_encrypt_field(new_notes, key, iv)
+
+    updated = _api_request("PUT", f"/v1/vault/entries/{entry_id}", body)
+    return _vault_entry_metadata(updated)
+
+
+def vault_delete_entry(entry_id: int) -> dict:
+    """Permanently delete a vault entry. This action is irreversible.
+
+    Does not require the master password (deletion doesn't need decryption).
+
+    Args:
+        entry_id: Numeric ID of the entry to delete.
+
+    Returns:
+        Confirmation message on success.
+    """
+    _api_request("DELETE", f"/v1/vault/entries/{entry_id}")
+    return {"message": f"Vault entry {entry_id} deleted successfully"}
+
+
 # ─── MCP Resources (for agents that support resource reading) ────────────────
 
 @mcp.resource("wiki://{project_slug}/{doc_slug}")
@@ -1003,6 +1348,13 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(move_document)
     mcp.add_tool(copy_document)
     mcp.add_tool(get_mermaid_guide)
+    mcp.add_tool(vault_status)
+    mcp.add_tool(vault_list_entries)
+    mcp.add_tool(vault_search_entries)
+    mcp.add_tool(vault_get_entry)
+    mcp.add_tool(vault_create_entry)
+    mcp.add_tool(vault_update_entry)
+    mcp.add_tool(vault_delete_entry)
 
     # MCP Resources are auto-registered by FastMCP via @mcp.resource decorators above.
     # No need for explicit add_resource() calls — the decorated functions are already registered.

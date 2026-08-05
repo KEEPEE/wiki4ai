@@ -45,6 +45,16 @@ test-frontend:
   # add `npm run lint` here too - it's the check that would have caught the
   # react-hooks/rules-of-hooks violation that caused React error #310 in VaultPage.
 
+test-mcp:
+  stage: test
+  image: python:3.12-slim
+  script:
+    - cd mcp-server
+    - pip install --no-cache-dir -r requirements.txt pytest
+    - python -m pytest tests/ -q
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
 # ── Build and push Docker images to GitLab Registry ────────────────────────────
 
 build-backend:

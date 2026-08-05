@@ -783,4 +783,138 @@ class VaultControllerTest {
                     .andExpect(jsonPath("$.message").value("Authentication required"));
         }
     }
+
+    @Nested
+    @DisplayName("Master password + vault encryption salt")
+    class MasterPasswordAndSaltTests {
+
+        @Test
+        @DisplayName("POST /master-password/set should persist hash and salt")
+        void shouldSetMasterPasswordAndSalt() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder().id(TEST_USER_ID).username(TEST_USERNAME).build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+            given(masterPasswordService.hashPassword("plainhash")).willReturn("salt:hash");
+
+            com.wiki4ai.dto.SetMasterPasswordRequestDTO request = com.wiki4ai.dto.SetMasterPasswordRequestDTO.builder()
+                    .masterPasswordHash("plainhash")
+                    .salt("dGVzdHNhbHQ=")
+                    .build();
+
+            mockMvc.perform(post("/api/v1/vault/master-password/set")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+
+            org.junit.jupiter.api.Assertions.assertEquals("salt:hash", user.getVaultMasterPasswordHash());
+            org.junit.jupiter.api.Assertions.assertEquals("dGVzdHNhbHQ=", user.getVaultSalt());
+            verify(userRepository).save(user);
+        }
+
+        @Test
+        @DisplayName("POST /master-password/set without salt should not overwrite an existing salt")
+        void shouldNotOverwriteSaltWhenNotProvided() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder()
+                    .id(TEST_USER_ID).username(TEST_USERNAME).vaultSalt("existing-salt").build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+            given(masterPasswordService.hashPassword(any())).willReturn("salt:hash");
+
+            com.wiki4ai.dto.SetMasterPasswordRequestDTO request = com.wiki4ai.dto.SetMasterPasswordRequestDTO.builder()
+                    .masterPasswordHash("plainhash")
+                    .build();
+
+            mockMvc.perform(post("/api/v1/vault/master-password/set")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+
+            org.junit.jupiter.api.Assertions.assertEquals("existing-salt", user.getVaultSalt());
+        }
+
+        @Test
+        @DisplayName("GET /master-password/salt should return the salt when set")
+        void shouldReturnSaltWhenSet() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder()
+                    .id(TEST_USER_ID).username(TEST_USERNAME).vaultSalt("dGVzdHNhbHQ=").build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+
+            mockMvc.perform(get("/api/v1/vault/master-password/salt"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.salt").value("dGVzdHNhbHQ="));
+        }
+
+        @Test
+        @DisplayName("GET /master-password/salt should return 404 when no salt is set yet")
+        void shouldReturnNotFoundWhenSaltMissing() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder().id(TEST_USER_ID).username(TEST_USERNAME).build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+
+            mockMvc.perform(get("/api/v1/vault/master-password/salt"))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("GET /master-password/salt should return 403 when no authentication present")
+        void shouldReturnForbiddenWhenNotAuthenticatedForSalt() throws Exception {
+            SecurityContextHolder.clearContext();
+
+            mockMvc.perform(get("/api/v1/vault/master-password/salt"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("GET /master-password/status should reflect isPasswordSet() result")
+        void shouldReturnMasterPasswordStatus() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder()
+                    .id(TEST_USER_ID).username(TEST_USERNAME).vaultMasterPasswordHash("salt:hash").build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+            given(masterPasswordService.isPasswordSet("salt:hash")).willReturn(true);
+
+            mockMvc.perform(get("/api/v1/vault/master-password/status"))
+                    .andExpect(status().isOk())
+                    .andExpect(content().string("true"));
+        }
+
+        @Test
+        @DisplayName("POST /master-password/verify should return 200 for a correct password")
+        void shouldVerifyCorrectMasterPassword() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder()
+                    .id(TEST_USER_ID).username(TEST_USERNAME).vaultMasterPasswordHash("salt:hash").build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+            given(masterPasswordService.verifyPassword("plainhash", "salt:hash")).willReturn(true);
+
+            com.wiki4ai.dto.VerifyMasterPasswordRequestDTO request = com.wiki4ai.dto.VerifyMasterPasswordRequestDTO.builder()
+                    .masterPasswordHash("plainhash")
+                    .build();
+
+            mockMvc.perform(post("/api/v1/vault/master-password/verify")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("POST /master-password/verify should return 401 for an incorrect password")
+        void shouldRejectIncorrectMasterPassword() throws Exception {
+            setupAuthenticatedUser();
+            com.wiki4ai.model.User user = com.wiki4ai.model.User.builder()
+                    .id(TEST_USER_ID).username(TEST_USERNAME).vaultMasterPasswordHash("salt:hash").build();
+            given(userRepository.findByUsername(TEST_USERNAME)).willReturn(Optional.of(user));
+            given(masterPasswordService.verifyPassword("wronghash", "salt:hash")).willReturn(false);
+
+            com.wiki4ai.dto.VerifyMasterPasswordRequestDTO request = com.wiki4ai.dto.VerifyMasterPasswordRequestDTO.builder()
+                    .masterPasswordHash("wronghash")
+                    .build();
+
+            mockMvc.perform(post("/api/v1/vault/master-password/verify")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(request)))
+                    .andExpect(status().isUnauthorized());
+        }
+    }
 }

@@ -2,6 +2,7 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.EncryptedVaultEntryDTO;
 import com.wiki4ai.dto.SetMasterPasswordRequestDTO;
+import com.wiki4ai.dto.VaultSaltResponseDTO;
 import com.wiki4ai.dto.VerifyMasterPasswordRequestDTO;
 import com.wiki4ai.dto.VaultEntryImportDTO;
 import com.wiki4ai.dto.VaultEntryRequestDTO;
@@ -146,15 +147,30 @@ public class VaultController {
         return ResponseEntity.ok(isSet);
     }
 
-    @Operation(summary = "Nastaviť master password", description = "Uloží hash master password pre používateľa. Hash je vypočítaný na kliente (PBKDF2).")
+    @Operation(summary = "Nastaviť master password", description = "Uloží hash master password a šifrovací salt pre používateľa. Hash aj derivácia kľúča prebiehajú na klientovi (PBKDF2).")
     @ApiResponse(responseCode = "200", description = "Master password nastavené")
     @PostMapping("/master-password/set")
     public ResponseEntity<Void> setMasterPassword(@RequestBody SetMasterPasswordRequestDTO request) {
         User user = getCurrentUser();
         String hash = masterPasswordService.hashPassword(request.getMasterPasswordHash());
         user.setVaultMasterPasswordHash(hash);
+        if (request.getSalt() != null && !request.getSalt().isBlank()) {
+            user.setVaultSalt(request.getSalt());
+        }
         userRepository.save(user);
         return ResponseEntity.ok().build();
+    }
+
+    @Operation(summary = "Získať vault encryption salt", description = "Vráti Base64 salt použitý na odvodenie šifrovacieho kľúča vaultu. Salt nie je tajný údaj - slúži len na PBKDF2 deriváciu, nie na autentifikáciu.")
+    @ApiResponse(responseCode = "200", description = "Salt nájdený")
+    @ApiResponse(responseCode = "404", description = "Salt nie je nastavený (vault ešte nebol nastavený, alebo predchádza tejto funkcii)")
+    @GetMapping("/master-password/salt")
+    public ResponseEntity<VaultSaltResponseDTO> getVaultSalt() {
+        User user = getCurrentUser();
+        if (user.getVaultSalt() == null || user.getVaultSalt().isBlank()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(VaultSaltResponseDTO.builder().salt(user.getVaultSalt()).build());
     }
 
     @Operation(summary = "Overiť master password", description = "Overí či je zadaný hash správny pre používateľa.")

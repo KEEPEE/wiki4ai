@@ -5,13 +5,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * Response DTO carrying the vault encryption salt for the current user.
+ * The salt is not secret - it only strengthens PBKDF2 against precomputed-hash attacks.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SetMasterPasswordRequestDTO {
-    private String masterPasswordHash;
-
-    /** Base64-encoded PBKDF2 salt used to derive the vault encryption key. Not secret. */
+public class VaultSaltResponseDTO {
     private String salt;
 }

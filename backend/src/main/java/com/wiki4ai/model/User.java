@@ -54,6 +54,15 @@ public class User {
     private String vaultMasterPasswordHash;
 
     /**
+     * Base64-encoded PBKDF2 salt used by clients to derive the vault encryption key.
+     * Not secret - only slows down precomputed-hash attacks - but synced server-side
+     * so any authenticated client (webui, MCP) can derive the same key from the master
+     * password without depending on a single browser's localStorage.
+     */
+    @Column(name = "vault_salt")
+    private String vaultSalt;
+
+    /**
      * One-to-one relationship with RefreshToken.
      * A user has at most one active refresh token.
      */
@@ -107,6 +116,13 @@ public class User {
      */
     public void setVaultMasterPasswordHash(String vaultMasterPasswordHash) {
         this.vaultMasterPasswordHash = vaultMasterPasswordHash;
+    }
+
+    /**
+     * Set the vault encryption salt (Base64-encoded).
+     */
+    public void setVaultSalt(String vaultSalt) {
+        this.vaultSalt = vaultSalt;
     }
 
     @PrePersist
