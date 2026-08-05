@@ -106,10 +106,27 @@ export function VaultProvider({ children }: VaultProviderProps) {
         throw new Error('Incorrect master password');
       }
 
-      const salt = getSaltFromStorage();
+      let salt = getSaltFromStorage();
       if (!salt) {
-        // Salt missing but master password hash exists on backend → new browser/device
-        // Signal parent to show setup screen instead of error
+        // Salt missing locally (new browser/device) - recover it from the backend,
+        // which is synced on setup, instead of generating a new one. Generating a
+        // new salt here would derive a different key and silently orphan every
+        // entry encrypted under the old one.
+        const saltResponse = await fetch(`${apiUrl}/vault/master-password/salt`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (saltResponse.ok) {
+          const saltData: { salt: string } = await saltResponse.json();
+          localStorage.setItem(VAULT_SALT_KEY, saltData.salt);
+          salt = getSaltFromStorage();
+        }
+      }
+
+      if (!salt) {
+        // No salt recoverable anywhere (vault predates server-side salt sync) -
+        // the only remaining option is a fresh setup, which cannot decrypt
+        // pre-existing entries. Signal parent to show setup screen instead of error.
         setNeedsReinit(true);
         setError('Vault needs re-initialization for this browser. Please set up your vault again.');
         setIsLoading(false);
@@ -139,7 +156,8 @@ export function VaultProvider({ children }: VaultProviderProps) {
       }
 
       const salt = crypto.getRandomValues(new Uint8Array(16));
-      localStorage.setItem(VAULT_SALT_KEY, btoa(String.fromCharCode(...salt)));
+      const saltB64 = btoa(String.fromCharCode(...salt));
+      localStorage.setItem(VAULT_SALT_KEY, saltB64);
 
       const apiUrl = import.meta.env.VITE_API_URL || '/api/v1';
       const response = await fetch(`${apiUrl}/vault/master-password/set`, {
@@ -148,7 +166,9 @@ export function VaultProvider({ children }: VaultProviderProps) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ masterPasswordHash }),
+        // Salt is synced server-side (not secret) so any authenticated client
+        // (this browser, another browser, MCP tools) can derive the same key.
+        body: JSON.stringify({ masterPasswordHash, salt: saltB64 }),
       });
 
       if (!response.ok) {

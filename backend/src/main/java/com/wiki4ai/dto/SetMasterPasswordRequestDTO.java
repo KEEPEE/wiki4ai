@@ -11,4 +11,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SetMasterPasswordRequestDTO {
     private String masterPasswordHash;
+
+    /** Base64-encoded PBKDF2 salt used to derive the vault encryption key. Not secret. */
+    private String salt;
 }
