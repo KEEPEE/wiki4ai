@@ -23,16 +23,16 @@ interface EncryptedFields {
   iv: Uint8Array;
 }
 
-async function encryptEntryData(data: VaultEntryData, key: CryptoKey): Promise<EncryptedFields> {
+async function encryptEntryData(data: VaultEntryData, keyBytes: Uint8Array): Promise<EncryptedFields> {
   const usernameJson = data.username ? JSON.stringify(data.username) : '';
   const passwordJson = JSON.stringify(data.password);
   const notesJson = data.notes ? JSON.stringify(data.notes) : null;
 
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
-  const usernameEncrypted = await encrypt(usernameJson, key);
-  const passwordEncrypted = await encrypt(passwordJson, key);
-  const notesEncrypted = notesJson ? await encrypt(notesJson, key) : null;
+  const usernameEncrypted = await encrypt(usernameJson, keyBytes);
+  const passwordEncrypted = await encrypt(passwordJson, keyBytes);
+  const notesEncrypted = notesJson ? await encrypt(notesJson, keyBytes) : null;
 
   return {
     usernameEncrypted: usernameEncrypted.ciphertext,
@@ -42,17 +42,17 @@ async function encryptEntryData(data: VaultEntryData, key: CryptoKey): Promise<E
   };
 }
 
-async function decryptEntryData(backendEntry: BackendVaultEntry, key: CryptoKey): Promise<VaultEntryData> {
+async function decryptEntryData(backendEntry: BackendVaultEntry, keyBytes: Uint8Array): Promise<VaultEntryData> {
   const usernameDecrypted = await decrypt(
     new Uint8Array(backendEntry.usernameEncrypted),
     new Uint8Array(backendEntry.iv),
-    key,
+    keyBytes,
   );
 
   const passwordDecrypted = await decrypt(
     new Uint8Array(backendEntry.passwordEncrypted),
     new Uint8Array(backendEntry.iv),
-    key,
+    keyBytes,
   );
 
   let notesDecrypted: string | undefined;
@@ -61,7 +61,7 @@ async function decryptEntryData(backendEntry: BackendVaultEntry, key: CryptoKey)
       notesDecrypted = await decrypt(
         new Uint8Array(backendEntry.notesEncrypted),
         new Uint8Array(backendEntry.iv),
-        key,
+        keyBytes,
       );
     } catch {
       notesDecrypted = undefined;

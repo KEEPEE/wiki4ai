@@ -1,51 +1,28 @@
 /**
- * Client-side encryption utility using Web Crypto API.
+ * Client-side encryption utility using Web Crypto API with fallback for insecure contexts.
  *
  * Provides PBKDF2 key derivation and AES-256-GCM encrypt/decrypt operations
- * for securing vault data in the browser.
+ * for securing vault data in the browser. Works on both HTTPS and HTTP.
  */
 
+import { cryptoApi } from './cryptoApi';
 import type { EncryptedVaultEntry } from '../types/vault';
 
 const PBKDF2_ITERATIONS = 100_000;
-const HASH_ALGORITHM = 'SHA-256';
-const AES_KEY_LENGTH = 256;
-const IV_LENGTH = 12;
 
 /**
  * Derive an encryption key from a master password using PBKDF2.
+ * Returns raw key bytes (Uint8Array) for use with cryptoApi.
  *
  * @param masterPassword - The user's master password
  * @param salt - Random salt bytes (should be at least 16 bytes)
- * @returns A CryptoKey suitable for AES-GCM operations
+ * @returns Raw encryption key bytes suitable for AES-GCM operations
  */
 export async function deriveKey(
   masterPassword: string,
   salt: Uint8Array,
-): Promise<CryptoKey> {
-  const encoder = new TextEncoder();
-  const passwordBuffer = encoder.encode(masterPassword);
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    passwordBuffer,
-    'PBKDF2',
-    false,
-    ['deriveKey'],
-  );
-
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: new Uint8Array(salt),
-      iterations: PBKDF2_ITERATIONS,
-      hash: HASH_ALGORITHM,
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: AES_KEY_LENGTH },
-    false,
-    ['encrypt', 'decrypt'],
-  );
+): Promise<Uint8Array> {
+  return cryptoApi.deriveKey(masterPassword, salt, PBKDF2_ITERATIONS);
 }
 
 /**
@@ -53,47 +30,33 @@ export async function deriveKey(
  * Generates a new random IV for each encryption operation.
  *
  * @param data - The plaintext string to encrypt
- * @param key - The CryptoKey derived from deriveKey()
- * @returns EncryptedVaultEntry containing ciphertext and iv
+ * @param keyBytes - The raw encryption key bytes from deriveKey()
+ * @returns EncryptedVaultEntry containing ciphertext (with tag) and iv
  */
 export async function encrypt(
   data: string,
-  key: CryptoKey,
+  keyBytes: Uint8Array,
 ): Promise<EncryptedVaultEntry> {
-  const encoder = new TextEncoder();
-  const plaintext = encoder.encode(data);
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH));
-
-  const ciphertextBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    plaintext,
-  );
-
+  const result = await cryptoApi.encrypt(data, keyBytes);
+  
   return {
-    ciphertext: new Uint8Array(ciphertextBuffer),
-    iv,
+    ciphertext: result.ciphertextWithTag, // Tag is appended to ciphertext (Web Crypto API compatible)
+    iv: result.iv,
   };
 }
 
 /**
  * Decrypt AES-256-GCM encrypted data.
  *
- * @param ciphertext - The encrypted data bytes
+ * @param ciphertext - The encrypted data bytes (with authentication tag appended)
  * @param iv - The initialization vector used during encryption
- * @param key - The CryptoKey derived from deriveKey() with the same password and salt
- * @returns The decrypted plaintext string
+ * @param keyBytes - The raw encryption key bytes derived with the same password and salt
+ * @returns The decrypted plaintext string, or null if decryption fails
  */
 export async function decrypt(
   ciphertext: Uint8Array,
   iv: Uint8Array,
-  key: CryptoKey,
-): Promise<string> {
-  const plaintextBuffer = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv } as AesGcmParams,
-    key,
-    ciphertext.slice() as unknown as BufferSource,
-  );
-
-  return new TextDecoder().decode(plaintextBuffer);
+  keyBytes: Uint8Array,
+): Promise<string | null> {
+  return cryptoApi.decrypt(ciphertext, iv, keyBytes);
 }

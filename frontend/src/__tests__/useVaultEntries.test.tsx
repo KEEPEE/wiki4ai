@@ -9,19 +9,7 @@ import React from 'react'
 import type { BackendVaultEntry } from '../types/vault'
 import { useVaultEntries, useSearchVaultEntries } from '../hooks/useVaultEntries'
 
-// Mock crypto.subtle for Node.js environment
-const mockSubtle = {
-  importKey: vi.fn(),
-  deriveKey: vi.fn(),
-  encrypt: vi.fn(),
-  decrypt: vi.fn(),
-} as any
-
-Object.defineProperty(globalThis.crypto, 'subtle', {
-  value: mockSubtle,
-  writable: true,
-})
-
+// Mock crypto.getRandomValues for Node.js environment
 Object.defineProperty(globalThis.crypto, 'getRandomValues', {
   value: (arr: Uint8Array) => {
     arr.fill(1)
@@ -88,7 +76,8 @@ describe('useVaultEntries', () => {
       const { vaultApi } = await import('../services/vaultApi')
       const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-      vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+      // deriveKey now returns Uint8Array (raw key bytes) instead of CryptoKey
+      vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
       vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
 
       vi.mocked(vaultApi.getAll).mockResolvedValue(mockBackendEntries)
@@ -108,8 +97,9 @@ describe('useVaultEntries', () => {
       const { vaultApi } = await import('../services/vaultApi')
       const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-      vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
-      vi.mocked(decrypt).mockRejectedValue(new Error('Decryption failed'))
+      vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
+      // decrypt now returns null on failure instead of throwing
+      vi.mocked(decrypt).mockResolvedValue(null)
 
       vi.mocked(vaultApi.getAll).mockResolvedValue(mockBackendEntries)
 
@@ -119,6 +109,7 @@ describe('useVaultEntries', () => {
         expect(result.current.isLoading).toBe(false)
       }, { timeout: 5000 })
 
+      // Should still return entries even with decryption failure (shows "[decryption failed]")
       expect(result.current.entries.length).toBe(1)
     })
   })
@@ -130,7 +121,7 @@ describe('useVaultEntries', () => {
       const { vaultApi } = await import('../services/vaultApi')
       const { deriveKey, encrypt } = await import('../services/encryptionService')
 
-      vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+      vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
       vi.mocked(encrypt).mockResolvedValue({ ciphertext: new Uint8Array([1]), iv: new Uint8Array([2]) })
 
       vi.mocked(vaultApi.getAll).mockResolvedValue([])
@@ -164,7 +155,7 @@ describe('useVaultEntries', () => {
       const { vaultApi } = await import('../services/vaultApi')
       const { deriveKey, decrypt, encrypt } = await import('../services/encryptionService')
 
-      vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+      vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
       vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
       vi.mocked(encrypt).mockResolvedValue({ ciphertext: new Uint8Array([1]), iv: new Uint8Array([2]) })
 
@@ -192,7 +183,7 @@ describe('useVaultEntries', () => {
       const { vaultApi } = await import('../services/vaultApi')
       const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-      vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+      vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
       vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
 
       vi.mocked(vaultApi.getAll).mockResolvedValue(mockBackendEntries)
@@ -224,7 +215,7 @@ describe('useSearchVaultEntries', () => {
     const { vaultApi } = await import('../services/vaultApi')
     const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-    vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+    vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
     vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
 
     vi.mocked(vaultApi.search).mockResolvedValue(mockResults)
@@ -260,7 +251,7 @@ describe('useSearchVaultEntries', () => {
     const { vaultApi } = await import('../services/vaultApi')
     const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-    vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+    vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
     vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
 
     vi.mocked(vaultApi.search).mockResolvedValue(mockResults)
@@ -279,7 +270,7 @@ describe('useSearchVaultEntries', () => {
     const { vaultApi } = await import('../services/vaultApi')
     const { deriveKey, decrypt } = await import('../services/encryptionService')
 
-    vi.mocked(deriveKey).mockResolvedValue({ algorithm: { name: 'AES-GCM' } } as CryptoKey)
+    vi.mocked(deriveKey).mockResolvedValue(new Uint8Array(32))
     vi.mocked(decrypt).mockResolvedValue(JSON.stringify('user'))
 
     vi.mocked(vaultApi.search).mockResolvedValue(mockResults)

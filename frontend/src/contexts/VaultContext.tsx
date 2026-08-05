@@ -8,7 +8,7 @@ interface VaultContextType {
   isUnlocked: boolean;
   isLoading: boolean;
   config: VaultEncryptionConfig | null;
-  key: CryptoKey | null;
+  keyBytes: Uint8Array | null; // Raw encryption key bytes (works in both secure and insecure contexts)
   hasMasterPasswordSet: boolean | null;
   error: string | null;
   unlock: (masterPasswordHash: string) => Promise<void>;
@@ -35,7 +35,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [config, setConfig] = useState<VaultEncryptionConfig | null>(null);
-  const [key, setKey] = useState<CryptoKey | null>(null);
+  const [keyBytes, setKeyBytes] = useState<Uint8Array | null>(null); // Raw key bytes instead of CryptoKey
   const [hasMasterPasswordSet, setHasMasterPasswordSet] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -112,7 +112,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
       const derivedKey = await deriveKey(masterPasswordHash, salt);
 
       setConfig({ masterPassword: masterPasswordHash, salt });
-      setKey(derivedKey);
+      setKeyBytes(derivedKey);
       setIsUnlocked(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to unlock vault');
@@ -151,7 +151,7 @@ export function VaultProvider({ children }: VaultProviderProps) {
       const derivedKey = await deriveKey(masterPasswordHash, salt);
 
       setConfig({ masterPassword: masterPasswordHash, salt });
-      setKey(derivedKey);
+      setKeyBytes(derivedKey);
       setIsUnlocked(true);
       setHasMasterPasswordSet(true);
     } catch (err) {
@@ -164,12 +164,12 @@ export function VaultProvider({ children }: VaultProviderProps) {
   const lock = useCallback(() => {
     setIsUnlocked(false);
     setConfig(null);
-    setKey(null);
+    setKeyBytes(null);
     setError(null);
   }, []);
 
   return (
-    <VaultContext.Provider value={{ isUnlocked, isLoading, config, key, hasMasterPasswordSet, error, unlock, setupVault, lock, checkStatus }}>
+    <VaultContext.Provider value={{ isUnlocked, isLoading, config, keyBytes, hasMasterPasswordSet, error, unlock, setupVault, lock, checkStatus }}>
       {children}
     </VaultContext.Provider>
   );
