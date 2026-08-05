@@ -73,6 +73,7 @@ deploy-to-server:
   stage: deploy-to-server
   image: alpine:latest
   timeout: 30m
+  retry: 2
   needs:
     - build-backend
     - build-frontend
