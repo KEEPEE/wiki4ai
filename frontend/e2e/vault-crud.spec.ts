@@ -97,6 +97,18 @@ test.describe('Vault - create and edit password entries via webui', () => {
     await updatedCard.locator('[data-testid^="vault-copy-password-"]').click();
     const updatedClipboardText = await page.evaluate(() => navigator.clipboard.readText());
     expect(updatedClipboardText).toBe('new-correct-horse-battery-staple');
+
+    // --- Delete the entry ---
+    // Uses a real mouse click (not a programmatic .click()) deliberately: this is a
+    // regression test for a global CSS class collision where VaultPage's
+    // .edit-button/.delete-button classes were shadowed by Dashboard.css's same-named
+    // classes (position: absolute; opacity: 0), making the buttons invisible and
+    // unclickable via a real click while still existing in the DOM.
+    page.once('dialog', (dialog) => dialog.accept());
+    await updatedCard.locator('[data-testid^="vault-delete-entry-"]').click();
+
+    await expect(page.getByText(updatedTitle)).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByText('No entries in your vault yet.')).toBeVisible();
   });
 
   test('unlocking from a new browser recovers the salt from the backend (no reinit)', async ({ browser }) => {

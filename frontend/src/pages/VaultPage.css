@@ -303,8 +303,17 @@
   align-items: center;
 }
 
-.edit-button,
-.copy-button {
+/*
+ * NOTE: these were previously named .edit-button/.copy-button/.delete-button,
+ * but those are plain global class names (not scoped) and collided with
+ * Dashboard.css's .edit-button/.delete-button (absolutely-positioned,
+ * opacity:0-until-hover icons on project cards) - Dashboard's rules won and
+ * silently made these vault buttons invisible and mispositioned. Renamed to
+ * vault-specific classes to avoid any future collision.
+ */
+.vault-entry-edit-button,
+.vault-entry-copy-button,
+.vault-entry-delete-button {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(0, 240, 255, 0.15);
   border-radius: 6px;
@@ -317,13 +326,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform var(--transition-fast), background var(--transition-fast);
+  color: inherit;
+  transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.edit-button:hover,
-.copy-button:hover {
+.vault-entry-edit-button:hover,
+.vault-entry-copy-button:hover {
   background: rgba(0, 240, 255, 0.12);
   transform: scale(1.15);
+}
+
+.vault-entry-delete-button:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  transform: scale(1.15);
+}
+
+.vault-entry-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .entry-details {
