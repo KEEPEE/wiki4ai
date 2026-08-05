@@ -925,8 +925,10 @@ describe('VaultPage', () => {
 
   describe('Import workflow - API communication & data handling', () => {
     class HttpError extends Error {
-      constructor(public status: number, message: string) {
+      status: number;
+      constructor(status: number, message: string) {
         super(message);
+        this.status = status;
         this.name = 'HttpError';
       }
     }
@@ -1125,7 +1127,7 @@ describe('VaultPage', () => {
             iv: Array.from(iv),
           };
 
-          return vaultApi.create(dto);
+          return vaultApi.create(dto as any);
         }),
         updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any);
