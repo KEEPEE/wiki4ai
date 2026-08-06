@@ -30,3 +30,7 @@ __pycache__/
 .pytest_cache/
 mcp-server/.venv/
 .venv/
+
+# Database backups - real data, never commit
+backups/
+*.dump
