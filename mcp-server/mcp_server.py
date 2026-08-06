@@ -982,6 +982,24 @@ def _vault_get_key(master_password: str) -> bytes:
         _api_request("POST", "/v1/vault/master-password/verify", {"masterPasswordHash": password_hash})
     except MCPToolError as e:
         if e.status_code == 401:
+            # Two very different failures both surface as HTTP 401 here:
+            #   1. Spring Security rejects the request before it reaches the controller
+            #      because of no/invalid/expired JWT - e.g. {"message": "Authentication
+            #      required"} (missing token) or {"error": "Invalid or expired JWT token"}
+            #      (malformed/expired token). Both have a JSON body.
+            #   2. VaultController.verifyMasterPassword() itself returns a *bodyless* 401
+            #      when the password hash doesn't match - the only 401 this endpoint ever
+            #      emits with an empty body.
+            # Collapsing both into "Incorrect vault master password" is misleading when
+            # the real problem is that this MCP session isn't authenticated at all - so
+            # treat "got a JSON body" as "auth-layer rejection", not "wrong password".
+            if e.details:
+                raise MCPToolError(
+                    "Not authenticated with the Wiki4AI backend (missing, invalid or "
+                    "expired JWT token for this MCP session) - this is a login/session "
+                    "problem, not necessarily a wrong master password. "
+                    f"Backend said: {e.details}"
+                )
             raise MCPToolError("Incorrect vault master password")
         raise
 

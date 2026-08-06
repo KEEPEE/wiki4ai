@@ -138,6 +138,35 @@ class TestVaultGetKey:
         assert "Incorrect" in str(exc_info.value)
 
     @patch("mcp_server.urlopen")
+    def test_raises_auth_error_not_password_error_when_jwt_missing(self, mock_urlopen):
+        # Spring Security's entry point (no/invalid JWT never reaches the controller)
+        # always returns a JSON body; the wrong-password 401 from
+        # VaultController.verifyMasterPassword() never does. A missing-token 401
+        # must NOT be reported as "Incorrect vault master password".
+        mock_urlopen.side_effect = _http_error(401, {"message": "Authentication required"})
+
+        with pytest.raises(MCPToolError) as exc_info:
+            _vault_get_key(MASTER_PASSWORD)
+
+        message = str(exc_info.value)
+        assert "Incorrect" not in message
+        assert "not authenticated" in message.lower()
+
+    @patch("mcp_server.urlopen")
+    def test_raises_auth_error_not_password_error_when_jwt_invalid(self, mock_urlopen):
+        # Same as above but for the malformed/expired-token shape, which the
+        # backend reports with a different body: {"error": "..."} instead of
+        # {"message": "..."}.
+        mock_urlopen.side_effect = _http_error(401, {"error": "Invalid or expired JWT token"})
+
+        with pytest.raises(MCPToolError) as exc_info:
+            _vault_get_key(MASTER_PASSWORD)
+
+        message = str(exc_info.value)
+        assert "Incorrect" not in message
+        assert "not authenticated" in message.lower()
+
+    @patch("mcp_server.urlopen")
     def test_raises_clear_error_when_salt_missing(self, mock_urlopen):
         mock_urlopen.side_effect = [
             _mock_response(None),  # verify - 200 OK
