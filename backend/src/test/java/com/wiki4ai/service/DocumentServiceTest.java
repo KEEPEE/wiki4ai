@@ -1,11 +1,13 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.ContentEditDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
@@ -379,7 +381,7 @@ class DocumentServiceTest {
             // when & then
             assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("At least one of title or content must be provided");
+                    .hasMessage("At least one of title, content or contentEdits must be provided");
             verify(documentRepository, never()).save(any(Document.class));
         }
 
@@ -395,6 +397,90 @@ class DocumentServiceTest {
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("Title must not be blank");
             verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should apply contentEdits only: edit content in place, keep title, report editsApplied")
+        void shouldApplyContentEditsOnly() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("content").replace("edits-applied").build()))
+                    .build();
+
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocument(1L, updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document");
+            assertThat(result.getSlug()).isEqualTo("source-document");
+            assertThat(result.getContent()).isEqualTo("Source edits-applied");
+            assertThat(result.getEditsApplied()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should apply title and contentEdits together")
+        void shouldApplyTitleAndContentEditsTogether() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .title("New Title")
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Source").replace("Renamed").build()))
+                    .build();
+
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocument(1L, updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("New Title");
+            assertThat(result.getSlug()).isEqualTo("new-title");
+            assertThat(result.getContent()).isEqualTo("Renamed content");
+            assertThat(result.getEditsApplied()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when content and contentEdits are combined")
+        void shouldThrowBadRequestWhenContentAndContentEditsCombined() {
+            // given
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("Full replace content")
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Source").replace("X").build()))
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("content")
+                    .hasMessageContaining("contentEdits");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should leave editsApplied null for full-content replacement (backward compatibility)")
+        void shouldLeaveEditsAppliedNullForFullReplace() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("New content")
+                    .build();
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocument(1L, updateDto);
+
+            // then
+            assertThat(result.getContent()).isEqualTo("New content");
+            assertThat(result.getEditsApplied()).isNull();
         }
     }
 
@@ -503,7 +589,7 @@ class DocumentServiceTest {
             // when & then
             assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("At least one of title or content must be provided");
+                    .hasMessage("At least one of title, content or contentEdits must be provided");
             verify(documentRepository, never()).save(any(Document.class));
         }
 
@@ -520,6 +606,189 @@ class DocumentServiceTest {
                     .isInstanceOf(BadRequestException.class)
                     .hasMessage("Title must not be blank");
             verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should apply contentEdits by slug, keep title, and report editsApplied")
+        void shouldApplyContentEditsBySlug() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Source").replace("Edited").build()))
+                    .build();
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document");
+            assertThat(result.getContent()).isEqualTo("Edited content");
+            assertThat(result.getEditsApplied()).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when content and contentEdits are combined (by slug)")
+        void shouldThrowBadRequestWhenContentAndContentEditsCombinedBySlug() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("Full replace")
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Source").replace("X").build()))
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("contentEdits");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when contentEdits list is empty and nothing else is given")
+        void shouldThrowBadRequestWhenContentEditsEmpty() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of())
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("At least one of title, content or contentEdits must be provided");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("applyContentEdits (static)")
+    class ApplyContentEditsTests {
+
+        private ContentEditDTO edit(String find, String replace) {
+            return ContentEditDTO.builder().find(find).replace(replace).build();
+        }
+
+        private ContentEditDTO edit(String find, String replace, Boolean replaceAll) {
+            return ContentEditDTO.builder().find(find).replace(replace).replaceAll(replaceAll).build();
+        }
+
+        @Test
+        @DisplayName("Should replace a single occurrence and keep the rest of the content intact")
+        void shouldReplaceSingleOccurrence() {
+            assertThat(DocumentService.applyContentEdits(
+                    "First line stays\nOld line\nLast line stays",
+                    List.of(edit("Old line", "New line"))))
+                    .isEqualTo("First line stays\nNew line\nLast line stays");
+        }
+
+        @Test
+        @DisplayName("Should apply multiple distinct edits in one call")
+        void shouldApplyMultipleDistinctEdits() {
+            assertThat(DocumentService.applyContentEdits(
+                    "alpha beta gamma",
+                    List.of(edit("alpha", "one"), edit("gamma", "three"))))
+                    .isEqualTo("one beta three");
+        }
+
+        @Test
+        @DisplayName("Should replace all occurrences when replaceAll=true")
+        void shouldReplaceAllOccurrencesWhenReplaceAllTrue() {
+            assertThat(DocumentService.applyContentEdits(
+                    "a b a b a",
+                    List.of(edit("a", "-", Boolean.TRUE))))
+                    .isEqualTo("- b - b -");
+        }
+
+        @Test
+        @DisplayName("Should treat replaceAll=null as false (2 occurrences -> exception with occurrences=2)")
+        void shouldTreatNullReplaceAllAsFalse() {
+            assertThatThrownBy(() -> DocumentService.applyContentEdits(
+                    "word word",
+                    List.of(edit("word", "x", null))))
+                    .isInstanceOf(ContentEditException.class)
+                    .extracting(
+                            e -> ((ContentEditException) e).getEditIndex(),
+                            e -> ((ContentEditException) e).getOccurrences())
+                    .containsExactly(0, 2);
+        }
+
+        @Test
+        @DisplayName("Should apply the second edit to the result of the first (chained edits)")
+        void shouldApplySecondEditOnResultOfFirst() {
+            // second edit finds text produced by the first edit
+            assertThat(DocumentService.applyContentEdits(
+                    "start",
+                    List.of(edit("start", "middle"), edit("middle", "finish"))))
+                    .isEqualTo("finish");
+        }
+
+        @Test
+        @DisplayName("Should throw ContentEditException with editIndex and occurrences=0 when find is not found")
+        void shouldThrowWhenFindNotFound() {
+            assertThatThrownBy(() -> DocumentService.applyContentEdits(
+                    "hello world",
+                    List.of(edit("world", "planet"), edit("missing", "x"))))
+                    .isInstanceOf(ContentEditException.class)
+                    .hasMessage("find not found")
+                    .extracting(
+                            e -> ((ContentEditException) e).getEditIndex(),
+                            e -> ((ContentEditException) e).getOccurrences())
+                    .containsExactly(1, 0);
+        }
+
+        @Test
+        @DisplayName("Should throw ContentEditException with occurrences=2 when find matches twice without replaceAll")
+        void shouldThrowWhenMultipleOccurrencesWithoutReplaceAll() {
+            assertThatThrownBy(() -> DocumentService.applyContentEdits(
+                    "repeat repeat here",
+                    List.of(edit("repeat", "once"))))
+                    .isInstanceOf(ContentEditException.class)
+                    .hasMessageContaining("2")
+                    .extracting(
+                            e -> ((ContentEditException) e).getEditIndex(),
+                            e -> ((ContentEditException) e).getOccurrences())
+                    .containsExactly(0, 2);
+        }
+
+        @Test
+        @DisplayName("Should delete the matched text when replace is an empty string")
+        void shouldDeleteMatchedTextWhenReplaceEmpty() {
+            assertThat(DocumentService.applyContentEdits(
+                    "keep this, remove this and keep that",
+                    List.of(edit(", remove this", ""))))
+                    .isEqualTo("keep this and keep that");
+        }
+
+        @Test
+        @DisplayName("Should match exactly (case-sensitive, whitespace-sensitive)")
+        void shouldMatchExactly() {
+            // case-sensitive
+            assertThatThrownBy(() -> DocumentService.applyContentEdits(
+                    "Find me", List.of(edit("find", "x"))))
+                    .isInstanceOf(ContentEditException.class)
+                    .hasMessage("find not found");
+            // whitespace-sensitive: "me" is found inside "Find me" but " me" (with leading space) too —
+            // a find with extra spaces must NOT match
+            assertThatThrownBy(() -> DocumentService.applyContentEdits(
+                    "hello world", List.of(edit("  world", "x"))))
+                    .isInstanceOf(ContentEditException.class)
+                    .hasMessage("find not found");
+        }
+
+        @Test
+        @DisplayName("Should return unchanged content when edits list is null or empty only via exception path")
+        void shouldRejectNullOrEmptyEdits() {
+            assertThatThrownBy(() -> DocumentService.applyContentEdits("any content", null))
+                    .isInstanceOf(BadRequestException.class);
+            assertThatThrownBy(() -> DocumentService.applyContentEdits("any content", List.of()))
+                    .isInstanceOf(BadRequestException.class);
         }
     }
 

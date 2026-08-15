@@ -1,6 +1,7 @@
 package com.wiki4ai.controller;
 
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.exception.ContentEditException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -81,6 +82,26 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    /**
+     * Handle content-edit failures (find not found, ambiguous find without
+     * replaceAll). Returns 400 Bad Request with the edit index and the number
+     * of occurrences so clients can recover without guessing.
+     */
+    @ExceptionHandler(ContentEditException.class)
+    public ResponseEntity<Map<String, Object>> handleContentEditException(
+            ContentEditException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "Bad Request");
+        body.put("message", ex.getMessage());
+        body.put("editIndex", ex.getEditIndex());
+        body.put("occurrences", ex.getOccurrences());
+
+        return ResponseEntity.badRequest().body(body);
     }
 
     /**

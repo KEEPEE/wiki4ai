@@ -28,7 +28,7 @@ import base64
 import contextvars
 import os
 import sys
-from typing import Optional
+from typing import Dict, List, Optional
 
 try:
     from fastmcp import FastMCP
@@ -460,42 +460,91 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
 
-def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
+def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None, edits: Optional[List[Dict]] = None) -> dict:
     """Update an existing document by its slug within a project.
 
-    PARTIAL UPDATE: `title` and `content` are independently optional — only the
-    provided fields are updated, omitted fields remain unchanged. At least ONE
-    of them MUST be provided; calling with neither raises an error (400-like)
-    before any HTTP request is made.
+    PARTIAL UPDATE: `title`, `content` and `edits` are independently optional —
+    only the provided fields are updated, omitted fields remain unchanged.
+    At least ONE of them MUST be provided; calling with none of them raises an
+    error (400-like) before any HTTP request is made.
+
+    Full replacement vs partial edits:
+    - `content` -> FULL replacement of the document content (backward compatible).
+    - `edits` -> incremental find/replace edits applied SEQUENTIALLY to the
+      current content. Each edit is a dict:
+          {"find": <exact old text>, "replace": <new text>, "replaceAll": <bool>}
+      Semantics:
+        - `find` is matched EXACTLY (case-sensitive, including whitespace).
+        - Multiple edits are chained: edit N+1 sees the result of edit N.
+        - `replace: ""` DELETES the matched text (a legitimate operation).
+        - `replaceAll` defaults to false. When `find` occurs more than once and
+          replaceAll is false, the server returns 400 (no random choice); you can
+          inspect the `occurrences` count in the error body and retry.
+        - When `find` is not found, the server returns 400 with `editIndex`
+          (the failing edit, 0-based) and `occurrences: 0`.
+    - `content` + `edits` in the same call are MUTUALLY EXCLUSIVE -> 400.
+    - Allowed combinations: title-only, content-only, edits-only,
+      title+content, title+edits.
 
     Note: when `title` is changed the slug is regenerated from the new title —
     the response contains the NEW slug, while the URL identifier in the request
     stays the original slug.
 
+    Successful responses that used `edits` include `editsApplied: n` where n is
+    the number of edits applied.
+
     Example usage:
-        update_document("my-project", "my-doc", content="# Updated Content\n...")
+        # Full content replacement (original behavior)
+        update_document("my-project", "my-doc", content="# Updated Content\\n...")
+        # Title-only update
         update_document("my-project", "my-doc", title="My Document Title")
-        update_document("my-project", "my-doc", title="My Document Title", content="# Updated Content\n...")
+        # Replace one paragraph (exact text, whitespace included)
+        update_document("my-project", "my-doc", edits=[
+            {"find": "Old paragraph text", "replace": "New paragraph text"}
+        ])
+        # Delete a paragraph (empty replace)
+        update_document("my-project", "my-doc", edits=[
+            {"find": "Deprecated section\\nold text", "replace": ""}
+        ])
+        # Replace ALL occurrences of a term
+        update_document("my-project", "my-doc", edits=[
+            {"find": "wiki4ai", "replace": "Wiki4AI", "replaceAll": True}
+        ])
 
     Args:
         project_slug: The URL-friendly slug of the project (required).
         doc_slug: The URL-friendly slug of the document to update (required).
         title: New title for the document (optional). When changed, the slug is regenerated.
-        content: New markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
+        content: New markdown content for the document (optional, FULL replacement).
+            Supports Mermaid diagrams in ` ```mermaid ` blocks.
+        edits: Optional list of find/replace edits for PARTIAL updates. Each item:
+            {"find": str (required, exact match),
+             "replace": str (required, "" deletes the matched text),
+             "replaceAll": bool (optional, default false)}.
 
     Returns:
-        Updated DocumentDTO with id, title, slug (the new one if the title changed), projectId, createdAt, updatedAt
+        Updated DocumentDTO with id, title, slug (the new one if the title changed),
+        projectId, createdAt, updatedAt, and editsApplied (only when edits were used).
 
     Raises:
-        MCPToolError: With status_code=400 when neither `title` nor `content` is provided.
+        MCPToolError: With status_code=400 when nothing is provided, or when both
+            `content` and `edits` are given.
     """
-    if title is None and content is None:
-        raise MCPToolError("At least one of title or content must be provided", status_code=400)
+    has_edits = edits is not None and len(edits) > 0
+    if title is None and content is None and not has_edits:
+        raise MCPToolError(
+            "At least one of title, content or edits must be provided", status_code=400)
+    if content is not None and has_edits:
+        raise MCPToolError(
+            "Cannot combine content (full replace) with edits (partial edits) in the same request",
+            status_code=400)
     body = {}
     if title is not None:
         body["title"] = title
     if content is not None:
         body["content"] = content
+    if has_edits:
+        body["contentEdits"] = edits
     return _api_request("PUT", f"/v1/projects/{project_slug}/documents/{doc_slug}", body)
 
 

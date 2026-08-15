@@ -1,11 +1,13 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.ContentEditDTO;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
@@ -144,8 +146,10 @@ public class DocumentService {
 
     /**
      * Update an existing document by ID.
-     * Partial update: only non-null fields are applied, the rest stay unchanged.
-     * At least one of title/content must be provided; a blank title is rejected.
+     * Partial update: only provided fields are applied, the rest stay unchanged.
+     * At least one of title/content/contentEdits must be provided; a blank title
+     * and a mix of content with contentEdits are rejected with 400.
+     * When contentEdits are applied, the DTO is stamped with editsApplied.
      */
     @Transactional
     public DocumentDTO updateDocument(Long id, DocumentUpdateDTO dto, String username) {
@@ -153,16 +157,22 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
         permissionService.checkPermission(username, document.getProject().getId(), Permission.UPDATE);
 
-        applyUpdate(dto, document);
+        int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
-        return convertToDTO(saved);
+        DocumentDTO result = convertToDTO(saved);
+        if (editsApplied > 0) {
+            result.setEditsApplied(editsApplied);
+        }
+        return result;
     }
 
     /**
      * Update an existing document by slug within a specific project.
-     * Partial update: only non-null fields are applied, the rest stay unchanged.
-     * At least one of title/content must be provided; a blank title is rejected.
+     * Partial update: only provided fields are applied, the rest stay unchanged.
+     * At least one of title/content/contentEdits must be provided; a blank title
+     * and a mix of content with contentEdits are rejected with 400.
+     * When contentEdits are applied, the DTO is stamped with editsApplied.
      */
     @Transactional
     public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentUpdateDTO dto, String username) {
@@ -171,30 +181,108 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
 
-        applyUpdate(dto, document);
+        int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
-        return convertToDTO(saved);
+        DocumentDTO result = convertToDTO(saved);
+        if (editsApplied > 0) {
+            result.setEditsApplied(editsApplied);
+        }
+        return result;
     }
 
     /**
      * Apply a partial update to a document.
-     * Fails fast (400) when no field is provided or when the title is blank.
+     * Fails fast (400) when no field is provided, when the title is blank, or
+     * when both content and contentEdits are sent (mutual exclusivity).
      * Setting a non-null title regenerates the slug; null fields are left untouched.
+     *
+     * @return the number of contentEdits applied (0 for title-only / content-only updates)
      */
-    private void applyUpdate(DocumentUpdateDTO dto, Document document) {
-        if (dto.getTitle() == null && dto.getContent() == null) {
-            throw new BadRequestException("At least one of title or content must be provided");
+    private int applyUpdate(DocumentUpdateDTO dto, Document document) {
+        boolean hasEdits = dto.getContentEdits() != null && !dto.getContentEdits().isEmpty();
+        if (dto.getContent() != null && hasEdits) {
+            throw new BadRequestException(
+                    "Cannot combine 'content' (full replace) with 'contentEdits' (incremental edits) in the same request");
+        }
+        if (dto.getTitle() == null && dto.getContent() == null && !hasEdits) {
+            throw new BadRequestException(
+                    "At least one of title, content or contentEdits must be provided");
         }
         if (dto.getTitle() != null && dto.getTitle().isBlank()) {
             throw new BadRequestException("Title must not be blank");
         }
+
+        int editsApplied = 0;
+        if (hasEdits) {
+            String current = document.getContent() != null ? document.getContent() : "";
+            document.setContent(applyContentEdits(current, dto.getContentEdits()));
+            editsApplied = dto.getContentEdits().size();
+        } else if (dto.getContent() != null) {
+            document.setContent(dto.getContent());
+        }
         if (dto.getTitle() != null) {
             document.setTitle(dto.getTitle());
         }
-        if (dto.getContent() != null) {
-            document.setContent(dto.getContent());
+        return editsApplied;
+    }
+
+    /**
+     * Apply a list of find/replace edits to the current content, sequentially —
+     * each edit sees the result of the previous one (supports chained changes).
+     *
+     * Rules:
+     * - find is matched EXACTLY (case-sensitive, including whitespace)
+     * - 0 occurrences -> ContentEditException(editIndex, occurrences=0)
+     * - >1 occurrence without replaceAll -> ContentEditException(editIndex, occurrences)
+     * - replaceAll=true replaces all occurrences; replace:"" deletes the text
+     *
+     * Pure function, unit-testable without a database.
+     */
+    public static String applyContentEdits(String current, List<ContentEditDTO> edits) {
+        if (edits == null || edits.isEmpty()) {
+            throw new BadRequestException("contentEdits must not be empty");
         }
+        String result = current != null ? current : "";
+        for (int i = 0; i < edits.size(); i++) {
+            ContentEditDTO edit = edits.get(i);
+            if (edit == null || edit.getFind() == null || edit.getFind().isBlank()) {
+                throw new ContentEditException(
+                        "Edit at index " + i + " has a blank 'find'; it must match existing text exactly", i, 0);
+            }
+            if (edit.getReplace() == null) {
+                throw new ContentEditException(
+                        "Edit at index " + i + " has a null 'replace'; use an empty string to delete the matched text",
+                        i, 0);
+            }
+            String find = edit.getFind();
+            int occurrences = countOccurrences(result, find);
+            if (occurrences == 0) {
+                throw new ContentEditException("find not found", i, 0);
+            }
+            boolean replaceAll = edit.getReplaceAll() != null && edit.getReplaceAll();
+            if (occurrences > 1 && !replaceAll) {
+                throw new ContentEditException(
+                        "Edit at index " + i + " matched " + occurrences
+                                + " occurrences; set replaceAll=true to replace all of them",
+                        i, occurrences);
+            }
+            result = result.replace(find, edit.getReplace());
+        }
+        return result;
+    }
+
+    /**
+     * Count non-overlapping occurrences of needle in haystack.
+     */
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = haystack.indexOf(needle, index)) != -1) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     // ==================== DELETE OPERATIONS (require DELETE permission) ====================

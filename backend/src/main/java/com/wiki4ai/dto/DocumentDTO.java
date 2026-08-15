@@ -1,5 +1,6 @@
 package com.wiki4ai.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,4 +35,8 @@ public class DocumentDTO {
     private java.time.LocalDateTime createdAt;
 
     private java.time.LocalDateTime updatedAt;
+
+    @Schema(description = "Number of contentEdits applied in this update. "
+            + "Only non-null when the update used contentEdits; null on reads and full-replace updates.")
+    private Integer editsApplied;
 }
