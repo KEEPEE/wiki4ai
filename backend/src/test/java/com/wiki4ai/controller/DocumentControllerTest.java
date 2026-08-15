@@ -1,6 +1,7 @@
 package com.wiki4ai.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wiki4ai.dto.ContentEditDTO;
 import com.wiki4ai.dto.DocumentContentDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
@@ -10,6 +11,7 @@ import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
@@ -395,6 +397,130 @@ class DocumentControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.error").value("Bad Request"))
                     .andExpect(jsonPath("$.message").value("Title must not be blank"));
+        }
+
+        @Test
+        @DisplayName("Should return 200 with editsApplied when a contentEdits update succeeds")
+        void shouldReturn200WithEditsAppliedForContentEdits() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("old text").replace("new text").build()))
+                    .build();
+            DocumentDTO updated = DocumentDTO.builder()
+                    .id(1L)
+                    .title("Test Document")
+                    .content("brand new text")
+                    .slug("test-document")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .editsApplied(1)
+                    .build();
+
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willReturn(updated);
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content").value("brand new text"))
+                    .andExpect(jsonPath("$.title").value("Test Document"))
+                    .andExpect(jsonPath("$.editsApplied").value(1));
+        }
+
+        @Test
+        @DisplayName("Should return 400 with editIndex and occurrences when find is not found (not 409/500)")
+        void shouldReturn400WithEditIndexAndOccurrencesWhenFindNotFound() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("first edit").replace("ok").build(),
+                            ContentEditDTO.builder().find("missing text").replace("x").build()))
+                    .build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new ContentEditException("find not found", 1, 0));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("find not found"))
+                    .andExpect(jsonPath("$.editIndex").value(1))
+                    .andExpect(jsonPath("$.occurrences").value(0));
+        }
+
+        @Test
+        @DisplayName("Should return 400 with occurrences count when find matches multiple times without replaceAll")
+        void shouldReturn400WithOccurrencesWhenFindAmbiguous() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("dup").replace("x").build()))
+                    .build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new ContentEditException(
+                            "Edit at index 0 matched 2 occurrences; set replaceAll=true to replace all of them", 0, 2));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.editIndex").value(0))
+                    .andExpect(jsonPath("$.occurrences").value(2));
+        }
+
+        @Test
+        @DisplayName("Should return 400 with clear message when both content and contentEdits are provided")
+        void shouldReturn400WhenContentAndContentEditsCombined() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("full replace")
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("old").replace("new").build()))
+                    .build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Cannot combine 'content' (full replace) with 'contentEdits' (incremental edits) in the same request"));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value(
+                            "Cannot combine 'content' (full replace) with 'contentEdits' (incremental edits) in the same request"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 with field error when contentEdits find is blank (nested validation)")
+        void shouldReturn400WhenContentEditsFindBlank() throws Exception {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("   ").replace("new").build()))
+                    .build();
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errors").exists())
+                    .andExpect(content().string(org.hamcrest.Matchers.containsString("find must not be blank")));
         }
     }
 

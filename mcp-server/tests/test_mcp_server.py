@@ -1616,7 +1616,7 @@ class TestUpdateDocument:
             update_document("my-project", "my-doc")
 
         assert exc_info.value.status_code == 400
-        assert "At least one of title or content must be provided" in str(exc_info.value)
+        assert "At least one of title, content or edits must be provided" in str(exc_info.value)
         # No HTTP request must have been made
         mock_api_request.assert_not_called()
 
@@ -1651,3 +1651,95 @@ class TestUpdateDocument:
         )
         assert result["content"] == "Old content"
         assert result["slug"] == "renamed"
+
+
+# ─── Tests: update_document partial edits (WIKI4AI-24) ────────────────────
+
+class TestUpdateDocumentEdits:
+    """Tests for the update_document edits (contentEdits) contract."""
+
+    @patch("mcp_server._api_request")
+    def test_sends_contentEdits_body_when_edits_given(self, mock_api_request):
+        """Edits-only update sends a body with the contentEdits key and no content."""
+        mock_api_request.return_value = {
+            "id": 1, "title": "My Document", "slug": "my-doc", "projectId": 10,
+            "content": "New content", "editsApplied": 1,
+            "createdAt": "2026-01-01T00:00:00", "updatedAt": "2026-01-02T00:00:00",
+        }
+
+        result = update_document(
+            "my-project", "my-doc",
+            edits=[{"find": "Old text", "replace": "New text"}],
+        )
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc",
+            {"contentEdits": [{"find": "Old text", "replace": "New text"}]},
+        )
+        assert result["editsApplied"] == 1
+
+    @patch("mcp_server._api_request")
+    def test_sends_title_and_contentEdits_body_together(self, mock_api_request):
+        """title + edits is an allowed combination and both keys land in the body."""
+        mock_api_request.return_value = {
+            "id": 1, "title": "Renamed", "slug": "renamed", "projectId": 10,
+            "content": "Edited content", "editsApplied": 1,
+            "createdAt": "2026-01-01T00:00:00", "updatedAt": "2026-01-02T00:00:00",
+        }
+        edits = [{"find": "Old", "replace": "New", "replaceAll": True}]
+
+        result = update_document("my-project", "my-doc", title="Renamed", edits=edits)
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc",
+            {"title": "Renamed", "contentEdits": edits},
+        )
+        assert result["title"] == "Renamed"
+
+    @patch("mcp_server._api_request")
+    def test_supports_delete_and_replace_all_edit_shapes(self, mock_api_request):
+        """replace: '' (delete) and replaceAll: True are passed through verbatim."""
+        mock_api_request.return_value = {"id": 1, "content": "ok", "editsApplied": 2}
+        edits = [
+            {"find": "deprecated section", "replace": ""},
+            {"find": "wiki4ai", "replace": "Wiki4AI", "replaceAll": True},
+        ]
+
+        update_document("my-project", "my-doc", edits=edits)
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc",
+            {"contentEdits": edits},
+        )
+
+    @patch("mcp_server._api_request")
+    def test_empty_edits_list_is_treated_as_absent(self, mock_api_request):
+        """An empty edits list with nothing else is rejected (400) before any HTTP call."""
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document("my-project", "my-doc", edits=[])
+
+        assert exc_info.value.status_code == 400
+        mock_api_request.assert_not_called()
+
+    @patch("mcp_server._api_request")
+    def test_raises_mcp_tool_error_when_content_and_edits_combined(self, mock_api_request):
+        """content + edits are mutually exclusive -> 400 BEFORE any HTTP call."""
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document(
+                "my-project", "my-doc",
+                content="Full content",
+                edits=[{"find": "x", "replace": "y"}],
+            )
+
+        assert exc_info.value.status_code == 400
+        assert "content" in str(exc_info.value).lower()
+        mock_api_request.assert_not_called()
+
+    def test_docstring_documents_edit_semantics_and_examples(self):
+        """The MCP tool docstring shows practical examples and the 400 semantics."""
+        doc = update_document.__doc__ or ""
+        assert 'replace: ""' in doc          # deletion example
+        assert "replaceAll" in doc            # replace-all semantics
+        assert "editIndex" in doc             # 400 body detail
+        assert "occurrences" in doc           # 400 body detail
+        assert "edits=" in doc                # usage example

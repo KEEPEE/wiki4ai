@@ -1,6 +1,7 @@
 package com.wiki4ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.wiki4ai.dto.ContentEditDTO;
 import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
@@ -425,6 +426,106 @@ class DocumentE2ETest {
             assertThat(body.get("title")).isEqualTo("Original");
             assertThat(body.get("slug")).isEqualTo("original");
             assertThat(body.get("content")).isEqualTo("# New Content\nFresh description.");
+        }
+    }
+
+    // ==================== PARTIAL CONTENT EDIT (CONTENTEDITS) E2E TESTS ====================
+
+    @Nested
+    @DisplayName("PUT /api/v1/projects/{slug}/documents/{docSlug} - Partial contentEdits updates")
+    class ContentEditsUpdateTests {
+
+        @Test
+        @DisplayName("Should edit exactly the matched paragraph, keep the rest of the content and title, and report editsApplied")
+        void shouldPartiallyEditDocumentContent() {
+            // given
+            cleanProjectDocuments();
+            ResponseEntity<Map> createResponse = createDocument(
+                    "Multi Paragraph",
+                    "First paragraph stays.\n\nMiddle paragraph old.\n\nLast paragraph stays.");
+            assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+            String docSlug = (String) createResponse.getBody().get("slug");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder()
+                                    .find("Middle paragraph old.")
+                                    .replace("Middle paragraph new.")
+                                    .build()))
+                    .build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/" + docSlug;
+
+            // when
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.PUT, request, Map.class);
+
+            // then — only the matched paragraph changed; title, slug and other paragraphs stay intact
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<String, Object> body = response.getBody();
+            assertThat(body.get("content"))
+                    .isEqualTo("First paragraph stays.\n\nMiddle paragraph new.\n\nLast paragraph stays.");
+            assertThat(body.get("title")).isEqualTo("Multi Paragraph");
+            assertThat(body.get("slug")).isEqualTo(docSlug);
+            assertThat(body.get("editsApplied")).isEqualTo(1);
+
+            // verify via a fresh GET that the stored content matches
+            ResponseEntity<Map> getResponse = restTemplate.getForEntity(url, Map.class);
+            assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(getResponse.getBody().get("content"))
+                    .isEqualTo("First paragraph stays.\n\nMiddle paragraph new.\n\nLast paragraph stays.");
+        }
+
+        @Test
+        @DisplayName("Should return 400 with editIndex and occurrences when find is not found")
+        void shouldReturn400WithEditIndexWhenFindNotFound() {
+            // given
+            cleanProjectDocuments();
+            createDocument("Find Target", "Known paragraph text.");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Does not exist").replace("x").build()))
+                    .build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/find-target";
+
+            // when
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(response.getBody())
+                    .contains("\"editIndex\"")
+                    .contains("\"occurrences\"");
+        }
+
+        @Test
+        @DisplayName("Should return 400 when content and contentEdits are combined in one request")
+        void shouldReturn400WhenContentAndContentEditsCombined() {
+            // given
+            cleanProjectDocuments();
+            createDocument("Valid", "Desc");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("Full replacement text")
+                    .contentEdits(List.of(
+                            ContentEditDTO.builder().find("Desc").replace("X").build()))
+                    .build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/valid";
+
+            // when & then
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(response.getBody())
+                    .contains("content")
+                    .contains("contentEdits");
         }
     }
 
