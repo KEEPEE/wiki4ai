@@ -9,6 +9,7 @@ import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
@@ -360,17 +361,40 @@ class DocumentControllerTest {
         }
 
         @Test
-        @DisplayName("Should return 400 when validation fails")
-        void shouldReturnBadRequestWhenValidationFails() throws Exception {
+        @DisplayName("Should return 400 with clear message when neither title nor content is provided")
+        void shouldReturnBadRequestWhenNothingProvided() throws Exception {
             // given
-            DocumentUpdateDTO invalidDto = DocumentUpdateDTO.builder().build();
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO emptyDto = DocumentUpdateDTO.builder().build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException("At least one of title or content must be provided"));
 
             // when & then
             mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidDto)))
+                            .content(objectMapper.writeValueAsString(emptyDto)))
                     .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.errors.title").exists());
+                    .andExpect(jsonPath("$.status").value(400))
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("At least one of title or content must be provided"));
+        }
+
+        @Test
+        @DisplayName("Should return 400 when title is blank")
+        void shouldReturnBadRequestWhenTitleBlank() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO blankTitleDto = DocumentUpdateDTO.builder().title("   ").build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException("Title must not be blank"));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(blankTitleDto)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.error").value("Bad Request"))
+                    .andExpect(jsonPath("$.message").value("Title must not be blank"));
         }
     }
 

@@ -19,7 +19,7 @@ export interface CreateDocumentDto {
 }
 
 export interface UpdateDocumentDto {
-  title: string;
+  title?: string;
   content?: string;
 }
 

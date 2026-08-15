@@ -463,24 +463,34 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
 def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None) -> dict:
     """Update an existing document by its slug within a project.
 
-    PARTIAL UPDATE: Only provided fields are updated. Omitted fields remain unchanged.
+    PARTIAL UPDATE: `title` and `content` are independently optional — only the
+    provided fields are updated, omitted fields remain unchanged. At least ONE
+    of them MUST be provided; calling with neither raises an error (400-like)
+    before any HTTP request is made.
 
-    IMPORTANT FOR AI AGENTS: You MUST include the `title` parameter when calling this tool,
-    even if you are only updating the content. Always pass both `title` and `content` together.
-    Calling with only `content` (without `title`) has been observed to cause issues.
+    Note: when `title` is changed the slug is regenerated from the new title —
+    the response contains the NEW slug, while the URL identifier in the request
+    stays the original slug.
 
     Example usage:
+        update_document("my-project", "my-doc", content="# Updated Content\n...")
+        update_document("my-project", "my-doc", title="My Document Title")
         update_document("my-project", "my-doc", title="My Document Title", content="# Updated Content\n...")
 
     Args:
-        project_slug: The URL-friendly slug of the project (required)
-        doc_slug: The URL-friendly slug of the document to update (required)
-        title: New title for the document. REQUIRED - always include this parameter, even when only updating content.
+        project_slug: The URL-friendly slug of the project (required).
+        doc_slug: The URL-friendly slug of the document to update (required).
+        title: New title for the document (optional). When changed, the slug is regenerated.
         content: New markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
 
     Returns:
-        Updated DocumentDTO with id, title, slug, projectId, createdAt, updatedAt
+        Updated DocumentDTO with id, title, slug (the new one if the title changed), projectId, createdAt, updatedAt
+
+    Raises:
+        MCPToolError: With status_code=400 when neither `title` nor `content` is provided.
     """
+    if title is None and content is None:
+        raise MCPToolError("At least one of title or content must be provided", status_code=400)
     body = {}
     if title is not None:
         body["title"] = title

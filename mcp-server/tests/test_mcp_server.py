@@ -30,6 +30,8 @@ from mcp_server import (
     _api_request,
     set_base_url,
     get_mermaid_guide,
+    update_document,
+    MCPToolError,
 )
 
 
@@ -1600,3 +1602,52 @@ class TestGetMermaidGuideRegistration:
         """get_mermaid_guide has a proper docstring for MCP tool description."""
         assert get_mermaid_guide.__doc__ is not None
         assert len(get_mermaid_guide.__doc__) > 50
+
+
+# ─── Tests: update_document partial update (WIKI4AI-23) ────────────────────
+
+class TestUpdateDocument:
+    """Tests for update_document partial-update contract (title/content optional)."""
+
+    @patch("mcp_server._api_request")
+    def test_raises_mcp_tool_error_when_neither_title_nor_content_given(self, mock_api_request):
+        """update_document(proj, doc) raises MCPToolError 400 BEFORE any HTTP call."""
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document("my-project", "my-doc")
+
+        assert exc_info.value.status_code == 400
+        assert "At least one of title or content must be provided" in str(exc_info.value)
+        # No HTTP request must have been made
+        mock_api_request.assert_not_called()
+
+    @patch("mcp_server._api_request")
+    def test_sends_content_only_body_when_title_omitted(self, mock_api_request):
+        """Content-only partial update sends a body without the title key."""
+        mock_api_request.return_value = {
+            "id": 1, "title": "My Document", "slug": "my-doc", "projectId": 10,
+            "content": "New content", "createdAt": "2026-01-01T00:00:00", "updatedAt": "2026-01-02T00:00:00",
+        }
+
+        result = update_document("my-project", "my-doc", content="New content")
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc", {"content": "New content"}
+        )
+        assert result["content"] == "New content"
+        assert result["slug"] == "my-doc"
+
+    @patch("mcp_server._api_request")
+    def test_sends_title_only_body_when_content_omitted(self, mock_api_request):
+        """Title-only partial update sends a body without the content key and returns new slug."""
+        mock_api_request.return_value = {
+            "id": 1, "title": "Renamed", "slug": "renamed", "projectId": 10,
+            "content": "Old content", "createdAt": "2026-01-01T00:00:00", "updatedAt": "2026-01-02T00:00:00",
+        }
+
+        result = update_document("my-project", "my-doc", title="Renamed")
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc", {"title": "Renamed"}
+        )
+        assert result["content"] == "Old content"
+        assert result["slug"] == "renamed"
