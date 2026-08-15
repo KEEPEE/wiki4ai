@@ -1,6 +1,5 @@
 package com.wiki4ai.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,6 +7,8 @@ import lombok.NoArgsConstructor;
 
 /**
  * DTO for updating an existing Document.
+ * Title and content are both optional, but at least one must be provided
+ * (enforced in DocumentService). Omitted fields remain unchanged.
  */
 @Data
 @NoArgsConstructor
@@ -15,7 +16,6 @@ import lombok.NoArgsConstructor;
 @Builder
 public class DocumentUpdateDTO {
 
-    @NotBlank(message = "Document title is required")
     private String title;
 
     private String content;

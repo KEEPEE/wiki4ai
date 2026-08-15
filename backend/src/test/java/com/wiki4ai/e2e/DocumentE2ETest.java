@@ -342,7 +342,7 @@ class DocumentE2ETest {
             cleanProjectDocuments();
             createDocument("Valid", "Desc");
 
-            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().build(); // empty title
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().build(); // no title, no content
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
@@ -352,6 +352,79 @@ class DocumentE2ETest {
             // when & then
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
             assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+
+        @Test
+        @DisplayName("Should return 400 when updating with a blank title")
+        void shouldReturnBadRequestWhenTitleBlank() {
+            // given - create a valid document first
+            cleanProjectDocuments();
+            createDocument("Valid", "Desc");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().title("   ").build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/valid";
+
+            // when & then
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.PUT, request, String.class);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+
+        @Test
+        @DisplayName("Should update only the title when content is not provided (content unchanged, slug regenerated)")
+        void shouldUpdateOnlyTitleWhenContentNotProvided() {
+            // given
+            cleanProjectDocuments();
+            createDocument("Original", "keep this content");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .title("Renamed Original")
+                    .build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/original";
+
+            // when
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.PUT, request, Map.class);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<String, Object> body = response.getBody();
+            assertThat(body.get("title")).isEqualTo("Renamed Original");
+            assertThat(body.get("slug")).isEqualTo("renamed-original");
+            assertThat(body.get("content")).isEqualTo("keep this content");
+        }
+
+        @Test
+        @DisplayName("Should update only the content when title is not provided (title + slug unchanged)")
+        void shouldUpdateOnlyContentWhenTitleNotProvided() {
+            // given
+            cleanProjectDocuments();
+            createDocument("Original", "old content");
+
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("# New Content\nFresh description.")
+                    .build();
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<DocumentUpdateDTO> request = new HttpEntity<>(updateDto, headers);
+
+            String url = DOCUMENTS_BASE.replace("{projectSlug}", testProjectSlug) + "/original";
+
+            // when
+            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.PUT, request, Map.class);
+
+            // then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Map<String, Object> body = response.getBody();
+            assertThat(body.get("title")).isEqualTo("Original");
+            assertThat(body.get("slug")).isEqualTo("original");
+            assertThat(body.get("content")).isEqualTo("# New Content\nFresh description.");
         }
     }
 

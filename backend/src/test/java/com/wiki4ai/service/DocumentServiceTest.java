@@ -5,6 +5,7 @@ import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
+import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
@@ -325,6 +326,76 @@ class DocumentServiceTest {
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("Document not found with id: 99");
         }
+
+        @Test
+        @DisplayName("Should update only content when title is not provided and keep existing title + slug")
+        void shouldUpdateOnlyContentWhenTitleNotProvided() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("New content only")
+                    .build();
+
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocument(1L, updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document");
+            assertThat(result.getSlug()).isEqualTo("source-document");
+            assertThat(result.getContent()).isEqualTo("New content only");
+        }
+
+        @Test
+        @DisplayName("Should update only title when content is not provided, keep content, regenerate slug")
+        void shouldUpdateOnlyTitleWhenContentNotProvided() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .title("Renamed Document")
+                    .build();
+
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocument(1L, updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Renamed Document");
+            assertThat(result.getSlug()).isEqualTo("renamed-document");
+            assertThat(result.getContent()).isEqualTo("Source content");
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when neither title nor content is provided")
+        void shouldThrowBadRequestWhenNothingProvided() {
+            // given
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("At least one of title or content must be provided");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when provided title is blank")
+        void shouldThrowBadRequestWhenTitleBlank() {
+            // given
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().title("   ").build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("Title must not be blank");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
     }
 
     @Nested
@@ -375,6 +446,80 @@ class DocumentServiceTest {
             assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "non-existent", updateDto))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("Document not found with slug 'non-existent' in project 1");
+        }
+
+        @Test
+        @DisplayName("Should update only content when title is not provided and keep existing title + slug")
+        void shouldUpdateOnlyContentWhenTitleNotProvided() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("New content by slug")
+                    .build();
+
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Source Document");
+            assertThat(result.getSlug()).isEqualTo("source-document");
+            assertThat(result.getContent()).isEqualTo("New content by slug");
+        }
+
+        @Test
+        @DisplayName("Should update only title when content is not provided, keep content, regenerate slug")
+        void shouldUpdateOnlyTitleWhenContentNotProvided() {
+            // given
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .title("Renamed By Slug")
+                    .build();
+
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getTitle()).isEqualTo("Renamed By Slug");
+            assertThat(result.getSlug()).isEqualTo("renamed-by-slug");
+            assertThat(result.getContent()).isEqualTo("Source content");
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when neither title nor content is provided")
+        void shouldThrowBadRequestWhenNothingProvided() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("At least one of title or content must be provided");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should throw BadRequestException when provided title is blank")
+        void shouldThrowBadRequestWhenTitleBlank() {
+            // given
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(sourceDocument));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().title("   ").build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessage("Title must not be blank");
+            verify(documentRepository, never()).save(any(Document.class));
         }
     }
 

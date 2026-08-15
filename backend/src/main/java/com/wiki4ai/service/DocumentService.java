@@ -5,6 +5,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
@@ -143,6 +144,8 @@ public class DocumentService {
 
     /**
      * Update an existing document by ID.
+     * Partial update: only non-null fields are applied, the rest stay unchanged.
+     * At least one of title/content must be provided; a blank title is rejected.
      */
     @Transactional
     public DocumentDTO updateDocument(Long id, DocumentUpdateDTO dto, String username) {
@@ -150,8 +153,7 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
         permissionService.checkPermission(username, document.getProject().getId(), Permission.UPDATE);
 
-        document.setTitle(dto.getTitle());
-        document.setContent(dto.getContent());
+        applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
         return convertToDTO(saved);
@@ -159,6 +161,8 @@ public class DocumentService {
 
     /**
      * Update an existing document by slug within a specific project.
+     * Partial update: only non-null fields are applied, the rest stay unchanged.
+     * At least one of title/content must be provided; a blank title is rejected.
      */
     @Transactional
     public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentUpdateDTO dto, String username) {
@@ -167,11 +171,30 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
 
-        document.setTitle(dto.getTitle());
-        document.setContent(dto.getContent());
+        applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
         return convertToDTO(saved);
+    }
+
+    /**
+     * Apply a partial update to a document.
+     * Fails fast (400) when no field is provided or when the title is blank.
+     * Setting a non-null title regenerates the slug; null fields are left untouched.
+     */
+    private void applyUpdate(DocumentUpdateDTO dto, Document document) {
+        if (dto.getTitle() == null && dto.getContent() == null) {
+            throw new BadRequestException("At least one of title or content must be provided");
+        }
+        if (dto.getTitle() != null && dto.getTitle().isBlank()) {
+            throw new BadRequestException("Title must not be blank");
+        }
+        if (dto.getTitle() != null) {
+            document.setTitle(dto.getTitle());
+        }
+        if (dto.getContent() != null) {
+            document.setContent(dto.getContent());
+        }
     }
 
     // ==================== DELETE OPERATIONS (require DELETE permission) ====================
