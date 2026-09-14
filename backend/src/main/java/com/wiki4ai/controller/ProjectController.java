@@ -62,6 +62,15 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getProjectBySlug(slug));
     }
 
+    @Operation(summary = "Strom podprojektov", description = "Vráti vnoorený strom podprojektov (všetky úrovne, max hĺbka 5) pre zadaný projekt. Každý uzol obsahuje id, name, slug, parentSlug, depth, hasChildren a documentCount.")
+    @ApiResponse(responseCode = "200", description = "Strom projektov úspešne načítaný")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @GetMapping("/{slug}/tree")
+    public ResponseEntity<ProjectTreeNodeDTO> getProjectTree(
+            @Parameter(description = "Slug koreňového projektu stromu") @PathVariable String slug) {
+        return ResponseEntity.ok(projectService.getProjectTree(slug));
+    }
+
     @Operation(summary = "Vytvorenie nového projektu", description = "Vytvorí nový wiki projekt. Vtvorca automaticky dostáva MANAGE oprávnenie. Voliteľné `parentId` v tele vytvorí subprojekt pod daným projektom (max hĺbka hierarchie 5).")
     @ApiResponse(responseCode = "201", description = "Projekt úspešne vytvorený")
     @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error) alebo prekročená max. hĺbka hierarchie / cyklus")
