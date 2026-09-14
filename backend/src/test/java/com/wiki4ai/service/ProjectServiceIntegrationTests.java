@@ -1,7 +1,12 @@
 package com.wiki4ai.service;
 
+import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
+import com.wiki4ai.repository.DocumentRepository;
+import com.wiki4ai.repository.ProjectRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -26,6 +31,12 @@ class ProjectServiceIntegrationTests {
 
     @Autowired
     private ProjectService projectService;
+
+    @Autowired
+    private DocumentRepository documentRepository;
+
+    @Autowired
+    private ProjectRepository projectRepository;
 
     // Clean up before each test to ensure isolation
     @BeforeEach
@@ -331,6 +342,160 @@ class ProjectServiceIntegrationTests {
             // VERIFY deleted
             assertThatThrownBy(() -> projectService.getProjectById(id))
                     .isInstanceOf(jakarta.persistence.EntityNotFoundException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("Project Hierarchy Integration Tests (WIKI4AI-29)")
+    class ProjectHierarchyIntegrationTests {
+
+        private ProjectDTO create(String name, Long parentId) {
+            return projectService.createProject(
+                    ProjectCreateDTO.builder().name(name).parentId(parentId).build());
+        }
+
+        @Test
+        @DisplayName("Should create a chain root→L1→L2→L3→L4 (depth 5) and expose depths")
+        void shouldCreateChainToDepthFive() {
+            // when
+            ProjectDTO root = create("Hier Root", null);
+            ProjectDTO l1 = create("Hier L1", root.getId());
+            ProjectDTO l2 = create("Hier L2", l1.getId());
+            ProjectDTO l3 = create("Hier L3", l2.getId());
+            ProjectDTO l4 = create("Hier L4", l3.getId());
+
+            // then
+            assertThat(root.getDepth()).isEqualTo(1);
+            assertThat(root.getParentSlug()).isNull();
+            assertThat(l1.getDepth()).isEqualTo(2);
+            assertThat(l1.getParentSlug()).isEqualTo(root.getSlug());
+            assertThat(l2.getDepth()).isEqualTo(3);
+            assertThat(l3.getDepth()).isEqualTo(4);
+            assertThat(l4.getDepth()).isEqualTo(5);
+            assertThat(l4.getParentSlug()).isEqualTo(l3.getSlug());
+
+            // GET by slug returns parentSlug (e2e contract)
+            ProjectDTO fetched = projectService.getProjectBySlug(l4.getSlug());
+            assertThat(fetched.getParentSlug()).isEqualTo(l3.getSlug());
+        }
+
+        @Test
+        @DisplayName("Should reject creating a 6th level under a depth-5 project")
+        void shouldRejectDepthSix() {
+            // given — chain to depth 5
+            ProjectDTO root = create("Deep Root", null);
+            ProjectDTO l1 = create("Deep L1", root.getId());
+            ProjectDTO l2 = create("Deep L2", l1.getId());
+            ProjectDTO l3 = create("Deep L3", l2.getId());
+            ProjectDTO l4 = create("Deep L4", l3.getId());
+
+            // when & then
+            assertThatThrownBy(() -> create("Deep L5-rejected", l4.getId()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("maximum hierarchy depth");
+        }
+
+        @Test
+        @DisplayName("Should reject moving a project under its own subproject (cycle)")
+        void shouldRejectCycleOnMove() {
+            // given — root with child
+            ProjectDTO root = create("Cycle Root", null);
+            ProjectDTO child = create("Cycle Child", root.getId());
+
+            // when & then — moving root under its child would create a cycle
+            assertThatThrownBy(() -> projectService.moveProjectBySlug(root.getSlug(), child.getId()))
+                    .isInstanceOf(BadRequestException.class)
+                    .hasMessageContaining("cycle");
+
+            // hierarchy unchanged
+            assertThat(projectService.getProjectBySlug(root.getSlug()).getParentSlug()).isNull();
+        }
+
+        @Test
+        @DisplayName("Should move a subproject to another parent and recompute depth")
+        void shouldMoveSubprojectAndRecomputeDepth() {
+            // given — two roots, one child of the first
+            ProjectDTO rootA = create("Move Root A", null);
+            ProjectDTO rootB = create("Move Root B", null);
+            ProjectDTO child = create("Move Child", rootA.getId());
+            assertThat(child.getDepth()).isEqualTo(2);
+
+            // when — move child under rootB
+            ProjectDTO moved = projectService.moveProjectBySlug(child.getSlug(), rootB.getId());
+
+            // then
+            assertThat(moved.getParentSlug()).isEqualTo(rootB.getSlug());
+            assertThat(projectService.getProjectBySlug(child.getSlug()).getParentSlug()).isEqualTo(rootB.getSlug());
+        }
+
+        @Test
+        @DisplayName("Should move a subproject back to root with null newParentId")
+        void shouldMoveBackToRoot() {
+            // given
+            ProjectDTO root = create("Retro Root", null);
+            ProjectDTO child = create("Retro Child", root.getId());
+            assertThat(child.getDepth()).isEqualTo(2);
+
+            // when — move back to root
+            ProjectDTO movedToRoot = projectService.moveProjectBySlug(child.getSlug(), null);
+
+            // then
+            assertThat(movedToRoot.getParentSlug()).isNull();
+            assertThat(movedToRoot.getDepth()).isEqualTo(1);
+            assertThat(projectService.getProjectBySlug(child.getSlug()).getParentSlug()).isNull();
+        }
+
+        @Test
+        @DisplayName("Update without parentId key must NOT move the project (backward compatible)")
+        void updateWithoutParentKeyShouldNotMove() {
+            // given — child of a root
+            ProjectDTO root = create("Keep Root", null);
+            ProjectDTO child = create("Keep Child", root.getId());
+
+            // when — plain name/description update (no parentId key → builder leaves parentIdPresent=false)
+            ProjectDTO updated = projectService.updateProjectBySlug(
+                    child.getSlug(),
+                    com.wiki4ai.dto.ProjectUpdateDTO.builder()
+                            .name("Keep Child Renamed")
+                            .description("still a subproject")
+                            .build());
+
+            // then — still under the same parent
+            assertThat(updated.getName()).isEqualTo("Keep Child Renamed");
+            assertThat(updated.getParentSlug()).isEqualTo(root.getSlug());
+        }
+
+        @Test
+        @DisplayName("Deleting a root should cascade to subprojects and their documents")
+        void deleteRootShouldCascadeToSubprojectsAndDocuments() {
+            // given — root → child, with a document in each
+            ProjectDTO root = create("Cascade Root", null);
+            ProjectDTO child = create("Cascade Child", root.getId());
+
+            Document docInRoot = Document.builder()
+                    .title("Doc In Root")
+                    .slug("doc-in-root")
+                    .content("# Root doc")
+                    .project(projectRepository.findById(root.getId()).orElseThrow())
+                    .build();
+            documentRepository.save(docInRoot);
+
+            Document docInChild = Document.builder()
+                    .title("Doc In Child")
+                    .slug("doc-in-child")
+                    .content("# Child doc")
+                    .project(projectRepository.findById(child.getId()).orElseThrow())
+                    .build();
+            documentRepository.save(docInChild);
+
+            // when — delete the root project (anonymous path, cascade)
+            projectService.deleteProject(root.getId());
+
+            // then — child project and both documents are gone
+            assertThatThrownBy(() -> projectService.getProjectById(child.getId()))
+                    .isInstanceOf(jakarta.persistence.EntityNotFoundException.class);
+            assertThat(documentRepository.findById(docInRoot.getId())).isEmpty();
+            assertThat(documentRepository.findById(docInChild.getId())).isEmpty();
         }
     }
 }

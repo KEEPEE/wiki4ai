@@ -45,4 +45,14 @@ public interface ProjectPermissionRepository extends JpaRepository<ProjectPermis
     @Modifying
     @Query("DELETE FROM ProjectPermission pp WHERE pp.project.id = :projectId")
     void deleteByProjectIdOnly(Long projectId);
+
+    /**
+     * Delete ALL permissions for a set of projects (used when deleting a project
+     * together with its subprojects — WIKI4AI-29).
+     *
+     * @param projectIds the project IDs to delete all permissions for
+     */
+    @Modifying
+    @Query("DELETE FROM ProjectPermission pp WHERE pp.project.id IN :projectIds")
+    void deleteByProjectIdIn(@org.springframework.data.repository.query.Param("projectIds") java.util.Collection<Long> projectIds);
 }

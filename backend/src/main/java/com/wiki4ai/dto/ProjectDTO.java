@@ -28,6 +28,17 @@ public class ProjectDTO {
 
     private String slug;
 
+    /**
+     * Slug of the parent project, or null for root projects (WIKI4AI-29).
+     */
+    private String parentSlug;
+
+    /**
+     * Hierarchy depth: root projects have depth 1, their children depth 2, etc.
+     * Maximum allowed depth is 5 (WIKI4AI-29).
+     */
+    private int depth;
+
     private int documentCount;
 
     private java.time.LocalDateTime createdAt;

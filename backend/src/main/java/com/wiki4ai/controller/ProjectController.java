@@ -2,6 +2,7 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectTreeNodeDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -61,9 +62,10 @@ public class ProjectController {
         return ResponseEntity.ok(projectService.getProjectBySlug(slug));
     }
 
-    @Operation(summary = "Vytvorenie nového projektu", description = "Vytvorí nový wiki projekt. Vtvorca automaticky dostáva MANAGE oprávnenie.")
+    @Operation(summary = "Vytvorenie nového projektu", description = "Vytvorí nový wiki projekt. Vtvorca automaticky dostáva MANAGE oprávnenie. Voliteľné `parentId` v tele vytvorí subprojekt pod daným projektom (max hĺbka hierarchie 5).")
     @ApiResponse(responseCode = "201", description = "Projekt úspešne vytvorený")
-    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error)")
+    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error) alebo prekročená max. hĺbka hierarchie / cyklus")
+    @ApiResponse(responseCode = "404", description = "Rodičovský projekt nebol nájdený")
     @ApiResponse(responseCode = "409", description = "Projekt s rovnakým názvom už existuje")
     @PostMapping
     public ResponseEntity<ProjectDTO> createProject(@Valid @RequestBody ProjectCreateDTO dto) {
@@ -72,11 +74,11 @@ public class ProjectController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Aktualizácia projektu", description = "Aktualizuje existujúci projekt podľa slugu. Vyžaduje MANAGE oprávnenie.")
+    @Operation(summary = "Aktualizácia projektu", description = "Aktualizuje existujúci projekt podľa slugu. Vyžaduje MANAGE oprávnenie. Voliteľné `parentId` presunie projekt v hierarchii: hodnota = nový rodič, explicitné null = späť na root, chýbajúce kľúč = bez presunu (max hĺbka 5, cykly odmietnuté).")
     @ApiResponse(responseCode = "200", description = "Projekt úspešne aktualizovaný")
-    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error)")
+    @ApiResponse(responseCode = "400", description = "Neplatný vstup (validation error), presun pod vlastného potomka / seba alebo prekročená max. hĺbka hierarchie")
     @ApiResponse(responseCode = "403", description = "Chýba MANAGE oprávnenie")
-    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený alebo rodičovský projekt nebol nájdený")
     @PutMapping("/{slug}")
     public ResponseEntity<ProjectDTO> updateProject(
             @Parameter(description = "Slug projektu") @PathVariable String slug,

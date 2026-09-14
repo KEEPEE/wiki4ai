@@ -44,4 +44,27 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
      * @return list of projects sorted by createdAt descending
      */
     List<Project> findAllByOrderByCreatedAtDesc();
+
+    /**
+     * Find direct children of a project.
+     *
+     * @param parentId the parent project id
+     * @return list of child projects
+     */
+    List<Project> findByParentId(Long parentId);
+
+    /**
+     * Check whether a project has at least one child.
+     *
+     * @param parentId the parent project id
+     * @return true if the project has children
+     */
+    boolean existsByParentId(Long parentId);
+
+    /**
+     * Find all root projects (no parent), ordered by creation date (newest first).
+     *
+     * @return list of root projects sorted by createdAt descending
+     */
+    List<Project> findByParentIsNullOrderByCreatedAtDesc();
 }
