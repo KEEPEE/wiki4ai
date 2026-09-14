@@ -2,7 +2,9 @@ package com.wiki4ai.service;
 
 import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectTreeNodeDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
+import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
@@ -16,6 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -77,10 +82,27 @@ public class ProjectService {
             throw new IllegalArgumentException("A project with this name already exists");
         }
 
+        // Optional parent → subproject (WIKI4AI-29): validate hierarchy depth ≤ 5.
+        Project parent = null;
+        if (dto.getParentId() != null) {
+            parent = projectRepository.findById(dto.getParentId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Parent project not found with id: " + dto.getParentId()));
+            int childDepth = parent.getDepth() + 1;
+            if (childDepth > Project.MAX_HIERARCHY_DEPTH) {
+                throw new BadRequestException(
+                        "Cannot create subproject: maximum hierarchy depth of "
+                                + Project.MAX_HIERARCHY_DEPTH + " levels would be exceeded");
+            }
+        }
+
         Project project = new Project();
         // Use setName() to trigger slug generation (equivalent to @PrePersist)
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
+        if (parent != null) {
+            parent.addChild(project);
+        }
 
         Project saved = projectRepository.save(project);
 
@@ -124,6 +146,12 @@ public class ProjectService {
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
 
+        // Optional hierarchy move (WIKI4AI-30): only when the payload explicitly
+        // contains a "parentId" key. Explicit null = back to root; absent = no move.
+        if (dto.isParentIdPresent()) {
+            return doMove(project, dto.getParentId());
+        }
+
         Project saved = projectRepository.save(project);
         return convertToDTO(saved);
     }
@@ -142,8 +170,152 @@ public class ProjectService {
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
 
+        // Optional hierarchy move (WIKI4AI-30): only when the payload explicitly
+        // contains a "parentId" key. Explicit null = back to root; absent = no move.
+        if (dto.isParentIdPresent()) {
+            return doMove(project, dto.getParentId());
+        }
+
         Project saved = projectRepository.save(project);
         return convertToDTO(saved);
+    }
+
+    /**
+     * Move a project to a new parent in the hierarchy (WIKI4AI-30).
+     * Requires MANAGE permission on the moved project.
+     *
+     * @param slug        slug of the project to move
+     * @param newParentId id of the new parent, or null to move back to root
+     */
+    @Transactional
+    public ProjectDTO moveProjectBySlug(String slug, Long newParentId, String username) {
+        Project project = projectRepository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+
+        permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
+
+        return doMove(project, newParentId);
+    }
+
+    /**
+     * Move a project to a new parent in the hierarchy (WIKI4AI-30).
+     * Requires MANAGE permission on the moved project.
+     *
+     * @param id          id of the project to move
+     * @param newParentId id of the new parent, or null to move back to root
+     */
+    @Transactional
+    public ProjectDTO moveProjectById(Long id, Long newParentId, String username) {
+        Project project = projectRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
+
+        permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
+
+        return doMove(project, newParentId);
+    }
+
+    /**
+     * Core move logic shared by slug/id variants. Validates:
+     * <ul>
+     *   <li>new parent exists (404 when missing)</li>
+     *   <li>no self-move and no cycle (target is not a descendant of the moved project)</li>
+     *   <li>resulting depth of the moved project AND all its descendants ≤ 5</li>
+     * </ul>
+     */
+    private ProjectDTO doMove(Project project, Long newParentId) {
+        // Self-move is a client error even if the id would resolve to the same entity.
+        if (newParentId != null && newParentId.equals(project.getId())) {
+            throw new BadRequestException("Cannot move a project under itself");
+        }
+
+        Project newParent = null;
+        if (newParentId != null) {
+            newParent = projectRepository.findById(newParentId)
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Parent project not found with id: " + newParentId));
+
+            // Anti-cycle: the new parent must not be a descendant of the moved project.
+            Project cursor = newParent.getParent();
+            while (cursor != null) {
+                if (cursor.getId() != null && cursor.getId().equals(project.getId())) {
+                    throw new BadRequestException(
+                            "Cannot move a project under its own subproject (would create a cycle)");
+                }
+                cursor = cursor.getParent();
+            }
+        }
+
+        int currentDepth = project.getDepth();
+        int newDepth = (newParent == null) ? 1 : newParent.getDepth() + 1;
+        if (newDepth > Project.MAX_HIERARCHY_DEPTH) {
+            throw new BadRequestException(
+                    "Cannot move project: maximum hierarchy depth of "
+                            + Project.MAX_HIERARCHY_DEPTH + " levels would be exceeded");
+        }
+
+        // If the project moves deeper, every descendant must still fit within the limit.
+        int delta = newDepth - currentDepth;
+        if (delta > 0) {
+            int maxDescendantLevels = maxDescendantLevels(project);
+            if (newDepth + maxDescendantLevels > Project.MAX_HIERARCHY_DEPTH) {
+                throw new BadRequestException(
+                        "Cannot move project: its subprojects would exceed the maximum hierarchy depth of "
+                                + Project.MAX_HIERARCHY_DEPTH + " levels");
+            }
+        }
+
+        // Perform the move, keeping both sides of the relationship consistent.
+        Project oldParent = project.getParent();
+        if (oldParent != null) {
+            oldParent.removeChild(project);
+        } else {
+            project.setParent(null);
+        }
+        if (newParent != null) {
+            newParent.addChild(project);
+        }
+
+        Project saved = projectRepository.save(project);
+        return convertToDTO(saved);
+    }
+
+    /**
+     * Number of hierarchy levels below the given project (its children count as 1).
+     * Returns 0 when the project has no descendants. BFS over repository queries, so
+     * lazy collections are never initialized.
+     */
+    private int maxDescendantLevels(Project root) {
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(root.getId());
+        int levels = 0;
+        while (!queue.isEmpty()) {
+            int size = queue.size();
+            for (int i = 0; i < size; i++) {
+                Long id = queue.poll();
+                for (Project child : projectRepository.findByParentId(id)) {
+                    queue.add(child.getId());
+                }
+            }
+            levels++;
+        }
+        return levels - 1; // the root itself was processed once
+    }
+
+    /**
+     * Collect ids of all descendants of the given project (BFS), not including the project itself.
+     */
+    private List<Long> collectDescendantIds(Project root) {
+        List<Long> ids = new ArrayList<>();
+        Deque<Long> queue = new ArrayDeque<>();
+        queue.add(root.getId());
+        while (!queue.isEmpty()) {
+            Long id = queue.poll();
+            for (Project child : projectRepository.findByParentId(id)) {
+                ids.add(child.getId());
+                queue.add(child.getId());
+            }
+        }
+        return ids;
     }
 
     /**
@@ -157,8 +329,8 @@ public class ProjectService {
             if (!projectRepository.existsById(id)) {
                 throw new EntityNotFoundException("Project not found with id: " + id);
             }
-            // Delete associated permissions first to avoid FK constraint violations
-            projectPermissionRepository.deleteByProjectIdOnly(id);
+            // Delete permissions of the project and all its subprojects first to avoid FK violations
+            deletePermissionsForProjectAndDescendants(id);
             projectRepository.deleteById(id);
             return;
         }
@@ -167,10 +339,27 @@ public class ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
 
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
-        
-        // Delete all project permissions for this project to avoid FK constraint violations
-        projectPermissionRepository.deleteByProjectIdOnly(project.getId());
+
+        // Delete all project permissions (project + subprojects) to avoid FK constraint violations
+        deletePermissionsForProjectAndDescendants(project.getId());
         projectRepository.delete(project);
+    }
+
+    /**
+     * Delete permissions for the given project and ALL of its descendants (WIKI4AI-29).
+     * Subproject rows are removed by JPA cascade REMOVE / DB ON DELETE CASCADE; their
+     * permission rows must be cleaned explicitly because project_permissions has no cascade.
+     */
+    private void deletePermissionsForProjectAndDescendants(Long projectId) {
+        Project project = projectRepository.findById(projectId).orElse(null);
+        if (project == null) {
+            projectPermissionRepository.deleteByProjectIdOnly(projectId);
+            return;
+        }
+        List<Long> allIds = new ArrayList<>();
+        allIds.add(projectId);
+        allIds.addAll(collectDescendantIds(project));
+        projectPermissionRepository.deleteByProjectIdIn(allIds);
     }
 
     /**
@@ -183,8 +372,8 @@ public class ProjectService {
         if (username == null || username.isBlank() || "anonymous".equals(username)) {
             Project project = projectRepository.findBySlug(slug)
                     .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
-            // Delete associated permissions first to avoid FK constraint violations
-            projectPermissionRepository.deleteByProjectIdOnly(project.getId());
+            // Delete permissions of the project and all its subprojects first to avoid FK violations
+            deletePermissionsForProjectAndDescendants(project.getId());
             projectRepository.delete(project);
             return;
         }
@@ -193,9 +382,9 @@ public class ProjectService {
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
-        
-        // Delete all project permissions for this project to avoid FK constraint violations
-        projectPermissionRepository.deleteByProjectIdOnly(project.getId());
+
+        // Delete all project permissions (project + subprojects) to avoid FK constraint violations
+        deletePermissionsForProjectAndDescendants(project.getId());
         projectRepository.delete(project);
     }
 
@@ -237,14 +426,21 @@ public class ProjectService {
     }
 
     /**
-     * Convert Project entity to DTO.
+     * Convert Project entity to DTO (includes parentSlug and depth, WIKI4AI-29).
      */
     private ProjectDTO convertToDTO(Project project) {
+        String parentSlug = null;
+        if (project.getParent() != null) {
+            // Lazy proxy: getSlug() initializes it within the open session.
+            parentSlug = project.getParent().getSlug();
+        }
         return ProjectDTO.builder()
                 .id(project.getId())
                 .name(project.getName())
                 .description(project.getDescription())
                 .slug(project.getSlug())
+                .parentSlug(parentSlug)
+                .depth(project.getDepth())
                 .documentCount(project.getDocuments() != null ? project.getDocuments().size() : 0)
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
@@ -308,6 +504,16 @@ public class ProjectService {
     @Transactional
     public void deleteProjectBySlug(String slug) {
         deleteProjectBySlug(slug, null);
+    }
+
+    @Transactional
+    public ProjectDTO moveProjectBySlug(String slug, Long newParentId) {
+        return moveProjectBySlug(slug, newParentId, null);
+    }
+
+    @Transactional
+    public ProjectDTO moveProjectById(Long id, Long newParentId) {
+        return moveProjectById(id, newParentId, null);
     }
 
     public byte[] exportProjectAsZip(String slug) {

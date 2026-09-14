@@ -23,4 +23,11 @@ public class ProjectCreateDTO {
 
     @Size(max = 1000, message = "Description must be at most 1000 characters")
     private String description;
+
+    /**
+     * Optional id of the parent project. When set, the new project is created as a
+     * subproject of the given project (hierarchy depth limited to 5, WIKI4AI-29).
+     * Null/absent = root project (backward compatible).
+     */
+    private Long parentId;
 }
