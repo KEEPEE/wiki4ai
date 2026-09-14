@@ -66,6 +66,60 @@ describe('projectApi', () => {
     })
   })
 
+  describe('getProjectBySlug', () => {
+    it('should fetch project via the by-slug route', async () => {
+      const mockResponse = { id: 1, name: 'Project 1', slug: 'project-1' }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      })
+
+      const result = await projectApi.getProjectBySlug('project-1')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/project-1',
+        expect.objectContaining({ method: 'GET' }),
+      )
+      expect(result).toEqual(mockResponse)
+    })
+  })
+
+  describe('getTree', () => {
+    it('should fetch the nested subproject tree for a project (WIKI4AI-30)', async () => {
+      const mockResponse = {
+        id: 1, name: 'Root', slug: 'root', parentSlug: null, depth: 1,
+        hasChildren: true, documentCount: 2,
+        children: [
+          { id: 2, name: 'Child', slug: 'child', parentSlug: 'root', depth: 2, hasChildren: false, documentCount: 0, children: [] },
+        ],
+      }
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      })
+
+      const result = await projectApi.getTree('root')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/root/tree',
+        expect.objectContaining({ method: 'GET' }),
+      )
+      expect(result.children[0].slug).toBe('child')
+    })
+
+    it('should reject when the project is not found (404)', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+      })
+
+      await expect(projectApi.getTree('unknown')).rejects.toThrow()
+    })
+  })
+
   describe('createProject', () => {
     it('should create project via POST request', async () => {
       const mockResponse = { id: 1, name: 'New Project', slug: 'new-project' }

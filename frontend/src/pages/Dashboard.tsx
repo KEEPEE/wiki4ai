@@ -8,9 +8,78 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
-import type { ProjectDTO } from '../types/project';
+import type { Project, ProjectDTO } from '../types/project';
 import { ToastContainer, type ToastItem } from '../components/Toast';
 import './Dashboard.css';
+
+/**
+ * Recursive subproject row rendered inside a parent project card (WIKI4AI-31).
+ * Subprojects get a distinct ↳ marker and indentation per depth level;
+ * branches with their own children can be collapsed/expanded.
+ */
+interface SubprojectRowProps {
+  project: Project;
+  depth: number;
+  childrenByParent: Map<string, Project[]>;
+  onNavigate: (slug: string) => void;
+}
+
+const SubprojectRow: React.FC<SubprojectRowProps> = ({ project, depth, childrenByParent, onNavigate }) => {
+  const [collapsed, setCollapsed] = useState(false);
+  const children = childrenByParent.get(project.slug) ?? [];
+  const hasChildren = children.length > 0;
+
+  return (
+    <div className="subproject-branch">
+      <div
+        className="subproject-row"
+        style={{ marginLeft: `${(depth - 1) * 18}px` }}
+        role="link"
+        tabIndex={0}
+        onClick={(e) => {
+          e.stopPropagation(); // don't trigger the parent card navigation
+          onNavigate(project.slug);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            onNavigate(project.slug);
+          }
+        }}
+        data-testid={`subproject-item-${project.slug}`}
+      >
+        <span className="subproject-icon" aria-hidden="true">↳</span>
+        <span className="subproject-name">{project.name}</span>
+        <span className="badge subproject-badge">{project.documentCount} docs</span>
+        {hasChildren && (
+          <button
+            type="button"
+            className="subproject-toggle"
+            onClick={(e) => {
+              e.stopPropagation();
+              setCollapsed((c) => !c);
+            }}
+            aria-label={collapsed ? `Expand ${project.name}` : `Collapse ${project.name}`}
+            data-testid={`subproject-toggle-${project.slug}`}
+          >
+            {collapsed ? '▸' : '▾'}
+          </button>
+        )}
+      </div>
+      {!collapsed &&
+        children.map((child) => (
+          <SubprojectRow
+            key={child.id}
+            project={child}
+            depth={depth + 1}
+            childrenByParent={childrenByParent}
+            onNavigate={onNavigate}
+          />
+        ))}
+    </div>
+  );
+};
 
 /** Delete Confirmation Dialog component */
 interface DeleteConfirmationDialogProps {
@@ -45,7 +114,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
         <button type="button" className="modal-close" onClick={onCancel} aria-label="Close modal">×</button>
         <h3 id="delete-modal-title" data-testid="delete-modal-title">Delete Project</h3>
         <p className="delete-warning" data-testid="delete-warning-text">
-          Are you sure you want to delete project &ldquo;<strong>{project.name}</strong>&rdquo;? All documents will be permanently removed.
+          Are you sure you want to delete project &ldquo;<strong>{project.name}</strong>&rdquo;? All documents and subprojects will be permanently removed.
         </p>
         {deleteError && <p className="error">{deleteError}</p>}
         <div className="form-actions form-actions-delete">
@@ -271,6 +340,28 @@ const Dashboard: React.FC = () => {
     });
   }, [projects, debouncedSearchQuery]);
 
+  // Hierarchy grouping for the tree view (WIKI4AI-31): parentSlug -> children.
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    for (const p of projects) {
+      if (p.parentSlug) {
+        const list = map.get(p.parentSlug) ?? [];
+        list.push(p);
+        map.set(p.parentSlug, list);
+      }
+    }
+    return map;
+  }, [projects]);
+
+  // Root projects for the tree view. A subproject whose parent is missing
+  // (defensive edge case) is treated as a root so it never disappears from the UI.
+  const rootProjects = useMemo(() => {
+    const slugs = new Set(projects.map((p) => p.slug));
+    return projects.filter((p) => !p.parentSlug || !slugs.has(p.parentSlug));
+  }, [projects]);
+
+  const isSearching = debouncedSearchQuery.trim().length > 0;
+
   return (
     <div className="dashboard">
       {/* Toast Notifications */}
@@ -408,7 +499,7 @@ const Dashboard: React.FC = () => {
               <p className="empty-text">No projects match your search</p>
             </div>
           ) : (
-            filteredProjects.map((project) => (
+            (isSearching ? filteredProjects : rootProjects).map((project) => (
               <div
                 key={project.id}
                 className="project-card"
@@ -454,6 +545,20 @@ const Dashboard: React.FC = () => {
                   <span className="slug">@{project.slug}</span>
                   <span className="date">{formatDate(project.createdAt)}</span>
                 </div>
+                {/* Nested subprojects — tree view (WIKI4AI-31) */}
+                {!isSearching && (childrenByParent.get(project.slug) ?? []).length > 0 && (
+                  <div className="subprojects-tree" data-testid={`subprojects-tree-${project.slug}`}>
+                    {(childrenByParent.get(project.slug) ?? []).map((child) => (
+                      <SubprojectRow
+                        key={child.id}
+                        project={child}
+                        depth={1}
+                        childrenByParent={childrenByParent}
+                        onNavigate={handleCardClick}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             ))
           )}

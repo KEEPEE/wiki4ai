@@ -18,6 +18,12 @@ interface BreadcrumbProps {
   projectSlug: string;
   /** Display name / title of the current document */
   documentTitle?: string;
+  /**
+   * Optional ancestor chain for nested projects (WIKI4AI-31), ordered from
+   * the root down to the direct parent of `projectSlug`. When omitted, the
+   * breadcrumb shows only Dashboard → project → document.
+   */
+  ancestors?: { slug: string; name: string }[];
 }
 
 /**
@@ -34,7 +40,7 @@ interface BreadcrumbProps {
  * Each breadcrumb item is separated by a → character styled with rgba(255,255,255,0.3).
  * The document title uses Syne font and gets a neon glow on hover.
  */
-const Breadcrumb: React.FC<BreadcrumbProps> = ({ projectSlug, documentTitle }) => {
+const Breadcrumb: React.FC<BreadcrumbProps> = ({ projectSlug, documentTitle, ancestors }) => {
   return (
     <nav className="breadcrumb" aria-label="Breadcrumb">
       <ol className="breadcrumb-list">
@@ -44,6 +50,22 @@ const Breadcrumb: React.FC<BreadcrumbProps> = ({ projectSlug, documentTitle }) =
             Dashboard
           </Link>
         </li>
+
+        {/* Ancestor projects for nested hierarchies (WIKI4AI-31) */}
+        {(ancestors ?? []).map((ancestor) => (
+          <React.Fragment key={ancestor.slug}>
+            <li className="breadcrumb-separator" aria-hidden="true">→</li>
+            <li className="breadcrumb-item">
+              <Link
+                to={`/projects/${ancestor.slug}`}
+                className="breadcrumb-link breadcrumb-project"
+                data-testid={`breadcrumb-ancestor-${ancestor.slug}`}
+              >
+                {ancestor.name}
+              </Link>
+            </li>
+          </React.Fragment>
+        ))}
 
         {/* Separator */}
         <li className="breadcrumb-separator" aria-hidden="true">→</li>

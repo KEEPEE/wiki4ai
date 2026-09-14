@@ -3,7 +3,7 @@
  * Displays a list of documents within a project with the option to create new ones.
  */
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
@@ -11,6 +11,7 @@ import { useDebounce } from '../hooks/useDebounce';
 import { projectApi } from '../services/projectApi';
 import { generateSlug } from '../utils/slugify';
 import type { CreateDocumentDto } from '../types/document';
+import type { Project } from '../types/project';
 import './ProjectDetail.css';
 
 type TabType = 'documents' | 'graph';
@@ -21,7 +22,7 @@ const ProjectDetail: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { projects, isLoading: loadingProjects } = useProjects();
+  const { projects, isLoading: loadingProjects, createProject, isCreating: isCreatingSubproject } = useProjects();
   const {
     documents,
     isLoading: loadingDocuments,
@@ -56,6 +57,43 @@ const ProjectDetail: React.FC = () => {
 
   // Find the project by slug
   const project = projects.find((p) => p.slug === slug);
+
+  // Breadcrumb ancestor chain (root first), built by walking parentSlug (WIKI4AI-31).
+  const ancestors = useMemo<Project[]>(() => {
+    if (!project?.parentSlug) return [];
+    const bySlug = new Map(projects.map((p) => [p.slug, p]));
+    const chain: Project[] = [];
+    let cursor = bySlug.get(project.parentSlug);
+    // Cap the walk defensively (max hierarchy depth is 5).
+    while (cursor && chain.length < 10) {
+      chain.unshift(cursor);
+      cursor = cursor.parentSlug ? bySlug.get(cursor.parentSlug) : undefined;
+    }
+    return chain;
+  }, [projects, project]);
+
+  // Direct subprojects of the current project (WIKI4AI-31).
+  const subprojects = useMemo(
+    () => projects.filter((p) => p.parentSlug === slug),
+    [projects, slug],
+  );
+
+  // Subproject creation form state
+  const [showSubprojectForm, setShowSubprojectForm] = useState(false);
+  const [newSubprojectName, setNewSubprojectName] = useState('');
+  const [subprojectError, setSubprojectError] = useState<string | null>(null);
+
+  const handleCreateSubproject = async () => {
+    if (!newSubprojectName.trim() || !project) return;
+    setSubprojectError(null);
+    try {
+      await createProject({ name: newSubprojectName.trim(), parentId: project.id });
+      setNewSubprojectName('');
+      setShowSubprojectForm(false);
+    } catch (err) {
+      setSubprojectError(err instanceof Error ? err.message : 'Failed to create subproject');
+    }
+  };
 
   // Determine which documents to display: search results if searching, otherwise all documents
   const displayDocuments = hasSearched ? searchResults : documents;
@@ -237,9 +275,17 @@ const ProjectDetail: React.FC = () => {
         style={{ display: 'none' }}
       />
 
-      {/* Breadcrumb Navigation */}
-      <nav className="breadcrumb" aria-label="Breadcrumb">
+      {/* Breadcrumb Navigation — full chain for nested projects (WIKI4AI-31) */}
+      <nav className="breadcrumb" aria-label="Breadcrumb" data-testid="project-breadcrumb">
         <Link to="/">Dashboard</Link>
+        {ancestors.map((ancestor) => (
+          <React.Fragment key={ancestor.id}>
+            <span className="separator">&rsaquo;</span>
+            <Link to={`/projects/${ancestor.slug}`} data-testid={`breadcrumb-link-${ancestor.slug}`}>
+              {ancestor.name}
+            </Link>
+          </React.Fragment>
+        ))}
         <span className="separator">&rsaquo;</span>
         <span className="current">{project.name}</span>
       </nav>
@@ -279,6 +325,60 @@ const ProjectDetail: React.FC = () => {
           </Link>
         </div>
       </header>
+
+      {/* Subprojects (WIKI4AI-31) */}
+      <section className="subprojects-section" data-testid="subprojects-section">
+        <div className="subprojects-header">
+          <h2>Podprojekty {subprojects.length > 0 && <span className="subprojects-count">({subprojects.length})</span>}</h2>
+          <button
+            onClick={() => setShowSubprojectForm((v) => !v)}
+            className="btn-secondary btn-new-subproject"
+            data-testid="create-subproject-button"
+          >
+            {showSubprojectForm ? '✕ Zrušiť' : '+ Nový subprojekt'}
+          </button>
+        </div>
+
+        {showSubprojectForm && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleCreateSubproject();
+            }}
+            className="create-form subproject-create-form"
+            data-testid="subproject-create-form"
+          >
+            <input
+              type="text"
+              placeholder="Názov subprojektu"
+              value={newSubprojectName}
+              onChange={(e) => setNewSubprojectName(e.target.value)}
+              required
+              autoFocus
+              data-testid="subproject-name-input"
+            />
+            {subprojectError && <p className="error" data-testid="subproject-error">{subprojectError}</p>}
+            <div className="form-actions">
+              <button type="submit" className="btn-primary" disabled={isCreatingSubproject || !newSubprojectName.trim()}>
+                {isCreatingSubproject ? 'Vytváram...' : 'Vytvoriť subprojekt'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {subprojects.length > 0 && (
+          <ul className="subproject-list">
+            {subprojects.map((sp) => (
+              <li key={sp.id} className="subproject-entry" data-testid={`subproject-entry-${sp.slug}`}>
+                <Link to={`/projects/${sp.slug}`} className="subproject-link">
+                  ↳ {sp.name}
+                </Link>
+                <span className="badge">{sp.documentCount} docs</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Upload Progress Bar */}
       {uploadProgress > 0 && (

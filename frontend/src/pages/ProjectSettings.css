@@ -203,3 +203,25 @@
     text-align: center;
   }
 }
+
+/* Parent selector (WIKI4AI-31) */
+.form-group select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+}
+
+.form-group select option {
+  background: #1a1a2e;
+  color: #fff;
+}
+
+.form-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}

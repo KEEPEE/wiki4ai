@@ -4,7 +4,7 @@
  * Supports both creating new documents and editing existing ones.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MarkdownEditor from '../components/MarkdownEditor';
 import MarkdownPreview from '../components/MarkdownPreview';
@@ -13,6 +13,7 @@ import Breadcrumb from '../components/Breadcrumb';
 import DocumentLinks from '../components/DocumentLinks';
 import { documentApi } from '../services/documentApi';
 import { useDocuments } from '../hooks/useDocuments';
+import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
 import './DocumentEditor.css';
 
@@ -46,6 +47,22 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const { slug: projectSlug, docId: docSlug } = useParams<{ slug: string; docId: string }>();
   const navigate = useNavigate();
   const isEditing = !!docSlug;
+
+  // Ancestor chain for nested-project breadcrumbs (WIKI4AI-31)
+  const { projects } = useProjects();
+  const ancestors = useMemo(() => {
+    if (!projectSlug) return [];
+    const bySlug = new Map(projects.map((p) => [p.slug, p]));
+    const project = bySlug.get(projectSlug);
+    if (!project?.parentSlug) return [];
+    const chain: { slug: string; name: string }[] = [];
+    let cursor = bySlug.get(project.parentSlug);
+    while (cursor && chain.length < 10) {
+      chain.unshift({ slug: cursor.slug, name: cursor.name });
+      cursor = cursor.parentSlug ? bySlug.get(cursor.parentSlug) : undefined;
+    }
+    return chain;
+  }, [projects, projectSlug]);
 
   // Document data from API (for editing existing document)
   const [title, setTitle] = useState('');
@@ -206,7 +223,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     <div className="document-editor">
       {/* Breadcrumb Navigation */}
       {projectSlug && (
-        <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug || 'Nový dokument'} />
+        <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug || 'Nový dokument'} ancestors={ancestors} />
       )}
 
       {/* Header with title input and actions */}
