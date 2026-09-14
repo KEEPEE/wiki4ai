@@ -9,6 +9,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import MarkdownPreview from '../components/MarkdownPreview';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
+import { useProjects } from '../hooks/useProjects';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
 import './DocumentViewer.css';
@@ -60,6 +61,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
 
   const projectSlug = propProjectSlug || paramProjectSlug || '';
   const docSlug = paramDocSlug || '';
+
+  // Ancestor chain for nested-project breadcrumbs (WIKI4AI-31)
+  const { projects } = useProjects();
+  const ancestors = useMemo(() => {
+    const bySlug = new Map(projects.map((p) => [p.slug, p]));
+    const project = bySlug.get(projectSlug);
+    if (!project?.parentSlug) return [];
+    const chain: { slug: string; name: string }[] = [];
+    let cursor = bySlug.get(project.parentSlug);
+    while (cursor && chain.length < 10) {
+      chain.unshift({ slug: cursor.slug, name: cursor.name });
+      cursor = cursor.parentSlug ? bySlug.get(cursor.parentSlug) : undefined;
+    }
+    return chain;
+  }, [projects, projectSlug]);
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -150,7 +166,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   return (
     <div className="document-viewer">
       {/* Breadcrumb Navigation */}
-      <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug} />
+      <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug} ancestors={ancestors} />
 
       {/* Document Header */}
       <header className="document-header">

@@ -3,7 +3,7 @@
  * Uses authenticated apiClient for all requests (automatic JWT token + 401 retry).
  */
 
-import type { Project, ProjectDTO } from '../types/project';
+import type { Project, ProjectDTO, ProjectTreeNode } from '../types/project';
 import { apiGet, apiPost, apiPut, apiDelete, apiGetBlob } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -27,7 +27,14 @@ class ProjectApiService {
    * Get a single project by slug.
    */
   async getProjectBySlug(slug: string): Promise<Project> {
-    return apiGet(`${API_BASE_URL}/projects/slug/${slug}`);
+    return apiGet(`${API_BASE_URL}/projects/${slug}`);
+  }
+
+  /**
+   * Get the nested subproject tree rooted at the given project (WIKI4AI-30).
+   */
+  async getTree(slug: string): Promise<ProjectTreeNode> {
+    return apiGet(`${API_BASE_URL}/projects/${slug}/tree`);
   }
 
   /**

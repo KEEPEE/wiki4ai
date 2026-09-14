@@ -17,6 +17,8 @@ const ProjectSettings: React.FC = () => {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [parentSlug, setParentSlug] = useState<string | null>(null);
+  const [parentInitialized, setParentInitialized] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -30,7 +32,30 @@ const ProjectSettings: React.FC = () => {
       setName(project.name);
       setDescription(project.description ?? '');
     }
-  }, [project]);
+    if (project && !parentInitialized) {
+      setParentSlug(project.parentSlug ?? null);
+      setParentInitialized(true);
+    }
+  }, [project, parentInitialized]);
+
+  // Projects that can become the new parent: everything except self and its
+  // own descendants (moving under a descendant would create a cycle).
+  const parentOptions = React.useMemo(() => {
+    if (!project) return [];
+    const descendants = new Set<string>();
+    const collect = (slug: string) => {
+      for (const child of projects.filter((p) => p.parentSlug === slug)) {
+        if (!descendants.has(child.slug)) {
+          descendants.add(child.slug);
+          collect(child.slug);
+        }
+      }
+    };
+    collect(project.slug);
+    return projects.filter((p) => p.id !== project.id && !descendants.has(p.slug));
+  }, [projects, project]);
+
+  const originalParentSlug = project?.parentSlug ?? null;
 
   if (loadingProjects) return <div className="project-settings"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
   if (!project) return <div className="project-settings error">Project not found.</div>;
@@ -42,6 +67,12 @@ const ProjectSettings: React.FC = () => {
     setSaveError(null);
     try {
       const dto: ProjectDTO = { name: name.trim(), description: description.trim() || undefined };
+      // Move semantics (WIKI4AI-30): only send parentId when it actually changed.
+      // Absent key = no move; explicit null = move back to root.
+      if (parentSlug !== originalParentSlug) {
+        const newParent = parentSlug ? projects.find((p) => p.slug === parentSlug) : undefined;
+        dto.parentId = newParent ? newParent.id : null;
+      }
       await updateProject({ id: project.id, dto });
       // Navigate back to project detail after successful save
       navigate(`/projects/${slug}`);
@@ -108,6 +139,27 @@ const ProjectSettings: React.FC = () => {
               placeholder="Enter project description (optional)"
               rows={4}
             />
+          </div>
+
+          {/* Parent project selector — move in hierarchy (WIKI4AI-31) */}
+          <div className="form-group">
+            <label htmlFor="project-parent">Parent project</label>
+            <select
+              id="project-parent"
+              value={parentSlug ?? ''}
+              onChange={(e) => setParentSlug(e.target.value || null)}
+              data-testid="project-parent-select"
+            >
+              <option value="">— Root (top level) —</option>
+              {parentOptions.map((p) => (
+                <option key={p.id} value={p.slug}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <p className="form-hint">
+              Moving a project changes its position in the hierarchy (max 5 levels).
+            </p>
           </div>
 
           {saveError && <p className="error" data-testid="save-error">{saveError}</p>}

@@ -544,3 +544,72 @@
 .search-clear-btn:hover {
   color: var(--text-primary);
 }
+
+/* ==================== Subprojects section (WIKI4AI-31) ==================== */
+
+.subprojects-section {
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+  background: var(--glass-bg, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-radius: 16px;
+}
+
+.subprojects-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.subprojects-header h2 {
+  font-size: 1.05rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.subprojects-count {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: normal;
+}
+
+.btn-new-subproject {
+  white-space: nowrap;
+}
+
+.subproject-create-form {
+  margin-top: 0.75rem;
+}
+
+.subproject-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.subproject-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.subproject-entry:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.subproject-link {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  font-family: 'Outfit', sans-serif;
+}
+
+.subproject-link:hover {
+  color: #a78bfa;
+}

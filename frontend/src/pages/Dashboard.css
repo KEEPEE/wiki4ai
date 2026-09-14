@@ -794,3 +794,70 @@
     width: 95%;
   }
 }
+
+/* ==================== Subproject tree (WIKI4AI-31) ==================== */
+
+.subprojects-tree {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+}
+
+.subproject-branch {
+  display: flex;
+  flex-direction: column;
+}
+
+.subproject-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  margin-top: 0.25rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.subproject-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 12px rgba(124, 92, 255, 0.15);
+}
+
+.subproject-icon {
+  color: #7c5cff;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.subproject-name {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.92rem;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subproject-badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.subproject-toggle {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.subproject-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
