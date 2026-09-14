@@ -186,9 +186,28 @@ function redirectToLogin(): void {
 
 // ── Convenience methods ───────────────────────────────────────────────────
 
+/**
+ * Reject with a useful message for non-OK responses. Prefers the server's
+ * "message" field (e.g. "Cannot create subproject: maximum hierarchy depth
+ * of 5 levels would be exceeded") over the bare HTTP status text so UIs can
+ * show the real reason to the user.
+ */
+async function rejectWithDetail(res: Response): Promise<never> {
+  let detail = '';
+  try {
+    const data = await res.json();
+    if (data && typeof data.message === 'string' && data.message.trim()) {
+      detail = data.message;
+    }
+  } catch {
+    // Non-JSON error body — fall back to the status line below.
+  }
+  throw new Error(detail ? `${res.status}: ${detail}` : `${res.status} ${res.statusText}`);
+}
+
 export function apiGet<T>(url: string): Promise<T> {
   return apiRequest(url, { method: 'GET' }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) return rejectWithDetail(res);
     return res.json();
   });
 }
@@ -199,7 +218,7 @@ export function apiPost<T>(url: string, body?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) return rejectWithDetail(res);
     return res.json();
   });
 }
@@ -210,14 +229,14 @@ export function apiPut<T>(url: string, body?: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) return rejectWithDetail(res);
     return res.json();
   });
 }
 
 export function apiDelete<T>(url: string): Promise<T> {
   return apiRequest(url, { method: 'DELETE' }).then((res) => {
-    if (!res.ok && res.status !== 204) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok && res.status !== 204) return rejectWithDetail(res);
     return (res.headers.get('Content-Length') ? res.json() : {}) as T;
   });
 }
@@ -227,14 +246,14 @@ export function apiPostFormData<T>(url: string, formData: FormData): Promise<T> 
     method: 'POST',
     body: formData,
   }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) return rejectWithDetail(res);
     return res.json();
   });
 }
 
 export function apiGetBlob(url: string): Promise<Blob> {
   return apiRequest(url, { method: 'GET' }).then((res) => {
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    if (!res.ok) return rejectWithDetail(res);
     return res.blob();
   });
 }

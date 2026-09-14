@@ -155,6 +155,47 @@ describe('apiClient', () => {
     })
   })
 
+  describe('error detail extraction (WIKI4AI-31)', () => {
+    it('apiPost should surface the server message on 400', async () => {
+      mockFetch.mockResolvedValueOnce({
+        status: 400,
+        ok: false,
+        json: async () => ({
+          error: 'Bad Request',
+          message: 'Cannot create subproject: maximum hierarchy depth of 5 levels would be exceeded',
+        }),
+      })
+
+      await expect(apiPost('/api/v1/projects', { name: 'x' })).rejects.toThrow(
+        '400: Cannot create subproject: maximum hierarchy depth of 5 levels would be exceeded',
+      )
+    })
+
+    it('should fall back to the status line when the error body has no message', async () => {
+      mockFetch.mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: 'Not Found',
+        json: async () => ({ error: 'Not Found' }),
+      })
+
+      await expect(apiGet('/api/v1/projects/unknown')).rejects.toThrow('404 Not Found')
+    })
+
+    it('should fall back to the status line when the error body is not JSON', async () => {
+      mockFetch.mockResolvedValueOnce({
+        status: 502,
+        ok: false,
+        statusText: 'Bad Gateway',
+        json: async () => {
+          throw new Error('not json')
+        },
+      })
+
+      await expect(apiGet('/api/v1/projects')).rejects.toThrow('502 Bad Gateway')
+    })
+  })
+
   describe('getRedirectFromUrl', () => {
     it('should extract redirect parameter from URL search params', () => {
       // Simulate URL with redirect param
