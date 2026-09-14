@@ -389,6 +389,67 @@ public class ProjectService {
     }
 
     /**
+     * Build the nested subproject tree rooted at the given project (WIKI4AI-30).
+     * Public read — no authentication required (consistent with other GET endpoints).
+     * Each node carries id, name, slug, parentSlug, depth, hasChildren and documentCount.
+     */
+    public ProjectTreeNodeDTO getProjectTree(String slug) {
+        Project root = projectRepository.findBySlug(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+
+        // Load the whole hierarchy once and group children by parent id (avoids N+1 DFS queries).
+        List<Project> all = projectRepository.findAll();
+        java.util.Map<Long, Project> byId = new java.util.HashMap<>();
+        java.util.Map<Long, List<Project>> childrenByParent = new java.util.HashMap<>();
+        for (Project p : all) {
+            if (p.getId() == null) {
+                continue;
+            }
+            byId.put(p.getId(), p);
+            Long parentId = (p.getParent() != null) ? p.getParent().getId() : null;
+            if (parentId != null) {
+                childrenByParent.computeIfAbsent(parentId, k -> new ArrayList<>()).add(p);
+            }
+        }
+
+        return buildTreeNode(root, null, 1, byId, childrenByParent);
+    }
+
+    /**
+     * Recursively build a tree node. Depth is capped at {@link Project#MAX_HIERARCHY_DEPTH}
+     * (the service layer guarantees the invariant; the cap is a defensive guard).
+     */
+    private ProjectTreeNodeDTO buildTreeNode(
+            Project project,
+            String parentSlug,
+            int depth,
+            java.util.Map<Long, Project> byId,
+            java.util.Map<Long, List<Project>> childrenByParent) {
+
+        List<Project> childProjects = (project.getId() != null)
+                ? childrenByParent.getOrDefault(project.getId(), List.of())
+                : List.of();
+
+        List<ProjectTreeNodeDTO> childNodes = new ArrayList<>();
+        if (depth < Project.MAX_HIERARCHY_DEPTH) {
+            for (Project child : childProjects) {
+                childNodes.add(buildTreeNode(child, project.getSlug(), depth + 1, byId, childrenByParent));
+            }
+        }
+
+        return ProjectTreeNodeDTO.builder()
+                .id(project.getId())
+                .name(project.getName())
+                .slug(project.getSlug())
+                .parentSlug(parentSlug)
+                .depth(depth)
+                .hasChildren(!childProjects.isEmpty())
+                .documentCount(project.getId() != null ? (int) documentRepository.countByProjectId(project.getId()) : 0)
+                .children(childNodes)
+                .build();
+    }
+
+    /**
      * Export all documents of a project as a ZIP archive.
      * Requires READ permission on the project.
      */

@@ -3,7 +3,9 @@ package com.wiki4ai.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectTreeNodeDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
+import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
@@ -28,6 +30,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+
+import org.mockito.ArgumentCaptor;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -549,6 +553,194 @@ class ProjectControllerTest {
                     0x00, 0x00, 0x00, 0x00, // Offset to start of central directory
                     0x00, 0x00              // Comment length
             };
+        }
+    }
+
+    @Nested
+    @DisplayName("Project hierarchy API (WIKI4AI-29/30)")
+    class ProjectHierarchyApiTests {
+
+        private ProjectTreeNodeDTO sampleTree() {
+            ProjectTreeNodeDTO child = ProjectTreeNodeDTO.builder()
+                    .id(2L)
+                    .name("Sub")
+                    .slug("sub")
+                    .parentSlug("test-project")
+                    .depth(2)
+                    .hasChildren(false)
+                    .documentCount(3)
+                    .build();
+            return ProjectTreeNodeDTO.builder()
+                    .id(1L)
+                    .name("Test Project")
+                    .slug("test-project")
+                    .parentSlug(null)
+                    .depth(1)
+                    .hasChildren(true)
+                    .documentCount(5)
+                    .children(java.util.List.of(child))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("POST / with parentId should return 201 and the subproject DTO")
+        void createWithParentShouldReturnCreated() throws Exception {
+            // given
+            ProjectDTO created = createSampleProject();
+            created.setParentSlug("test-project");
+            created.setDepth(2);
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class)))
+                    .willReturn(created);
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    ProjectCreateDTO.builder().name("New Sub").parentId(1L).build())))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.parentSlug").value("test-project"))
+                    .andExpect(jsonPath("$.depth").value(2));
+
+            ArgumentCaptor<ProjectCreateDTO> captor = ArgumentCaptor.forClass(ProjectCreateDTO.class);
+            verify(projectService).createProject(captor.capture(), any(String.class));
+            assertThat(captor.getValue().getParentId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("POST / without parentId should create a root project (backward compatible)")
+        void createWithoutParentShouldWork() throws Exception {
+            // given
+            ProjectDTO created = createSampleProject();
+            created.setParentSlug(null);
+            created.setDepth(1);
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class)))
+                    .willReturn(created);
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    ProjectCreateDTO.builder().name("Root").build())))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.parentSlug").isEmpty())
+                    .andExpect(jsonPath("$.depth").value(1));
+
+            ArgumentCaptor<ProjectCreateDTO> captor = ArgumentCaptor.forClass(ProjectCreateDTO.class);
+            verify(projectService).createProject(captor.capture(), any(String.class));
+            assertThat(captor.getValue().getParentId()).isNull();
+        }
+
+        @Test
+        @DisplayName("POST / should return 400 with clear message when depth limit exceeded")
+        void createExceedingDepthShouldReturn400() throws Exception {
+            // given
+            given(projectService.createProject(any(ProjectCreateDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Cannot create subproject: maximum hierarchy depth of 5 levels would be exceeded"));
+
+            // when & then
+            mockMvc.perform(post("/api/v1/projects")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(
+                                    ProjectCreateDTO.builder().name("Too Deep").parentId(9L).build())))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            "Cannot create subproject: maximum hierarchy depth of 5 levels would be exceeded"));
+        }
+
+        @Test
+        @DisplayName("GET /{slug}/tree should return the nested tree shape")
+        void getTreeShouldReturnNestedShape() throws Exception {
+            // given
+            given(projectService.getProjectTree("test-project")).willReturn(sampleTree());
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/tree"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.slug").value("test-project"))
+                    .andExpect(jsonPath("$.parentSlug").isEmpty())
+                    .andExpect(jsonPath("$.depth").value(1))
+                    .andExpect(jsonPath("$.hasChildren").value(true))
+                    .andExpect(jsonPath("$.documentCount").value(5))
+                    .andExpect(jsonPath("$.children[0].slug").value("sub"))
+                    .andExpect(jsonPath("$.children[0].parentSlug").value("test-project"))
+                    .andExpect(jsonPath("$.children[0].depth").value(2))
+                    .andExpect(jsonPath("$.children[0].hasChildren").value(false));
+        }
+
+        @Test
+        @DisplayName("GET /{slug}/tree should return 404 for unknown project")
+        void getTreeUnknownProjectShouldReturn404() throws Exception {
+            // given
+            given(projectService.getProjectTree("missing"))
+                    .willThrow(new EntityNotFoundException("Project not found with slug: missing"));
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/missing/tree"))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("PUT /{slug} with explicit parentId null should flag move-to-root (parentIdPresent=true)")
+        void putWithExplicitNullParentShouldFlagMoveToRoot() throws Exception {
+            // given
+            ProjectDTO updated = createSampleProject();
+            updated.setParentSlug(null);
+            updated.setDepth(1);
+            given(projectService.updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class), any(String.class)))
+                    .willReturn(updated);
+
+            // when — JSON explicitly contains "parentId": null
+            mockMvc.perform(put("/api/v1/projects/test-project")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\": \"Test Project\", \"description\": \"x\", \"parentId\": null}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.parentSlug").isEmpty());
+
+            // then — Jackson invoked the custom setter → presence flag set
+            ArgumentCaptor<ProjectUpdateDTO> captor = ArgumentCaptor.forClass(ProjectUpdateDTO.class);
+            verify(projectService).updateProjectBySlug(eq("test-project"), captor.capture(), any(String.class));
+            assertThat(captor.getValue().isParentIdPresent()).isTrue();
+            assertThat(captor.getValue().getParentId()).isNull();
+        }
+
+        @Test
+        @DisplayName("PUT /{slug} without parentId key should NOT flag a move (parentIdPresent=false)")
+        void putWithoutParentKeyShouldNotFlagMove() throws Exception {
+            // given
+            ProjectDTO updated = createSampleProject();
+            updated.setDepth(2);
+            given(projectService.updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class), any(String.class)))
+                    .willReturn(updated);
+
+            // when — JSON has no parentId key at all
+            mockMvc.perform(put("/api/v1/projects/test-project")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\": \"Test Project\", \"description\": \"x\"}"))
+                    .andExpect(status().isOk());
+
+            // then
+            ArgumentCaptor<ProjectUpdateDTO> captor = ArgumentCaptor.forClass(ProjectUpdateDTO.class);
+            verify(projectService).updateProjectBySlug(eq("test-project"), captor.capture(), any(String.class));
+            assertThat(captor.getValue().isParentIdPresent()).isFalse();
+        }
+
+        @Test
+        @DisplayName("PUT /{slug} move with cycle should return 400 with clear message")
+        void putMoveCycleShouldReturn400() throws Exception {
+            // given
+            given(projectService.updateProjectBySlug(eq("test-project"), any(ProjectUpdateDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Cannot move a project under its own subproject (would create a cycle)"));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"name\": \"Test Project\", \"parentId\": 2}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            "Cannot move a project under its own subproject (would create a cycle)"));
         }
     }
 }
