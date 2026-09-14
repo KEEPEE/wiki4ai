@@ -296,6 +296,66 @@ describe('ProjectDetail hierarchy (WIKI4AI-31)', () => {
   })
 })
 
+describe('ProjectDetail cold load (hook order regression)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('survives loading -> loaded re-render without React hook-order errors', async () => {
+    // Simulates a direct URL / hard refresh: first render sees an empty,
+    // still-loading projects query; the second render has data. All hooks must
+    // be called in the same order on both renders (early returns live after
+    // every hook call in ProjectDetail).
+    const loadingState: Record<string, unknown> = {
+      projects: [], isLoading: true, error: null, refetch: vi.fn(),
+      createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(),
+      isCreating: false, isUpdating: false, isDeleting: false,
+    }
+    const loadedState: Record<string, unknown> = {
+      projects: hierarchyProjects, isLoading: false, error: null, refetch: vi.fn(),
+      createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(),
+      isCreating: false, isUpdating: false, isDeleting: false,
+    }
+    vi.mocked(useProjects).mockReturnValue(loadingState as any)
+    mockUseDocuments()
+
+    // Wrapper with a changing prop forces ProjectDetail to re-render.
+    function Shell({ _phase }: { _phase: number }) {
+      void _phase; // changing this prop forces a re-render
+      return (
+        <Routes>
+          <Route path="/" element={<div>HOME</div>} />
+          <Route path="/projects/:slug" element={<ProjectDetail />} />
+        </Routes>
+      )
+    }
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } })
+    const { rerender } = render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/projects/root-project']}>
+          <Shell _phase={1} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    expect(screen.getByText(/Loading/)).toBeInTheDocument()
+
+    // Data arrives — re-render must not throw (previously: React error #310)
+    vi.mocked(useProjects).mockReturnValue(loadedState as any)
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={['/projects/root-project']}>
+          <Shell _phase={2} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-breadcrumb')).toBeInTheDocument()
+    })
+  })
+})
+
 describe('Breadcrumb ancestors (WIKI4AI-31)', () => {
   it('renders the ancestor chain when provided', () => {
     renderWithProviders(

@@ -98,9 +98,6 @@ const ProjectDetail: React.FC = () => {
   // Determine which documents to display: search results if searching, otherwise all documents
   const displayDocuments = hasSearched ? searchResults : documents;
 
-  if (loadingProjects) return <div className="project-detail"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
-  if (!project) return <div className="project-detail error">Project not found.</div>;
-
   const handleCreateDocument = async () => {
     if (!newTitle.trim()) return;
 
@@ -246,6 +243,13 @@ const ProjectDetail: React.FC = () => {
       return dateString;
     }
   };
+
+  // Early returns placed after ALL hook calls (useState/useMemo/useCallback above)
+  // so the hook order is identical on every render — a cold load (direct URL /
+  // hard refresh) previously hit these before the drag-handler useCallbacks and
+  // crashed with React error #310 (invalid hook call).
+  if (loadingProjects) return <div className="project-detail"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
+  if (!project) return <div className="project-detail error">Project not found.</div>;
 
   return (
     <div
