@@ -38,7 +38,8 @@ services:
     restart: unless-stopped
 
   db:
-    image: postgres:16-alpine
+    # pgvector-enabled PostgreSQL 16 (drop-in replacement for postgres:16-alpine, WIKI4AI-33)
+    image: pgvector/pgvector:pg16
     container_name: wiki4ai-db
     environment:
       POSTGRES_DB: wiki4ai
