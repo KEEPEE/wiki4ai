@@ -25,6 +25,12 @@ vi.mock('../services/projectApi', () => ({
   },
 }))
 
+// Default: no status fetched yet (existing tests are unaffected). Individual
+// tests override this to simulate the sidecar being up or down (WIKI4AI-36).
+vi.mock('../hooks/useEmbeddingStatus', () => ({
+  useEmbeddingStatus: vi.fn(() => ({ data: undefined })),
+}))
+
 function renderWithProviders(ui: React.ReactElement, { route = '/projects/test-project' } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -369,6 +375,78 @@ describe('ProjectDetail', () => {
       await waitFor(() => {
         expect(screen.getByText('Matching Doc')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Semantic search status (WIKI4AI-36)', () => {
+    const mockProjects = [
+      { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+    ]
+
+    const setupHooks = async (searchResults: any[], embeddingData: any) => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults, isLoading: false, hasSearched: true,
+      } as any)
+
+      const { useEmbeddingStatus } = await import('../hooks/useEmbeddingStatus')
+      vi.mocked(useEmbeddingStatus).mockReturnValue({ data: embeddingData } as any)
+    }
+
+    it('should show a relevance score badge on search results', async () => {
+      await setupHooks(
+        [
+          { id: 1, title: 'Matching Doc', content: '', projectId: 1, createdAt: '', updatedAt: '2024-01-01', score: 0.032266 },
+          { id: 2, title: 'Other Doc', content: '', projectId: 1, createdAt: '', updatedAt: '2024-01-02' },
+        ],
+        { available: true, model: 'Qwen3-Embedding-0.6B', dim: 1024 },
+      )
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Matching Doc')).toBeInTheDocument()
+      })
+      // Score chip rendered for the scored doc, formatted to 4 decimals
+      expect(screen.getByTestId('search-score-1')).toHaveTextContent('0.0323')
+      // No score chip for the doc without a score
+      expect(screen.queryByTestId('search-score-2')).not.toBeInTheDocument()
+    })
+
+    it('should show an unavailable banner when the sidecar is down', async () => {
+      await setupHooks(
+        [{ id: 1, title: 'Text Only Doc', content: '', projectId: 1, createdAt: '', updatedAt: '2024-01-01' }],
+        { available: false, model: 'Qwen3-Embedding-0.6B', dim: 1024 },
+      )
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('semantic-unavailable-banner')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('semantic-unavailable-banner')).toHaveTextContent(/Semantické vyhľadávanie je nedostupné/)
+    })
+
+    it('should show an active badge when the sidecar is up', async () => {
+      await setupHooks(
+        [{ id: 1, title: 'Matching Doc', content: '', projectId: 1, createdAt: '', updatedAt: '2024-01-01', score: 0.016393 }],
+        { available: true, model: 'Qwen3-Embedding-0.6B', dim: 1024 },
+      )
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('semantic-status-badge')).toBeInTheDocument()
+      })
+      expect(screen.queryByTestId('semantic-unavailable-banner')).not.toBeInTheDocument()
     })
   })
 

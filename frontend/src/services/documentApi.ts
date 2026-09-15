@@ -3,7 +3,7 @@
  * Uses authenticated apiClient for all requests (automatic JWT token + 401 retry).
  */
 
-import type { Document, CreateDocumentDto, UpdateDocumentDto } from '../types/document';
+import type { Document, CreateDocumentDto, UpdateDocumentDto, EmbeddingStatus } from '../types/document';
 import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -120,4 +120,11 @@ export const documentApi = {
     const body = targetProjectSlug ? { targetProjectSlug } : {};
     return apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/copy`, body);
   },
+
+  /**
+   * Embedding sidecar availability (WIKI4AI-35/36).
+   * Endpoint: GET /embeddings/status
+   */
+  getEmbeddingStatus: (): Promise<EmbeddingStatus> =>
+    apiGet(`${API_BASE_URL}/embeddings/status`),
 };
