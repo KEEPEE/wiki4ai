@@ -118,6 +118,10 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     @Query(value = "SELECT COUNT(*) FROM documents WHERE embedding IS NOT NULL", nativeQuery = true)
     long countWithEmbedding();
 
+    /** Total number of rows in the document_links join table (integrity reports, WIKI4AI-42). */
+    @Query(value = "SELECT COUNT(*) FROM document_links", nativeQuery = true)
+    long countLinks();
+
     /**
      * Vector similarity search within one project.
      *
