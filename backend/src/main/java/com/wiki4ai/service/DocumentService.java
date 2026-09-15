@@ -20,8 +20,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -34,10 +38,18 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class DocumentService {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DocumentService.class);
+
+    /** Reciprocal Rank Fusion constant — standard value, dampens rank differences. */
+    private static final int RRF_K = 60;
+    /** Max vector hits fused into the hybrid result per search. */
+    private static final int VECTOR_TOP_N = 20;
+
     private final DocumentRepository documentRepository;
     private final ProjectRepository projectRepository;
     private final MarkdownService markdownService;
     private final PermissionService permissionService;
+    private final EmbeddingService embeddingService;
 
     // ==================== READ OPERATIONS (require READ permission) ====================
 
@@ -109,6 +121,7 @@ public class DocumentService {
                 .build();
 
         Document saved = documentRepository.save(document);
+        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
         return convertToDTO(saved);
     }
 
@@ -139,6 +152,7 @@ public class DocumentService {
                 .build();
 
         Document saved = documentRepository.save(document);
+        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
         return convertToDTO(saved);
     }
 
@@ -160,6 +174,7 @@ public class DocumentService {
         int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
+        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
             result.setEditsApplied(editsApplied);
@@ -184,6 +199,7 @@ public class DocumentService {
         int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
+        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
             result.setEditsApplied(editsApplied);
@@ -465,13 +481,72 @@ public class DocumentService {
     }
 
     /**
-     * Search documents by keyword within a project.
+     * Hybrid document search within a project (WIKI4AI-35, epic WIKI4AI-26).
+     *
+     * <p>Combines the existing text LIKE path with pgvector cosine similarity
+     * (top {@value VECTOR_TOP_N}) and fuses both rankings with Reciprocal Rank
+     * Fusion. Documents are returned in descending fused score order, each DTO
+     * stamped with its score.</p>
+     *
+     * <p><b>Graceful degradation:</b> when the embedding sidecar is unavailable
+     * (or fails mid-request) only the text path runs — search never 500s
+     * because of embeddings. Documents without an embedding are simply absent
+     * from the vector ranking.</p>
      */
     public List<DocumentDTO> searchDocuments(Long projectId, String keyword, String username) {
         permissionService.checkPermission(username, projectId, Permission.READ);
-        return documentRepository.findByProjectIdAndContentContaining(projectId, keyword)
-                .stream()
-                .map(this::convertToDTO)
+
+        // 1) Text path (existing behaviour, always runs).
+        List<Document> textResults = documentRepository.findByProjectIdAndContentContaining(projectId, keyword);
+
+        Map<Long, Document> byId = new LinkedHashMap<>();
+        for (Document d : textResults) {
+            byId.put(d.getId(), d);
+        }
+
+        // 2) Vector path (only when the sidecar is reachable).
+        List<Object[]> vectorHits = List.of();
+        if (embeddingService.getClient().isAvailable()) {
+            try {
+                float[] queryVector = embeddingService.getClient().embedQuery(keyword.trim());
+                String literal = EmbeddingClient.toVectorLiteral(queryVector);
+                vectorHits = documentRepository.findTopByEmbeddingSimilarity(projectId, literal, VECTOR_TOP_N);
+                for (Object[] hit : vectorHits) {
+                    Long id = (Long) hit[0];
+                    if (!byId.containsKey(id)) {
+                        documentRepository.findById(id).ifPresent(d -> byId.put(id, d));
+                    }
+                }
+            } catch (Exception e) {
+                // Sidecar died between the probe and the call — fall back to text only.
+                log.warn("Vector search unavailable for project {}: {}", projectId, e.getMessage());
+                vectorHits = List.of();
+            }
+        }
+
+        // 3) Reciprocal Rank Fusion over both rankings (k = RRF_K).
+        Map<Long, Double> scores = new HashMap<>();
+        int rank = 1;
+        for (Document d : textResults) {
+            scores.merge(d.getId(), 1.0 / (RRF_K + rank++), Double::sum);
+        }
+        rank = 1;
+        for (Object[] hit : vectorHits) {
+            scores.merge((Long) hit[0], 1.0 / (RRF_K + rank++), Double::sum);
+        }
+
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(e -> {
+                    Document d = byId.get(e.getKey());
+                    if (d == null) {
+                        return null; // deleted between query and mapping — skip
+                    }
+                    DocumentDTO dto = convertToDTO(d);
+                    dto.setScore(Math.round(e.getValue() * 1_000_000.0) / 1_000_000.0);
+                    return dto;
+                })
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
     }
 
@@ -570,6 +645,7 @@ public class DocumentService {
                 .build();
 
         Document saved = documentRepository.save(copy);
+        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on copy (never throws)
         return convertToDTO(saved);
     }
 
