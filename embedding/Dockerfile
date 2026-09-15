@@ -16,7 +16,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Model artifact (Apache-2.0 base model): int8 ONNX weights + tokenizer files.
 # https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX
-RUN mkdir -p /models && \
+# (python:3.11-slim ships without curl — install it for the download, keep it
+#  out of the final image by cleaning apt lists.)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /models && \
     curl -fL --retry 3 -o /models/model_int8.onnx \
       "https://huggingface.co/onnx-community/Qwen3-Embedding-0.6B-ONNX/resolve/main/onnx/model_int8.onnx" && \
     for f in tokenizer.json tokenizer_config.json vocab.json merges.txt added_tokens.json special_tokens_map.json config.json; do \
