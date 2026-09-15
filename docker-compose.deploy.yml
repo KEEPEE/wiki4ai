@@ -38,22 +38,12 @@ services:
       - backend
     restart: unless-stopped
 
-  # Qwen3-Embedding-0.6B int8 ONNX sidecar (WIKI4AI-34, epic WIKI4AI-26).
-  # NOTE: the GitLab pipeline does not build this image yet — build it from
-  # ./embedding (model baked in at build time) and push to the registry first.
-  embedding:
-    image: git.keepee.duckdns.org/services/wiki4ai/embedding:<IMAGE_TAG>
-    container_name: wiki4ai-embedding
-    ports:
-      - "8030:8030"
-    mem_limit: 2560m
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=8); sys.exit(0 if r.status==200 else 1)\""]
-      interval: 20s
-      timeout: 10s
-      start_period: 900s
-      retries: 15
-    restart: unless-stopped
+  # NOTE (WIKI4AI-34/35, epic WIKI4AI-26): the embedding sidecar service is
+  # intentionally NOT part of this deploy compose — the GitLab pipeline does not
+  # build/push the embedding image yet, so `docker compose up` would fail on the
+  # pull. Instances that run semantic search (e.g. the dev stack on .219) add the
+  # service to their local compose file; without it the backend degrades to
+  # text-only search via EMBEDDING_BASE_URL probing (never a hard failure).
 
   db:
     # pgvector-enabled PostgreSQL 16 (drop-in replacement for postgres:16-alpine, WIKI4AI-33)
