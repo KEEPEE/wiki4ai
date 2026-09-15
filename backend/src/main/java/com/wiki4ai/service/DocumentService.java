@@ -304,22 +304,46 @@ public class DocumentService {
     // ==================== DELETE OPERATIONS (require DELETE permission) ====================
 
     /**
+     * Detach a document from its parent collection before deleting it.
+     *
+     * <p>{@code Project.documents} is mapped with {@code cascade = CascadeType.ALL,
+     * orphanRemoval = true}. When the collection has already been initialized in this session —
+     * which always happens in the API flow, because project DTO conversion touches
+     * {@code getDocuments()} before the delete runs — a plain {@code em.remove(document)} leaves
+     * the document inside the in-memory bag. The flush-time PERSIST_ON_FLUSH cascade then walks
+     * the bag, finds the just-deleted element (its EntityEntry still exists with status DELETED)
+     * and calls {@code ActionQueue.unScheduleDeletion()}, silently cancelling the pending delete:
+     * no DELETE SQL is issued, the row survives the commit, yet the API returns 204.</p>
+     *
+     * <p>Removing the element from the collection first keeps it invisible to the flush-time
+     * cascade, so the scheduled deletion actually executes. See
+     * {@code DocumentDeleteUnscheduleRegressionTest}.</p>
+     */
+    private void detachFromParentCollection(Document document) {
+        Project project = document.getProject();
+        if (project != null && project.getDocuments() != null) {
+            project.getDocuments().remove(document);
+        }
+    }
+
+    /**
      * Delete a document by ID.
      */
     @Transactional
     public void deleteDocument(Long id, String username) {
         // For backward compatibility with tests (username=null), use existsById check first
         if (username == null || username.isBlank() || "anonymous".equals(username)) {
-            if (!documentRepository.existsById(id)) {
-                throw new EntityNotFoundException("Document not found with id: " + id);
-            }
-            documentRepository.deleteById(id);
+            Document document = documentRepository.findById(id)
+                    .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
+            detachFromParentCollection(document);
+            documentRepository.delete(document);
             return;
         }
         // For authenticated users, find document first to check project permissions
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
         permissionService.checkPermission(username, document.getProject().getId(), Permission.DELETE);
+        detachFromParentCollection(document);
         documentRepository.delete(document);
     }
 
@@ -333,6 +357,7 @@ public class DocumentService {
             Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Document not found with slug '" + slug + "' in project " + projectId));
+            detachFromParentCollection(document);
             documentRepository.delete(document);
             documentRepository.flush(); // Ensure deletion is persisted immediately
             return;
@@ -341,6 +366,7 @@ public class DocumentService {
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
+        detachFromParentCollection(document);
         documentRepository.delete(document);
         documentRepository.flush(); // Ensure deletion is persisted immediately
     }

@@ -810,27 +810,27 @@ class DocumentServiceTest {
         @DisplayName("Should delete an existing document by ID")
         void shouldDeleteExistingDocument() {
             // given
-            when(documentRepository.existsById(1L)).thenReturn(true);
+            when(documentRepository.findById(1L)).thenReturn(java.util.Optional.of(sourceDocument));
 
             // when
             documentService.deleteDocument(1L);
 
             // then
-            verify(documentRepository, times(1)).deleteById(1L);
+            verify(documentRepository, times(1)).delete(sourceDocument);
         }
 
         @Test
         @DisplayName("Should throw EntityNotFoundException when deleting non-existent document")
         void shouldThrowWhenDeletingNonExistent() {
             // given
-            when(documentRepository.existsById(99L)).thenReturn(false);
+            when(documentRepository.findById(99L)).thenReturn(java.util.Optional.empty());
 
             // when & then
             assertThatThrownBy(() -> documentService.deleteDocument(99L))
                     .isInstanceOf(EntityNotFoundException.class)
                     .hasMessageContaining("Document not found with id: 99");
 
-            verify(documentRepository, never()).deleteById(any());
+            verify(documentRepository, never()).delete(any());
         }
     }
 
