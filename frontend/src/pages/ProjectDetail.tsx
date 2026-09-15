@@ -7,6 +7,7 @@ import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
+import { useEmbeddingStatus } from '../hooks/useEmbeddingStatus';
 import { useDebounce } from '../hooks/useDebounce';
 import { projectApi } from '../services/projectApi';
 import { generateSlug } from '../utils/slugify';
@@ -41,6 +42,11 @@ const ProjectDetail: React.FC = () => {
     slug ?? '',
     debouncedSearchQuery,
   );
+
+  // Semantic (hybrid) search availability — WIKI4AI-36. When the embedding
+  // sidecar is down the backend falls back to text-only results; the UI shows
+  // a hint so the user knows why semantic matches are missing.
+  const { data: embeddingStatus } = useEmbeddingStatus();
 
   const [activeTab, setActiveTab] = useState<TabType>('documents');
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -471,6 +477,18 @@ const ProjectDetail: React.FC = () => {
               )}
             </div>
 
+            {/* Semantic search availability hint (WIKI4AI-36) */}
+            {hasSearched && embeddingStatus && !embeddingStatus.available && (
+              <div className="semantic-unavailable-banner" role="status" data-testid="semantic-unavailable-banner">
+                Semantické vyhľadávanie je nedostupné — zobrazujem len textové výsledky.
+              </div>
+            )}
+            {hasSearched && embeddingStatus?.available && (
+              <span className="semantic-status-badge" data-testid="semantic-status-badge">
+                semantické vyhľadávanie: aktívne
+              </span>
+            )}
+
             {loadingDocuments && !hasSearched ? (
               <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
             ) : searching ? (
@@ -488,6 +506,15 @@ const ProjectDetail: React.FC = () => {
                       <div className="doc-info" onClick={() => handleViewDocument(slug)}>
                         <span className="doc-title">{doc.title}</span>
                         <span className="doc-slug">@{slug}</span>
+                        {hasSearched && doc.score != null && (
+                          <span
+                            className="doc-score"
+                            title="Relevance score hybridného vyhľadávania (RRF)"
+                            data-testid={`search-score-${doc.id}`}
+                          >
+                            {doc.score.toFixed(4)}
+                          </span>
+                        )}
                       </div>
                       <div className="doc-meta">
                         <span className="doc-date">{formatDate(doc.updatedAt)}</span>
