@@ -2,8 +2,10 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.ChangeRoleRequestDTO;
 import com.wiki4ai.dto.CreateUserRequestDTO;
+import com.wiki4ai.dto.IntegrityReportDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AdminService;
+import com.wiki4ai.service.IntegrityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,9 +30,42 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
+    private final IntegrityService integrityService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, IntegrityService integrityService) {
         this.adminService = adminService;
+        this.integrityService = integrityService;
+    }
+
+    /**
+     * Get an integrity report for this instance (WIKI4AI-42, epic WIKI4AI-28):
+     * per-table row counts plus canonical content checksums (slug-ordered, so two
+     * instances with identical content produce identical checksums). Used to compare
+     * source/target before and after a data migration. Admin access required.
+     */
+    @GetMapping("/integrity")
+    @Operation(
+            summary = "Get integrity report",
+            description = "Returns per-table row counts and canonical content checksums for this instance. "
+                    + "Admin access required."
+    )
+    @ApiResponse(responseCode = "200", description = "Integrity report returned successfully")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    public ResponseEntity<?> getIntegrityReport() {
+        try {
+            IntegrityReportDTO report = integrityService.getIntegrityReport();
+            return ResponseEntity.ok(report);
+        } catch (SecurityException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+
+            if (e.getMessage() != null && (e.getMessage().contains("Authentication required")
+                    || e.getMessage().contains("not found in database"))) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+            }
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+        }
     }
 
     /**
