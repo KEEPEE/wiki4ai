@@ -40,21 +40,70 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
       if (this.props.fallback) {
         return this.props.fallback
       }
+      // NOTE: styled with inline styles on purpose — this codebase's builds do
+      // not generate Tailwind utilities (no @tailwindcss/vite plugin; see
+      // WIKI4AI-38), so utility classes in JSX would render unstyled.
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-8">
-          <div className="max-w-md text-center">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Niečo sa pokazilo</h1>
-            <p className="text-gray-700 mb-4">
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '32px 16px',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 520,
+              width: '100%',
+              textAlign: 'center',
+              background: 'var(--dark-2, #12121f)',
+              border: '1px solid rgba(0, 240, 255, 0.18)',
+              borderRadius: 12,
+              padding: 32,
+            }}
+          >
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ff6b6b', margin: '0 0 16px' }}>
+              Niečo sa pokazilo
+            </h1>
+            <p style={{ color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.6, margin: '0 0 16px' }}>
               Pri načítaní stránky došlo k chybe — napríklad zlyhalo načítanie časti aplikácie.
             </p>
             {this.state.error && (
-              <pre className="bg-white p-4 rounded border border-red-200 text-left overflow-auto max-h-48 text-sm text-red-800 mb-4">
+              <pre
+                style={{
+                  background: 'var(--dark-1, #0a0a12)',
+                  border: '1px solid rgba(255, 107, 107, 0.35)',
+                  borderRadius: 8,
+                  padding: 12,
+                  fontSize: 13,
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                  color: '#ff9f9f',
+                  textAlign: 'left',
+                  overflow: 'auto',
+                  maxHeight: 192,
+                  margin: '0 0 16px',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-word',
+                }}
+              >
                 {this.state.error.message}
               </pre>
             )}
             <button
               onClick={this.handleReload}
-              className="mt-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              style={{
+                marginTop: 8,
+                padding: '10px 24px',
+                background: 'var(--primary, #00f0ff)',
+                color: '#0a0a12',
+                fontWeight: 700,
+                fontSize: 15,
+                border: 'none',
+                borderRadius: 8,
+                cursor: 'pointer',
+              }}
             >
               Obnoviť stránku
             </button>
