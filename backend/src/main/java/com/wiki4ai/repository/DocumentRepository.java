@@ -97,8 +97,16 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     // Hibernate has no native vector type, so all vector I/O goes through these
     // native queries. This also keeps `ddl-auto=update` from touching the column.
 
-    /** Store a pgvector literal (e.g. {@code [0.1,-0.2,...]}) for one document. */
-    @Modifying(clearAutomatically = true)
+    /**
+     * Store a pgvector literal (e.g. {@code [0.1,-0.2,...]}) for one document.
+     *
+     * <p>Deliberately WITHOUT {@code clearAutomatically}: the native UPDATE bypasses the
+     * persistence context, but the embedding column is not mapped on the entity, so
+     * Hibernate can never overwrite it with a stale in-memory value. Clearing would
+     * instead detach every managed entity of the surrounding CRUD transaction and break
+     * lazy loading (e.g. {@code linkedDocuments}) when the DTO is built afterwards.</p>
+     */
+    @Modifying
     @Query(value = "UPDATE documents SET embedding = CAST(:vec AS vector) WHERE id = :id", nativeQuery = true)
     int updateEmbedding(@Param("id") Long id, @Param("vec") String vec);
 
