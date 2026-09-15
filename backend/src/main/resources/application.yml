@@ -90,3 +90,14 @@ admin:
   initial:
     username: ${ADMIN_INITIAL_USERNAME:admin}
     password: ${ADMIN_INITIAL_PASSWORD:change-me-now}
+
+# Embedding sidecar (WIKI4AI-35, epic WIKI4AI-26).
+# In the docker stack the service name is 'embedding' on port 8030.
+# When unreachable, search degrades to text-only — never a hard failure.
+embedding:
+  base-url: ${EMBEDDING_BASE_URL:http://localhost:8030}
+  enabled: true
+  connect-timeout-ms: 2000
+  read-timeout-ms: 120000
+  batch-size: 4
+  unavailable-ttl-ms: 15000

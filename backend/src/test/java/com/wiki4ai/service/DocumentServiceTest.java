@@ -34,6 +34,10 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -51,6 +55,12 @@ class DocumentServiceTest {
 
     @Mock
     private PermissionService permissionService;
+
+    @Mock
+    private EmbeddingService embeddingService;
+
+    @Mock
+    private EmbeddingClient embeddingClient;
 
     @InjectMocks
     private DocumentService documentService;
@@ -879,6 +889,8 @@ class DocumentServiceTest {
             // given
             when(documentRepository.findByProjectIdAndContentContaining(1L, "content"))
                     .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
 
             // when
             List<DocumentDTO> result = documentService.searchDocuments(1L, "content");
@@ -894,12 +906,92 @@ class DocumentServiceTest {
             // given
             when(documentRepository.findByProjectIdAndContentContaining(1L, "nonexistent"))
                     .thenReturn(List.of());
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
 
             // when
             List<DocumentDTO> result = documentService.searchDocuments(1L, "nonexistent");
 
             // then
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fuse text and vector rankings with RRF and stamp scores")
+        void shouldFuseTextAndVectorRankings() {
+            // given — text hits: A(1), B(2); vector hits: C(rank 1), A(rank 2)
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument, targetDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document vectorOnly = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-hit")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.of(
+                            new Object[]{3L, 0.91},
+                            new Object[]{1L, 0.85}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(vectorOnly));
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then — doc 3 (vector only) is included; doc 1 appears in both rankings → top score
+            assertThat(result).extracting(DocumentDTO::getId)
+                    .containsExactlyInAnyOrder(1L, 2L, 3L);
+            DocumentDTO top = result.get(0);
+            assertThat(top.getId()).isEqualTo(1L);
+            // RRF: doc1 = 1/61 (text rank1) + 1/62 (vector rank2); doc3 = 1/61 (vector rank1)
+            //     → doc1 must outrank doc3; all scores present and positive
+            assertThat(top.getScore()).isNotNull().isPositive();
+            assertThat(result).allSatisfy(dto -> assertThat(dto.getScore()).isNotNull().isPositive());
+            DocumentDTO doc3 = result.stream().filter(d -> d.getId() == 3L).findFirst().orElseThrow();
+            assertThat(doc3.getScore()).isLessThan(top.getScore());
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fall back to text-only when sidecar is unavailable")
+        void shouldFallbackToTextOnlyWhenSidecarDown() {
+            // given
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getId()).isEqualTo(1L);
+            verify(documentRepository, never()).findTopByEmbeddingSimilarity(anyLong(), anyString(), anyInt());
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fall back to text-only when the sidecar fails mid-request")
+        void shouldFallbackWhenEmbedQueryFails() {
+            // given
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            when(embeddingClient.embedQuery("login"))
+                    .thenThrow(new EmbeddingClient.EmbeddingUnavailableException("sidecar down"));
+
+            // when — must not throw
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getId()).isEqualTo(1L);
         }
     }
 

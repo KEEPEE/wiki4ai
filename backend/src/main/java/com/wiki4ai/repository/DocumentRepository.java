@@ -2,7 +2,9 @@ package com.wiki4ai.repository;
 
 import com.wiki4ai.model.Document;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import org.springframework.data.domain.Page;
@@ -89,4 +91,38 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
      */
     @Query("SELECT d FROM Document d JOIN d.linkedDocuments ld WHERE ld.id = :targetDocId")
     List<Document> findByLinkedDocumentsId(Long targetDocId);
+
+    // ==================== pgvector (WIKI4AI-35, epic WIKI4AI-26) ====================
+    // The embedding column is intentionally NOT mapped on the Document entity:
+    // Hibernate has no native vector type, so all vector I/O goes through these
+    // native queries. This also keeps `ddl-auto=update` from touching the column.
+
+    /** Store a pgvector literal (e.g. {@code [0.1,-0.2,...]}) for one document. */
+    @Modifying(clearAutomatically = true)
+    @Query(value = "UPDATE documents SET embedding = CAST(:vec AS vector) WHERE id = :id", nativeQuery = true)
+    int updateEmbedding(@Param("id") Long id, @Param("vec") String vec);
+
+    /** IDs of all documents that already have an embedding (backfill skip set). */
+    @Query(value = "SELECT id FROM documents WHERE embedding IS NOT NULL", nativeQuery = true)
+    List<Long> findIdsWithEmbedding();
+
+    /** Count of documents with a non-null embedding (progress/verification). */
+    @Query(value = "SELECT COUNT(*) FROM documents WHERE embedding IS NOT NULL", nativeQuery = true)
+    long countWithEmbedding();
+
+    /**
+     * Vector similarity search within one project.
+     *
+     * <p>Returns rows of {@code [Long id, Double similarity]} where similarity is
+     * {@code 1 - cosine_distance} (1.0 = identical direction), ordered by
+     * ascending cosine distance (HNSW index) and limited to {@code limit} hits.</p>
+     */
+    @Query(value = "SELECT d.id, 1 - (d.embedding <=> CAST(:qvec AS vector)) AS similarity "
+            + "FROM documents d "
+            + "WHERE d.project_id = :projectId AND d.embedding IS NOT NULL "
+            + "ORDER BY d.embedding <=> CAST(:qvec AS vector) ASC "
+            + "LIMIT :limit", nativeQuery = true)
+    List<Object[]> findTopByEmbeddingSimilarity(@Param("projectId") Long projectId,
+                                                @Param("qvec") String qvec,
+                                                @Param("limit") int limit);
 }
