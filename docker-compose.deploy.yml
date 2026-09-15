@@ -11,6 +11,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=wiki4ai
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - JWT_SECRET=wiki4ai-jwt-secret-key-change-in-production-secure-2025
+      - EMBEDDING_BASE_URL=http://embedding:8030
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +36,23 @@ services:
       - MCP_JWT_TOKEN=${MCP_JWT_TOKEN}
     depends_on:
       - backend
+    restart: unless-stopped
+
+  # Qwen3-Embedding-0.6B int8 ONNX sidecar (WIKI4AI-34, epic WIKI4AI-26).
+  # NOTE: the GitLab pipeline does not build this image yet — build it from
+  # ./embedding (model baked in at build time) and push to the registry first.
+  embedding:
+    image: git.keepee.duckdns.org/services/wiki4ai/embedding:<IMAGE_TAG>
+    container_name: wiki4ai-embedding
+    ports:
+      - "8030:8030"
+    mem_limit: 2560m
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=8); sys.exit(0 if r.status==200 else 1)\""]
+      interval: 20s
+      timeout: 10s
+      start_period: 900s
+      retries: 15
     restart: unless-stopped
 
   db:

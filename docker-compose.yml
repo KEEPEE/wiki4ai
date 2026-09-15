@@ -8,6 +8,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=wiki4ai
       - SPRING_DATASOURCE_PASSWORD=wiki4ai
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - EMBEDDING_BASE_URL=http://embedding:8030
     depends_on:
       db:
         condition: service_healthy
@@ -37,6 +38,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+
+  # Qwen3-Embedding-0.6B int8 ONNX sidecar (WIKI4AI-34, epic WIKI4AI-26).
+  # Model is baked into the image at build time (~1 GB). RAM cap 2.5 GB,
+  # batch <= 4, ORT enable_cpu_mem_arena=false (see embeddings research doc §9).
+  embedding:
+    build: ./embedding
+    ports:
+      - "8030:8030"
+    mem_limit: 2560m
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=8); sys.exit(0 if r.status==200 else 1)\""]
+      interval: 20s
+      timeout: 10s
+      start_period: 900s
+      retries: 15
     restart: unless-stopped
 
 volumes:
