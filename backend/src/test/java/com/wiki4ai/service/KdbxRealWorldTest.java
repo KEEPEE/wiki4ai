@@ -1,6 +1,7 @@
 package com.wiki4ai.service;
 
 import com.wiki4ai.dto.VaultEntryImportDTO;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,9 +20,16 @@ class KdbxRealWorldTest {
 
     @Test
     void shouldImportFromRealKdbxFile() throws IOException {
-        String password = "540413";
-        
-        try (var inputStream = new ClassPathResource("real-world-sample.kdbx").getInputStream()) {
+        // WIKI4AI-47: the real-world KDBX fixture is intentionally NOT tracked in git
+        // (it is a copy of a real password database). Skip when it is absent
+        // (fresh clone / CI); the master password must come from the environment,
+        // never be hardcoded.
+        ClassPathResource resource = new ClassPathResource("real-world-sample.kdbx");
+        Assumptions.assumeTrue(resource.exists(), "real-world-sample.kdbx fixture not present - skipping");
+        String password = System.getenv("KDBX_REAL_WORLD_PASSWORD");
+        Assumptions.assumeTrue(password != null && !password.isEmpty(), "KDBX_REAL_WORLD_PASSWORD env not set - skipping");
+
+        try (var inputStream = resource.getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, password);
             
             System.out.println("\n=== REAL KDBX FILE ANALYSIS ===");

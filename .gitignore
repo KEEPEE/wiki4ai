@@ -34,3 +34,6 @@ mcp-server/.venv/
 # Database backups - real data, never commit
 backups/
 *.dump
+
+# KeePass databases - contain secrets, never commit (WIKI4AI-47)
+*.kdbx

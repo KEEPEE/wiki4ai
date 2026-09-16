@@ -1,6 +1,7 @@
 package com.wiki4ai.service;
 
 import com.wiki4ai.dto.VaultEntryImportDTO;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,10 +24,21 @@ class VaultImportServiceTest {
 
     private static final String TEST_PASSWORD = "testpass12345678";
 
+    /**
+     * WIKI4AI-47: KDBX fixtures are intentionally NOT tracked in git (they contain
+     * real password data). Skip the test when a fixture is absent (fresh clone / CI);
+     * locally the files remain on disk, so tests run as before.
+     */
+    private static ClassPathResource requireFixture(String name) {
+        ClassPathResource resource = new ClassPathResource(name);
+        Assumptions.assumeTrue(resource.exists(), name + " fixture not present - skipping");
+        return resource;
+    }
+
     @Test
     @DisplayName("Should import all entries from KDBX file")
     void shouldImportAllEntries() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             assertThat(entries).hasSize(4);
@@ -36,7 +48,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should correctly map entry fields")
     void shouldMapEntryFields() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             VaultEntryImportDTO entry1 = entries.stream()
@@ -54,7 +66,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should set group path for entries in groups")
     void shouldSetGroupPath() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             VaultEntryImportDTO workEntry = entries.stream()
@@ -69,7 +81,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should set nested group path correctly")
     void shouldSetNestedGroupPath() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             VaultEntryImportDTO nestedEntry = entries.stream()
@@ -84,7 +96,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should handle entries with missing optional fields")
     void shouldHandleMissingOptionalFields() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             VaultEntryImportDTO minimalEntry = entries.stream()
@@ -102,7 +114,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should throw on invalid password")
     void shouldThrowOnInvalidPassword() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             assertThatThrownBy(() -> vaultImportService.importFromKdbx(inputStream, "wrong-password"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid password");
@@ -112,7 +124,7 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should recursively read all entries from nested groups")
     void shouldRecursivelyReadAllEntries() throws IOException {
-        try (var inputStream = new ClassPathResource("test-sample.kdbx").getInputStream()) {
+        try (var inputStream = requireFixture("test-sample.kdbx").getInputStream()) {
             List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, TEST_PASSWORD);
 
             List<String> titles = entries.stream().map(VaultEntryImportDTO::getTitle).toList();
@@ -129,8 +141,15 @@ class VaultImportServiceTest {
     @Test
     @DisplayName("Should preserve UTF-8 characters in group names and entry fields")
     void shouldPreserveUtf8Characters() throws IOException {
-        try (var inputStream = new ClassPathResource("real-world-sample.kdbx").getInputStream()) {
-            List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, "540413");
+        // WIKI4AI-47: the real-world fixture is a copy of a real password database and
+        // is intentionally NOT tracked in git; its master password must come from the
+        // environment, never be hardcoded.
+        ClassPathResource resource = requireFixture("real-world-sample.kdbx");
+        String password = System.getenv("KDBX_REAL_WORLD_PASSWORD");
+        Assumptions.assumeTrue(password != null && !password.isEmpty(), "KDBX_REAL_WORLD_PASSWORD env not set - skipping");
+
+        try (var inputStream = resource.getInputStream()) {
+            List<VaultEntryImportDTO> entries = vaultImportService.importFromKdbx(inputStream, password);
 
             assertThat(entries).isNotEmpty();
 
