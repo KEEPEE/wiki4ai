@@ -18,14 +18,15 @@ export default function Layout({ children }: LayoutProps) {
   };
 
   return (
-    <div>
+    <div className="flex h-screen w-full bg-[var(--dark-1)] overflow-hidden">
       {/* Ambient Background — fixed behind all content */}
       <AmbientBackground />
 
       {/* Main Content Area */}
-      <main>
+      <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 flex flex-col relative z-[2]">
         {/* Top bar with brand and auth controls — glassmorphism header */}
         <header
+          className="sticky top-0 z-30 w-full px-4 py-2 flex items-center justify-between"
           style={{
             background: 'var(--glass-bg)',
             backdropFilter: 'blur(20px)',
@@ -49,16 +50,17 @@ export default function Layout({ children }: LayoutProps) {
           />
 
           {/* Wiki4AI brand — hexagon SVG logo with neon glow */}
-          <Link to="/" data-testid="nav-logo">
+          <Link to="/" className="flex-shrink-0" data-testid="nav-logo">
             <WikiLogo size={56} />
           </Link>
 
           {/* Auth section */}
-          <div data-testid="auth-section">
+          <div className="flex items-center gap-3" data-testid="auth-section">
             {isAuthenticated && user ? (
               <>
                 <Link
                   to="/vault"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-purple-600 flex items-center gap-1.5"
                   style={{
                     background: '#8b5cf6',
                   }}
@@ -73,6 +75,7 @@ export default function Layout({ children }: LayoutProps) {
                 {(user as any).role === 'ADMIN' && (
                   <Link
                     to="/admin/users"
+                    className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease"
                     style={{
                       background: '#f59e0b',
                     }}
@@ -83,12 +86,14 @@ export default function Layout({ children }: LayoutProps) {
                 )}
                 <Link
                   to="/profile"
+                  className="text-sm flex-shrink-0 transition-colors duration-[0.3s] ease hover:text-white text-gray-400"
                   data-testid="nav-profile"
                 >
                   {user.username}
                 </Link>
                 <button
                   onClick={handleLogout}
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-red-600"
                   style={{
                     background: '#ef4444',
                   }}
@@ -98,9 +103,10 @@ export default function Layout({ children }: LayoutProps) {
                 </button>
               </>
             ) : (
-              <nav>
+              <nav className="flex items-center gap-2">
                 <Link
                   to="/login"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-white transition-all duration-[0.3s] ease hover:bg-blue-600"
                   style={{
                     background: '#3b82f6',
                   }}
@@ -110,6 +116,7 @@ export default function Layout({ children }: LayoutProps) {
                 </Link>
                 <Link
                   to="/register"
+                  className="text-xs px-3 py-1.5 rounded-md font-medium flex-shrink-0 text-gray-300 transition-all duration-[0.3s] ease hover:text-white border border-white/20 hover:border-white/40"
                   data-testid="nav-register"
                 >
                   Register
@@ -120,7 +127,7 @@ export default function Layout({ children }: LayoutProps) {
         </header>
 
         {/* Page content — flex column so child pages can use flex: 1 to fill height */}
-        <div>
+        <div className="flex-1 max-w-7xl mx-auto w-full p-4 relative z-[3] flex flex-col min-h-0">
           {children || <Outlet />}
         </div>
       </main>

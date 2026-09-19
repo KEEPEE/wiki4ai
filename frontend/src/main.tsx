@@ -16,10 +16,10 @@ const queryClient = new QueryClient({
 // Loading fallback component
 function LoadingFallback() {
   return (
-    <div>
-      <div>
-        <div></div>
-        <p>Loading Wiki4AI...</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading Wiki4AI...</p>
       </div>
     </div>
   )
@@ -63,12 +63,12 @@ try {
   if (rootElement) {
     const errorObj = error instanceof Error ? error : new Error(String(error))
     rootElement.innerHTML = `
-      <div>
-        <div>
-          <h1>Application Error</h1>
-          <p>Failed to start application:</p>
-          <pre>${errorObj.message}</pre>
-          <button onclick="window.location.reload()">Reload Page</button>
+      <div class="min-h-screen flex items-center justify-center bg-red-50 p-8">
+        <div class="max-w-md text-center">
+          <h1 class="text-2xl font-bold text-red-600 mb-4">Application Error</h1>
+          <p class="text-gray-700 mb-4">Failed to start application:</p>
+          <pre class="bg-white p-4 rounded border border-red-200 text-left overflow-auto max-h-64 text-sm text-red-800">${errorObj.message}</pre>
+          <button onclick="window.location.reload()" class="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Reload Page</button>
         </div>
       </div>
     `
