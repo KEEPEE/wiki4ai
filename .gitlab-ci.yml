@@ -13,7 +13,9 @@ variables:
   DOCKER_CERT_PATH: "$DOCKER_TLS_CERTDIR/client"
   DOCKER_TLS_VERIFY: 1
   IMAGE_REGISTRY: git.keepee.duckdns.org/services/wiki4ai
-  SERVER_IP: "192.168.77.177"
+  # WIKI4AI-52: deploy target is the real dev instance (.219, dockge stack wiki4ai).
+  # Production .4 is NEVER touched by the pipeline — explicit user decision only.
+  SERVER_IP: "192.168.77.219"
   SERVER_USER: "keepee"
   BACKEND_IMAGE_NAME: "backend"
   FRONTEND_IMAGE_NAME: "frontend"
@@ -139,7 +141,16 @@ build-embedding:
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
-# ── Deploy to server 192.168.77.177 ───────────────────────────────────────────
+# ── Deploy to dev server 192.168.77.219 (dockge stack wiki4ai) ────────────────
+# WIKI4AI-52: the pipeline previously deployed to .177, where no wiki4ai stack
+# runs. The real dev instance is the dockge stack on .219 — this job now:
+#   1. backs up /mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml,
+#   2. re-points the image tags of backend/frontend/mcp/embedding to the commit
+#      SHA (db and every other entry stay untouched),
+#   3. pulls the four images from the registry and runs `docker compose up -d`,
+#      which recreates only the services whose config changed.
+# Production .4 is NEVER touched by the pipeline — deploying there is an
+# explicit user decision only (see WORKFLOW.md §10).
 
 deploy-to-server:
   stage: deploy-to-server
@@ -150,45 +161,34 @@ deploy-to-server:
     - build-backend
     - build-frontend
     - build-mcp
+    - build-embedding
   script:
-    - echo "Deploying to server ${SERVER_IP}..."
-    - apk add --no-cache openssh-client sshpass
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - ssh-keyscan -H ${SERVER_IP} >> ~/.ssh/known_hosts
-    # Create deployment directory on server
-    - echo "Creating deployment directory on server..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "mkdir -p /home/keepee/docker/stacks/wiki4ai"
-    # Replace IMAGE_TAG placeholder and transfer docker-compose.deploy.yml to server
-    - echo "Transferring docker-compose.deploy.yml to server..."
-    - sed "s/<IMAGE_TAG>/${CI_COMMIT_SHORT_SHA}/g" docker-compose.deploy.yml | sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cat > /home/keepee/docker/stacks/wiki4ai/docker-compose.yml"
-    # Login to GitLab registry on server and pull new images
-    - echo "Logging into GitLab registry on server..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} git.keepee.duckdns.org"
-    # Pull and tag backend image
-    - echo "Pulling new backend image from GitLab registry..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
-    - echo "Tagging backend image as latest..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:latest"
-    # Pull and tag frontend image
-    - echo "Pulling new frontend image from GitLab registry..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
-    - echo "Tagging frontend image as latest..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:latest"
-    # Pull and tag MCP image
-    - echo "Pulling new MCP server image from GitLab registry..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker pull ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
-    - echo "Tagging MCP image as latest..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker tag ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest"
-    # Stop old containers and deploy with compose
-    - echo "Stopping old wiki4ai containers..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker stop wiki4ai-backend wiki4ai-frontend wiki4ai-mcp || true"
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "docker rm wiki4ai-backend wiki4ai-frontend wiki4ai-mcp || true"
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose down || true"
-    - echo "Starting new wiki4ai stack..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose up -d"
-    # Check container status
+    - apk add --no-cache openssh-client
+    # Devbox SSH key (CI variable WIKI4AI_DEPLOY_SSH_KEY_B64 = base64 of the
+    # id_ed25519_devbox key). The job runs in a container on a shared runner, so
+    # host files are not visible — the key is materialised from the variable.
+    - echo "${WIKI4AI_DEPLOY_SSH_KEY_B64}" | base64 -d > /tmp/deploy_key
+    - chmod 600 /tmp/deploy_key
+    - export DEPLOY_SSH="ssh -F /dev/null -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i /tmp/deploy_key ${SERVER_USER}@${SERVER_IP}"
+    - echo "Deploying commit ${CI_COMMIT_SHORT_SHA} to dev server ${SERVER_IP}..."
+    # Backup the compose file before re-pointing image tags (rollback aid)
+    - $DEPLOY_SSH "cp /mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml /mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml.bak-pipeline"
+    # Re-point the four built services to the commit SHA; db + other entries untouched
+    - $DEPLOY_SSH "sed -i -E 's#(git\.keepee\.duckdns\.org/services/wiki4ai/(backend|frontend|mcp|embedding):)[A-Za-z0-9._-]+#\1${CI_COMMIT_SHORT_SHA}#g' /mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml"
+    - $DEPLOY_SSH "grep -E 'image:' /mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml"
+    # Login to the GitLab registry on .219 and pull the four new images
+    - echo "Logging into GitLab registry on ${SERVER_IP}..."
+    - $DEPLOY_SSH "docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} git.keepee.duckdns.org"
+    - $DEPLOY_SSH "docker pull ${IMAGE_REGISTRY}/${BACKEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - $DEPLOY_SSH "docker pull ${IMAGE_REGISTRY}/${FRONTEND_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - $DEPLOY_SSH "docker pull ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    - $DEPLOY_SSH "docker pull ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}"
+    # Recreate only the services whose image changed (db and friends stay up)
+    - echo "Starting updated wiki4ai stack..."
+    - $DEPLOY_SSH "cd /mnt/data/docker/dockge/stacks/wiki4ai && docker compose up -d"
+    # Container status — db should still show its long uptime (untouched)
     - echo "Checking container status..."
-    - sshpass -p "${DEPLOY_SSH_PASSWORD}" ssh -o StrictHostKeyChecking=no ${SERVER_USER}@${SERVER_IP} "cd /home/keepee/docker/stacks/wiki4ai && docker compose ps"
-    - echo "Deployment completed successfully!"
+    - $DEPLOY_SSH "cd /mnt/data/docker/dockge/stacks/wiki4ai && docker compose ps"
+    - echo "Deployment to ${SERVER_IP} completed successfully!"
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
