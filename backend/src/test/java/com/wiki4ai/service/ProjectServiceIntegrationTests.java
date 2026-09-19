@@ -2,6 +2,7 @@ package com.wiki4ai.service;
 
 import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ProjectUpdateDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Project;
@@ -205,21 +206,49 @@ class ProjectServiceIntegrationTests {
         }
 
         @Test
-        @DisplayName("Should auto-generate new slug when name is updated")
-        void shouldAutoGenerateSlugOnNameUpdate() {
+        @DisplayName("Should keep slug invariant when name is updated (WIKI4AI-54 regression)")
+        void shouldKeepSlugInvariantOnNameUpdate() {
             // given
             ProjectDTO created = projectService.createProject(
                     ProjectDTO.builder().name("Old Name").build()
             );
             assertThat(created.getSlug()).isEqualTo("old-name");
 
-            // when
+            // when — rename via update by id (WebUI path: PUT /projects/by-id/{id})
             ProjectDTO updated = projectService.updateProject(created.getId(),
                     ProjectDTO.builder().name("New Name").build()
             );
 
-            // then - the slug should be regenerated via Project.setName()
-            assertThat(updated.getSlug()).isEqualTo("new-name");
+            // then - the name changes but the slug (and thus the URL) must NOT change
+            assertThat(updated.getName()).isEqualTo("New Name");
+            assertThat(updated.getSlug()).isEqualTo("old-name");
+
+            // and the project is still reachable at its original slug/URL
+            ProjectDTO retrieved = projectService.getProjectBySlug("old-name");
+            assertThat(retrieved.getId()).isEqualTo(created.getId());
+            assertThat(retrieved.getName()).isEqualTo("New Name");
+        }
+
+        @Test
+        @DisplayName("Should keep slug invariant when updated by slug (WIKI4AI-54 regression)")
+        void shouldKeepSlugInvariantOnUpdateBySlug() {
+            // given
+            ProjectDTO created = projectService.createProject(
+                    ProjectCreateDTO.builder().name("Slug Rename Test").build()
+            );
+            assertThat(created.getSlug()).isEqualTo("slug-rename-test");
+
+            // when — rename via update by slug (PUT /projects/{slug})
+            ProjectDTO updated = projectService.updateProjectBySlug(
+                    created.getSlug(),
+                    ProjectUpdateDTO.builder().name("Renamed Slug Test").build()
+            );
+
+            // then - slug stays, URL stays reachable
+            assertThat(updated.getName()).isEqualTo("Renamed Slug Test");
+            assertThat(updated.getSlug()).isEqualTo("slug-rename-test");
+            assertThat(projectService.getProjectBySlug("slug-rename-test").getId())
+                    .isEqualTo(created.getId());
         }
     }
 

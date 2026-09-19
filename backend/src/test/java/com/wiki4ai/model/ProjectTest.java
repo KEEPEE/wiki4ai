@@ -97,30 +97,36 @@ class ProjectTest {
     }
 
     @Nested
-    @DisplayName("Auto Slug Generation on Name Set")
-    class AutoSlugGenerationTests {
+    @DisplayName("Rename keeps slug immutable (WIKI4AI-54)")
+    class RenameKeepsSlugTests {
 
         @Test
-        @DisplayName("should auto-generate slug when name is set via setName")
-        void shouldAutoGenerateSlugOnSetName() {
-            projectA.setName("Test Project");
-            assertThat(projectA.getSlug()).isEqualTo("test-project");
+        @DisplayName("should not change existing slug when name is set via setName")
+        void shouldNotChangeExistingSlugOnSetName() {
+            projectA.setSlug("original-slug");
+            projectA.setName("Renamed Project");
+            assertThat(projectA.getName()).isEqualTo("Renamed Project");
+            assertThat(projectA.getSlug()).isEqualTo("original-slug");
         }
 
         @Test
-        @DisplayName("should update slug when name changes")
-        void shouldUpdateSlugWhenNameChanges() {
-            String initialSlug = projectA.getSlug();
-            projectA.setName("New Name");
-            assertThat(projectA.getSlug()).isNotEqualTo(initialSlug);
-            assertThat(projectA.getSlug()).isEqualTo("new-name");
+        @DisplayName("should leave slug untouched for a new project (generated at persist time)")
+        void shouldLeaveSlugUntouchedForNewProject() {
+            Project project = new Project();
+            project.setName("Brand New");
+            // setName must not generate the slug; @PrePersist does that on save
+            assertThat(project.getSlug()).isNull();
+
+            project.onCreate();
+            assertThat(project.getSlug()).isEqualTo("brand-new");
         }
 
         @Test
-        @DisplayName("should set empty slug when name is blank")
-        void shouldSetEmptySlugForBlankName() {
+        @DisplayName("should not clear existing slug when name becomes blank")
+        void shouldNotClearSlugForBlankName() {
+            projectA.setSlug("kept-slug");
             projectA.setName("");
-            assertThat(projectA.getSlug()).isEmpty();
+            assertThat(projectA.getSlug()).isEqualTo("kept-slug");
         }
     }
 
