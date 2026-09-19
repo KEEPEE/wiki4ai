@@ -245,10 +245,14 @@ class ProjectServiceTest {
             when(projectRepository.existsByName("My Wiki Project!")).thenReturn(false);
             when(projectRepository.save(any(Project.class))).thenAnswer(invocation -> {
                 Project p = invocation.getArgument(0);
+                // Simulate @PrePersist (Project.onCreate): slug is generated from the
+                // name on persist if not set — setName() itself no longer touches it (WIKI4AI-54).
+                String slug = (p.getSlug() == null || p.getSlug().isBlank())
+                        ? Project.generateSlug(p.getName()) : p.getSlug();
                 return Project.builder()
                         .id(1L)
                         .name(p.getName())
-                        .slug(p.getSlug())
+                        .slug(slug)
                         .createdAt(LocalDateTime.now())
                         .updatedAt(LocalDateTime.now())
                         .build();

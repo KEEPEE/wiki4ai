@@ -84,11 +84,16 @@ public class Project {
     }
 
     /**
-     * Set the project name and auto-generate slug from it.
+     * Set the project name.
+     * <p>
+     * The slug is intentionally NOT regenerated here: renaming a project must not
+     * change its URL ({@code /projects/:slug}), otherwise existing links, bookmarks
+     * and cross-references would break (WIKI4AI-54). Slug generation for new
+     * projects happens in {@link #onCreate()} (@PrePersist); an explicit slug
+     * change goes through {@link #setSlug(String)}.
      */
     public void setName(String name) {
         this.name = name;
-        this.slug = generateSlug(name);
     }
 
     /**

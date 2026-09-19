@@ -97,7 +97,8 @@ public class ProjectService {
         }
 
         Project project = new Project();
-        // Use setName() to trigger slug generation (equivalent to @PrePersist)
+        // Slug is generated from the name in Project.onCreate() (@PrePersist) on save;
+        // setName() must NOT touch the slug (WIKI4AI-54: rename keeps the URL stable).
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
         if (parent != null) {
