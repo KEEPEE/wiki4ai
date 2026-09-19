@@ -1,3 +1,1 @@
 @import "./styles/globals.css";
-@import "tailwindcss";
-@plugin "@tailwindcss/typography";
