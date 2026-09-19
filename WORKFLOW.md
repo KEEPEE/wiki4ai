@@ -4,6 +4,8 @@ This document defines the standard workflow for all agents working on tasks in t
 
 Jira board: https://keepee777.atlassian.net/jira/software/projects/WIKI4AI/boards/35/backlog
 
+**Single source of truth for the development workflow:** the wiki doc `Wiki4AI — vývojový workflow (Jira + repo + deploy + e2e)` — project `agent-helpers`, slug `wiki4ai-vyvojovy-workflow-jira-repo-deploy-e2e` (WebUI: http://192.168.77.219:3016/projects/agent-helpers/documents/423). Read it at the start of every task; when this file and that doc disagree, update both in the same commit.
+
 ---
 
 ## 1. Pick a Task
@@ -77,11 +79,13 @@ Jira board: https://keepee777.atlassian.net/jira/software/projects/WIKI4AI/board
 
 ---
 
-## 9. Send Discord Notification
+## 9. Report via Telegram (mandatory)
 
-- After completing all previous steps, send a completion message via Discord using the MCP tool.
-- Post the message to the **`wiki4ai`** channel on the **`keepees server`**.
-- The message should summarize what was accomplished (issue key, summary, key changes made).
+Reporting goes through **Telegram** (bot AstreadBot, private chat) using `mcp__telegram__send_message`:
+
+- **At agent/task start** — a message stating which agent was launched and what it is working on.
+- **After completion** — a message summarizing what was accomplished (issue key, summary, key changes made).
+- Detail: bootstrap doc §3 — wiki project `agent-helpers`, slug `manager-bootstrap-ako-pracuje-manager-relacia`.
 
 ---
 
@@ -89,13 +93,12 @@ Jira board: https://keepee777.atlassian.net/jira/software/projects/WIKI4AI/board
 
 Every build must be traceable: **no stack may pin `:latest`**.
 
-- **Tagging:** each `build-*` job in `.gitlab-ci.yml` pushes its image to `git.keepee.duckdns.org/services/wiki4ai/<name>` under **two tags**:
+- **Tagging:** each `build-*` job in `.gitlab-ci.yml` (`build-backend`, `build-frontend`, `build-mcp`, `build-embedding`) pushes its image to `git.keepee.duckdns.org/services/wiki4ai/<name>` under **two tags**:
   - `<CI_COMMIT_SHORT_SHA>` — the 8-char commit SHA; immutable, traceable tag (the one you pin), and
   - `latest` — a moving convenience pointer only; never reference it from a stack.
-- **Deploy = explicit SHA tag:**
-  - The pipeline's `deploy-to-server` job already substitutes the `<IMAGE_TAG>` placeholder in `docker-compose.deploy.yml` with `$CI_COMMIT_SHORT_SHA` before shipping the compose file, so pipeline deploys always run the exact commit that was built.
-  - The dev stack on `.219` (`/mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml`) pins explicit SHA tags for the `backend`, `frontend` and `mcp-server` services. To deploy a new build there: verify the tag exists in the registry (`docker manifest inspect git.keepee.duckdns.org/services/wiki4ai/<name>:<SHA>`), update the three `image:` lines to that SHA, then `docker compose up -d` (only the changed services are recreated).
-  - The `embedding` sidecar is **not** built by the pipeline yet (WIKI4AI-51) — it keeps its local image until that story lands.
+- **Deploy = explicit SHA tag, automatic on push to `main`:**
+  - The pipeline's `deploy-to-server` job deploys to the **dev instance `.219`** (dockge stack `/mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml`): it backs up the compose file, re-points the image tags of `backend`, `frontend`, `mcp` and `embedding` to `$CI_COMMIT_SHORT_SHA`, pulls all four images from the registry and runs `docker compose up -d` — only the changed services are recreated, `db` is never touched.
+  - **Production `.4` is never touched by the pipeline** — deploying there happens only on an explicit user decision.
 - **Rollback = change the tag back:** edit the pinned SHA in the compose file to a previous commit's SHA (old images remain in the registry indefinitely) and run `docker compose up -d`. No rebuild needed.
 
 ---
@@ -112,4 +115,4 @@ Every build must be traceable: **no stack may pin `:latest`**.
 | 6 | Commit with English message, push to `main` | — |
 | 7 | Run `bash scripts/check_pipeline.sh` and wait for success | — |
 | 8 | Append description + transition issue to Done in Jira | — |
-| 9 | Send Discord notification to #wiki4ai on keepees server | — |
+| 9 | Report via Telegram (agent start + completion) | — |
