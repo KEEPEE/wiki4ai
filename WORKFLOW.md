@@ -85,6 +85,21 @@ Jira board: https://keepee777.atlassian.net/jira/software/projects/WIKI4AI/board
 
 ---
 
+## 10. Image Tags & Rollback (Convention)
+
+Every build must be traceable: **no stack may pin `:latest`**.
+
+- **Tagging:** each `build-*` job in `.gitlab-ci.yml` pushes its image to `git.keepee.duckdns.org/services/wiki4ai/<name>` under **two tags**:
+  - `<CI_COMMIT_SHORT_SHA>` — the 8-char commit SHA; immutable, traceable tag (the one you pin), and
+  - `latest` — a moving convenience pointer only; never reference it from a stack.
+- **Deploy = explicit SHA tag:**
+  - The pipeline's `deploy-to-server` job already substitutes the `<IMAGE_TAG>` placeholder in `docker-compose.deploy.yml` with `$CI_COMMIT_SHORT_SHA` before shipping the compose file, so pipeline deploys always run the exact commit that was built.
+  - The dev stack on `.219` (`/mnt/data/docker/dockge/stacks/wiki4ai/compose.yaml`) pins explicit SHA tags for the `backend`, `frontend` and `mcp-server` services. To deploy a new build there: verify the tag exists in the registry (`docker manifest inspect git.keepee.duckdns.org/services/wiki4ai/<name>:<SHA>`), update the three `image:` lines to that SHA, then `docker compose up -d` (only the changed services are recreated).
+  - The `embedding` sidecar is **not** built by the pipeline yet (WIKI4AI-51) — it keeps its local image until that story lands.
+- **Rollback = change the tag back:** edit the pinned SHA in the compose file to a previous commit's SHA (old images remain in the registry indefinitely) and run `docker compose up -d`. No rebuild needed.
+
+---
+
 ## Summary Checklist
 
 | Step | Action |
