@@ -9,23 +9,33 @@ Usage:
 Connect your AI agent to this server via stdio or SSE transport.
 
 Authentication:
-  - Via CLI argument: --token <jwt_token>
-  - Via environment variable: MCP_JWT_TOKEN=<jwt_token>
-  - Via client request header (SSE mode): Authorization: Bearer <token>
-  
-Priority order for JWT token:
+  - Endpoint access control (SSE mode): environment variable
+    MCP_JWT_TOKEN=<token>. When set to a non-empty value, every request to
+    the SSE endpoint must carry "Authorization: Bearer <token>" matching it;
+    missing or wrong tokens are rejected with HTTP 401. When empty/unset,
+    the endpoint is open (legacy behavior, no auth).
+  - Backend identity JWT for Wiki4AI API calls:
+      * Via client request header (SSE mode): Authorization: Bearer <token>
+      * Via CLI argument: --token <jwt_token>
+
+Priority order for backend identity JWT token:
   1. Client-provided token (via SSE request headers) — highest priority
   2. CLI argument --token
-  3. Environment variable MCP_JWT_TOKEN
-  4. No authentication (unauthenticated access)
+  3. No authentication (unauthenticated access)
 
 This allows clients to dynamically provide their own JWT tokens without
 requiring server-side configuration.
+
+Note: MCP_JWT_TOKEN is an access credential for the MCP SSE endpoint, not a
+backend identity token. It is deliberately NOT forwarded to the Wiki4AI
+backend: the backend rejects any Bearer value that is not a valid
+app-signed JWT with HTTP 401 — even on public endpoints.
 """
 
 import argparse
 import base64
 import contextvars
+import hmac
 import os
 import sys
 from typing import Dict, List, Optional
@@ -189,6 +199,94 @@ def jwt_token_middleware(request: StarletteRequest, call_next):
         # Reset the context variable after request completes
         if 'token_var' in locals():
             jwt_token_context.reset(token_var)
+
+
+# ─── SSE Endpoint Access Control (Bearer token) ──────────────────────
+
+
+def is_access_credential(token: Optional[str]) -> bool:
+    """Return True if token equals the configured MCP endpoint access credential.
+
+    The shared access credential (MCP_JWT_TOKEN) must never be forwarded to the
+    Wiki4AI backend as an identity: it is not an app-signed JWT, and the
+    backend's JwtAuthenticationFilter rejects any invalid Bearer value with
+    HTTP 401 — even on public endpoints. When a client presents exactly the
+    access credential, it authenticates against the MCP endpoint only; backend
+    API calls fall back to the server-side configured identity (or anonymous).
+    """
+    if not token:
+        return False
+    expected = os.environ.get("MCP_JWT_TOKEN", "").strip()
+    if not expected:
+        return False
+    return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
+
+
+class BearerAuthMiddleware:
+    """ASGI middleware enforcing a shared-secret Bearer token on the MCP SSE endpoint.
+
+    When the MCP_JWT_TOKEN environment variable is set to a non-empty value,
+    every HTTP request must carry an "Authorization: Bearer <token>" header
+    whose token matches it (constant-time comparison). Missing or wrong
+    tokens are rejected with HTTP 401 and a JSON error body.
+
+    When MCP_JWT_TOKEN is empty or unset, all requests pass through
+    unchanged (legacy open behavior) — this keeps instances that do not
+    configure the token working exactly as before.
+
+    The token is read from the environment on every request so tests can
+    monkeypatch it and deployments can rotate it without code changes.
+
+    Note: this middleware only gates access to the MCP endpoint. It does not
+    (and must not) use the access token as an identity for backend API calls —
+    the Wiki4AI backend rejects any Bearer value that is not a valid
+    app-signed JWT with HTTP 401, even on public endpoints.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    @staticmethod
+    def _authorized(auth_header: str, expected: str) -> bool:
+        """Return True if auth_header is 'Bearer <expected>' (constant-time compare)."""
+        if not auth_header.startswith("Bearer "):
+            return False
+        provided = auth_header[7:].strip()
+        return hmac.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        expected = os.environ.get("MCP_JWT_TOKEN", "").strip()
+        if not expected:
+            # Auth disabled — legacy open behavior.
+            await self.app(scope, receive, send)
+            return
+
+        auth_header = ""
+        for key, value in scope.get("headers", []):
+            if key == b"authorization":
+                auth_header = value.decode("utf-8")
+                break
+
+        if not self._authorized(auth_header, expected):
+            body = _json.dumps(
+                {"error": "Unauthorized: missing or invalid Bearer token"}
+            ).encode("utf-8")
+            await send({
+                "type": "http.response.start",
+                "status": 401,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(body)).encode("utf-8")),
+                ],
+            })
+            await send({"type": "http.response.body", "body": body})
+            return
+
+        await self.app(scope, receive, send)
 
 
 # ─── Health Tools ─────────────────────────────────────────────────────────────
@@ -1450,7 +1548,7 @@ def main():
     parser.add_argument(
         "--token",
         default=None,
-        help="JWT Bearer token for authentication. Overrides MCP_JWT_TOKEN env var.",
+        help="JWT Bearer token used as backend identity for Wiki4AI API calls (in SSE mode a client-provided Authorization header takes priority).",
     )
     parser.add_argument(
         "--transport",
@@ -1468,13 +1566,14 @@ def main():
     args = parser.parse_args()
     set_base_url(args.base_url)
 
-    # Set JWT token: CLI arg > env var > None (unauthenticated)
-    token_from_cli = args.token
-    token_from_env = os.environ.get("MCP_JWT_TOKEN") or None
-    if token_from_cli:
-        set_jwt_token(token_from_cli)
-    elif token_from_env:
-        set_jwt_token(token_from_env)
+    # Set backend identity JWT token from the CLI argument only.
+    # NOTE: MCP_JWT_TOKEN is deliberately NOT used here — it is the access
+    # credential for the SSE endpoint (validated by BearerAuthMiddleware),
+    # not a backend identity token. Forwarding it to the Wiki4AI backend
+    # would break every API call: the backend rejects any Bearer value that
+    # is not a valid app-signed JWT with HTTP 401, even on public endpoints.
+    if args.token:
+        set_jwt_token(args.token)
 
     mcp = create_mcp_server()
 
@@ -1530,6 +1629,13 @@ def main():
                         elif token_from_query:
                             token_to_use = token_from_query
                         
+                        # Never forward the shared access credential (MCP_JWT_TOKEN)
+                        # to the backend as an identity — it is not an app-signed
+                        # JWT and the backend would reject it with HTTP 401, even
+                        # on public endpoints.
+                        if token_to_use and is_access_credential(token_to_use):
+                            token_to_use = None
+                        
                         token_var = None  # Initialize for cleanup
                         if token_to_use:
                             token_var = jwt_token_context.set(token_to_use)
@@ -1542,12 +1648,13 @@ def main():
                     else:
                         await self.app(scope, receive, send)
             
-            # Create the SSE app with JWT middleware
+            # Create the SSE app with auth + JWT middleware
             # RequestContextMiddleware is added by FastMCP internally, we add ours on top
             sse_app = mcp_server.http_app(
                 transport="sse",
                 middleware=[
-                    Middleware(JwtTokenMiddleware),  # JWT extraction runs first (outermost)
+                    Middleware(BearerAuthMiddleware),  # endpoint access control runs first (outermost)
+                    Middleware(JwtTokenMiddleware),    # JWT extraction for backend API calls
                 ],
             )
             
