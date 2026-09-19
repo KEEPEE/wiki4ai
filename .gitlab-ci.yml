@@ -1,5 +1,5 @@
 # wiki4ai - CI/CD Pipeline
-# Build Docker images (backend + frontend + mcp) and push to GitLab Registry, then deploy to server
+# Build Docker images (backend + frontend + mcp + embedding) and push to GitLab Registry, then deploy to the dev server
 
 stages:
   - test
@@ -18,6 +18,7 @@ variables:
   BACKEND_IMAGE_NAME: "backend"
   FRONTEND_IMAGE_NAME: "frontend"
   MCP_IMAGE_NAME: "mcp"
+  EMBEDDING_IMAGE_NAME: "embedding"
 
 # ── Test stage - gates build/deploy so broken code never reaches production ────
 
@@ -111,6 +112,30 @@ build-mcp:
     - docker tag ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
     - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
     - docker push ${IMAGE_REGISTRY}/${MCP_IMAGE_NAME}:latest
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# WIKI4AI-51: the embedding sidecar (Qwen3-Embedding-0.6B int8 ONNX) is built from
+# ./embedding/Dockerfile — the same Dockerfile that produced the image previously
+# built manually on .219 (verified 1:1: base python:3.11-slim, env, CMD, healthcheck;
+# model artifact downloaded from HuggingFace at build time). Container RAM cap
+# (2560m) lives in the stack compose file, not in the image — it is unaffected here.
+build-embedding:
+  stage: build_and_push
+  image: docker:29
+  services:
+    - docker:dind
+  timeout: 60m
+  retry: 2
+  script:
+    - echo "Pruning stale local Docker layer cache..."
+    - docker system prune -af || true
+    - echo "Building embedding sidecar Docker image..."
+    - docker login -u ${CI_REGISTRY_USER} -p ${CI_REGISTRY_PASSWORD} ${CI_REGISTRY}
+    - docker build --no-cache --progress=plain --provenance=false --sbom=false -t ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ./embedding
+    - docker tag ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA} ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:latest
+    - docker push ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:${CI_COMMIT_SHORT_SHA}
+    - docker push ${IMAGE_REGISTRY}/${EMBEDDING_IMAGE_NAME}:latest
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
