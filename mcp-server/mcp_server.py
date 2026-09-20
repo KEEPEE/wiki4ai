@@ -222,16 +222,23 @@ def is_access_credential(token: Optional[str]) -> bool:
     return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
 
-def select_jwt_token(auth_header: str, query_string: str) -> Optional[str]:
+def select_jwt_token(
+    auth_header: str,
+    query_string: str,
+    identity_header: Optional[str] = None,
+) -> Optional[str]:
     """Select the backend identity JWT to forward for this request (WIKI4AI-61).
 
     Precedence:
-      1. ``Authorization: Bearer <token>`` header — used directly when it carries
-         a real identity JWT (open instances without an access credential).
-      2. ``?token=<token>`` query parameter — the fallback for gated instances
-         where MCP_JWT_TOKEN is set: the Authorization header must carry the
-         shared access credential to pass BearerAuthMiddleware, so the client's
-         identity JWT travels in the query string instead.
+      1. ``X-Wiki4AI-JWT`` header — dedicated identity channel. On gated instances
+         (MCP_JWT_TOKEN set) the Authorization header must carry the shared access
+         credential to pass BearerAuthMiddleware, so clients put their identity JWT
+         here instead. Standard MCP clients forward client-level headers on every
+         request, including POST /messages/ where tool calls are executed.
+      2. ``Authorization: Bearer <token>`` header — used directly when it carries a
+         real identity JWT (open instances without an access credential).
+      3. ``?token=<token>`` query parameter — last-resort fallback for clients that
+         cannot send custom headers.
 
     The shared access credential (MCP_JWT_TOKEN) is never returned: it
     authenticates against the MCP endpoint only and is not an app-signed JWT —
@@ -240,10 +247,14 @@ def select_jwt_token(auth_header: str, query_string: str) -> Optional[str]:
     Args:
         auth_header: raw value of the Authorization request header (may be empty).
         query_string: raw query string of the request URL (may be empty).
+        identity_header: raw value of the X-Wiki4AI-JWT request header (may be None).
 
     Returns:
         The identity JWT to forward to the Wiki4AI backend, or None (anonymous).
     """
+    if identity_header and not is_access_credential(identity_header.strip()):
+        return identity_header.strip()
+
     header_token = None
     if auth_header.startswith("Bearer "):
         header_token = auth_header[7:].strip()
@@ -887,11 +898,11 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
     gracefully to text-only matching (no error).
 
     Authentication: this endpoint requires a valid Wiki4AI JWT (login-only policy).
-    The MCP server forwards the client's identity JWT — from the Authorization header
-    on open instances, or from the ?token= query parameter when the instance is gated
-    by an access credential (the Authorization header must carry that credential); if
-    no identity is available (and no server-side --token is configured), the backend
-    returns 401 and this tool raises a clear "Not authenticated" error.
+    The MCP server forwards the client's identity JWT — from the X-Wiki4AI-JWT header
+    on gated instances (where Authorization must carry the MCP access credential), or
+    from the Authorization header on open instances; if no identity is available (and
+    no server-side --token is configured), the backend returns 401 and this tool raises
+    a clear "Not authenticated" error.
 
     Use search_documents_global when you don't know which project a document lives in;
     use search_documents when you already know the project slug. The keyword must be at
@@ -923,9 +934,9 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
         if e.status_code == 401:
             raise MCPToolError(
                 "Not authenticated — the global search endpoint requires a valid Wiki4AI JWT. "
-                "Connect with your JWT in the Authorization header (open instance) or as "
-                "?token=<jwt> alongside the MCP access credential (gated instance), or "
-                "configure a server-side --token.",
+                "Connect with your JWT in the X-Wiki4AI-JWT request header (gated instance, "
+                "alongside the MCP access credential in Authorization) or in the Authorization "
+                "header (open instance), or configure a server-side --token.",
                 status_code=401,
             ) from e
         raise
@@ -1696,12 +1707,13 @@ def main():
                 """Starlette middleware that extracts the backend identity JWT from SSE requests.
 
                  Priority order (highest to lowest), see select_jwt_token():
-                   1. Authorization header (Bearer <token>) — used when it carries a real
+                   1. X-Wiki4AI-JWT header — dedicated identity channel for gated
+                      instances where MCP_JWT_TOKEN is set: the Authorization header must
+                      carry the shared access credential to pass BearerAuthMiddleware, so
+                      the client's identity JWT travels in this header instead (WIKI4AI-61)
+                   2. Authorization header (Bearer <token>) — used when it carries a real
                       identity JWT (open instances without an access credential)
-                   2. Query parameter (?token=<token>) — fallback for gated instances where
-                      MCP_JWT_TOKEN is set: the Authorization header must carry the shared
-                      access credential to pass BearerAuthMiddleware, so the client's
-                      identity JWT travels in the query string instead (WIKI4AI-61)
+                   3. Query parameter (?token=<token>) — last-resort fallback
 
                  The shared access credential is never forwarded as an identity. This allows
                  clients to dynamically provide their own JWT tokens without requiring
@@ -1720,10 +1732,18 @@ def main():
                                 auth_header = value.decode("utf-8")
                                 break
                         
-                        # Select the backend identity JWT (header > query, access-credential
-                        # guard — see select_jwt_token).
+                        # Read the dedicated identity header (X-Wiki4AI-JWT) for gated
+                        # instances where Authorization carries the access credential.
+                        identity_header = None
+                        for key, value in scope.get("headers", []):
+                            if key == b"x-wiki4ai-jwt":
+                                identity_header = value.decode("utf-8")
+                                break
+
+                        # Select the backend identity JWT (identity header > auth header
+                        # > query; access-credential guard — see select_jwt_token).
                         query_string = scope.get("query_string", b"").decode("utf-8")
-                        token_to_use = select_jwt_token(auth_header, query_string)
+                        token_to_use = select_jwt_token(auth_header, query_string, identity_header)
                         
                         token_var = None  # Initialize for cleanup
                         if token_to_use:
