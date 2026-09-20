@@ -1046,7 +1046,7 @@ def upload_image(project_slug: str, filename: str, image_base64: str) -> dict:
         import base64
         png = base64.b64encode(open("shot.png", "rb").read()).decode()
         result = upload_image("my-project", "shot.png", png)
-        # -> {"url": "/images/my-project/9f1c...png", "markdown": "!shot(/images/my-project/9f1c...png)", ...}
+        # -> {"url": "/images/my-project/9f1c...png", "markdown": "![shot](/images/my-project/9f1c...png)", ...}
     """
     import base64 as _base64
 

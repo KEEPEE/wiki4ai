@@ -57,7 +57,7 @@ def _header(request, name):
 def _mock_success_response(mock_urlopen):
     payload = {
         "url": "/images/my-proj/9f1c2d3e-aaaa-bbbb-cccc-000011112222.png",
-        "markdown": "!shot(/images/my-proj/9f1c2d3e-aaaa-bbbb-cccc-000011112222.png)",
+        "markdown": "![shot](/images/my-proj/9f1c2d3e-aaaa-bbbb-cccc-000011112222.png)",
         "filename": "shot.png",
         "storedName": "9f1c2d3e-aaaa-bbbb-cccc-000011112222.png",
         "size": len(PNG_BYTES),

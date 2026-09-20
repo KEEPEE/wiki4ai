@@ -90,7 +90,9 @@ public class ImageController {
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("url", url);
-        body.put("markdown", "!" + altText + "(" + url + ")");
+        // Valid markdown image syntax is ![alt](url) — the brackets are mandatory,
+        // otherwise react-markdown renders the snippet as plain text (e2e finding WIKI4AI-64).
+        body.put("markdown", "![" + altText + "](" + url + ")");
         body.put("filename", file.getOriginalFilename());
         body.put("storedName", storedName);
         body.put("size", data.length);
