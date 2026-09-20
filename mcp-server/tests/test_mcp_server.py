@@ -32,6 +32,7 @@ from mcp_server import (
     _api_request,
     set_base_url,
     get_mermaid_guide,
+    get_plantuml_guide,
     update_document,
     MCPToolError,
 )
@@ -821,6 +822,7 @@ class TestMCPServerRegistration:
             "move_document",
             "copy_document",
             "get_mermaid_guide",
+            "get_plantuml_guide",
         ]
 
         # FastMCP 2.x stores tools in _tool_manager or similar internal structure
@@ -1604,6 +1606,91 @@ class TestGetMermaidGuideRegistration:
         """get_mermaid_guide has a proper docstring for MCP tool description."""
         assert get_mermaid_guide.__doc__ is not None
         assert len(get_mermaid_guide.__doc__) > 50
+
+
+# ─── Tests: get_plantuml_guide Tool (WIKI4AI-63) ────────────────────────────
+
+class TestGetPlantUmlGuide:
+    """Tests for the get_plantuml_guide MCP tool."""
+
+    def test_returns_string(self):
+        """get_plantuml_guide returns a string (not API call)."""
+        result = get_plantuml_guide()
+        assert isinstance(result, str)
+
+    def test_return_value_is_non_empty(self):
+        """get_plantuml_guide returns non-empty content."""
+        result = get_plantuml_guide()
+        assert len(result) > 100  # Guide should be substantial
+
+    def test_contains_class_diagram_section(self):
+        """Guide contains class diagram type with example."""
+        result = get_plantuml_guide()
+        assert "class diagram" in result.lower()
+        assert "@startuml" in result
+        assert "@enduml" in result
+
+    def test_contains_sequence_diagram_section(self):
+        """Guide contains sequence diagram type with example."""
+        result = get_plantuml_guide()
+        assert "sequence diagram" in result.lower()
+        assert "->" in result
+
+    def test_contains_use_case_diagram_section(self):
+        """Guide contains use case diagram type (not available in Mermaid)."""
+        result = get_plantuml_guide()
+        assert "use case" in result.lower()
+        assert "actor" in result.lower()
+        assert "<<include>>" in result
+
+    def test_contains_component_diagram_section(self):
+        """Guide contains component diagram type (not available in Mermaid)."""
+        result = get_plantuml_guide()
+        assert "component diagram" in result.lower()
+        assert "package" in result.lower()
+
+    def test_contains_deployment_diagram_section(self):
+        """Guide contains deployment diagram type (not available in Mermaid)."""
+        result = get_plantuml_guide()
+        assert "deployment diagram" in result.lower()
+        assert "node" in result.lower()
+        assert "artifact" in result.lower()
+
+    def test_contains_plantuml_code_blocks(self):
+        """Guide contains multiple ```plantuml code blocks with examples."""
+        result = get_plantuml_guide()
+        block_count = result.count("```plantuml")
+        assert block_count >= 5, f"Expected at least 5 ```plantuml blocks, found {block_count}"
+
+    def test_mentions_kroki_rendering(self):
+        """Guide notes that blocks render via the self-hosted kroki service."""
+        result = get_plantuml_guide()
+        assert "kroki" in result.lower()
+        assert "/plantuml/svg/" in result
+
+    def test_contains_tips_for_ai_agents(self):
+        """Guide contains tips section for AI agents."""
+        result = get_plantuml_guide()
+        assert "tip" in result.lower() or "ai agent" in result.lower()
+
+    def test_contains_common_errors_section(self):
+        """Guide contains common errors and solutions section."""
+        result = get_plantuml_guide()
+        assert "error" in result.lower() and "solution" in result.lower()
+
+
+class TestGetPlantUmlGuideRegistration:
+    """Tests that get_plantuml_guide is properly registered in the MCP server."""
+
+    def test_get_plantuml_guide_is_importable_and_callable(self):
+        """get_plantuml_guide is a callable function in mcp_server."""
+        from mcp_server import get_plantuml_guide as gpu_func
+        assert callable(gpu_func)
+
+    def test_get_plantuml_guide_has_docstring(self):
+        """get_plantuml_guide has a proper docstring for MCP tool description."""
+        assert get_plantuml_guide.__doc__ is not None
+        assert len(get_plantuml_guide.__doc__) > 50
 
 
 # ─── Tests: update_document partial update (WIKI4AI-23) ────────────────────

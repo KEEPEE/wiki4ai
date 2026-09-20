@@ -1,0 +1,101 @@
+/**
+ * CSS styles for PlantUmlDiagram component — Nexaverse dark mode with glassmorphism.
+ * Mirrors MermaidDiagram.css (WIKI4AI-63).
+ */
+
+/* ── Main Container ─────────────────────────────────────────────── */
+
+.plantuml-diagram {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 1rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100px;
+}
+
+/* ── SVG Output ─────────────────────────────────────────────────── */
+
+.plantuml-diagram__svg {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.plantuml-diagram__svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Loading State — Spinner ────────────────────────────────────── */
+
+.plantuml-diagram__loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.9rem;
+}
+
+.plantuml-diagram__spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(0, 240, 255, 0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: plantuml-spin 0.8s linear infinite;
+}
+
+@keyframes plantuml-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Error State — Graceful degradation (raw source + hint) ─────── */
+
+.plantuml-diagram__error {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  color: #ff6b6b;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
+.plantuml-diagram__error strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #ff453a;
+  font-weight: 600;
+}
+
+.plantuml-diagram__error p {
+  margin: 0 0 8px 0;
+  line-height: 1.5;
+  color: rgba(255, 107, 107, 0.85);
+}
+
+.plantuml-diagram__hint {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.plantuml-diagram__raw {
+  margin: 8px 0 0 0;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: pre;
+}

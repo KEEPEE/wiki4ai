@@ -1,15 +1,18 @@
 /**
  * MarkdownPreview component.
- * Enhanced markdown renderer with Mermaid diagram support and GFM (GitHub Flavored Markdown).
+ * Enhanced markdown renderer with Mermaid + PlantUML diagram support and GFM (GitHub Flavored Markdown).
  *
  * Uses react-markdown + remark-gfm for full markdown parsing, and integrates
- * the MermaidDiagram component for ```mermaid` code blocks via custom ReactMarkdown components.
+ * the MermaidDiagram component for ```mermaid` code blocks and the PlantUmlDiagram
+ * component for ```plantuml` code blocks (rendered via self-hosted kroki, WIKI4AI-63)
+ * via custom ReactMarkdown components.
  */
 
 import React from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MermaidDiagram from './MermaidDiagram';
+import PlantUmlDiagram from './PlantUmlDiagram';
 import './MarkdownPreview.css';
 
 interface MarkdownPreviewProps {
@@ -63,9 +66,19 @@ function isMermaidBlock(codeElement: React.ReactElement | null): boolean {
 }
 
 /**
- * Extract the mermaid code string from a <code> element.
+ * Check whether a <code> element is a plantuml code block (WIKI4AI-63).
+ * ReactMarkdown adds className="language-plantuml" on the inner <code>.
  */
-function extractMermaidCode(codeElement: React.ReactElement | null): string {
+function isPlantUmlBlock(codeElement: React.ReactElement | null): boolean {
+  if (!codeElement) return false;
+  const className = (codeElement.props as Record<string, unknown>)?.className;
+  return typeof className === 'string' && className.includes('language-plantuml');
+}
+
+/**
+ * Extract the code string from a <code> element.
+ */
+function extractCode(codeElement: React.ReactElement | null): string {
   if (!codeElement) return '';
   // The code content is in codeElement.props.children
   const codeContent = (codeElement.props as Record<string, unknown>)?.children;
@@ -75,17 +88,21 @@ function extractMermaidCode(codeElement: React.ReactElement | null): string {
 }
 
 /**
- * Custom ReactMarkdown components that intercept mermaid code blocks.
+ * Custom ReactMarkdown components that intercept mermaid and plantuml code blocks.
  */
 function buildCustomComponents(): Components {
   return {
     pre({ children, ...rest }) {
       const codeElement = findCodeElement(children);
       if (isMermaidBlock(codeElement)) {
-        const code = extractMermaidCode(codeElement);
+        const code = extractCode(codeElement);
         return <MermaidDiagram code={code} />;
       }
-      // Default rendering for non-mermaid code blocks
+      if (isPlantUmlBlock(codeElement)) {
+        const code = extractCode(codeElement);
+        return <PlantUmlDiagram code={code} />;
+      }
+      // Default rendering for other code blocks
       return <pre {...rest}>{children}</pre>;
     },
   };
