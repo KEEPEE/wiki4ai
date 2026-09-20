@@ -1102,6 +1102,220 @@ For more examples and advanced features, visit: https://mermaid.js.org/
 """
 
 
+# ─── PlantUML Guide Tool (WIKI4AI-63) ────────────────────────────────────────
+
+def get_plantuml_guide() -> str:
+    """Get a complete PlantUML diagram guide for AI agents.
+
+    Returns a comprehensive guide covering PlantUML syntax with working examples
+    for the UML diagram types that Mermaid does not cover (use case, component,
+    deployment) plus class and sequence diagrams. In Wiki4AI documents, wrap the
+    PlantUML code in ` ```plantuml ` code blocks — the WebUI renders it as SVG
+    via the self-hosted kroki service (nginx proxies /plantuml/ to the kroki
+    container).
+
+    Returns:
+        Complete PlantUML guide as a markdown-formatted string.
+    """
+    return """# PlantUML Diagram Guide for AI Agents
+
+## Overview
+
+PlantUML lets you write UML and other diagrams in plain text. In Wiki4AI documents, wrap your PlantUML code in ` ```plantuml ` code blocks:
+
+```markdown
+```plantuml
+@startuml
+Bob -> Alice : Do you see me?
+@enduml
+```
+```
+
+**Rendering:** the WebUI sends the block to the self-hosted **kroki** service
+(`GET /plantuml/svg/<deflate+base64url>`) and renders the returned SVG. If kroki
+is unavailable, the raw source is shown as a fallback — the document never breaks.
+
+PlantUML complements Mermaid: use ` ```mermaid ` for flowcharts/gantt/state/sequence
+and ` ```plantuml ` when you need **use case, component, deployment or object**
+diagrams (or richer UML class diagrams). Every diagram MUST start with `@startuml`
+and end with `@enduml`.
+
+## Supported Diagram Types
+
+### 1. Class Diagram
+
+Model classes, interfaces and their relationships.
+
+```plantuml
+@startuml
+class Payment {
+    +string id
+    +float amount
+    +charge() void
+}
+interface Payable {
+    <<interface>>
+    +getAmount() float
+}
+class Order {
+    +string id
+    +items: List<Item>
+    +total() float
+}
+Payable <|.. Payment
+Order "1" --> "*" Payment : has
+@enduml
+```
+
+**Key syntax:**
+- `+` public, `-` private, `#` protected, `~` package-private
+- `<<interface>>`, `<<abstract>>`, `<<enum>>` stereotypes
+- `<|..` implements, `<|--` inheritance, `*--` composition, `o--` aggregation, `-->` association
+- Multiplicity in quotes: `Order "1" --> "*" Payment : has`
+
+### 2. Sequence Diagram
+
+Show interactions between participants over time.
+
+```plantuml
+@startuml
+actor User
+participant "API Gateway" as API
+participant OrderService as OS
+database DB
+
+User -> API: POST /orders
+API -> OS: createOrder()
+OS -> DB: INSERT order
+DB --> OS: ok
+OS --> API: 201 Created
+API --> User: order id
+@enduml
+```
+
+**Key syntax:**
+- `actor`, `participant X as Alias`, `database X`, `queue X`, `storage X`
+- `->` solid arrow, `-->` dashed (return), `->>` async
+- `alt/else/end`, `loop X times`, `opt`, `group` for fragments
+- `note over A, B: text` for annotations
+
+### 3. Use Case Diagram
+
+Model system functionality and actors — NOT available in Mermaid.
+
+```plantuml
+@startuml
+left to right direction
+actor Customer
+actor Admin
+
+rectangle "Online Shop" {
+    use case "Browse catalog" as UC1
+    use case "Place order" as UC2
+    use case "Pay" as UC3
+    use case "Manage inventory" as UC4
+}
+
+Customer --> UC1
+Customer --> UC2
+UC2 ..> UC3 : <<include>>
+Admin --> UC4
+@enduml
+```
+
+**Key syntax:**
+- `actor Name`, `use case "Name" as Alias`
+- `rectangle "System name" { ... }` groups use cases
+- `actor --> usecase` association, `usecase ..> other : <<include>>` / `<<extend>>`
+- `left to right direction` flips the layout
+
+### 4. Component Diagram
+
+Show software components and their dependencies — NOT available in Mermaid.
+
+```plantuml
+@startuml
+package "Frontend" {
+    [WebUI] as FE
+}
+package "Backend" {
+    [API Gateway] as GW
+    [Order Service] as OS
+    [Payment Service] as PS
+}
+database "PostgreSQL" as DB
+
+FE --> GW : HTTPS / REST
+GW --> OS
+GW --> PS
+OS --> DB
+PS ..> "External PSP" : <<async>>
+@enduml
+```
+
+**Key syntax:**
+- `[Component Name]` square brackets, `package "Name" { ... }` grouping
+- `database "Name"`, `cloud "Name"`, `node "Name"` for other shapes
+- `-->` dependency/solid arrow, `..>` dashed dependency
+
+### 5. Deployment Diagram
+
+Show runtime infrastructure (nodes, artifacts) — NOT available in Mermaid.
+
+```plantuml
+@startuml
+node "Load Balancer" as LB {
+}
+node "App Server 1" as S1 {
+    artifact "app.jar" as A1
+    database "local cache" as C1
+}
+node "App Server 2" as S2 {
+    artifact "app.jar" as A2
+}
+database "PostgreSQL (primary)" as PG
+
+LB --> S1
+LB --> S2
+S1 --> PG
+S2 --> PG
+@enduml
+```
+
+**Key syntax:**
+- `node "Name" { ... }` hosts, `artifact "name.jar"` deployables inside nodes
+- `cloud`, `frame`, `storage` for other infrastructure shapes
+- Arrows show communication paths between nodes/artifacts
+
+## Tips for AI Agents
+
+- ALWAYS wrap diagrams in `@startuml` / `@enduml` — missing tags are the #1 rendering error.
+- Use simple ASCII identifiers (no diacritics/spaces) or quote names: `participant "API Gateway" as API`.
+- Keep diagrams focused: one diagram per concern; split large class diagrams with `package`.
+- For labels with special characters, use quotes: `A --> B : "label: with colon"`.
+- If a block renders as raw text in the WebUI, kroki is likely down — check the hint shown under the error box.
+
+## Common Errors and Solutions
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Diagram doesn't render (raw text shown) | Missing `@startuml`/`@enduml` or kroki offline | Add the tags; if kroki is down, the raw source + hint is shown as fallback |
+| "Syntax Error" from kroki | Invalid PlantUML syntax (unclosed quotes/brackets, bad arrow) | Validate against plantuml.com; check quoted labels and paired brackets |
+| Wrong diagram type assumed | First line after `@startuml` doesn't declare the type | Start with an explicit declaration (`class`, `actor`, `node`, ...) or a typed keyword |
+| UML relation not drawn | Mermaid-style arrows used in PlantUML | Use PlantUML arrows: `<|--`, `*--`, `o--`, `-->`, `..>` (not `<|--`-only mermaid subset) |
+
+## Quick Reference
+
+- **Class:** `class X { +field }`, `A <|-- B` inheritance, `A *-- B` composition
+- **Sequence:** `A -> B: msg`, `B --> A: reply`, `alt/else/end` fragments
+- **Use case:** `actor A`, `use case "X" as UC1`, `A --> UC1`, `UC1 ..> UC2 : <<include>>`
+- **Component:** `[Comp]`, `package "P" { }`, `C1 --> C2`
+- **Deployment:** `node "N" { artifact "a.jar" }`, `N1 --> N2`
+
+For more examples and advanced features, visit: https://plantuml.com/
+"""
+
+
 # ─── Import Tools ─────────────────────────────────────────────────────────────
 
 def import_document(project_slug: str, title: str, content: str) -> dict:
@@ -1635,6 +1849,7 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(move_document)
     mcp.add_tool(copy_document)
     mcp.add_tool(get_mermaid_guide)
+    mcp.add_tool(get_plantuml_guide)
     mcp.add_tool(vault_status)
     mcp.add_tool(vault_list_entries)
     mcp.add_tool(vault_search_entries)
