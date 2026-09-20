@@ -6,6 +6,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.model.Document;
@@ -550,16 +551,9 @@ public class DocumentService {
             }
         }
 
-        // 3) Reciprocal Rank Fusion over both rankings (k = RRF_K).
-        Map<Long, Double> scores = new HashMap<>();
-        int rank = 1;
-        for (Document d : textResults) {
-            scores.merge(d.getId(), 1.0 / (RRF_K + rank++), Double::sum);
-        }
-        rank = 1;
-        for (Object[] hit : vectorHits) {
-            scores.merge((Long) hit[0], 1.0 / (RRF_K + rank++), Double::sum);
-        }
+        // 3) Reciprocal Rank Fusion over both rankings (k = RRF_K) — shared helper,
+        //    identical math to the global path (WIKI4AI-61).
+        Map<Long, Double> scores = fuseRrfScores(textResults, vectorHits);
 
         return scores.entrySet().stream()
                 .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
@@ -574,6 +568,145 @@ public class DocumentService {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Global (cross-project) hybrid document search (WIKI4AI-61).
+     *
+     * <p>Same hybrid semantics as {@link #searchDocuments} — text LIKE path always,
+     * pgvector cosine top-N when the embedding sidecar is available, fused with
+     * Reciprocal Rank Fusion via the shared {@link #fuseRrfScores} helper — but without
+     * any project filter. Access control is enforced at the security layer: the
+     * endpoint requires a valid JWT (login-only policy) and wiki convention grants
+     * READ on all projects to every authenticated user, so no per-project check runs
+     * here.</p>
+     *
+     * <p><b>Graceful degradation:</b> when the embedding sidecar is unavailable (or
+     * fails mid-request) only the text path runs — search never 500s because of
+     * embeddings. Documents without an embedding are simply absent from the vector
+     * ranking.</p>
+     *
+     * @param keyword  search keyword (already validated as non-blank by the controller)
+     * @param username authenticated user name (kept for API symmetry; wiki convention:
+     *                 every authenticated user can read all projects)
+     * @param limit    maximum number of results to return (clamped by the controller)
+     */
+    public List<GlobalSearchResultDTO> searchDocumentsGlobal(String keyword, String username, int limit) {
+        // 1) Text path (always runs), across all projects.
+        List<Document> textResults = documentRepository.findByContentContaining(keyword);
+
+        Map<Long, Document> byId = new LinkedHashMap<>();
+        for (Document d : textResults) {
+            byId.put(d.getId(), d);
+        }
+
+        // 2) Vector path (only when the sidecar is reachable), across all projects.
+        List<Object[]> vectorHits = List.of();
+        if (embeddingService.getClient().isAvailable()) {
+            try {
+                float[] queryVector = embeddingService.getClient().embedQuery(keyword.trim());
+                String literal = EmbeddingClient.toVectorLiteral(queryVector);
+                vectorHits = documentRepository.findTopByEmbeddingSimilarityGlobal(literal, VECTOR_TOP_N);
+                for (Object[] hit : vectorHits) {
+                    Long id = (Long) hit[0];
+                    if (!byId.containsKey(id)) {
+                        documentRepository.findById(id).ifPresent(d -> byId.put(id, d));
+                    }
+                }
+            } catch (Exception e) {
+                // Sidecar died between the probe and the call — fall back to text only.
+                log.warn("Vector search unavailable for global search: {}", e.getMessage());
+                vectorHits = List.of();
+            }
+        }
+
+        // 3) Reciprocal Rank Fusion over both rankings (k = RRF_K) — shared helper,
+        //    identical math to the per-project path.
+        Map<Long, Double> scores = fuseRrfScores(textResults, vectorHits);
+
+        // 4) Project attribution: one batch fetch for all distinct projects in the hits.
+        List<Long> projectIds = byId.values().stream()
+                .map(d -> d.getProject().getId())
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, Project> projectsById = projectIds.isEmpty()
+                ? Map.of()
+                : projectRepository.findAllById(projectIds).stream()
+                        .collect(Collectors.toMap(Project::getId, p -> p));
+
+        // 5) Map to the lightweight global DTO (excerpt instead of full content), capped at limit.
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<Long, Double>comparingByValue().reversed())
+                .map(e -> {
+                    Document d = byId.get(e.getKey());
+                    if (d == null) {
+                        return null; // deleted between query and mapping — skip
+                    }
+                    Project project = projectsById.get(d.getProject().getId());
+                    return GlobalSearchResultDTO.builder()
+                            .id(d.getId())
+                            .title(d.getTitle())
+                            .slug(d.getSlug())
+                            .projectId(d.getProject().getId())
+                            .projectSlug(project != null ? project.getSlug() : null)
+                            .projectName(project != null ? project.getName() : null)
+                            .score(Math.round(e.getValue() * 1_000_000.0) / 1_000_000.0)
+                            .updatedAt(d.getUpdatedAt())
+                            .excerpt(buildExcerpt(d.getContent(), keyword))
+                            .build();
+                })
+                .filter(Objects::nonNull)
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Reciprocal Rank Fusion over the text and vector rankings (k = {@value RRF_K}).
+     *
+     * <p>Shared by the per-project ({@link #searchDocuments}) and global
+     * ({@link #searchDocumentsGlobal}) hybrid search paths so both compute identical
+     * scores for identical input rankings — extracting this keeps the fusion math in
+     * exactly one place (regression: existing per-project search tests).</p>
+     *
+     * @param textResults documents matched by the text LIKE path, in query order
+     * @param vectorHits  rows of {@code [Long id, Double similarity]} from the vector path
+     * @return map of document ID to fused RRF score (higher = more relevant)
+     */
+    private Map<Long, Double> fuseRrfScores(List<Document> textResults, List<Object[]> vectorHits) {
+        Map<Long, Double> scores = new HashMap<>();
+        int rank = 1;
+        for (Document d : textResults) {
+            scores.merge(d.getId(), 1.0 / (RRF_K + rank++), Double::sum);
+        }
+        rank = 1;
+        for (Object[] hit : vectorHits) {
+            scores.merge((Long) hit[0], 1.0 / (RRF_K + rank++), Double::sum);
+        }
+        return scores;
+    }
+
+    /** Context window size (characters per side) for global search excerpts. */
+    private static final int EXCERPT_CONTEXT = 100;
+
+    /**
+     * Build a ~200-character excerpt for global search results: a window of
+     * {@value EXCERPT_CONTEXT} characters on each side of the first (case-insensitive)
+     * keyword occurrence, or the beginning of the content when the keyword does not
+     * appear literally. Whitespace runs are collapsed to single spaces; ellipses mark
+     * truncated ends.
+     */
+    static String buildExcerpt(String content, String keyword) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String normalized = content.replaceAll("\\s+", " ");
+        int idx = keyword == null ? -1 : normalized.toLowerCase().indexOf(keyword.toLowerCase());
+        if (idx < 0) {
+            return normalized.substring(0, Math.min(EXCERPT_CONTEXT * 2, normalized.length()));
+        }
+        int start = Math.max(0, idx - EXCERPT_CONTEXT);
+        int end = Math.min(normalized.length(), idx + keyword.length() + EXCERPT_CONTEXT);
+        return (start > 0 ? "…" : "") + normalized.substring(start, end) + (end < normalized.length() ? "…" : "");
     }
 
     // ==================== MOVE/COPY OPERATIONS ====================

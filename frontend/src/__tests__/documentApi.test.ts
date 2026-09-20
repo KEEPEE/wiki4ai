@@ -152,4 +152,36 @@ describe('documentApi', () => {
       expect(result).toEqual(mockResponse)
     })
   })
+
+  describe('searchGlobal (WIKI4AI-61)', () => {
+    it('should call the global search endpoint with keyword and default limit', async () => {
+      const mockHits = [
+        { id: 1, title: 'Doc', slug: 'doc', projectId: 1, projectSlug: 'p', projectName: 'P', score: 0.03, updatedAt: '', excerpt: 'x' },
+      ]
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockHits,
+      })
+
+      const result = await documentApi.searchGlobal('embedding')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/search/documents?keyword=embedding&limit=20',
+        expect.objectContaining({ method: 'GET' }),
+      )
+      expect(result).toEqual(mockHits)
+    })
+
+    it('should URL-encode the keyword and pass a custom limit', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
+
+      await documentApi.searchGlobal('hello world', 5)
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/search/documents?keyword=hello%20world&limit=5',
+        expect.objectContaining({ method: 'GET' }),
+      )
+    })
+  })
 })

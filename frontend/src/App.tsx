@@ -8,6 +8,7 @@ import LoadingScreen from './components/LoadingScreen'
 import ErrorBoundary from './components/ErrorBoundary'
 import { lazyWithRetry } from './utils/lazyWithRetry'
 import Dashboard from './pages/Dashboard'
+import SearchPage from './pages/SearchPage'
 import ProjectDetail from './pages/ProjectDetail'
 import ProjectSettings from './pages/ProjectSettings'
 import Login from './pages/Login'
@@ -64,6 +65,8 @@ function App() {
                 {/* Main app routes with Layout - all protected */}
                 <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                   <Route index element={<Dashboard />} />
+                  {/* Global (cross-project) search — WIKI4AI-61 */}
+                  <Route path="search" element={<SearchPage />} />
                   <Route path="vault" element={<VaultPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="admin/users" element={<AdminUsersPage />} />

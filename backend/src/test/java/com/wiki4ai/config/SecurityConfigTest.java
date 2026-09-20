@@ -120,6 +120,29 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void globalSearchEndpoint_anonymousShouldReturn401() throws Exception {
+        // WIKI4AI-61 (P1 policy): /api/v1/search/** must NOT fall into the
+        // GET /api/v1/projects/** permitAll matcher — anonymous requests require a JWT → 401.
+        mockMvc.perform(get("/api/v1/search/documents").param("keyword", "test"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void globalSearchEndpoint_withValidJwtShouldReturn200() throws Exception {
+        // With a valid JWT the request passes authentication (empty H2 test DB → 200 with []).
+        String username = "searchuser_" + System.currentTimeMillis();
+        String token = getAuthToken(username, username + "@test.com");
+
+        mockMvc.perform(get("/api/v1/search/documents")
+                        .param("keyword", "test")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(res -> {
+                    int status = res.getResponse().getStatus();
+                    assert (status == 200) : "Expected 200 with valid JWT, got " + status;
+                });
+    }
+
     /**
      * Helper method to register a user and get an authentication token.
      */

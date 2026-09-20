@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from mcp_server import (
     search_documents,
+    search_documents_global,
     get_backlinks,
     batch_create_documents,
     import_document,
@@ -1743,3 +1744,126 @@ class TestUpdateDocumentEdits:
         assert "editIndex" in doc             # 400 body detail
         assert "occurrences" in doc           # 400 body detail
         assert "edits=" in doc                # usage example
+
+
+# ─── search_documents_global (WIKI4AI-61) ──────────────────────────────────
+
+class TestSearchDocumentsGlobalAPICall:
+    """Unit tests for the search_documents_global API call (mocked HTTP)."""
+
+    @patch("mcp_server._api_request")
+    def test_calls_global_search_endpoint_with_default_limit(self, mock_api_request):
+        """Should call GET /v1/search/documents with the keyword and default limit 20."""
+        mock_api_request.return_value = [
+            {"id": 1, "title": "Doc", "projectSlug": "p", "score": 0.03, "excerpt": "x"},
+        ]
+
+        result = search_documents_global("embedding")
+
+        mock_api_request.assert_called_once_with(
+            "GET", "/v1/search/documents?keyword=embedding&limit=20"
+        )
+        assert len(result) == 1
+        assert result[0]["projectSlug"] == "p"
+
+    @patch("mcp_server._api_request")
+    def test_url_encodes_special_characters(self, mock_api_request):
+        """Keyword with spaces/special chars must be percent-encoded."""
+        mock_api_request.return_value = []
+
+        search_documents_global("hello world & co")
+
+        mock_api_request.assert_called_once_with(
+            "GET", "/v1/search/documents?keyword=hello+world+%26+co&limit=20"
+        )
+
+    @patch("mcp_server._api_request")
+    def test_trims_whitespace_from_keyword(self, mock_api_request):
+        """Leading/trailing whitespace is stripped before encoding."""
+        mock_api_request.return_value = []
+
+        search_documents_global("  embedding  ")
+
+        mock_api_request.assert_called_once_with(
+            "GET", "/v1/search/documents?keyword=embedding&limit=20"
+        )
+
+    @patch("mcp_server._api_request")
+    def test_passes_custom_limit(self, mock_api_request):
+        """A caller-provided limit is forwarded to the backend."""
+        mock_api_request.return_value = []
+
+        search_documents_global("embedding", limit=5)
+
+        mock_api_request.assert_called_once_with(
+            "GET", "/v1/search/documents?keyword=embedding&limit=5"
+        )
+
+
+class TestSearchDocumentsGlobalErrors:
+    """Error handling for search_documents_global (WIKI4AI-61, login-only endpoint)."""
+
+    @patch("mcp_server._api_request")
+    def test_401_raises_clear_not_authenticated_message(self, mock_api_request):
+        """401 from the backend must surface as a clear JWT guidance message."""
+        mock_api_request.side_effect = MCPToolError(
+            "Authentication required", status_code=401, details={"message": "Authentication required"}
+        )
+
+        with pytest.raises(MCPToolError) as exc_info:
+            search_documents_global("embedding")
+
+        assert exc_info.value.status_code == 401
+        message = str(exc_info.value)
+        assert "Not authenticated" in message
+        assert "JWT" in message
+        assert "Authorization header" in message
+
+    @patch("mcp_server._api_request")
+    def test_other_errors_are_reraised_unchanged(self, mock_api_request):
+        """Non-401 errors (e.g. 500) are re-raised as-is."""
+        mock_api_request.side_effect = MCPToolError(
+            "Internal Server Error", status_code=500, details={}
+        )
+
+        with pytest.raises(MCPToolError) as exc_info:
+            search_documents_global("embedding")
+
+        assert exc_info.value.status_code == 500
+        assert "Not authenticated" not in str(exc_info.value)
+
+    def test_invalid_limit_raises_mcp_tool_error(self):
+        """A non-integer limit is rejected before any HTTP call."""
+        with pytest.raises(MCPToolError) as exc_info:
+            search_documents_global("embedding", limit="abc")
+
+        assert "Invalid limit" in str(exc_info.value)
+
+
+class TestSearchDocumentsGlobalRegistration:
+    """The global search tool must be registered on the MCP server (WIKI4AI-61)."""
+
+    def test_search_documents_global_is_registered(self):
+        import asyncio
+
+        mcp = create_mcp_server()
+        tools = {t.name for t in asyncio.run(mcp.list_tools())}
+        assert "search_documents_global" in tools
+        # per-project search remains registered (unchanged behaviour)
+        assert "search_documents" in tools
+
+    def test_search_documents_docstring_documents_hybrid_and_full_content(self):
+        """The corrected docstring: hybrid text+semantic, FULL content, degradation note."""
+        doc = search_documents.__doc__ or ""
+        assert "HYBRID" in doc
+        assert "RRF" in doc
+        assert "FULL content (not an excerpt)" in doc
+        assert "degrades gracefully to text-only" in doc
+
+    def test_search_documents_global_docstring_documents_contract(self):
+        """The new tool's docstring: cross-project, login-only auth, hit shape."""
+        doc = search_documents_global.__doc__ or ""
+        assert "ALL projects" in doc
+        assert "JWT" in doc
+        assert "projectSlug" in doc
+        assert "excerpt" in doc

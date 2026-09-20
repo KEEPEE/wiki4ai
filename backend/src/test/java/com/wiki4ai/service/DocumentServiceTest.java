@@ -5,10 +5,12 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.model.Document;
+import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
@@ -992,6 +994,252 @@ class DocumentServiceTest {
             // then
             assertThat(result).hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(1L);
+        }
+    }
+
+    @Nested
+    @DisplayName("searchDocumentsGlobal (WIKI4AI-61)")
+    class SearchDocumentsGlobalTests {
+
+        private Project otherProject;
+        private Document globalDoc2;
+
+        @BeforeEach
+        void setUpGlobal() {
+            otherProject = Project.builder()
+                    .id(2L)
+                    .name("Other Project")
+                    .description("Another project")
+                    .slug("other-project")
+                    .createdAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .build();
+            globalDoc2 = Document.builder()
+                    .id(2L)
+                    .title("Target Document")
+                    .content("Target content")
+                    .slug("target-document")
+                    .project(otherProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fuse text and vector rankings across projects and attribute project slug/name")
+        void shouldFuseAndAttributeProjects() {
+            // given — text hits from two different projects; vector adds a third doc (project 1)
+            when(documentRepository.findByContentContaining("login"))
+                    .thenReturn(List.of(sourceDocument, globalDoc2));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document vectorOnly = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-hit")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarityGlobal(anyString(), eq(20)))
+                    .thenReturn(List.of(
+                            new Object[]{3L, 0.91},
+                            new Object[]{1L, 0.85}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(vectorOnly));
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject, otherProject));
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then — all three docs present; project attribution correct per doc
+            assertThat(result).extracting(GlobalSearchResultDTO::getId)
+                    .containsExactlyInAnyOrder(1L, 2L, 3L);
+            GlobalSearchResultDTO doc1 = result.stream().filter(d -> d.getId() == 1L).findFirst().orElseThrow();
+            assertThat(doc1.getProjectSlug()).isEqualTo("test-project");
+            assertThat(doc1.getProjectName()).isEqualTo("Test Project");
+            assertThat(doc1.getExcerpt()).isNotBlank();
+            GlobalSearchResultDTO doc2 = result.stream().filter(d -> d.getId() == 2L).findFirst().orElseThrow();
+            assertThat(doc2.getProjectSlug()).isEqualTo("other-project");
+            assertThat(doc2.getProjectName()).isEqualTo("Other Project");
+            // doc1 appears in both rankings → top score; all scores present and positive
+            assertThat(result.get(0).getId()).isEqualTo(1L);
+            assertThat(result).allSatisfy(dto -> assertThat(dto.getScore()).isNotNull().isPositive());
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fall back to text-only when sidecar is unavailable (no exception)")
+        void shouldFallbackToTextOnlyWhenSidecarDown() {
+            // given
+            when(documentRepository.findByContentContaining("login"))
+                    .thenReturn(List.of(sourceDocument, globalDoc2));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject, otherProject));
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then — text ranking order preserved (rank 1 first)
+            assertThat(result).extracting(GlobalSearchResultDTO::getId).containsExactly(1L, 2L);
+            verify(documentRepository, never()).findTopByEmbeddingSimilarityGlobal(anyString(), anyInt());
+        }
+
+        @Test
+        @DisplayName("Hybrid: should fall back to text-only when the sidecar fails mid-request")
+        void shouldFallbackWhenEmbedQueryFails() {
+            // given
+            when(documentRepository.findByContentContaining("login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            when(embeddingClient.embedQuery("login"))
+                    .thenThrow(new EmbeddingClient.EmbeddingUnavailableException("sidecar down"));
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject));
+
+            // when — must not throw
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).getId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Should return empty list when nothing matches")
+        void shouldReturnEmptyListWhenNoMatch() {
+            // given
+            when(documentRepository.findByContentContaining("nonexistent")).thenReturn(List.of());
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("nonexistent", "alice", 50);
+
+            // then
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should cap results at the given limit")
+        void shouldCapResultsAtLimit() {
+            // given — four text hits, limit = 2
+            Document d3 = Document.builder().id(3L).title("D3").content("c3").slug("d3")
+                    .project(testProject).linkedDocuments(new ArrayList<>()).build();
+            Document d4 = Document.builder().id(4L).title("D4").content("c4").slug("d4")
+                    .project(testProject).linkedDocuments(new ArrayList<>()).build();
+            when(documentRepository.findByContentContaining("x"))
+                    .thenReturn(List.of(sourceDocument, targetDocument, d3, d4));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject));
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("x", "alice", 2);
+
+            // then — only the two top-ranked text hits
+            assertThat(result).hasSize(2);
+            assertThat(result).extracting(GlobalSearchResultDTO::getId).containsExactly(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("Should not run per-project permission checks (auth is enforced at the security layer)")
+        void shouldNotCheckPermissions() {
+            // given
+            when(documentRepository.findByContentContaining("login")).thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(false);
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject));
+
+            // when
+            documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then — login-only policy: JWT checked by SecurityConfig, not per-project RBAC
+            verify(permissionService, never()).checkPermission(anyString(), anyLong(), any(Permission.class));
+        }
+
+        @Test
+        @DisplayName("RRF parity (regression): per-project and global paths compute identical scores for identical rankings")
+        void rrfParityBetweenPerProjectAndGlobalPaths() {
+            // given — identical text + vector rankings fed to both paths
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument, targetDocument));
+            when(documentRepository.findByContentContaining("login"))
+                    .thenReturn(List.of(sourceDocument, targetDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document vectorOnly = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-hit")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.of(new Object[]{3L, 0.91}, new Object[]{1L, 0.85}));
+            when(documentRepository.findTopByEmbeddingSimilarityGlobal(anyString(), eq(20)))
+                    .thenReturn(List.of(new Object[]{3L, 0.91}, new Object[]{1L, 0.85}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(vectorOnly));
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject));
+
+            // when — both paths over the same rankings
+            List<DocumentDTO> perProject = documentService.searchDocuments(1L, "login");
+            List<GlobalSearchResultDTO> global = documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then — identical order and scores (regression guard for the shared RRF helper)
+            assertThat(global).extracting(GlobalSearchResultDTO::getId)
+                    .containsExactlyElementsOf(perProject.stream().map(DocumentDTO::getId).toList());
+            for (int i = 0; i < perProject.size(); i++) {
+                assertThat(global.get(i).getScore())
+                        .as("score at rank %d", i + 1)
+                        .isEqualTo(perProject.get(i).getScore());
+            }
+        }
+    }
+
+    @Nested
+    @DisplayName("buildExcerpt (WIKI4AI-61)")
+    class BuildExcerptTests {
+
+        @Test
+        @DisplayName("Should return empty string for null/blank content")
+        void shouldReturnEmptyForBlankContent() {
+            assertThat(DocumentService.buildExcerpt(null, "x")).isEmpty();
+            assertThat(DocumentService.buildExcerpt("   ", "x")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Should center the excerpt on the first keyword occurrence (~200 chars)")
+        void shouldCenterOnFirstKeywordOccurrence() {
+            String content = "a".repeat(150) + " keyword " + "b".repeat(150);
+            String excerpt = DocumentService.buildExcerpt(content, "keyword");
+            assertThat(excerpt).contains("keyword");
+            assertThat(excerpt.length()).isLessThanOrEqualTo(215);
+        }
+
+        @Test
+        @DisplayName("Should use the content start when the keyword is not present literally")
+        void shouldUseContentStartWhenKeywordAbsent() {
+            String content = "hello world ".repeat(30);
+            String excerpt = DocumentService.buildExcerpt(content, "missing");
+            assertThat(excerpt).startsWith("hello world");
+            assertThat(excerpt.length()).isLessThanOrEqualTo(200);
+        }
+
+        @Test
+        @DisplayName("Should collapse whitespace runs and match case-insensitively")
+        void shouldCollapseWhitespaceAndMatchCaseInsensitive() {
+            String content = "start\n\n\n  Keyword   end";
+            String excerpt = DocumentService.buildExcerpt(content, "keyword");
+            assertThat(excerpt).doesNotContain("\n").doesNotContain("  ");
+            assertThat(excerpt).contains("Keyword");
         }
     }
 

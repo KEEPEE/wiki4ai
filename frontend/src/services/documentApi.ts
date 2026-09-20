@@ -3,7 +3,7 @@
  * Uses authenticated apiClient for all requests (automatic JWT token + 401 retry).
  */
 
-import type { Document, CreateDocumentDto, UpdateDocumentDto, EmbeddingStatus } from '../types/document';
+import type { Document, CreateDocumentDto, UpdateDocumentDto, EmbeddingStatus, GlobalSearchResult } from '../types/document';
 import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from './apiClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
@@ -62,6 +62,14 @@ export const documentApi = {
    */
   search: (projectSlug: string, keyword: string): Promise<Document[]> =>
     apiGet(`${API_BASE_URL}/projects/${projectSlug}/documents/search?keyword=${encodeURIComponent(keyword)}`),
+
+  /**
+   * Global (cross-project) hybrid document search (WIKI4AI-61).
+   * Endpoint: GET /search/documents?keyword={keyword}&limit={limit}
+   * Requires an authenticated session (JWT); anonymous requests get 401.
+   */
+  searchGlobal: (keyword: string, limit = 20): Promise<GlobalSearchResult[]> =>
+    apiGet(`${API_BASE_URL}/search/documents?keyword=${encodeURIComponent(keyword)}&limit=${limit}`),
 
   /**
    * Upload a .md file as a new document.

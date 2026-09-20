@@ -75,6 +75,17 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findByProjectIdAndContentContaining(Long projectId, String keyword);
 
     /**
+     * Search documents by content keyword across ALL projects (global search, WIKI4AI-61).
+     * Same text-LIKE semantics as {@link #findByProjectIdAndContentContaining} without the
+     * project filter.
+     *
+     * @param keyword the search keyword
+     * @return list of matching documents from every project
+     */
+    @Query("SELECT d FROM Document d WHERE LOWER(d.content) LIKE LOWER(CONCAT('%', :keyword, '%'))")
+    List<Document> findByContentContaining(String keyword);
+
+    /**
      * Count the number of documents in a specific project.
      *
      * @param projectId the project ID
@@ -137,4 +148,19 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Object[]> findTopByEmbeddingSimilarity(@Param("projectId") Long projectId,
                                                 @Param("qvec") String qvec,
                                                 @Param("limit") int limit);
+
+    /**
+     * Vector similarity search across ALL projects (global search, WIKI4AI-61).
+     *
+     * <p>Same shape as {@link #findTopByEmbeddingSimilarity} minus the project filter.
+     * The existing HNSW index ({@code idx_documents_embedding_hnsw}) already covers all
+     * documents — no new index or migration is required.</p>
+     */
+    @Query(value = "SELECT d.id, 1 - (d.embedding <=> CAST(:qvec AS vector)) AS similarity "
+            + "FROM documents d "
+            + "WHERE d.embedding IS NOT NULL "
+            + "ORDER BY d.embedding <=> CAST(:qvec AS vector) ASC "
+            + "LIMIT :limit", nativeQuery = true)
+    List<Object[]> findTopByEmbeddingSimilarityGlobal(@Param("qvec") String qvec,
+                                                      @Param("limit") int limit);
 }
