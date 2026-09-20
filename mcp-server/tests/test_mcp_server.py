@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from mcp_server import (
     search_documents,
     search_documents_global,
+    select_jwt_token,
     get_backlinks,
     batch_create_documents,
     import_document,
@@ -1867,3 +1868,53 @@ class TestSearchDocumentsGlobalRegistration:
         assert "JWT" in doc
         assert "projectSlug" in doc
         assert "excerpt" in doc
+        # the gated-instance identity mechanism must be documented (WIKI4AI-61)
+        assert "?token=" in doc
+
+
+# ─── select_jwt_token — identity selection (WIKI4AI-61) ────────────────────
+
+class TestSelectJwtToken:
+    """Unit tests for select_jwt_token() — which JWT is forwarded to the backend.
+
+    Two instance flavours:
+      * open  — MCP_JWT_TOKEN unset; clients put their identity JWT in the header
+      * gated — MCP_JWT_TOKEN set (e.g. dev .219); the header must carry the access
+                credential to pass BearerAuthMiddleware, so the identity travels in ?token=
+    """
+
+    def test_open_instance_header_identity_forwarded(self, monkeypatch):
+        monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
+        assert select_jwt_token("Bearer user-jwt-123", "") == "user-jwt-123"
+
+    def test_open_instance_query_identity_forwarded(self, monkeypatch):
+        monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
+        assert select_jwt_token("", "token=user-jwt-123") == "user-jwt-123"
+
+    def test_open_instance_header_wins_over_query(self, monkeypatch):
+        monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
+        assert select_jwt_token("Bearer header-jwt", "token=query-jwt") == "header-jwt"
+
+    def test_gated_instance_access_credential_header_falls_back_to_query(self, monkeypatch):
+        """The .219 pattern: header carries the access credential (endpoint auth),
+        the client's identity JWT travels in ?token= and must be forwarded."""
+        monkeypatch.setenv("MCP_JWT_TOKEN", "access-cred-xyz")
+        assert select_jwt_token("Bearer access-cred-xyz", "token=user-jwt-123") == "user-jwt-123"
+
+    def test_gated_instance_access_credential_header_alone_is_anonymous(self, monkeypatch):
+        """Access credential only authenticates the MCP endpoint — backend calls are anonymous."""
+        monkeypatch.setenv("MCP_JWT_TOKEN", "access-cred-xyz")
+        assert select_jwt_token("Bearer access-cred-xyz", "") is None
+
+    def test_access_credential_in_query_is_never_forwarded(self, monkeypatch):
+        monkeypatch.setenv("MCP_JWT_TOKEN", "access-cred-xyz")
+        assert select_jwt_token("", "token=access-cred-xyz") is None
+
+    def test_no_auth_at_all_is_anonymous(self, monkeypatch):
+        monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
+        assert select_jwt_token("", "") is None
+
+    def test_non_bearer_header_ignored(self, monkeypatch):
+        """A non-Bearer Authorization header carries no identity; query still works."""
+        monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
+        assert select_jwt_token("Basic abc", "token=user-jwt-123") == "user-jwt-123"

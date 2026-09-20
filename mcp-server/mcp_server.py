@@ -222,6 +222,46 @@ def is_access_credential(token: Optional[str]) -> bool:
     return hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8"))
 
 
+def select_jwt_token(auth_header: str, query_string: str) -> Optional[str]:
+    """Select the backend identity JWT to forward for this request (WIKI4AI-61).
+
+    Precedence:
+      1. ``Authorization: Bearer <token>`` header — used directly when it carries
+         a real identity JWT (open instances without an access credential).
+      2. ``?token=<token>`` query parameter — the fallback for gated instances
+         where MCP_JWT_TOKEN is set: the Authorization header must carry the
+         shared access credential to pass BearerAuthMiddleware, so the client's
+         identity JWT travels in the query string instead.
+
+    The shared access credential (MCP_JWT_TOKEN) is never returned: it
+    authenticates against the MCP endpoint only and is not an app-signed JWT —
+    the backend would reject it with HTTP 401, even on public endpoints.
+
+    Args:
+        auth_header: raw value of the Authorization request header (may be empty).
+        query_string: raw query string of the request URL (may be empty).
+
+    Returns:
+        The identity JWT to forward to the Wiki4AI backend, or None (anonymous).
+    """
+    header_token = None
+    if auth_header.startswith("Bearer "):
+        header_token = auth_header[7:].strip()
+
+    token_from_query = None
+    if query_string and "token=" in query_string:
+        for param in query_string.split("&"):
+            if param.startswith("token="):
+                token_from_query = param[6:]  # Remove "token=" prefix
+                break
+
+    if header_token and not is_access_credential(header_token):
+        return header_token
+    if token_from_query and not is_access_credential(token_from_query):
+        return token_from_query
+    return None
+
+
 class BearerAuthMiddleware:
     """ASGI middleware enforcing a shared-secret Bearer token on the MCP SSE endpoint.
 
@@ -847,9 +887,11 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
     gracefully to text-only matching (no error).
 
     Authentication: this endpoint requires a valid Wiki4AI JWT (login-only policy).
-    The MCP server forwards the client-provided Authorization header token; if none is
-    available (and no server-side --token is configured), the backend returns 401 and
-    this tool raises a clear "Not authenticated" error.
+    The MCP server forwards the client's identity JWT — from the Authorization header
+    on open instances, or from the ?token= query parameter when the instance is gated
+    by an access credential (the Authorization header must carry that credential); if
+    no identity is available (and no server-side --token is configured), the backend
+    returns 401 and this tool raises a clear "Not authenticated" error.
 
     Use search_documents_global when you don't know which project a document lives in;
     use search_documents when you already know the project slug. The keyword must be at
@@ -881,8 +923,9 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
         if e.status_code == 401:
             raise MCPToolError(
                 "Not authenticated — the global search endpoint requires a valid Wiki4AI JWT. "
-                "Provide one via the Authorization header (Bearer <jwt>) when connecting to this "
-                "MCP server, or configure a server-side --token.",
+                "Connect with your JWT in the Authorization header (open instance) or as "
+                "?token=<jwt> alongside the MCP access credential (gated instance), or "
+                "configure a server-side --token.",
                 status_code=401,
             ) from e
         raise
@@ -1650,15 +1693,20 @@ def main():
             
             # Define our JWT token extraction middleware as a Starlette middleware class
             class JwtTokenMiddleware:
-                """Starlette middleware that extracts JWT token from SSE request headers or query params.
-                
-                Priority order (highest to lowest):
-                  1. Authorization header (Bearer <token>) — highest priority
-                  2. Query parameter (?token=<token>) — fallback for clients that can't send headers
-                
-                This allows clients to dynamically provide their own JWT tokens without
-                requiring server-side configuration.
-                """
+                """Starlette middleware that extracts the backend identity JWT from SSE requests.
+
+                 Priority order (highest to lowest), see select_jwt_token():
+                   1. Authorization header (Bearer <token>) — used when it carries a real
+                      identity JWT (open instances without an access credential)
+                   2. Query parameter (?token=<token>) — fallback for gated instances where
+                      MCP_JWT_TOKEN is set: the Authorization header must carry the shared
+                      access credential to pass BearerAuthMiddleware, so the client's
+                      identity JWT travels in the query string instead (WIKI4AI-61)
+
+                 The shared access credential is never forwarded as an identity. This allows
+                 clients to dynamically provide their own JWT tokens without requiring
+                 server-side configuration.
+                 """
                 
                 def __init__(self, app):
                     self.app = app
@@ -1672,27 +1720,10 @@ def main():
                                 auth_header = value.decode("utf-8")
                                 break
                         
-                        # Also extract from query parameter as fallback
+                        # Select the backend identity JWT (header > query, access-credential
+                        # guard — see select_jwt_token).
                         query_string = scope.get("query_string", b"").decode("utf-8")
-                        token_from_query = None
-                        if "token=" in query_string:
-                            for param in query_string.split("&"):
-                                if param.startswith("token="):
-                                    token_from_query = param[6:]  # Remove "token=" prefix
-                        
-                        # Determine which token to use (header > query)
-                        token_to_use = None
-                        if auth_header.startswith("Bearer "):
-                            token_to_use = auth_header[7:].strip()
-                        elif token_from_query:
-                            token_to_use = token_from_query
-                        
-                        # Never forward the shared access credential (MCP_JWT_TOKEN)
-                        # to the backend as an identity — it is not an app-signed
-                        # JWT and the backend would reject it with HTTP 401, even
-                        # on public endpoints.
-                        if token_to_use and is_access_credential(token_to_use):
-                            token_to_use = None
+                        token_to_use = select_jwt_token(auth_header, query_string)
                         
                         token_var = None  # Initialize for cleanup
                         if token_to_use:
