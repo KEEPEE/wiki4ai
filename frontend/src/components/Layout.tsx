@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from './AmbientBackground';
 import WikiLogo from './WikiLogo';
 import './WikiLogo.css';
+import './GlobalSearchBar.css';
 
 interface LayoutProps {
   children?: React.ReactNode;
@@ -11,6 +13,17 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Global (cross-project) search — WIKI4AI-61. Submitting navigates to /search?q=...
+  const [globalQuery, setGlobalQuery] = useState('');
+
+  const handleGlobalSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = globalQuery.trim();
+    if (q.length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -52,6 +65,30 @@ export default function Layout({ children }: LayoutProps) {
           <Link to="/" data-testid="nav-logo">
             <WikiLogo size={56} />
           </Link>
+
+          {/* Global (cross-project) search bar — WIKI4AI-61. Login-only endpoint,
+              so the bar is only shown for authenticated users. */}
+          {isAuthenticated && (
+            <form
+              className="global-search-bar"
+              onSubmit={handleGlobalSearchSubmit}
+              role="search"
+              data-testid="global-search-form"
+            >
+              <svg className="global-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                className="global-search-input"
+                placeholder="Hľadať vo wiki..."
+                value={globalQuery}
+                onChange={(e) => setGlobalQuery(e.target.value)}
+                aria-label="Globálne vyhľadávanie dokumentov"
+                data-testid="global-search-input"
+              />
+            </form>
+          )}
 
           {/* Auth section */}
           <div data-testid="auth-section">

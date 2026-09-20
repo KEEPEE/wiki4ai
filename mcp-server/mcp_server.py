@@ -808,27 +808,84 @@ def get_backlinks(project_slug: str, doc_slug: str) -> list[dict]:
 # ─── Search Tools ─────────────────────────────────────────────────────────────
 
 def search_documents(project_slug: str, keyword: str) -> list[dict]:
-    """Search for documents within a project by keyword. Searches both titles and content.
+    """Search for documents within ONE project using HYBRID matching (text + semantic).
 
-    Use this to find documents when you don't know the exact slug but know what they contain.
-    The keyword must be at least 2 characters long. Results include an excerpt showing context.
+    The backend fuses two rankings with Reciprocal Rank Fusion (RRF):
+      1. text match — the keyword appears literally in the document content, and
+      2. semantic match — pgvector cosine similarity of the query embedding against
+         each document's embedding (top-20). When the embedding sidecar is down the
+         search degrades gracefully to text-only matching (no error).
+
+    Use this when you know the project slug but not the exact document slug.
+    The keyword must be at least 2 characters long.
 
     Args:
         project_slug: The URL-friendly slug of the project (required). Get from list_projects().
-        keyword: Search term to find in document titles and content (min 2 chars). Whitespace is trimmed.
+        keyword: Search term matched against document content, literally and semantically (min 2 chars). Whitespace is trimmed.
 
     Returns:
-        List of matching document objects with id, title, slug, excerpt (context snippet), createdAt, updatedAt.
+        List of matching document objects with id, title, slug, FULL content (not an excerpt),
+        projectId, score (RRF relevance — higher is more relevant), createdAt, updatedAt.
         Empty list if no documents match the search term.
 
     Example:
         results = search_documents("my-project", "authentication")  # Find docs about authentication
         for doc in results:
-            print(f"{doc['title']}: {doc['excerpt']}...")
+            print(f"{doc['title']} (score {doc.get('score')}): {doc['content'][:120]}...")
     """
     from urllib.parse import quote_plus as _quote_plus
     encoded_keyword = _quote_plus(keyword.strip())
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/search?keyword={encoded_keyword}")
+
+
+def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
+    """Search for documents across ALL projects using HYBRID matching (text + semantic).
+
+    Global (cross-project) variant of search_documents: the backend fuses a literal
+    text match with pgvector cosine similarity (RRF) over EVERY document in the wiki,
+    not just one project. When the embedding sidecar is down the search degrades
+    gracefully to text-only matching (no error).
+
+    Authentication: this endpoint requires a valid Wiki4AI JWT (login-only policy).
+    The MCP server forwards the client-provided Authorization header token; if none is
+    available (and no server-side --token is configured), the backend returns 401 and
+    this tool raises a clear "Not authenticated" error.
+
+    Use search_documents_global when you don't know which project a document lives in;
+    use search_documents when you already know the project slug. The keyword must be at
+    least 2 characters long.
+
+    Args:
+        keyword: Search term matched against document content, literally and semantically (min 2 chars). Whitespace is trimmed.
+        limit: Maximum number of results to return (default 20; the backend caps it at 50).
+
+    Returns:
+        List of matching hit objects with id, title, slug, projectSlug, projectName,
+        score (RRF relevance — higher is more relevant), updatedAt and excerpt
+        (~200 characters around the first keyword occurrence). Empty list if nothing matches.
+
+    Example:
+        hits = search_documents_global("push notifications")
+        for hit in hits:
+            print(f"[{hit['projectSlug']}] {hit['title']} (score {hit['score']:.4f})")
+    """
+    from urllib.parse import quote_plus as _quote_plus
+    encoded_keyword = _quote_plus(keyword.strip())
+    try:
+        limit_value = int(limit)
+    except (TypeError, ValueError):
+        raise MCPToolError(f"Invalid limit: {limit!r} — must be an integer")
+    try:
+        return _api_request("GET", f"/v1/search/documents?keyword={encoded_keyword}&limit={limit_value}")
+    except MCPToolError as e:
+        if e.status_code == 401:
+            raise MCPToolError(
+                "Not authenticated — the global search endpoint requires a valid Wiki4AI JWT. "
+                "Provide one via the Authorization header (Bearer <jwt>) when connecting to this "
+                "MCP server, or configure a server-side --token.",
+                status_code=401,
+            ) from e
+        raise
 
 
 # ─── Mermaid Guide Tool ──────────────────────────────────────────────────────
@@ -1519,6 +1576,7 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(get_links)
     mcp.add_tool(get_backlinks)
     mcp.add_tool(search_documents)
+    mcp.add_tool(search_documents_global)
     mcp.add_tool(import_document)
     mcp.add_tool(move_document)
     mcp.add_tool(copy_document)

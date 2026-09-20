@@ -1,0 +1,52 @@
+/* ── Global search bar in the app header (WIKI4AI-61) ─────────────────────
+   Visual language matches the existing pill-shaped search inputs
+   (Dashboard .search-bar / ProjectDetail .search-input): glass background,
+   rounded pill, neon cyan focus glow. Scoped under .global-search-bar so it
+   can be imported from Layout without touching page-scoped stylesheets. */
+
+.global-search-bar {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  margin: 0.75rem 0;
+}
+
+.global-search-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.125rem;
+  height: 1.125rem;
+  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  pointer-events: none;
+}
+
+.global-search-input {
+  width: 100%;
+  padding: 12px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 50px; /* pill shape */
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  transition: border-color var(--transition-base, all 0.3s ease),
+    background-color var(--transition-base, all 0.3s ease),
+    box-shadow var(--transition-base, all 0.3s ease);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.global-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.global-search-input:hover:not(:focus) {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.global-search-input:focus {
+  outline: none;
+  border-color: var(--primary, #00f0ff);
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow */
+}
