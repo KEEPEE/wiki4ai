@@ -99,7 +99,7 @@ class ImageControllerTest {
             mockMvc.perform(multipart("/api/v1/images/" + PROJECT_SLUG).file(file))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.url").value("/images/" + PROJECT_SLUG + "/" + STORED_NAME))
-                    .andExpect(jsonPath("$.markdown").value("!screenshot(/images/" + PROJECT_SLUG + "/" + STORED_NAME + ")"))
+                    .andExpect(jsonPath("$.markdown").value("![screenshot](/images/" + PROJECT_SLUG + "/" + STORED_NAME + ")"))
                     .andExpect(jsonPath("$.filename").value("screenshot.png"))
                     .andExpect(jsonPath("$.storedName").value(STORED_NAME))
                     .andExpect(jsonPath("$.size").value(pngBytes().length))
