@@ -152,6 +152,73 @@ def _api_request(method: str, path: str, body: Optional[dict] = None) -> dict:
         raise MCPToolError(f"Connection failed to {url}: {e.reason}")
 
 
+def _api_request_multipart(
+    path: str,
+    field_name: str,
+    filename: str,
+    content_type: str,
+    data: bytes,
+) -> dict:
+    """Make a multipart/form-data HTTP request to the Wiki4AI backend API.
+
+    Used by upload_image (WIKI4AI-64) to send binary image payloads — the JSON
+    _api_request helper cannot carry raw bytes. Authentication works exactly
+    like _api_request: the effective JWT (X-Wiki4AI-JWT identity channel on
+    gated instances, Authorization header on open instances, or a server-side
+    --token) is attached as a Bearer token.
+
+    Args:
+        path: API path (e.g., '/v1/images/my-project')
+        field_name: multipart form field name (the backend expects "file")
+        filename: original filename for the Content-Disposition header
+        content_type: MIME type of the file part (backend re-detects from magic bytes)
+        data: raw file bytes
+
+    Returns:
+        Parsed JSON response as a dict
+
+    Raises:
+        MCPToolError: On HTTP errors or connection failures
+    """
+    import uuid as _uuid
+
+    boundary = "----Wiki4AIMultipart" + _uuid.uuid4().hex
+    safe_filename = filename.replace("\r", "").replace("\n", "") or "upload.bin"
+
+    body = bytearray()
+    body += f"--{boundary}\r\n".encode("ascii")
+    body += (
+        f'Content-Disposition: form-data; name="{field_name}"; filename="{safe_filename}"\r\n'
+    ).encode("utf-8")
+    body += f"Content-Type: {content_type}\r\n".encode("utf-8")
+    body += b"\r\n"
+    body += data
+    body += f"\r\n--{boundary}--\r\n".encode("ascii")
+
+    url = BASE_URL + path.lstrip("/")
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+
+    current_token = get_current_jwt_token()
+    if current_token:
+        headers["Authorization"] = f"Bearer {current_token}"
+
+    req = Request(url, data=bytes(body), headers=headers, method="POST")
+
+    try:
+        with urlopen(req, timeout=60) as resp:
+            content = resp.read().decode("utf-8")
+            return _json.loads(content) if content else {}
+    except HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
+        raise MCPToolError(
+            f"API Error {e.code}: {error_body}",
+            status_code=e.code,
+            details=_json.loads(error_body) if error_body else None,
+        )
+    except URLError as e:
+        raise MCPToolError(f"Connection failed to {url}: {e.reason}")
+
+
 class MCPToolError(Exception):
     """Custom exception for MCP tool errors."""
 
@@ -934,6 +1001,86 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
         if e.status_code == 401:
             raise MCPToolError(
                 "Not authenticated — the global search endpoint requires a valid Wiki4AI JWT. "
+                "Connect with your JWT in the X-Wiki4AI-JWT request header (gated instance, "
+                "alongside the MCP access credential in Authorization) or in the Authorization "
+                "header (open instance), or configure a server-side --token.",
+                status_code=401,
+            ) from e
+        raise
+
+
+# ─── Image Upload Tool (WIKI4AI-64) ─────────────────────────────────────────
+
+MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024  # must match the backend limit
+
+
+def upload_image(project_slug: str, filename: str, image_base64: str) -> dict:
+    """Upload an image to a Wiki4AI project and get a markdown snippet for it.
+
+    Accepts a base64-encoded image (PNG/JPEG/WebP/GIF/SVG, max 10 MB), stores
+    it in the wiki backend under an unguessable UUID name, and returns the URL
+    plus a ready-to-paste markdown snippet `![alt](/images/{project}/{uuid}.ext)`.
+
+    The returned markdown path is relative: the WebUI renders it by fetching the
+    image through the authenticated API (login-only — uploaded images are NEVER
+    anonymously accessible). External https image URLs in documents keep working
+    as before; use this tool for screenshots and generated diagrams that should
+    live inside the wiki.
+
+    Authentication: requires a valid Wiki4AI JWT, forwarded from the client's
+    X-Wiki4AI-JWT header (gated instance) or Authorization header (open
+    instance); if none is available the backend returns 401 and this tool raises
+    a clear "Not authenticated" error.
+
+    Args:
+        project_slug: The URL-friendly slug of the target project (required). Get from list_projects().
+        filename: Original image filename, used for the markdown alt text (e.g., "screenshot.png").
+        image_base64: Base64-encoded image bytes (standard base64; whitespace tolerated).
+
+    Returns:
+        Dict with url ("/images/{project}/{uuid}.ext"), markdown ("![alt](url)"),
+        filename, storedName, size (bytes) and contentType. Paste `markdown`
+        into a document via update_document / create_document.
+
+    Example:
+        import base64
+        png = base64.b64encode(open("shot.png", "rb").read()).decode()
+        result = upload_image("my-project", "shot.png", png)
+        # -> {"url": "/images/my-project/9f1c...png", "markdown": "!shot(/images/my-project/9f1c...png)", ...}
+    """
+    import base64 as _base64
+
+    if not project_slug or not project_slug.strip():
+        raise MCPToolError("project_slug is required")
+    if image_base64 is None or not str(image_base64).strip():
+        raise MCPToolError("image_base64 is required (base64-encoded image bytes)")
+
+    cleaned = "".join(str(image_base64).split())
+    try:
+        data = _base64.b64decode(cleaned, validate=True)
+    except Exception as e:
+        raise MCPToolError(f"Invalid base64 in image_base64: {e}") from e
+
+    if not data:
+        raise MCPToolError("image_base64 decodes to zero bytes")
+    if len(data) > MAX_IMAGE_UPLOAD_BYTES:
+        raise MCPToolError(
+            f"Image is too large: {len(data)} bytes (limit {MAX_IMAGE_UPLOAD_BYTES} bytes / 10 MB)"
+        )
+
+    safe_filename = str(filename or "image").replace("\r", "").replace("\n", "")
+    try:
+        return _api_request_multipart(
+            path=f"/v1/images/{project_slug.strip()}",
+            field_name="file",
+            filename=safe_filename,
+            content_type="application/octet-stream",
+            data=data,
+        )
+    except MCPToolError as e:
+        if e.status_code == 401:
+            raise MCPToolError(
+                "Not authenticated — image upload requires a valid Wiki4AI JWT. "
                 "Connect with your JWT in the X-Wiki4AI-JWT request header (gated instance, "
                 "alongside the MCP access credential in Authorization) or in the Authorization "
                 "header (open instance), or configure a server-side --token.",
@@ -1846,6 +1993,7 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(get_backlinks)
     mcp.add_tool(search_documents)
     mcp.add_tool(search_documents_global)
+    mcp.add_tool(upload_image)
     mcp.add_tool(import_document)
     mcp.add_tool(move_document)
     mcp.add_tool(copy_document)

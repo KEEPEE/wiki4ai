@@ -1,0 +1,43 @@
+/**
+ * Styles for the UploadedImage component (WIKI4AI-64).
+ * Loading/error placeholders while the authenticated blob fetch is in flight.
+ */
+
+.uploaded-image {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Loading placeholder — subtle shimmer box, sized like a typical image */
+.uploaded-image--loading {
+  width: 240px;
+  max-width: 100%;
+  height: 160px;
+  border-radius: 8px;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.04) 40%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 60%
+  );
+  background-size: 200% 100%;
+  animation: uploaded-image-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes uploaded-image-shimmer {
+  0% {
+    background-position: 150% 0;
+  }
+  100% {
+    background-position: -50% 0;
+  }
+}
+
+/* Error placeholder — small inline note instead of a broken-image icon */
+.uploaded-image--error {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85em;
+  border: 1px dashed var(--glass-border, rgba(255, 255, 255, 0.15));
+  border-radius: 6px;
+  padding: 0.35em 0.7em;
+}

@@ -25,13 +25,14 @@ import { render, waitFor } from '@testing-library/react';
 const escapeHtml = (s: string): string =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-const { mockMermaidRender } = vi.hoisted(() => ({
+const { mockMermaidRender, mockApiRequest } = vi.hoisted(() => ({
   mockMermaidRender: vi.fn(async (_id: string, code: string) => ({
     svg: `<svg xmlns="http://www.w3.org/2000/svg" class="stub-mermaid-svg"><text>${escapeHtml(
       code,
     )}</text></svg>`,
     bindFunctions: () => {},
   })),
+  mockApiRequest: vi.fn(),
 }));
 
 vi.mock('mermaid', () => ({
@@ -41,8 +42,15 @@ vi.mock('mermaid', () => ({
   },
 }));
 
+// WIKI4AI-64: the authenticated API client is mocked too — react-markdown,
+// remark-gfm and the real UploadedImage/imageApi pipeline stay fully real.
+vi.mock('../services/apiClient', () => ({
+  apiRequest: (url: string, options?: unknown) => mockApiRequest(url, options),
+}));
+
 // Import under test AFTER the mocks are registered.
 import MarkdownPreview from '../components/MarkdownPreview';
+import { clearUploadedImageCache } from '../services/imageApi';
 
 const CLASS_DIAGRAM = [
   'classDiagram',
@@ -144,5 +152,95 @@ ${SEQUENCE_DIAGRAM}
     expect(container.querySelector('pre > code')).not.toBeNull();
     expect(container.querySelector('.mermaid-diagram')).toBeNull();
     expect(mockMermaidRender).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * WIKI4AI-64 (Cesta A): uploaded images are stored at relative URLs of the form
+ * /images/{projectSlug}/{uuid}.{ext} and served ONLY to authenticated users.
+ * MarkdownPreview must intercept such <img> sources, fetch them through the
+ * auth API client and render via a blob URL. External https URLs must pass
+ * through completely unchanged (regression guard).
+ */
+describe('MarkdownPreview images (WIKI4AI-64, real react-markdown)', () => {
+  const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  let objectUrlCounter = 0;
+
+  beforeEach(() => {
+    mockApiRequest.mockReset();
+    // jsdom does not implement object URLs — polyfill for the blob pipeline.
+    URL.createObjectURL = vi.fn(() => `blob:mock-${++objectUrlCounter}`);
+    URL.revokeObjectURL = vi.fn();
+    clearUploadedImageCache(); // no blob-URL leaks between tests
+  });
+
+  it('intercepts an uploaded image (/images/...) and renders it via a blob URL', async () => {
+    const src = '/images/test-proj/123e4567-e89b-42d3-a456-426614174000.png';
+    mockApiRequest.mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob([PNG_BYTES], { type: 'image/png' }),
+    });
+
+    const { container } = render(<MarkdownPreview content={`![alt text](${src})`} />);
+
+    // Never an <img> pointing at the raw /images/ path (that would 401).
+    expect(container.querySelector('img[src^="/images/"]')).toBeNull();
+
+    await waitFor(() => {
+      const img = container.querySelector('img[alt="alt text"]');
+      expect(img).not.toBeNull();
+      expect(img?.getAttribute('src')?.startsWith('blob:')).toBe(true);
+    });
+
+    // Fetched exactly once, via the authenticated API endpoint.
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(String(mockApiRequest.mock.calls[0][0])).toContain(`/api/v1${src}`);
+  });
+
+  it('leaves external https image URLs untouched (no fetch, same src)', () => {
+    const external = 'https://example.com/photos/cat.png';
+    const { container } = render(<MarkdownPreview content={`![cat](${external})`} />);
+
+    const img = container.querySelector('img[alt="cat"]');
+    expect(img).not.toBeNull();
+    expect(img?.getAttribute('src')).toBe(external);
+    expect(mockApiRequest).not.toHaveBeenCalled();
+  });
+
+  it('shows an error placeholder when the authenticated fetch fails', async () => {
+    const src = '/images/test-proj/123e4567-e89b-42d3-a456-426614174000.png';
+    mockApiRequest.mockResolvedValue({ ok: false, status: 404, blob: async () => new Blob() });
+
+    const { container } = render(<MarkdownPreview content={`![gone](${src})`} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.uploaded-image--error')).not.toBeNull();
+    });
+    expect(container.querySelector('img[src^="blob:"]')).toBeNull();
+  });
+
+  it('renders an uploaded image next to a mermaid diagram without interference', async () => {
+    const src = '/images/test-proj/123e4567-e89b-42d3-a456-426614174000.png';
+    mockApiRequest.mockResolvedValue({
+      ok: true,
+      status: 200,
+      blob: async () => new Blob([PNG_BYTES], { type: 'image/png' }),
+    });
+
+    const content = [
+      `![shot](${src})`,
+      '',
+      '```mermaid',
+      ...CLASS_DIAGRAM.split('\n'),
+      '```',
+    ].join('\n');
+
+    const { container } = render(<MarkdownPreview content={content} />);
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src^="blob:"]')).not.toBeNull();
+      expect(container.querySelector('.mermaid-diagram svg')).not.toBeNull();
+    });
   });
 });

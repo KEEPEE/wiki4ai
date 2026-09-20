@@ -143,6 +143,43 @@ class SecurityConfigTest {
                 });
     }
 
+    @Test
+    void imageReadEndpoint_anonymousShouldReturn401() throws Exception {
+        // WIKI4AI-64 (hard user decision): NO anonymous access to uploaded images.
+        // /api/v1/images/** must NOT fall into the GET /api/v1/projects/** permitAll
+        // matcher — anonymous requests require a JWT → 401.
+        mockMvc.perform(get("/api/v1/images/some-project/00000000-0000-0000-0000-000000000000.png"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void imageUploadEndpoint_anonymousShouldReturn401() throws Exception {
+        // Multipart upload without a JWT → 401 (authentication entry point, not the controller).
+        org.springframework.mock.web.MockMultipartFile file =
+                new org.springframework.mock.web.MockMultipartFile("file", "x.png", "image/png", new byte[]{1});
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .multipart("/api/v1/images/some-project").file(file))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void imageReadEndpoint_withValidJwtShouldPassAuthentication() throws Exception {
+        // With a valid JWT the request passes authentication. The H2 test DB has no
+        // project "some-project", so the controller answers 404 — which proves the
+        // auth layer let the request through (a 401 would mean it did not).
+        String username = "imageuser_" + System.currentTimeMillis();
+        String token = getAuthToken(username, username + "@test.com");
+
+        mockMvc.perform(get("/api/v1/images/some-project/00000000-0000-0000-0000-000000000000.png")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(res -> {
+                    int status = res.getResponse().getStatus();
+                    assert (status == 404) :
+                            "Expected 404 (project missing in test DB) with valid JWT, got " + status;
+                });
+    }
+
     /**
      * Helper method to register a user and get an authentication token.
      */

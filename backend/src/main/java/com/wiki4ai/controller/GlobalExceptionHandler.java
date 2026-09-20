@@ -165,7 +165,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now().toString());
         body.put("status", HttpStatus.PAYLOAD_TOO_LARGE.value());
         body.put("error", "Payload Too Large");
-        body.put("message", "File size exceeds the maximum allowed size of 5MB");
+        body.put("message", "File size exceeds the maximum allowed upload size (10MB)");
 
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(body);
     }
