@@ -20,44 +20,57 @@ interface MarkdownPreviewProps {
 }
 
 /**
- * Check if a <pre> element contains a mermaid code block.
- * ReactMarkdown adds className="language-mermaid" on the inner <code>.
+ * Locate the inner <code> element among the children passed to a custom `pre`
+ * component by react-markdown.
+ *
+ * IMPORTANT (WIKI4AI-62): react-markdown v10 calls the custom `pre` component
+ * with props whose `children` IS the inner <code> React element itself (not a
+ * wrapping <pre>). Older code inspected `.props.children` of that argument —
+ * i.e. the plain text string of the code — which never passes
+ * React.isValidElement(), so mermaid detection always returned false and
+ * diagrams were rendered as raw text.
+ *
+ * The wrapped case (an element containing a <code> child) is still handled so
+ * renderers/mocks that pass an extra level keep working.
  */
-function isMermaidBlock(preElement: React.ReactElement): boolean {
-  const children = (preElement.props as Record<string, unknown>)?.children;
-  if (!children) return false;
-
-  // children can be a single element or an array
+function findCodeElement(children: React.ReactNode): React.ReactElement | null {
   const items = Array.isArray(children) ? children : [children];
-  for (const child of items) {
-    if (
-      React.isValidElement(child) &&
-      child.type === 'code' &&
-      typeof (child.props as Record<string, unknown>)?.className === 'string' &&
-      ((child.props as Record<string, unknown>).className as string).includes('language-mermaid')
-    ) {
-      return true;
+  for (const item of items) {
+    if (!React.isValidElement(item)) continue;
+
+    // Production shape (react-markdown v10): the <code> element is passed directly.
+    if (item.type === 'code') return item;
+
+    // Defensive shape: an intermediate element wraps the <code>.
+    const inner = (item.props as Record<string, unknown>)?.children;
+    if (!inner) continue;
+    const innerItems = Array.isArray(inner) ? inner : [inner];
+    for (const innerItem of innerItems) {
+      if (React.isValidElement(innerItem) && innerItem.type === 'code') return innerItem;
     }
   }
-  return false;
+  return null;
 }
 
 /**
- * Extract the mermaid code string from a <pre><code> element.
+ * Check whether a <code> element is a mermaid code block.
+ * ReactMarkdown adds className="language-mermaid" on the inner <code>.
  */
-function extractMermaidCode(preElement: React.ReactElement): string {
-  const children = (preElement.props as Record<string, unknown>)?.children;
-  if (!children) return '';
+function isMermaidBlock(codeElement: React.ReactElement | null): boolean {
+  if (!codeElement) return false;
+  const className = (codeElement.props as Record<string, unknown>)?.className;
+  return typeof className === 'string' && className.includes('language-mermaid');
+}
 
-  const items = Array.isArray(children) ? children : [children];
-  for (const child of items) {
-    if (React.isValidElement(child) && child.type === 'code') {
-      // The code content is in child.props.children
-      const codeContent = (child.props as Record<string, unknown>)?.children;
-      if (typeof codeContent === 'string') return codeContent;
-      if (Array.isArray(codeContent)) return codeContent.join('');
-    }
-  }
+/**
+ * Extract the mermaid code string from a <code> element.
+ */
+function extractMermaidCode(codeElement: React.ReactElement | null): string {
+  if (!codeElement) return '';
+  // The code content is in codeElement.props.children
+  const codeContent = (codeElement.props as Record<string, unknown>)?.children;
+  if (typeof codeContent === 'string') return codeContent;
+  if (Array.isArray(codeContent)) return codeContent.join('');
   return '';
 }
 
@@ -67,9 +80,9 @@ function extractMermaidCode(preElement: React.ReactElement): string {
 function buildCustomComponents(): Components {
   return {
     pre({ children, ...rest }) {
-      const preElement = children as React.ReactElement;
-      if (isMermaidBlock(preElement)) {
-        const code = extractMermaidCode(preElement);
+      const codeElement = findCodeElement(children);
+      if (isMermaidBlock(codeElement)) {
+        const code = extractMermaidCode(codeElement);
         return <MermaidDiagram code={code} />;
       }
       // Default rendering for non-mermaid code blocks
