@@ -7,8 +7,10 @@ spring:
   
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+      # WIKI4AI-64: raised to fit image uploads (10 MB). The existing POST /upload
+      # (.md documents) is unchanged in code; it now simply accepts up to the same cap.
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:10MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:12MB}
   
   # Default profile uses H2 for development
   datasource:
@@ -90,6 +92,11 @@ admin:
   initial:
     username: ${ADMIN_INITIAL_USERNAME:admin}
     password: ${ADMIN_INITIAL_PASSWORD:change-me-now}
+
+# Image upload storage (WIKI4AI-64). Host volume in the docker stack:
+# /var/lib/wiki4ai/uploads -> /uploads in the backend container.
+upload:
+  dir: ${UPLOAD_DIR:/uploads}
 
 # Embedding sidecar (WIKI4AI-35, epic WIKI4AI-26).
 # In the docker stack the service name is 'embedding' on port 8030.

@@ -13,6 +13,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MermaidDiagram from './MermaidDiagram';
 import PlantUmlDiagram from './PlantUmlDiagram';
+import UploadedImage from './UploadedImage';
 import './MarkdownPreview.css';
 
 interface MarkdownPreviewProps {
@@ -88,7 +89,8 @@ function extractCode(codeElement: React.ReactElement | null): string {
 }
 
 /**
- * Custom ReactMarkdown components that intercept mermaid and plantuml code blocks.
+ * Custom ReactMarkdown components that intercept mermaid and plantuml code
+ * blocks, plus uploaded images (WIKI4AI-64).
  */
 function buildCustomComponents(): Components {
   return {
@@ -104,6 +106,16 @@ function buildCustomComponents(): Components {
       }
       // Default rendering for other code blocks
       return <pre {...rest}>{children}</pre>;
+    },
+    /**
+     * WIKI4AI-64 (Cesta A): uploaded images are stored at relative URLs of the
+     * form /images/{projectSlug}/{uuid}.{ext} and served ONLY to authenticated
+     * users. A plain <img src> cannot send the Bearer header, so UploadedImage
+     * fetches them through the auth API client and renders via a blob URL.
+     * External http(s) URLs pass through unchanged (no behaviour change).
+     */
+    img(props) {
+      return <UploadedImage {...props} />;
     },
   };
 }
