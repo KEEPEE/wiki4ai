@@ -1210,10 +1210,10 @@ actor Customer
 actor Admin
 
 rectangle "Online Shop" {
-    use case "Browse catalog" as UC1
-    use case "Place order" as UC2
-    use case "Pay" as UC3
-    use case "Manage inventory" as UC4
+    usecase "Browse catalog" as UC1
+    usecase "Place order" as UC2
+    usecase "Pay" as UC3
+    usecase "Manage inventory" as UC4
 }
 
 Customer --> UC1
@@ -1224,7 +1224,7 @@ Admin --> UC4
 ```
 
 **Key syntax:**
-- `actor Name`, `use case "Name" as Alias`
+- `actor Name`, `usecase "Name" as Alias` (one word — `use case` with a space is NOT valid)
 - `rectangle "System name" { ... }` groups use cases
 - `actor --> usecase` association, `usecase ..> other : <<include>>` / `<<extend>>`
 - `left to right direction` flips the layout
@@ -1301,6 +1301,7 @@ S2 --> PG
 |---------|-------|-----|
 | Diagram doesn't render (raw text shown) | Missing `@startuml`/`@enduml` or kroki offline | Add the tags; if kroki is down, the raw source + hint is shown as fallback |
 | "Syntax Error" from kroki | Invalid PlantUML syntax (unclosed quotes/brackets, bad arrow) | Validate against plantuml.com; check quoted labels and paired brackets |
+| Use case diagram fails to render | `use case` written with a space | The declaration keyword is one word: `usecase "Name" as Alias` |
 | Wrong diagram type assumed | First line after `@startuml` doesn't declare the type | Start with an explicit declaration (`class`, `actor`, `node`, ...) or a typed keyword |
 | UML relation not drawn | Mermaid-style arrows used in PlantUML | Use PlantUML arrows: `<|--`, `*--`, `o--`, `-->`, `..>` (not `<|--`-only mermaid subset) |
 
@@ -1308,7 +1309,7 @@ S2 --> PG
 
 - **Class:** `class X { +field }`, `A <|-- B` inheritance, `A *-- B` composition
 - **Sequence:** `A -> B: msg`, `B --> A: reply`, `alt/else/end` fragments
-- **Use case:** `actor A`, `use case "X" as UC1`, `A --> UC1`, `UC1 ..> UC2 : <<include>>`
+- **Use case:** `actor A`, `usecase "X" as UC1`, `A --> UC1`, `UC1 ..> UC2 : <<include>>`
 - **Component:** `[Comp]`, `package "P" { }`, `C1 --> C2`
 - **Deployment:** `node "N" { artifact "a.jar" }`, `N1 --> N2`
 
