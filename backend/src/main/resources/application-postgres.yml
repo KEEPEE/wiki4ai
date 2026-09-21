@@ -7,6 +7,14 @@ spring:
     username: wiki4ai
     password: wiki4ai
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # WIKI4AI-68: explicit pool sizing. Previously implicit defaults (max 10,
+      # connection-timeout 30s) applied; under sustained load (e.g. embedding backfill +
+      # concurrent logins) requests queued silently for up to 30s per request-held
+      # connection (OSIV is on). 20 connections give headroom; leak detection surfaces
+      # long-held connections in the log instead of failing opaquely.
+      maximum-pool-size: 20
+      leak-detection-threshold: 60000
 
   # Flyway - manages database schema migrations
   flyway:

@@ -15,6 +15,7 @@ import com.wiki4ai.repository.ApiTokenRepository;
 import com.wiki4ai.repository.RefreshTokenRepository;
 import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityManager;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -34,9 +35,26 @@ import java.util.UUID;
  * Service for authentication operations: user registration and login.
  * Only loaded when security.enabled=true.
  */
+@Slf4j
 @Service
 @ConditionalOnProperty(name = "security.enabled", havingValue = "true", matchIfMissing = true)
 public class AuthService {
+
+    /**
+     * WIKI4AI-68: striped locks that serialize refresh-token replacement (DELETE + INSERT)
+     * per user. Two concurrent logins for the same user would otherwise both observe
+     * "no existing token", both INSERT, and one violates the unique constraint on
+     * refresh_tokens.user_id (DataIntegrityViolationException → intermittent 500 on login).
+     * Stripes avoid unbounded lock-object growth; single-JVM deployment is a documented invariant.
+     */
+    private static final int REFRESH_TOKEN_LOCK_STRIPES = 64;
+    private final Object[] refreshTokenLocks = new Object[REFRESH_TOKEN_LOCK_STRIPES];
+
+    {
+        for (int i = 0; i < REFRESH_TOKEN_LOCK_STRIPES; i++) {
+            refreshTokenLocks[i] = new Object();
+        }
+    }
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -101,7 +119,15 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElse(null);
 
-        if (user == null || !passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (user == null) {
+            // WIKI4AI-68: server-side diagnostics for login failures. The client still
+            // receives the generic "Invalid username or password" 401 — never the reason.
+            log.warn("Login failed: no user found for username='{}'", request.getUsername());
+            return null;
+        }
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("Login failed: password mismatch for username='{}'", request.getUsername());
             return null; // Invalid credentials
         }
 
@@ -144,6 +170,21 @@ public class AuthService {
      * @return the generated refresh token string
      */
     public String generateAndPersistRefreshToken(User user, LocalDateTime expiresAt) {
+        // WIKI4AI-68: serialize the DELETE + INSERT per user so concurrent logins (or
+        // /token calls) for the same user cannot interleave between the delete and the
+        // insert. Without this, both transactions see "no existing token", both insert,
+        // and one fails with a duplicate key on refresh_tokens.user_id → intermittent
+        // 500 on POST /api/v1/auth/login under concurrent load.
+        synchronized (refreshTokenLock(user.getId())) {
+            return doGenerateAndPersistRefreshToken(user, expiresAt);
+        }
+    }
+
+    private Object refreshTokenLock(Long userId) {
+        return refreshTokenLocks[Math.floorMod(userId.hashCode(), REFRESH_TOKEN_LOCK_STRIPES)];
+    }
+
+    private String doGenerateAndPersistRefreshToken(User user, LocalDateTime expiresAt) {
         // Use TransactionTemplate for explicit transaction management to ensure
         // UPDATE/DELETE operations have an active transaction context
         return transactionTemplate.execute(status -> {

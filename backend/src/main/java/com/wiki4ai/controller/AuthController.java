@@ -12,7 +12,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -28,6 +30,7 @@ import java.util.Map;
  * REST controller for authentication endpoints.
  * Only loaded when security.enabled=true.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "Authentication", description = "User registration and login endpoints")
@@ -66,7 +69,19 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "Login successful, tokens returned")
     @ApiResponse(responseCode = "401", description = "Invalid credentials")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequestDTO request) {
-        AuthResponseDTO response = authService.loginUser(request);
+        AuthResponseDTO response;
+        try {
+            response = authService.loginUser(request);
+        } catch (DataAccessException e) {
+            // WIKI4AI-68: an infrastructure failure during login (DB unavailable, pool
+            // exhaustion, constraint violation, ...) must not surface to the client as a
+            // detailed 500. Log the real cause server-side and keep the generic message
+            // for the client so unauthenticated callers learn nothing about DB state.
+            log.error("Login failed due to database error for username='{}'", request.getUsername(), e);
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Invalid username or password");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
 
         if (response == null) {
             Map<String, String> error = new HashMap<>();
