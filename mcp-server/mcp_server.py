@@ -523,9 +523,15 @@ def update_project(
     raises an error. Moves are limited to 5 levels deep; moves that would create a cycle
     are rejected by the backend with a clear error.
 
+    Note: the backend requires a non-blank `name` in every update payload (there is no true
+    partial update). When you omit `name`, this tool fetches the project first and re-sends
+    its current name unchanged, so description-only and hierarchy-only updates work as
+    documented.
+
     Args:
         slug: The URL-friendly slug of the project to update (required).
         name: New name for the project (optional, max 255 chars). Changing name also changes the slug.
+            When omitted, the current name is preserved (fetched automatically).
         description: New description for the project (optional, max 1000 chars).
         parent_id: Optional new parent project ID — moves the project under that project.
             Omit it (or pass null) to leave the hierarchy unchanged. Max depth 5; cycles rejected.
@@ -541,16 +547,21 @@ def update_project(
         update_project("my-wiki", parent_id=7)      # Move under project with id 7
         update_project("my-wiki", move_to_root=True)  # Move back to the root level
     """
-    body = {}
-    if name is not None:
-        body["name"] = name
-    if description is not None:
-        body["description"] = description
     if parent_id is not None and move_to_root:
         raise MCPToolError(
             "Contradictory hierarchy parameters: pass either parent_id (move under a project) "
             "or move_to_root=True (move back to root), not both."
         )
+    body = {}
+    if name is not None:
+        body["name"] = name
+    else:
+        # The backend rejects every PUT without a non-blank "name" (ProjectUpdateDTO is
+        # @NotBlank), so partial updates must echo the current name. Fetch it once.
+        current = _api_request("GET", f"/v1/projects/{slug}")
+        body["name"] = current.get("name")
+    if description is not None:
+        body["description"] = description
     if move_to_root:
         # Explicit null in the JSON body → backend moves the project back to the root.
         body["parentId"] = None
