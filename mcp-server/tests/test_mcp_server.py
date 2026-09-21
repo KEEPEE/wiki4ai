@@ -2039,7 +2039,12 @@ class TestProjectHierarchy:
       - PUT /v1/projects/{slug} tri-state driven by the "parentId" key:
         key absent = no move, explicit "parentId": null = back to root,
         "parentId": <int> = new parent (depth <= 5, cycles rejected).
+      - Every PUT body must carry a non-blank "name" (ProjectUpdateDTO @NotBlank);
+        update_project therefore fetches the current project and echoes its name
+        when the caller does not provide one.
     """
+
+    CURRENT_PROJECT = {"id": 1, "name": "My Proj", "slug": "my-proj", "depth": 2}
 
     @staticmethod
     def _mock_json_response(mock_urlopen, payload):
@@ -2047,9 +2052,29 @@ class TestProjectHierarchy:
         mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
         mock_urlopen.return_value.__enter__.return_value = mock_resp
 
+    @classmethod
+    def _mock_get_then_put(cls, mock_urlopen, put_payload=None):
+        """Mock a GET (current project) followed by a PUT.
+
+        Each side_effect entry must be a context manager (urlopen() return value)
+        whose __enter__() yields the response object with .read().
+        """
+
+        def _cm(payload):
+            cm = MagicMock()
+            inner = MagicMock()
+            inner.read.return_value = json.dumps(payload).encode("utf-8")
+            cm.__enter__.return_value = inner
+            return cm
+
+        mock_urlopen.side_effect = [
+            _cm(cls.CURRENT_PROJECT),
+            _cm(put_payload or cls.CURRENT_PROJECT),
+        ]
+
     @staticmethod
     def _sent_request(mock_urlopen):
-        """Return (Request object, parsed JSON body or None if no body was sent)."""
+        """Return (Request object, parsed JSON body or None if no body was sent) of the LAST call."""
         request = mock_urlopen.call_args[0][0]
         return request, (json.loads(request.data) if request.data else None)
 
@@ -2117,14 +2142,19 @@ class TestProjectHierarchy:
         """update without parent_id/move_to_root → PUT body has NO parentId key (no move)."""
         from mcp_server import update_project
 
-        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj", "depth": 2})
+        self._mock_get_then_put(mock_urlopen)
 
         update_project("my-proj", description="only desc")
+
+        # First call: GET current project (to echo its name — backend requires it on every PUT).
+        first_req = mock_urlopen.call_args_list[0][0][0]
+        assert first_req.get_method() == "GET"
+        assert first_req.full_url.endswith("/v1/projects/my-proj")
 
         request, body = self._sent_request(mock_urlopen)
         assert request.get_method() == "PUT"
         assert request.full_url.endswith("/v1/projects/my-proj")
-        assert body == {"description": "only desc"}
+        assert body == {"name": "My Proj", "description": "only desc"}
         assert "parentId" not in body
 
     @patch("mcp_server.urlopen")
@@ -2132,34 +2162,34 @@ class TestProjectHierarchy:
         """Explicit parent_id=None is treated as 'not given' → hierarchy unchanged."""
         from mcp_server import update_project
 
-        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj", "depth": 2})
+        self._mock_get_then_put(mock_urlopen)
 
         update_project("my-proj", parent_id=None)
 
         _, body = self._sent_request(mock_urlopen)
-        assert body is None or "parentId" not in body
+        assert "parentId" not in body
+        assert body == {"name": "My Proj"}
 
     @patch("mcp_server.urlopen")
     def test_update_move_to_new_parent(self, mock_urlopen):
         """update_project(slug, parent_id=X) → PUT body "parentId": X (move under X)."""
         from mcp_server import update_project
 
-        self._mock_json_response(
-            mock_urlopen,
-            {"id": 1, "slug": "my-proj", "parentSlug": "new-parent", "depth": 2},
+        self._mock_get_then_put(
+            mock_urlopen, {"id": 1, "slug": "my-proj", "parentSlug": "new-parent", "depth": 2}
         )
 
         update_project("my-proj", parent_id=9)
 
         _, body = self._sent_request(mock_urlopen)
-        assert body == {"parentId": 9}
+        assert body == {"name": "My Proj", "parentId": 9}
 
     @patch("mcp_server.urlopen")
     def test_update_move_to_root_sends_explicit_null(self, mock_urlopen):
         """update_project(slug, move_to_root=True) → PUT body "parentId": null (back to root)."""
         from mcp_server import update_project
 
-        self._mock_json_response(
+        self._mock_get_then_put(
             mock_urlopen, {"id": 1, "slug": "my-proj", "parentSlug": None, "depth": 1}
         )
 
@@ -2173,20 +2203,35 @@ class TestProjectHierarchy:
         assert '"parentId": null' in raw or '"parentId":null' in raw
 
     @patch("mcp_server.urlopen")
+    def test_update_with_explicit_name_skips_get(self, mock_urlopen):
+        """When name is provided, no extra GET happens — a single PUT is sent."""
+        from mcp_server import update_project
+
+        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj"})
+
+        update_project("my-proj", name="New Name")
+
+        mock_urlopen.assert_called_once()
+        request, body = self._sent_request(mock_urlopen)
+        assert request.get_method() == "PUT"
+        assert body == {"name": "New Name"}
+
+    @patch("mcp_server.urlopen")
     def test_update_combined_fields_and_move(self, mock_urlopen):
-        """name + description + parent_id combine into one PUT body."""
+        """name + description + parent_id combine into one PUT body (no extra GET)."""
         from mcp_server import update_project
 
         self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj"})
 
         update_project("my-proj", name="New Name", description="d", parent_id=4)
 
+        mock_urlopen.assert_called_once()
         _, body = self._sent_request(mock_urlopen)
         assert body == {"name": "New Name", "description": "d", "parentId": 4}
 
     @patch("mcp_server.urlopen")
     def test_update_contradictory_hierarchy_params_raise(self, mock_urlopen):
-        """parent_id + move_to_root together → MCPToolError, no HTTP call is made."""
+        """parent_id + move_to_root together → MCPToolError before any HTTP call."""
         from mcp_server import update_project, MCPToolError
 
         with pytest.raises(MCPToolError, match="Contradictory"):
