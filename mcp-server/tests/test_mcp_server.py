@@ -2027,3 +2027,201 @@ class TestSelectJwtToken:
         """A non-Bearer Authorization header carries no identity; query still works."""
         monkeypatch.delenv("MCP_JWT_TOKEN", raising=False)
         assert select_jwt_token("Basic abc", "token=user-jwt-123") == "user-jwt-123"
+
+
+# ─── Tests: Project Hierarchy (WIKI4AI-66) ──────────────────────────────────────
+
+class TestProjectHierarchy:
+    """Tests for subproject support in create_project / update_project (WIKI4AI-66).
+
+    Backend contract (verified live, WIKI4AI-29/30):
+      - POST /v1/projects with optional "parentId" creates a subproject under it.
+      - PUT /v1/projects/{slug} tri-state driven by the "parentId" key:
+        key absent = no move, explicit "parentId": null = back to root,
+        "parentId": <int> = new parent (depth <= 5, cycles rejected).
+    """
+
+    @staticmethod
+    def _mock_json_response(mock_urlopen, payload):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps(payload).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_resp
+
+    @staticmethod
+    def _sent_request(mock_urlopen):
+        """Return (Request object, parsed JSON body or None if no body was sent)."""
+        request = mock_urlopen.call_args[0][0]
+        return request, (json.loads(request.data) if request.data else None)
+
+    # ── create_project ──
+
+    @patch("mcp_server.urlopen")
+    def test_create_with_parent_id_sends_parentId(self, mock_urlopen):
+        """create_project(name, parent_id=X) → POST body contains "parentId": X."""
+        from mcp_server import create_project
+
+        self._mock_json_response(
+            mock_urlopen,
+            {"id": 9, "name": "Sub", "slug": "sub", "parentSlug": "parent", "depth": 2},
+        )
+
+        result = create_project("Sub", parent_id=7)
+
+        request, body = self._sent_request(mock_urlopen)
+        assert request.get_method() == "POST"
+        assert request.full_url.endswith("/v1/projects")
+        assert body == {"name": "Sub", "parentId": 7}
+        assert result["id"] == 9
+
+    @patch("mcp_server.urlopen")
+    def test_create_without_parent_id_omits_key(self, mock_urlopen):
+        """create_project(name) → POST body has NO parentId key (backward compatible)."""
+        from mcp_server import create_project
+
+        self._mock_json_response(mock_urlopen, {"id": 9, "name": "Root", "slug": "root"})
+
+        create_project("Root")
+
+        _, body = self._sent_request(mock_urlopen)
+        assert body == {"name": "Root"}
+        assert "parentId" not in body
+
+    @patch("mcp_server.urlopen")
+    def test_create_with_null_parent_id_omits_key(self, mock_urlopen):
+        """create_project(name, parent_id=None) → same as omitting (root project)."""
+        from mcp_server import create_project
+
+        self._mock_json_response(mock_urlopen, {"id": 9, "name": "Root", "slug": "root"})
+
+        create_project("Root", parent_id=None)
+
+        _, body = self._sent_request(mock_urlopen)
+        assert "parentId" not in body
+
+    @patch("mcp_server.urlopen")
+    def test_create_with_parent_and_description(self, mock_urlopen):
+        """All three parameters combine into one POST body."""
+        from mcp_server import create_project
+
+        self._mock_json_response(mock_urlopen, {"id": 9, "name": "Sub", "slug": "sub"})
+
+        create_project("Sub", description="d", parent_id=3)
+
+        _, body = self._sent_request(mock_urlopen)
+        assert body == {"name": "Sub", "description": "d", "parentId": 3}
+
+    # ── update_project tri-state ──
+
+    @patch("mcp_server.urlopen")
+    def test_update_without_hierarchy_params_sends_no_parent_key(self, mock_urlopen):
+        """update without parent_id/move_to_root → PUT body has NO parentId key (no move)."""
+        from mcp_server import update_project
+
+        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj", "depth": 2})
+
+        update_project("my-proj", description="only desc")
+
+        request, body = self._sent_request(mock_urlopen)
+        assert request.get_method() == "PUT"
+        assert request.full_url.endswith("/v1/projects/my-proj")
+        assert body == {"description": "only desc"}
+        assert "parentId" not in body
+
+    @patch("mcp_server.urlopen")
+    def test_update_with_null_parent_id_sends_no_parent_key(self, mock_urlopen):
+        """Explicit parent_id=None is treated as 'not given' → hierarchy unchanged."""
+        from mcp_server import update_project
+
+        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj", "depth": 2})
+
+        update_project("my-proj", parent_id=None)
+
+        _, body = self._sent_request(mock_urlopen)
+        assert body is None or "parentId" not in body
+
+    @patch("mcp_server.urlopen")
+    def test_update_move_to_new_parent(self, mock_urlopen):
+        """update_project(slug, parent_id=X) → PUT body "parentId": X (move under X)."""
+        from mcp_server import update_project
+
+        self._mock_json_response(
+            mock_urlopen,
+            {"id": 1, "slug": "my-proj", "parentSlug": "new-parent", "depth": 2},
+        )
+
+        update_project("my-proj", parent_id=9)
+
+        _, body = self._sent_request(mock_urlopen)
+        assert body == {"parentId": 9}
+
+    @patch("mcp_server.urlopen")
+    def test_update_move_to_root_sends_explicit_null(self, mock_urlopen):
+        """update_project(slug, move_to_root=True) → PUT body "parentId": null (back to root)."""
+        from mcp_server import update_project
+
+        self._mock_json_response(
+            mock_urlopen, {"id": 1, "slug": "my-proj", "parentSlug": None, "depth": 1}
+        )
+
+        update_project("my-proj", move_to_root=True)
+
+        request, body = self._sent_request(mock_urlopen)
+        # The key must be present with an explicit null value (backend tri-state).
+        assert "parentId" in body
+        assert body["parentId"] is None
+        raw = request.data.decode("utf-8")
+        assert '"parentId": null' in raw or '"parentId":null' in raw
+
+    @patch("mcp_server.urlopen")
+    def test_update_combined_fields_and_move(self, mock_urlopen):
+        """name + description + parent_id combine into one PUT body."""
+        from mcp_server import update_project
+
+        self._mock_json_response(mock_urlopen, {"id": 1, "slug": "my-proj"})
+
+        update_project("my-proj", name="New Name", description="d", parent_id=4)
+
+        _, body = self._sent_request(mock_urlopen)
+        assert body == {"name": "New Name", "description": "d", "parentId": 4}
+
+    @patch("mcp_server.urlopen")
+    def test_update_contradictory_hierarchy_params_raise(self, mock_urlopen):
+        """parent_id + move_to_root together → MCPToolError, no HTTP call is made."""
+        from mcp_server import update_project, MCPToolError
+
+        with pytest.raises(MCPToolError, match="Contradictory"):
+            update_project("my-proj", parent_id=4, move_to_root=True)
+
+        mock_urlopen.assert_not_called()
+
+    # ── JSON schema (what the LLM sees via tools/list) ──
+
+    def test_create_project_schema_exposes_parent_id(self):
+        """create_project's input schema exposes an optional integer parent_id."""
+        from pydantic import TypeAdapter
+        from mcp_server import create_project
+
+        schema = TypeAdapter(create_project).json_schema()
+        props = schema["properties"]
+        assert "parent_id" in props
+        assert "parent_id" not in schema.get("required", [])
+
+    def test_update_project_schema_exposes_hierarchy_params(self):
+        """update_project's input schema exposes parent_id (int|null) and move_to_root (bool)."""
+        from pydantic import TypeAdapter
+        from mcp_server import update_project
+
+        schema = TypeAdapter(update_project).json_schema()
+        props = schema["properties"]
+        assert "parent_id" in props
+        assert "move_to_root" in props
+        required = schema.get("required", [])
+        for param in ("parent_id", "move_to_root"):
+            assert param not in required
+
+    def test_tools_registered_with_new_signatures(self):
+        """create_mcp_server() still registers all tools with the new signatures."""
+        from mcp_server import create_mcp_server
+
+        server = create_mcp_server()
+        assert server.name == "wiki4ai"
