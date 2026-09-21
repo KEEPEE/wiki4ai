@@ -435,6 +435,8 @@ def list_projects() -> list[dict]:
         - name (str): Human-readable project name
         - slug (str): URL-friendly identifier used in all other API calls
         - description (str): Project description
+        - parentSlug (str or null): Slug of the parent project, null for root projects
+        - depth (int): Hierarchy depth (1 = root, 2 = subproject, ... max 5)
         - documentCount (int): Number of documents in the project
         - createdAt (str): ISO 8601 creation timestamp
         - updatedAt (str): ISO 8601 last update timestamp
@@ -456,7 +458,8 @@ def get_project(slug: str) -> dict:
             Get slugs from list_projects() or from URLs.
 
     Returns:
-        Project object with id, name, slug, description, documentCount, createdAt, updatedAt.
+        Project object with id, name, slug, description, parentSlug (null for root projects),
+        depth (1 for root projects, 2 for their children, ... max 5), documentCount, createdAt, updatedAt.
 
     Example:
         get_project("my-wiki-project")  # Returns project details including document count
@@ -464,48 +467,95 @@ def get_project(slug: str) -> dict:
     return _api_request("GET", f"/v1/projects/{slug}")
 
 
-def create_project(name: str, description: Optional[str] = None) -> dict:
+def create_project(name: str, description: Optional[str] = None, parent_id: Optional[int] = None) -> dict:
     """Create a new wiki project for organizing documents.
 
     The slug is auto-generated from the name (lowercase, spaces replaced with hyphens).
     After creation, use the returned `slug` to add documents to this project.
 
+    Subprojects: pass `parent_id` to create the project as a subproject of an existing
+    project. The hierarchy is limited to 5 levels deep and parents that would create a
+    cycle are rejected by the backend with a clear error.
+
     Args:
         name: The name of the project (required, max 255 chars). A unique slug is auto-generated from this.
         description: An optional description of the project purpose (max 1000 chars).
+        parent_id: Optional ID of an existing project to nest this one under (subproject).
+            Omit it (or pass null) to create a root-level project. Max hierarchy depth is 5;
+            cycles are rejected by the backend. Get numeric IDs from list_projects().
 
     Returns:
-        Created project object with id, name, slug, description, documentCount (0), createdAt, updatedAt.
+        Created project object with id, name, slug, description, parentSlug (null for root),
+        depth (1 for root, 2 when created as a subproject), documentCount (0), createdAt, updatedAt.
 
     Example:
         create_project("My Documentation", description="Technical docs for my project")
         # Returns: {"id": 5, "name": "My Documentation", "slug": "my-documentation", ...}
+        parent = list_projects()[0]
+        create_project("API Notes", parent_id=parent["id"])  # subproject under 'parent'
     """
     body = {"name": name}
     if description:
         body["description"] = description
+    if parent_id is not None:
+        body["parentId"] = parent_id
     return _api_request("POST", "/v1/projects", body)
 
 
-def update_project(slug: str, name: Optional[str] = None, description: Optional[str] = None) -> dict:
+def update_project(
+    slug: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    parent_id: Optional[int] = None,
+    move_to_root: bool = False,
+) -> dict:
     """Update an existing project by its slug. Partial update - only provided fields change.
+
+    Hierarchy (subprojects): the project's position in the subproject tree is controlled
+    by `parent_id` / `move_to_root` with this exact tri-state semantics:
+      - NEITHER parameter given → the hierarchy is NOT changed (no move).
+      - parent_id=<int> → move the project under the project with that ID.
+      - move_to_root=True → move the project back to the root level.
+
+    IMPORTANT: an omitted or null `parent_id` means "leave the hierarchy unchanged" — it is
+    NOT interpreted as "move to root". To move a project back to the root you MUST pass
+    move_to_root=True. Passing both parent_id and move_to_root=True is contradictory and
+    raises an error. Moves are limited to 5 levels deep; moves that would create a cycle
+    are rejected by the backend with a clear error.
 
     Args:
         slug: The URL-friendly slug of the project to update (required).
         name: New name for the project (optional, max 255 chars). Changing name also changes the slug.
         description: New description for the project (optional, max 1000 chars).
+        parent_id: Optional new parent project ID — moves the project under that project.
+            Omit it (or pass null) to leave the hierarchy unchanged. Max depth 5; cycles rejected.
+        move_to_root: Set True to move the project back to the root level (parentless).
+            Only used when parent_id is not given; combining both parameters raises an error.
 
     Returns:
-        Updated project object with id, name, slug, description, documentCount, createdAt, updatedAt.
+        Updated project object with id, name, slug, description, parentSlug (null for root),
+        depth (1 for root, 2 for subprojects, ... max 5), documentCount, createdAt, updatedAt.
 
     Example:
         update_project("my-wiki", description="Updated description")  # Only updates description
+        update_project("my-wiki", parent_id=7)      # Move under project with id 7
+        update_project("my-wiki", move_to_root=True)  # Move back to the root level
     """
     body = {}
     if name is not None:
         body["name"] = name
     if description is not None:
         body["description"] = description
+    if parent_id is not None and move_to_root:
+        raise MCPToolError(
+            "Contradictory hierarchy parameters: pass either parent_id (move under a project) "
+            "or move_to_root=True (move back to root), not both."
+        )
+    if move_to_root:
+        # Explicit null in the JSON body → backend moves the project back to the root.
+        body["parentId"] = None
+    elif parent_id is not None:
+        body["parentId"] = parent_id
     return _api_request("PUT", f"/v1/projects/{slug}", body)
 
 
