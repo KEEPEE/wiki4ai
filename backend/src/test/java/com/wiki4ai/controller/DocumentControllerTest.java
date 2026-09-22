@@ -12,9 +12,11 @@ import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
+import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
@@ -521,6 +524,101 @@ class DocumentControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.errors").exists())
                     .andExpect(content().string(org.hamcrest.Matchers.containsString("find must not be blank")));
+        }
+    }
+
+    // ==================== WIKI4AI-72: OPTIMISTIC LOCKING (409) TESTS ====================
+
+    @Nested
+    @DisplayName("WIKI4AI-72: document version conflict (409)")
+    class DocumentVersionConflictTests {
+
+        @Test
+        @DisplayName("Should return 409 with currentVersion and expectedVersion when expectedVersion is stale")
+        void shouldReturn409WhenExpectedVersionStale() throws Exception {
+            // given — document moved from version 2 to 3 while the client was editing
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("stale writer content")
+                    .expectedVersion(2L)
+                    .build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new DocumentVersionConflictException(3L, 2L));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(jsonPath("$.error").value("Document version conflict"))
+                    .andExpect(jsonPath("$.currentVersion").value(3))
+                    .andExpect(jsonPath("$.expectedVersion").value(2))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("Re-read the document and retry")));
+        }
+
+        @Test
+        @DisplayName("Should return 409 (same shape, no expectedVersion) on JPA ObjectOptimisticLockingFailureException")
+        void shouldReturn409OnJpaOptimisticLockingFailure() throws Exception {
+            // given — concurrent commit without expectedVersion (@Version safety net)
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().content("concurrent write").build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new ObjectOptimisticLockingFailureException(
+                            "com.wiki4ai.model.Document", 1L, new RuntimeException("stale state")));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.status").value(409))
+                    .andExpect(jsonPath("$.error").value("Document version conflict"))
+                    .andExpect(jsonPath("$.expectedVersion").doesNotExist())
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("Re-read the document and retry")));
+        }
+
+        @Test
+        @DisplayName("Should return 409 on raw JPA OptimisticLockException (e.g. StaleObjectStateException)")
+        void shouldReturn409OnRawJpaOptimisticLockException() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder().content("concurrent write").build();
+            given(documentService.updateDocumentBySlug(eq(1L), eq("test-document"), any(DocumentUpdateDTO.class), any(String.class)))
+                    .willThrow(new OptimisticLockException("Row was updated or deleted by another transaction"));
+
+            // when & then
+            mockMvc.perform(put("/api/v1/projects/test-project/documents/test-document")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateDto)))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value("Document version conflict"));
+        }
+
+        @Test
+        @DisplayName("GET document response should include the version field")
+        void getDocumentShouldIncludeVersion() throws Exception {
+            // given
+            mockProjectResolution("test-project");
+            DocumentDTO doc = DocumentDTO.builder()
+                    .id(1L)
+                    .title("Test Document")
+                    .content("# Hello World")
+                    .slug("test-document")
+                    .projectId(1L)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .version(4L)
+                    .build();
+            given(documentService.getDocument(eq(1L), eq("test-document"), any(String.class))).willReturn(doc);
+
+            // when & then
+            mockMvc.perform(get("/api/v1/projects/test-project/documents/test-document"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.version").value(4));
         }
     }
 

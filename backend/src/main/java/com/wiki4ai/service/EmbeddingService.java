@@ -7,8 +7,10 @@ import com.wiki4ai.repository.UserRepository;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import jakarta.annotation.PreDestroy;
+import jakarta.persistence.OptimisticLockException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -105,6 +107,12 @@ public class EmbeddingService {
             transactionTemplate.executeWithoutResult(tx ->
                     documentRepository.updateEmbedding(document.getId(), literal));
             log.debug("Embedded document {} (id={})", document.getTitle(), document.getId());
+        } catch (ObjectOptimisticLockingFailureException | OptimisticLockException e) {
+            // WIKI4AI-72: a concurrent writer committed while we held a stale state —
+            // this is a document conflict, NOT an embedding failure. It must surface
+            // as 409 to the caller; swallowing it would leave the surrounding
+            // transaction rollback-only and turn the conflict into a 500.
+            throw e;
         } catch (Exception e) {
             log.warn("Embedding failed for document '{}' (id={}): {} — text search still works; "
                     + "run the backfill endpoint to fill the gap", document.getTitle(), document.getId(), e.getMessage());

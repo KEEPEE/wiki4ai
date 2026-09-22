@@ -9,6 +9,7 @@ import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
+import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
@@ -2217,6 +2218,162 @@ class DocumentServiceTest {
             assertThat(summary.getCreatedAt()).isNotNull();
             assertThat(summary.getUpdatedAt()).isNotNull();
             // The summary DTO simply doesn't have a getContent() method, so content is excluded by design
+        }
+    }
+
+    @Nested
+    @DisplayName("WIKI4AI-72: optimistic locking (expectedVersion)")
+    class VersionConflictTests {
+
+        private Document documentWithVersion(long version) {
+            return Document.builder()
+                    .id(1L)
+                    .title("Source Document")
+                    .content("Source content")
+                    .slug("source-document")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .createdAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
+                    .version(version)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("Should throw DocumentVersionConflictException when expectedVersion does not match")
+        void shouldThrowOnExpectedVersionMismatch() {
+            // given — document is at version 3, caller still thinks it is version 2
+            Document doc = documentWithVersion(3L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("Stale writer content")
+                    .expectedVersion(2L)
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOf(DocumentVersionConflictException.class)
+                    .hasMessageContaining("version 2")
+                    .hasMessageContaining("current version: 3");
+
+            // and no change was applied or persisted
+            assertThat(doc.getContent()).isEqualTo("Source content");
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should expose currentVersion and expectedVersion on the conflict exception")
+        void shouldExposeBothVersionsOnConflict() {
+            // given
+            Document doc = documentWithVersion(7L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("x")
+                    .expectedVersion(5L)
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
+                    .isInstanceOfSatisfying(DocumentVersionConflictException.class, ex -> {
+                        assertThat(ex.getCurrentVersion()).isEqualTo(7L);
+                        assertThat(ex.getExpectedVersion()).isEqualTo(5L);
+                    });
+        }
+
+        @Test
+        @DisplayName("Should apply the update when expectedVersion matches the current version")
+        void shouldApplyUpdateWhenExpectedVersionMatches() {
+            // given
+            Document doc = documentWithVersion(2L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("New content here")
+                    .expectedVersion(2L)
+                    .build();
+
+            // when
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(doc.getContent()).isEqualTo("New content here");
+            assertThat(result.getVersion()).isEqualTo(2L);
+            verify(documentRepository).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should keep legacy behavior when expectedVersion is not provided (backward compatible)")
+        void shouldApplyUpdateWithoutExpectedVersion() {
+            // given — no expectedVersion in the payload at all
+            Document doc = documentWithVersion(9L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("Legacy client content")
+                    .build();
+
+            // when
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(doc.getContent()).isEqualTo("Legacy client content");
+            assertThat(result.getVersion()).isEqualTo(9L);
+        }
+
+        @Test
+        @DisplayName("Should treat a null entity version as 0 when checking expectedVersion")
+        void shouldTreatNullEntityVersionAsZero() {
+            // given — in-memory entity without a version (e.g. just built), caller expects 0
+            Document doc = documentWithVersion(0L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+            when(documentRepository.save(any(Document.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("ok")
+                    .expectedVersion(0L)
+                    .build();
+
+            // when — must not conflict
+            DocumentDTO result = documentService.updateDocumentBySlug(1L, "source-document", updateDto);
+
+            // then
+            assertThat(result.getContent()).isEqualTo("ok");
+        }
+
+        @Test
+        @DisplayName("Should enforce expectedVersion on the by-ID update path as well")
+        void shouldThrowOnExpectedVersionMismatchById() {
+            // given
+            Document doc = documentWithVersion(4L);
+            when(documentRepository.findById(1L)).thenReturn(Optional.of(doc));
+            DocumentUpdateDTO updateDto = DocumentUpdateDTO.builder()
+                    .content("stale")
+                    .expectedVersion(3L)
+                    .build();
+
+            // when & then
+            assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
+                    .isInstanceOf(DocumentVersionConflictException.class);
+            verify(documentRepository, never()).save(any(Document.class));
+        }
+
+        @Test
+        @DisplayName("Should include the version in the GET (convertToDTO) response")
+        void shouldIncludeVersionInReadResponse() {
+            // given
+            Document doc = documentWithVersion(5L);
+            when(documentRepository.findBySlugAndProjectId("source-document", 1L))
+                    .thenReturn(Optional.of(doc));
+
+            // when
+            DocumentDTO result = documentService.getDocument(1L, "source-document");
+
+            // then
+            assertThat(result.getVersion()).isEqualTo(5L);
         }
     }
 }
