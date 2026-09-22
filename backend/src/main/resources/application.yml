@@ -87,11 +87,28 @@ jwt:
   expiration: 86400000  # 24 hours in ms
   refreshExpiration: 604800000  # 7 days
 
-# Initial admin bootstrap - creates first admin user when DB is empty
+# Initial admin bootstrap (WIKI4AI-69) - OPTIONAL provisioning for compose-managed
+# instances. NO DEFAULTS ON PURPOSE: a fresh "out of the box" instance must never
+# ship with publicly known credentials (the old admin/change-me-now defaults were
+# a security gap). When both values are unset, InitialAdminBootstrap skips and the
+# instance starts UNINITIALIZED - the first ADMIN account is then created through
+# the WebUI first-run setup flow (POST /api/v1/auth/setup). Set them explicitly
+# (env ADMIN_INITIAL_USERNAME / ADMIN_INITIAL_PASSWORD) only to provision the
+# admin non-interactively; they are honored only while the users table is empty.
 admin:
   initial:
-    username: ${ADMIN_INITIAL_USERNAME:admin}
-    password: ${ADMIN_INITIAL_PASSWORD:change-me-now}
+    username: ${ADMIN_INITIAL_USERNAME:}
+    password: ${ADMIN_INITIAL_PASSWORD:}
+
+# Public self-registration policy (WIKI4AI-70) for POST /api/v1/auth/register:
+#   unset (default) - open only while no account exists yet (first-run); closes
+#                     automatically once the first account is created (403 after)
+#   true            - always open (explicit opt-in for self-hosters who want
+#                     public sign-up on their instance)
+#   false           - never open (accounts via first-run setup or admin UI only)
+auth:
+  registration:
+    open: ${AUTH_REGISTRATION_OPEN:}
 
 # Image upload storage (WIKI4AI-64). Host volume in the docker stack:
 # /var/lib/wiki4ai/uploads -> /uploads in the backend container.

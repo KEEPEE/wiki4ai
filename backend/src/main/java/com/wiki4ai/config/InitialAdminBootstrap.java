@@ -47,13 +47,18 @@ public class InitialAdminBootstrap implements CommandLineRunner {
         String username = properties.username();
         String rawPassword = properties.password();
 
-        // Validate that credentials are configured
+        // WIKI4AI-69: credentials are now strictly opt-in (no defaults in
+        // application.yml). When unset, the instance intentionally starts
+        // uninitialized — the first ADMIN is created through the WebUI first-run
+        // setup flow. Log a prominent startup warning so operators notice.
         if (username == null || username.isBlank()) {
-            log.warn("Skipping initial admin creation: admin.initial.username is not set.");
+            log.warn("Initial admin bootstrap SKIPPED: admin.initial.username (env ADMIN_INITIAL_USERNAME) is not set. "
+                    + "The instance starts uninitialized — create the first ADMIN account through the WebUI setup flow (POST /api/v1/auth/setup).");
             return;
         }
         if (rawPassword == null || rawPassword.isBlank()) {
-            log.warn("Skipping initial admin creation: admin.initial.password is not set.");
+            log.warn("Initial admin bootstrap SKIPPED: admin.initial.password (env ADMIN_INITIAL_PASSWORD) is not set. "
+                    + "The instance starts uninitialized — create the first ADMIN account through the WebUI setup flow (POST /api/v1/auth/setup).");
             return;
         }
 

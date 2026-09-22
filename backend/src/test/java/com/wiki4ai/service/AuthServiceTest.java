@@ -47,7 +47,8 @@ class AuthServiceTest {
         when(jwtUtil.generateToken(anyString())).thenReturn("mock-access-token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("mock-refresh-token");
         when(jwtUtil.getRefreshExpirationSeconds()).thenReturn(86400L); // 24 hours default
-        authService = new AuthService(userRepository, refreshTokenRepository, apiTokenRepository, entityManager, transactionTemplate, jwtUtil);
+        authService = new AuthService(userRepository, refreshTokenRepository, apiTokenRepository, entityManager, transactionTemplate, jwtUtil,
+                new com.wiki4ai.config.RegistrationProperties(null)); // default policy: open while no user exists
     }
 
     @Nested

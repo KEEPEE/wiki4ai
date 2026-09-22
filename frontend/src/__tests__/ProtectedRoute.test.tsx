@@ -2,11 +2,20 @@
  * Tests for ProtectedRoute component
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from '../components/ProtectedRoute'
 import { AuthProvider } from '../contexts/AuthContext'
+import * as authApi from '../services/authApi'
+
+// Mock the auth API (the provider probes GET /api/v1/auth/status on mount)
+vi.mock('../services/authApi', () => ({
+  login: vi.fn(),
+  register: vi.fn(),
+  getAuthStatus: vi.fn(),
+  setup: vi.fn(),
+}))
 
 /** Create a fake JWT that won't expire for 1 hour */
 function createFakeJwt(): string {
@@ -46,6 +55,15 @@ function renderWithAuth(initialPath = '/', isAuthenticated = false) {
               </div>
             }
           />
+          <Route
+            path="/setup"
+            element={
+              <div data-testid="setup-page">
+                Setup Page
+                <span data-testid="redirect-param">{window.location.search}</span>
+              </div>
+            }
+          />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -53,6 +71,15 @@ function renderWithAuth(initialPath = '/', isAuthenticated = false) {
 }
 
 describe('ProtectedRoute', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // WIKI4AI-69/70: default instance state — initialized (regular login flow)
+    vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+      initialized: true,
+      registrationOpen: false,
+    })
+  })
+
   it('should render children when user is authenticated', async () => {
     renderWithAuth('/protected', true)
 
@@ -79,5 +106,21 @@ describe('ProtectedRoute', () => {
 
     // Component should be rendering (either spinner or redirect)
     expect(container.firstChild).not.toBeNull()
+  })
+
+  it('should redirect to /setup (not /login) when not authenticated on a fresh instance', async () => {
+    vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+      initialized: false,
+      registrationOpen: true,
+    })
+
+    renderWithAuth('/protected', false)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('protected-content')).not.toBeInTheDocument()
+      // Fresh instance → the setup form, not the login page
+      expect(screen.getByTestId('setup-page')).toBeInTheDocument()
+      expect(screen.queryByTestId('login-page')).not.toBeInTheDocument()
+    })
   })
 })

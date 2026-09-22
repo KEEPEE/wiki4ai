@@ -1,16 +1,23 @@
 package com.wiki4ai.config;
 
+import com.wiki4ai.model.User;
+import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -22,8 +29,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @TestPropertySource(properties = "security.enabled=true")
 class SecurityConfigTest {
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    /**
+     * WIKI4AI-70: registration is closed by default once the first account exists,
+     * and all test classes sharing this context also share the H2 in-memory DB.
+     * Start every test with an empty users table so register/setup behave as on a
+     * fresh instance regardless of test order.
+     */
+    @BeforeEach
+    void cleanUsers() {
+        List<User> all = userRepository.findAll();
+        for (User u : all) {
+            try {
+                userRepository.delete(u);
+            } catch (Exception ignored) {
+            }
+        }
+    }
 
     @Test
     void authLoginEndpoint_shouldBePublic() throws Exception {
@@ -41,6 +68,31 @@ class SecurityConfigTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"testuser\",\"email\":\"test@test.com\",\"password\":\"testpass123\"}"))
                 .andExpect(status().isCreated()); // 201 because registration succeeds
+    }
+
+    @Test
+    void authStatusEndpoint_shouldBePublic() throws Exception {
+        // WIKI4AI-69: GET /api/v1/auth/status is the public first-run probe.
+        // Fresh (cleaned) DB → initialized=false, and with the default policy
+        // registration is open while no account exists.
+        mockMvc.perform(get("/api/v1/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.initialized").value(false))
+                .andExpect(jsonPath("$.registrationOpen").value(true));
+    }
+
+    @Test
+    void authSetupEndpoint_shouldBePublicWhileUninitialized() throws Exception {
+        // WIKI4AI-69: POST /api/v1/auth/setup is public (no JWT) on a fresh instance.
+        mockMvc.perform(post("/api/v1/auth/setup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"setupuser\",\"password\":\"testpass123\"}"))
+                .andExpect(status().isCreated());
+
+        // And the status flips to initialized afterwards.
+        mockMvc.perform(get("/api/v1/auth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.initialized").value(true));
     }
 
     @Test

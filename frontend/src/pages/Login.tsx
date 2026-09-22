@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { getRedirectFromUrl } from '../services/apiClient';
 import AmbientBackground from '../components/AmbientBackground';
@@ -10,7 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, instanceInitialized, registrationOpen } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = useCallback(
@@ -36,6 +36,31 @@ export default function Login() {
     },
     [username, password, login, navigate],
   );
+
+  // WIKI4AI-69: on a fresh instance (no accounts yet) there is nothing to log in
+  // with — send the visitor to the first-run setup form instead. Keep any
+  // ?redirect= target so they can return after setting up and logging in.
+  if (instanceInitialized === false) {
+    const redirectUrl = getRedirectFromUrl();
+    const target = redirectUrl ? `/setup?redirect=${encodeURIComponent(redirectUrl)}` : '/setup';
+    return <Navigate to={target} replace />;
+  }
+
+  // Status probe still in flight — avoid flashing the form on a fresh instance.
+  if (instanceInitialized === null) {
+    return (
+      <>
+        <AmbientBackground />
+        <div className="auth-page">
+          <div className="auth-card">
+            <div className="loading-state" style={{ display: 'flex', justifyContent: 'center' }}>
+              <div className="spinner" />
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -95,12 +120,18 @@ export default function Login() {
             </button>
           </form>
 
-          <p className="auth-footer">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="auth-link">
-              Register here
-            </Link>
-          </p>
+          {/* WIKI4AI-69/70: footer link follows the instance state. At this point
+              the instance is always initialized (a fresh instance was redirected
+              to /setup above), so only the registration policy matters:
+              open → register link; closed (default) → no link. */}
+          {registrationOpen && (
+            <p className="auth-footer">
+              Don&apos;t have an account?{' '}
+              <Link to="/register" className="auth-link">
+                Register here
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </>

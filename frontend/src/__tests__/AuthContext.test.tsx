@@ -12,6 +12,8 @@ import * as authApi from '../services/authApi'
 vi.mock('../services/authApi', () => ({
   login: vi.fn(),
   register: vi.fn(),
+  getAuthStatus: vi.fn().mockResolvedValue({ initialized: true, registrationOpen: false }),
+  setup: vi.fn(),
 }))
 
 /** Create a fake JWT that won't expire for 1 hour */

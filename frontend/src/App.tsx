@@ -13,6 +13,7 @@ import ProjectDetail from './pages/ProjectDetail'
 import ProjectSettings from './pages/ProjectSettings'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import SetupPage from './pages/SetupPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminUsersPage from './pages/AdminUsersPage'
 import VaultPage from './pages/VaultPage'
@@ -61,6 +62,8 @@ function App() {
                 {/* Auth pages - standalone, no Layout wrapper */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                {/* WIKI4AI-69: first-run setup (shown only while no account exists) */}
+                <Route path="/setup" element={<SetupPage />} />
 
                 {/* Main app routes with Layout - all protected */}
                 <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
