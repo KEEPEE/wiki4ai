@@ -14,6 +14,8 @@ import * as authApi from '../services/authApi'
 vi.mock('../services/authApi', () => ({
   login: vi.fn(),
   register: vi.fn(),
+  getAuthStatus: vi.fn(),
+  setup: vi.fn(),
 }))
 
 function renderRegister() {
@@ -23,6 +25,7 @@ function renderRegister() {
         <Routes>
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<div data-testid="login-page">Login Page</div>} />
+          <Route path="/setup" element={<div data-testid="setup-page">Setup Page</div>} />
         </Routes>
       </MemoryRouter>
     </AuthProvider>,
@@ -33,6 +36,12 @@ describe('Register', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    // WIKI4AI-69/70: default instance state for these tests — initialized with
+    // registration open, so the form renders like before this feature.
+    vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+      initialized: true,
+      registrationOpen: true,
+    })
   })
 
   describe('UI rendering', () => {
@@ -64,6 +73,9 @@ describe('Register', () => {
     it('should show error for username shorter than 3 characters', async () => {
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const passwordInput = screen.getByTestId('register-password')
 
@@ -80,6 +92,9 @@ describe('Register', () => {
     it('should show error for invalid email format', async () => {
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByTestId('register-password')
@@ -97,6 +112,9 @@ describe('Register', () => {
     it('should show error for password shorter than 8 characters', async () => {
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByTestId('register-password')
@@ -114,6 +132,9 @@ describe('Register', () => {
     it('should show all validation errors at once', async () => {
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByTestId('register-password')
@@ -141,6 +162,9 @@ describe('Register', () => {
 
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByTestId('register-password')
@@ -163,6 +187,9 @@ describe('Register', () => {
 
       renderRegister()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('register-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('register-username')
       const emailInput = screen.getByLabelText('Email')
       const passwordInput = screen.getByTestId('register-password')
@@ -194,6 +221,40 @@ describe('Register', () => {
       await userEvent.click(loginLink)
 
       expect(screen.getByTestId('login-page')).toBeInTheDocument()
+    })
+  })
+
+  describe('WIKI4AI-70: closed registration', () => {
+    it('should show a disabled message instead of the form when registration is closed', async () => {
+      vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+        initialized: true,
+        registrationOpen: false,
+      })
+
+      renderRegister()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('register-disabled')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('register-disabled')).toHaveTextContent(
+        /registration is disabled on this instance/i,
+      )
+      // No form fields should be rendered
+      expect(screen.queryByTestId('register-form')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText('Email')).not.toBeInTheDocument()
+    })
+
+    it('should redirect to /setup on a fresh (uninitialized) instance', async () => {
+      vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+        initialized: false,
+        registrationOpen: true,
+      })
+
+      renderRegister()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setup-page')).toBeInTheDocument()
+      })
     })
   })
 })
