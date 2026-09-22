@@ -14,6 +14,8 @@ import * as authApi from '../services/authApi'
 vi.mock('../services/authApi', () => ({
   login: vi.fn(),
   register: vi.fn(),
+  getAuthStatus: vi.fn(),
+  setup: vi.fn(),
 }))
 
 function renderLogin() {
@@ -23,6 +25,7 @@ function renderLogin() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<div data-testid="register-page">Register Page</div>} />
+          <Route path="/setup" element={<div data-testid="setup-page">Setup Page</div>} />
           <Route path="/" element={<div data-testid="dashboard-page">Dashboard</div>} />
         </Routes>
       </MemoryRouter>
@@ -34,6 +37,12 @@ describe('Login', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
+    // WIKI4AI-69/70: default instance state — initialized with registration open,
+    // so the register link renders like before this feature.
+    vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+      initialized: true,
+      registrationOpen: true,
+    })
   })
 
   describe('UI rendering', () => {
@@ -80,6 +89,9 @@ describe('Login', () => {
         </AuthProvider>,
       )
 
+      await waitFor(() => {
+        expect(screen.getByTestId('login-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('login-username')
       const passwordInput = screen.getByTestId('login-password')
 
@@ -100,6 +112,9 @@ describe('Login', () => {
 
       renderLogin()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('login-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('login-username')
       const passwordInput = screen.getByTestId('login-password')
       const submitBtn = screen.getByTestId('login-submit')
@@ -123,6 +138,9 @@ describe('Login', () => {
 
       renderLogin()
 
+      await waitFor(() => {
+        expect(screen.getByTestId('login-username')).toBeInTheDocument()
+      })
       const usernameInput = screen.getByTestId('login-username')
       const passwordInput = screen.getByTestId('login-password')
       const submitBtn = screen.getByTestId('login-submit')
@@ -148,6 +166,39 @@ describe('Login', () => {
       await userEvent.click(registerLink)
 
       expect(screen.getByTestId('register-page')).toBeInTheDocument()
+    })
+  })
+
+  describe('WIKI4AI-69/70: instance state', () => {
+    it('should redirect to /setup on a fresh (uninitialized) instance', async () => {
+      vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+        initialized: false,
+        registrationOpen: true,
+      })
+
+      renderLogin()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('setup-page')).toBeInTheDocument()
+      })
+      // The login form itself must not be shown on a fresh instance
+      expect(screen.queryByTestId('login-form')).not.toBeInTheDocument()
+    })
+
+    it('should hide the register link when registration is closed', async () => {
+      vi.mocked(authApi.getAuthStatus).mockResolvedValue({
+        initialized: true,
+        registrationOpen: false,
+      })
+
+      renderLogin()
+
+      await waitFor(() => {
+        expect(screen.getByTestId('login-form')).toBeInTheDocument()
+      })
+      expect(
+        screen.queryByRole('link', { name: /register here/i }),
+      ).not.toBeInTheDocument()
     })
   })
 })

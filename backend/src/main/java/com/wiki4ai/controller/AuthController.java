@@ -4,6 +4,7 @@ import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
+import com.wiki4ai.dto.SetupRequestDTO;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
 import com.wiki4ai.dto.TokenResponseDTO;
 import com.wiki4ai.dto.UserDTO;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -44,11 +46,58 @@ public class AuthController {
     }
 
     /**
+     * WIKI4AI-69: instance initialization status (public probe for the WebUI).
+     * <p>
+     * Returns only two booleans — deliberately no user details, counts or any other
+     * information that could be used to fingerprint the instance:
+     * <ul>
+     *   <li>{@code initialized} — true once at least one account exists; while false
+     *       the WebUI shows the first-run setup form instead of the login page;</li>
+     *   <li>{@code registrationOpen} — whether {@code POST /api/v1/auth/register} is
+     *       currently accepted (WIKI4AI-70 policy); the WebUI hides the register
+     *       form/link when it is false.</li>
+     * </ul>
+     */
+    @GetMapping("/status")
+    @Operation(summary = "Instance auth status", description = "Public probe: whether the instance has been initialized (first account exists) and whether public registration is currently open. Returns booleans only — no user details.")
+    @ApiResponse(responseCode = "200", description = "Status returned")
+    public ResponseEntity<Map<String, Boolean>> status() {
+        Map<String, Boolean> body = new LinkedHashMap<>();
+        body.put("initialized", authService.isInstanceInitialized());
+        body.put("registrationOpen", authService.isRegistrationOpen());
+        return ResponseEntity.ok(body);
+    }
+
+    /**
+     * WIKI4AI-69: first-run setup. Creates the very first account of an
+     * uninitialized instance with the ADMIN role.
+     * <p>
+     * Public (no JWT), but only accepted while the users table is empty — after
+     * the first account exists it returns 403 with a generic message. This is the
+     * only way to initialize a fresh instance that was not provisioned via the
+     * explicit ADMIN_INITIAL_USERNAME/ADMIN_INITIAL_PASSWORD bootstrap env vars.
+     */
+    @PostMapping("/setup")
+    @Operation(summary = "First-run setup", description = "Creates the first ADMIN account. Only accepted while no account exists (empty users table); afterwards returns 403. Email is optional — when omitted {username}@localhost is derived.")
+    @ApiResponse(responseCode = "201", description = "Initial ADMIN account created")
+    @ApiResponse(responseCode = "403", description = "Instance already initialized (setup no longer available)")
+    @ApiResponse(responseCode = "400", description = "Validation failed (missing/short username or password)")
+    public ResponseEntity<?> setup(@Valid @RequestBody SetupRequestDTO request) {
+        UserDTO user = authService.createInitialAdmin(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    }
+
+    /**
      * Register a new user.
+     * <p>
+     * WIKI4AI-70: subject to the registration policy — by default open only while
+     * no account exists yet, closed (403) afterwards; can be kept permanently open
+     * via {@code auth.registration.open=true}.
      */
     @PostMapping("/register")
-    @Operation(summary = "Register a new user", description = "Creates a new user account with the provided credentials")
+    @Operation(summary = "Register a new user", description = "Creates a new user account with the provided credentials. Closed by default once the first account exists (403); opt-in open registration via auth.registration.open=true")
     @ApiResponse(responseCode = "201", description = "User successfully registered")
+    @ApiResponse(responseCode = "403", description = "Registration is disabled on this instance")
     @ApiResponse(responseCode = "409", description = "Username or email already exists")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequestDTO request) {
         try {

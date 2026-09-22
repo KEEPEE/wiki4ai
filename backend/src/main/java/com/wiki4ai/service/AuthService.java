@@ -1,15 +1,20 @@
 package com.wiki4ai.service;
 
 import com.wiki4ai.config.JwtUtil;
+import com.wiki4ai.config.RegistrationProperties;
 import com.wiki4ai.dto.AuthResponseDTO;
 import com.wiki4ai.dto.LoginRequestDTO;
 import com.wiki4ai.dto.ProfileUpdateRequestDTO;
 import com.wiki4ai.dto.RegisterRequestDTO;
+import com.wiki4ai.dto.SetupRequestDTO;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
 import com.wiki4ai.dto.TokenResponseDTO;
 import com.wiki4ai.dto.UserDTO;
+import com.wiki4ai.exception.RegistrationDisabledException;
+import com.wiki4ai.exception.SetupAlreadyCompletedException;
 import com.wiki4ai.model.ApiToken;
 import com.wiki4ai.model.RefreshToken;
+import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.ApiTokenRepository;
 import com.wiki4ai.repository.RefreshTokenRepository;
@@ -17,6 +22,8 @@ import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -37,6 +44,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Service
+@EnableConfigurationProperties(RegistrationProperties.class)
 @ConditionalOnProperty(name = "security.enabled", havingValue = "true", matchIfMissing = true)
 public class AuthService {
 
@@ -63,27 +71,47 @@ public class AuthService {
     private final TransactionTemplate transactionTemplate;
     private final BCryptPasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RegistrationProperties registrationProperties;
+
+    /**
+     * WIKI4AI-69: serializes the first-run setup check-and-create. The deployment
+     * invariant is a single backend JVM (one container), so an in-JVM lock is
+     * sufficient to make "users table empty → create first ADMIN" atomic against
+     * concurrent setup requests. The unique username/email constraints remain the
+     * final backstop (see {@link #createInitialAdmin}).
+     */
+    private final Object initialAdminLock = new Object();
 
     public AuthService(UserRepository userRepository, RefreshTokenRepository refreshTokenRepository, 
                        ApiTokenRepository apiTokenRepository, EntityManager entityManager, 
-                       TransactionTemplate transactionTemplate, JwtUtil jwtUtil) {
+                       TransactionTemplate transactionTemplate, JwtUtil jwtUtil,
+                       RegistrationProperties registrationProperties) {
         this.userRepository = userRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.apiTokenRepository = apiTokenRepository;
         this.entityManager = entityManager;
         this.transactionTemplate = transactionTemplate;
         this.jwtUtil = jwtUtil;
+        this.registrationProperties = registrationProperties;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
     /**
      * Register a new user with the given credentials.
+     * <p>
+     * WIKI4AI-70: public self-registration is policy-controlled — see
+     * {@link #isRegistrationOpen()}. When registration is closed, this throws
+     * {@link RegistrationDisabledException} (mapped to HTTP 403).
      *
      * @param request the registration request containing username, email, and password
      * @return the created UserDTO (without password)
      */
     @Transactional
     public UserDTO registerUser(RegisterRequestDTO request) {
+        if (!isRegistrationOpen()) {
+            throw new RegistrationDisabledException("Registration is disabled on this instance");
+        }
+
         // Validate uniqueness of username
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username is already taken");
@@ -106,6 +134,88 @@ public class AuthService {
         userRepository.save(user);
 
         return convertToUserDTO(user);
+    }
+
+    /**
+     * WIKI4AI-69: create the first account of an uninitialized instance through
+     * the first-run setup flow ({@code POST /api/v1/auth/setup}).
+     * <p>
+     * Only accepted while the users table is empty; afterwards it throws
+     * {@link SetupAlreadyCompletedException} (mapped to HTTP 403). The created
+     * account always receives the ADMIN role — this is the only non-admin path
+     * that can initialize a fresh instance. When no email is supplied,
+     * {@code {username}@localhost} is derived (same convention as the
+     * InitialAdminBootstrap seed), keeping setup-created and bootstrap-created
+     * accounts consistent.
+     * <p>
+     * The check-and-create is serialized on an in-JVM lock (single-JVM
+     * deployment invariant) so two concurrent first-run requests cannot create
+     * two admins; the unique username/email constraints are the final backstop.
+     *
+     * @param request the setup request containing username, password and optional email
+     * @return the created ADMIN UserDTO (without password)
+     */
+    @Transactional
+    public UserDTO createInitialAdmin(SetupRequestDTO request) {
+        synchronized (initialAdminLock) {
+            if (userRepository.count() > 0) {
+                log.warn("Setup rejected: instance is already initialized");
+                throw new SetupAlreadyCompletedException("Setup already completed");
+            }
+
+            String email = (request.getEmail() != null && !request.getEmail().isBlank())
+                    ? request.getEmail().trim()
+                    : request.getUsername() + "@localhost";
+
+            if (userRepository.existsByEmail(email)) {
+                throw new IllegalArgumentException("Email is already registered");
+            }
+
+            User user = User.builder()
+                    .username(request.getUsername())
+                    .email(email)
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .role(Role.ADMIN)
+                    .build();
+
+            try {
+                userRepository.save(user);
+            } catch (DataIntegrityViolationException e) {
+                // Lost a race on the unique username/email constraint — treat as
+                // already initialized rather than leaking which value collided.
+                throw new SetupAlreadyCompletedException("Setup already completed");
+            }
+
+            log.info("First-run setup completed: initial ADMIN account '{}' created", user.getUsername());
+            return convertToUserDTO(user);
+        }
+    }
+
+    /**
+     * WIKI4AI-69: whether the instance has been initialized, i.e. the users table
+     * is non-empty. Exposed by {@code GET /api/v1/auth/status} as a plain boolean —
+     * no user details are ever returned.
+     */
+    public boolean isInstanceInitialized() {
+        return userRepository.count() > 0;
+    }
+
+    /**
+     * WIKI4AI-70: whether public self-registration ({@code POST /api/v1/auth/register})
+     * is currently accepted. Policy (property {@code auth.registration.open}):
+     * <ul>
+     *   <li>unset (default) — open only while the users table is empty (first-run),
+     *       closed automatically once the first account exists;</li>
+     *   <li>{@code true} — always open (explicit opt-in for self-hosters);</li>
+     *   <li>{@code false} — never open.</li>
+     * </ul>
+     */
+    public boolean isRegistrationOpen() {
+        Boolean open = registrationProperties == null ? null : registrationProperties.open();
+        if (open != null) {
+            return open;
+        }
+        return userRepository.count() == 0;
     }
 
     /**

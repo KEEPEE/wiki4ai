@@ -31,6 +31,25 @@ export interface AuthResponse {
 }
 
 /**
+ * WIKI4AI-69/70: public instance auth status (GET /api/v1/auth/status).
+ * Booleans only — the backend deliberately leaks no user details.
+ */
+export interface AuthStatus {
+  /** true once at least one account exists (instance initialized) */
+  initialized: boolean;
+  /** whether POST /api/v1/auth/register is currently accepted */
+  registrationOpen: boolean;
+}
+
+/** Request body for the first-run setup endpoint. */
+export interface SetupRequest {
+  username: string;
+  password: string;
+  /** Optional — when omitted the backend derives {username}@localhost */
+  email?: string;
+}
+
+/**
  * Login with username and password.
  */
 export async function login(username: string, password: string): Promise<AuthResponse> {
@@ -61,6 +80,45 @@ export async function register(username: string, email: string, password: string
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
     throw new Error(errorBody.error || `Registration failed: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * WIKI4AI-69/70: fetch the public instance auth status.
+ * Used to decide between the first-run setup form and the regular login page,
+ * and whether the register form/link is shown.
+ */
+export async function getAuthStatus(signal?: AbortSignal): Promise<AuthStatus> {
+  const response = await fetch(`${API_BASE_URL}/auth/status`, signal ? { signal } : undefined);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load auth status: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * WIKI4AI-69: first-run setup — creates the very first account (ADMIN role).
+ * Only accepted while no account exists; afterwards the backend returns 403.
+ */
+export async function setup(username: string, password: string, email?: string): Promise<UserInfo> {
+  const body: SetupRequest = { username, password };
+  if (email) {
+    body.email = email;
+  }
+
+  const response = await fetch(`${API_BASE_URL}/auth/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.message || errorBody.error || `Setup failed: ${response.statusText}`);
   }
 
   return response.json();

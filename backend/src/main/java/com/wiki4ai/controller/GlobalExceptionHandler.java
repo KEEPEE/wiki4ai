@@ -2,11 +2,14 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
+import com.wiki4ai.exception.RegistrationDisabledException;
+import com.wiki4ai.exception.SetupAlreadyCompletedException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -82,6 +85,64 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
 
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    /**
+     * WIKI4AI-70: handle closed self-registration. Returns 403 Forbidden with a
+     * generic message — no details about instance state or configuration.
+     */
+    @ExceptionHandler(RegistrationDisabledException.class)
+    public ResponseEntity<Map<String, Object>> handleRegistrationDisabled(
+            RegistrationDisabledException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Forbidden");
+        body.put("message", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    /**
+     * WIKI4AI-69: handle first-run setup called after the instance is already
+     * initialized. Returns 403 Forbidden with a generic message — no details
+     * about existing accounts are leaked.
+     */
+    @ExceptionHandler(SetupAlreadyCompletedException.class)
+    public ResponseEntity<Map<String, Object>> handleSetupAlreadyCompleted(
+            SetupAlreadyCompletedException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("error", "Forbidden");
+        body.put("message", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    /**
+     * WIKI4AI-70: handle unsupported HTTP methods on mapped endpoints (e.g.
+     * GET /api/v1/auth/register, which only accepts POST). Returns 405 Method
+     * Not Allowed instead of falling through to the generic 500 handler. The
+     * Allow header lists the methods the endpoint actually supports.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.METHOD_NOT_ALLOWED.value());
+        body.put("error", "Method Not Allowed");
+        if (ex.getSupportedMethods() != null) {
+            body.put("allow", String.join(", ", ex.getSupportedMethods()));
+        }
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).header("Allow",
+                ex.getSupportedMethods() != null ? String.join(", ", ex.getSupportedMethods()) : "")
+                .body(body);
     }
 
     /**

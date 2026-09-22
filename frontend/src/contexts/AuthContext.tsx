@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { login as apiLogin, register as apiRegister, type UserInfo } from '../services/authApi';
+import { login as apiLogin, register as apiRegister, getAuthStatus, type UserInfo } from '../services/authApi';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'wiki4ai_access_token';
@@ -16,6 +16,17 @@ interface AuthContextType {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /**
+   * WIKI4AI-69/70: instance initialization status from GET /api/v1/auth/status.
+   * `null` while the probe is in flight (or has not yet resolved); `false` on a
+   * fresh instance (show first-run setup), `true` once an account exists.
+   * On probe failure we fail safe to `true` so existing users always reach login.
+   */
+  instanceInitialized: boolean | null;
+  /** WIKI4AI-70: whether public registration is currently open on this instance. */
+  registrationOpen: boolean;
+  /** WIKI4AI-69: flip the local state after a successful first-run setup. */
+  markInstanceInitialized: () => void;
   login: (username: string, password: string) => Promise<void>;
   register: (username: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -62,11 +73,18 @@ function isTokenExpired(token: string): boolean {
   return Date.now() / 1000 >= exp - 60;
 }
 
+/** WIKI4AI-69: give the status probe a bounded time before failing safe. */
+const AUTH_STATUS_PROBE_TIMEOUT_MS = 5000;
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // WIKI4AI-69/70: instance status. `instanceInitialized === null` means the
+  // probe is still in flight; pages that depend on it show a spinner meanwhile.
+  const [instanceInitialized, setInstanceInitialized] = useState<boolean | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
 
   // Initialize auth state from localStorage on mount
   useEffect(() => {
@@ -92,6 +110,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     setIsLoading(false);
+  }, []);
+
+  // WIKI4AI-69/70: probe the public instance status once on mount. The result
+  // decides between the first-run setup form and the regular login page, and
+  // whether the register form/link is shown. Fail safe to "initialized" so a
+  // transient network error can never lock existing users out of /login.
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = window.setTimeout(
+      () => controller.abort(),
+      AUTH_STATUS_PROBE_TIMEOUT_MS,
+    );
+
+    (async () => {
+      try {
+        const status = await getAuthStatus(controller.signal);
+        if (!cancelled) {
+          setInstanceInitialized(status.initialized);
+          setRegistrationOpen(status.registrationOpen);
+        }
+      } catch {
+        if (!cancelled) {
+          setInstanceInitialized(true);
+          setRegistrationOpen(false);
+        }
+      } finally {
+        window.clearTimeout(timer);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  const markInstanceInitialized = useCallback(() => {
+    setInstanceInitialized(true);
+    // After the first account exists, the default registration policy closes.
+    setRegistrationOpen(false);
   }, []);
 
   const clearAuthState = useCallback(() => {
@@ -172,6 +232,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     refreshToken,
     isAuthenticated: !!user && !!accessToken,
     isLoading,
+    instanceInitialized,
+    registrationOpen,
+    markInstanceInitialized,
     login,
     register,
     logout,
