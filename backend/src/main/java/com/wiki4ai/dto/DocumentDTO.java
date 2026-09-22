@@ -37,6 +37,14 @@ public class DocumentDTO {
 
     private java.time.LocalDateTime updatedAt;
 
+    /**
+     * WIKI4AI-72: optimistic locking version. Clients read this and may send it
+     * back as expectedVersion on update to detect concurrent modifications
+     * (stale value -> 409 Conflict). Always present: existing rows were
+     * backfilled to 0 by migration V11, new documents start at 0.
+     */
+    private Long version;
+
     @Schema(description = "Number of contentEdits applied in this update. "
             + "Only non-null when the update used contentEdits; null on reads and full-replace updates.")
     private Integer editsApplied;

@@ -38,4 +38,18 @@ public class DocumentUpdateDTO {
     @Schema(description = "Incremental find/replace edits applied sequentially to the current content (optional). "
             + "Mutually exclusive with content.")
     private List<ContentEditDTO> contentEdits;
+
+    /**
+     * WIKI4AI-72: optimistic locking. When set, the update is only applied if the
+     * document's current version equals this value; otherwise the request fails
+     * with 409 Conflict (DocumentVersionConflictException) before any change is
+     * made. Optional for backward compatibility — old clients that never send it
+     * keep working (concurrent writers are still protected by the JPA @Version
+     * safety net, which surfaces as 409 at commit time).
+     */
+    @Schema(description = "Optional expected document version for optimistic locking. "
+            + "When provided and different from the current version, the update is rejected "
+            + "with 409 Conflict (the document was modified by another writer). "
+            + "Omit to keep the legacy behavior.")
+    private Long expectedVersion;
 }

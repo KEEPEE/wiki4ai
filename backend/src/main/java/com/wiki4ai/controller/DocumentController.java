@@ -120,9 +120,12 @@ public class DocumentController {
         return ResponseEntity.ok(documentService.getDocumentContent(projectId, docSlug, username));
     }
 
-    @Operation(summary = "Aktualizácia dokumentu", description = "Aktualizuje existujúci dokument podľa slugu.")
+    @Operation(summary = "Aktualizácia dokumentu", description = "Aktualizuje existujúci dokument podľa slugu. "
+            + "Voliteľné expectedVersion (optimistic locking, WIKI4AI-72): ak je zadané a nezhodí sa "
+            + "s aktuálnou verziou dokumentu, vráti 409 Conflict — dokument upravil iný autor.")
     @ApiResponse(responseCode = "200", description = "Dokument úspešne aktualizovaný")
     @ApiResponse(responseCode = "404", description = "Dokument s daným slugom nebol nájdený")
+    @ApiResponse(responseCode = "409", description = "Konflikt verzií — dokument bol od posledného čítania upravený iným autorom (expectedVersion nezodpovedá aktuálnej verzii, alebo súbežný zápis). Znovu načítajte a skúste znova.")
     @PutMapping("/{docSlug}")
     public ResponseEntity<DocumentDTO> updateDocument(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,

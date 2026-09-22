@@ -9,6 +9,7 @@ import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
+import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
@@ -165,6 +166,9 @@ public class DocumentService {
      * At least one of title/content/contentEdits must be provided; a blank title
      * and a mix of content with contentEdits are rejected with 400.
      * When contentEdits are applied, the DTO is stamped with editsApplied.
+     * WIKI4AI-72: when dto.expectedVersion is set and does not match the current
+     * version, throws DocumentVersionConflictException (409) before any change;
+     * the @Version column additionally guards truly concurrent commits.
      */
     @Transactional
     public DocumentDTO updateDocument(Long id, DocumentUpdateDTO dto, String username) {
@@ -172,9 +176,13 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
         permissionService.checkPermission(username, document.getProject().getId(), Permission.UPDATE);
 
+        checkExpectedVersion(dto, document);
         int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
+        // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
+        // optimistic-locking failure (409) before the (slow) embedding call runs.
+        documentRepository.flush();
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
@@ -189,6 +197,9 @@ public class DocumentService {
      * At least one of title/content/contentEdits must be provided; a blank title
      * and a mix of content with contentEdits are rejected with 400.
      * When contentEdits are applied, the DTO is stamped with editsApplied.
+     * WIKI4AI-72: when dto.expectedVersion is set and does not match the current
+     * version, throws DocumentVersionConflictException (409) before any change;
+     * the @Version column additionally guards truly concurrent commits.
      */
     @Transactional
     public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentUpdateDTO dto, String username) {
@@ -197,15 +208,39 @@ public class DocumentService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
 
+        checkExpectedVersion(dto, document);
         int editsApplied = applyUpdate(dto, document);
 
         Document saved = documentRepository.save(document);
+        // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
+        // optimistic-locking failure (409) before the (slow) embedding call runs.
+        documentRepository.flush();
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
             result.setEditsApplied(editsApplied);
         }
         return result;
+    }
+
+    /**
+     * WIKI4AI-72: enforce the caller's expectedVersion (optimistic locking).
+     * When present and different from the document's current version, another
+     * writer modified the document since the caller last read it — reject with
+     * DocumentVersionConflictException (409) BEFORE applying any change.
+     * A null expectedVersion keeps the legacy behavior (backward compatible);
+     * concurrent writers are still caught by the JPA @Version safety net at
+     * flush/commit time.
+     */
+    private void checkExpectedVersion(DocumentUpdateDTO dto, Document document) {
+        Long expected = dto.getExpectedVersion();
+        if (expected == null) {
+            return;
+        }
+        Long current = document.getVersion() != null ? document.getVersion() : 0L;
+        if (!expected.equals(current)) {
+            throw new DocumentVersionConflictException(current, expected);
+        }
     }
 
     /**
@@ -863,6 +898,7 @@ public class DocumentService {
                 .linkedDocuments(linkedDocIds)
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
+                .version(document.getVersion() != null ? document.getVersion() : 0L)
                 .build();
     }
 

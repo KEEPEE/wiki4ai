@@ -2,12 +2,19 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
+import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.exception.RegistrationDisabledException;
 import com.wiki4ai.exception.SetupAlreadyCompletedException;
+import com.wiki4ai.model.Document;
+import com.wiki4ai.repository.DocumentRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import lombok.extern.slf4j.Slf4j;
+import org.hibernate.StaleObjectStateException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,6 +35,16 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * WIKI4AI-72: used to resolve the document's current version after a JPA
+     * optimistic-locking failure, so the 409 body can carry it. Injected with
+     * {@code required = false} because @WebMvcTest slices that load this advice
+     * do not create repository beans; when absent the 409 body simply omits
+     * currentVersion (the client still re-reads and retries).
+     */
+    @Autowired(required = false)
+    private DocumentRepository documentRepository;
 
     /**
      * Handle validation errors from @Valid annotated request bodies.
@@ -163,6 +180,107 @@ public class GlobalExceptionHandler {
         body.put("occurrences", ex.getOccurrences());
 
         return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * WIKI4AI-72: handle an explicit expectedVersion mismatch (the caller told us
+     * which version it based its change on, and that version is stale). Returns
+     * 409 Conflict with both versions so the client can re-read and retry.
+     */
+    @ExceptionHandler(DocumentVersionConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleDocumentVersionConflict(
+            DocumentVersionConflictException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", "Document version conflict");
+        body.put("message", ex.getMessage());
+        body.put("currentVersion", ex.getCurrentVersion());
+        body.put("expectedVersion", ex.getExpectedVersion());
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * WIKI4AI-72: handle JPA optimistic-locking failures — a concurrent writer
+     * committed while this transaction held a stale state (the @Version safety
+     * net for clients that do not send expectedVersion). Returns the same 409
+     * shape as an explicit conflict, without expectedVersion: the client should
+     * re-read the document and retry its change. currentVersion is resolved from
+     * the database when the affected document can be identified.
+     */
+    @ExceptionHandler({OptimisticLockException.class, ObjectOptimisticLockingFailureException.class})
+    public ResponseEntity<Map<String, Object>> handleOptimisticLockingFailure(
+            RuntimeException ex) {
+
+        Long currentVersion = resolveCurrentDocumentVersion(ex);
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", "Document version conflict");
+        body.put("message", "Document was modified by another writer since your last read. "
+                + "Re-read the document and retry your change.");
+        if (currentVersion != null) {
+            body.put("currentVersion", currentVersion);
+        }
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
+     * WIKI4AI-72: best-effort resolution of the document's current version after a
+     * JPA optimistic-locking failure. Walks the cause chain for an exception that
+     * carries the affected entity id (ObjectOptimisticLockingFailureException or
+     * Hibernate StaleObjectStateException), then reads the fresh version from the
+     * database. Returns null when the document cannot be identified — the 409 body
+     * still instructs the client to re-read and retry, so a missing currentVersion
+     * never hides the conflict.
+     */
+    private Long resolveCurrentDocumentVersion(Throwable ex) {
+        if (documentRepository == null) {
+            return null;
+        }
+        Throwable t = ex;
+        while (t != null) {
+            Long id = null;
+            String entityName = null;
+            if (t instanceof ObjectOptimisticLockingFailureException oolfe) {
+                id = asLong(oolfe.getIdentifier());
+                entityName = oolfe.getPersistentClassName();
+            } else if (t instanceof StaleObjectStateException soe) {
+                id = asLong(soe.getIdentifier());
+                entityName = soe.getEntityName();
+            }
+            if (id != null && (entityName == null || entityName.endsWith("Document"))) {
+                try {
+                    return documentRepository.findById(id)
+                            .map(Document::getVersion)
+                            .orElse(null);
+                } catch (Exception lookupError) {
+                    log.debug("Could not resolve current version for conflicted document {}: {}",
+                            id, lookupError.getMessage());
+                    return null;
+                }
+            }
+            t = t.getCause();
+        }
+        return null;
+    }
+
+    private static Long asLong(Object value) {
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        if (value != null) {
+            try {
+                return Long.parseLong(value.toString());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

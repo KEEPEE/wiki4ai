@@ -59,6 +59,18 @@ public class Document {
     private LocalDateTime updatedAt;
 
     /**
+     * Optimistic locking version (WIKI4AI-72). Hibernate appends
+     * {@code WHERE version = ?} to every UPDATE and increments it on success;
+     * a concurrent commit on a stale state fails with OptimisticLockException
+     * (mapped to HTTP 409) instead of silently overwriting the other writer.
+     * New entities are persisted with version 0 (Hibernate initialises a null
+     * numeric @Version attribute); existing rows were backfilled to 0 by V11.
+     */
+    @Version
+    @Column(name = "version")
+    private Long version;
+
+    /**
      * Generate a URL-friendly slug from the document title.
      * Transliterates diacritics (e.g., "ú" → "u") then strips remaining non-ASCII chars.
      * Examples: "My Document" → "my-document", "Úvod do Wiki4AI" → "uvod-do-wiki4ai"
