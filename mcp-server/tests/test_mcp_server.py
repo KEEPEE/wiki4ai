@@ -1834,6 +1834,112 @@ class TestUpdateDocumentEdits:
         assert "edits=" in doc                # usage example
 
 
+# ─── Tests: update_document optimistic locking (WIKI4AI-72) ────────────────
+
+class TestUpdateDocumentExpectedVersion:
+    """Tests for the update_document expected_version / 409-conflict contract."""
+
+    @patch("mcp_server._api_request")
+    def test_expected_version_forwarded_as_expectedVersion(self, mock_api_request):
+        """expected_version lands in the PUT body as expectedVersion (int)."""
+        mock_api_request.return_value = {
+            "id": 1, "title": "My Document", "slug": "my-doc", "projectId": 10,
+            "content": "New content", "version": 3,
+            "createdAt": "2026-01-01T00:00:00", "updatedAt": "2026-01-02T00:00:00",
+        }
+
+        result = update_document("my-project", "my-doc", content="New content", expected_version=2)
+
+        mock_api_request.assert_called_once_with(
+            "PUT", "/v1/projects/my-project/documents/my-doc",
+            {"content": "New content", "expectedVersion": 2},
+        )
+        assert result["version"] == 3
+
+    @patch("mcp_server._api_request")
+    def test_body_without_expected_version_when_omitted(self, mock_api_request):
+        """Backward compatible: no expectedVersion key in the body when omitted."""
+        mock_api_request.return_value = {"id": 1, "content": "ok", "version": 1}
+
+        update_document("my-project", "my-doc", content="ok")
+
+        args, _ = mock_api_request.call_args
+        assert "expectedVersion" not in args[2]
+
+    @patch("mcp_server._api_request")
+    def test_409_with_stale_expected_version_raises_actionable_conflict_message(self, mock_api_request):
+        """A 409 from the backend becomes a clear 're-read and retry' MCPToolError."""
+        mock_api_request.side_effect = MCPToolError(
+            "API Error 409: {\"timestamp\":\"2026-01-01\",\"status\":409,"
+            "\"error\":\"Document version conflict\","
+            "\"message\":\"Document was modified since version 2 (current version: 3). Re-read the document and retry your change.\","
+            "\"currentVersion\":3,\"expectedVersion\":2}",
+            status_code=409,
+            details={
+                "status": 409,
+                "error": "Document version conflict",
+                "currentVersion": 3,
+                "expectedVersion": 2,
+            },
+        )
+
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document("my-project", "my-doc", content="stale write", expected_version=2)
+
+        err = exc_info.value
+        assert err.status_code == 409
+        assert (
+            str(err)
+            == "Conflict: document was modified since version 2 (current version: 3). "
+               "Re-read the document and retry your change."
+        )
+
+    @patch("mcp_server._api_request")
+    def test_409_without_expected_version_raises_generic_conflict_message(self, mock_api_request):
+        """Concurrent commit without expectedVersion still yields a 409 conflict message."""
+        mock_api_request.side_effect = MCPToolError(
+            "API Error 409: {\"status\":409,\"error\":\"Document version conflict\","
+            "\"message\":\"Optimistic locking failed for document.\",\"currentVersion\":5}",
+            status_code=409,
+            details={"status": 409, "error": "Document version conflict", "currentVersion": 5},
+        )
+
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document("my-project", "my-doc", content="concurrent write")
+
+        err = exc_info.value
+        assert err.status_code == 409
+        assert "Conflict:" in str(err)
+        assert "current version: 5" in str(err)
+        assert "Re-read the document and retry your change." in str(err)
+
+    @patch("mcp_server._api_request")
+    def test_non_409_errors_pass_through_unchanged(self, mock_api_request):
+        """Non-409 MCPToolErrors (e.g. 400 validation) are not rewritten."""
+        mock_api_request.side_effect = MCPToolError(
+            "API Error 400: {\"status\":400,\"error\":\"Bad Request\",\"message\":\"find not found\"}",
+            status_code=400,
+            details={"status": 400},
+        )
+
+        with pytest.raises(MCPToolError) as exc_info:
+            update_document(
+                "my-project", "my-doc",
+                edits=[{"find": "nope", "replace": "x"}],
+                expected_version=1,
+            )
+
+        assert exc_info.value.status_code == 400
+        assert str(exc_info.value).startswith("API Error 400")
+
+    def test_docstring_documents_expected_version(self):
+        """The MCP tool docstring documents the optimistic-locking parameter."""
+        doc = update_document.__doc__ or ""
+        assert "expected_version" in doc
+        assert "expectedVersion" in doc
+        assert "409" in doc
+
+
 # ─── search_documents_global (WIKI4AI-61) ──────────────────────────────────
 
 class TestSearchDocumentsGlobalAPICall:

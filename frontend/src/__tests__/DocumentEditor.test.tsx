@@ -499,4 +499,82 @@ describe('DocumentEditor', () => {
       }, { timeout: 3000 })
     })
   })
+
+  describe('WIKI4AI-72: version conflict (409)', () => {
+    it('shows the conflict banner when a save fails with 409 and suspends autosave', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockResolvedValue({ id: 1, title: 'Conflict Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockRejectedValue(
+        new Error('409: Document was modified since version 2 (current version: 3). Re-read the document and retry your change.')
+      )
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Conflict Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      // Manual save → 409
+      await user.click(screen.getByText('Uložiť'))
+
+      // The conflict banner with the exact prescribed text is shown
+      await waitFor(() => {
+        expect(screen.getByTestId('conflict-banner')).toBeInTheDocument()
+      })
+      expect(screen.getByTestId('conflict-banner')).toHaveTextContent(
+        'Document has been modified by another session. Please reload and reapply your changes.'
+      )
+
+      // Autosave must stay suspended: typing more does NOT trigger another update call
+      const textarea = screen.getByTestId('monaco-editor-input') as HTMLTextAreaElement
+      await user.type(textarea, 'x')
+      await waitFor(() => {
+        expect(mockUpdateDocument).toHaveBeenCalledTimes(1)
+      })
+    })
+
+    it('clears the conflict banner when the document is reloaded', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get)
+        .mockResolvedValueOnce({ id: 1, title: 'Conflict Doc', content: '# Content', projectId: 1, createdAt: '', updatedAt: '' })
+        .mockResolvedValue({ id: 1, title: 'Conflict Doc', content: '# Fresh content from another session', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const mockUpdateDocument = vi.fn().mockRejectedValue(
+        new Error('409: Document was modified since version 2 (current version: 3). Re-read the document and retry your change.')
+      )
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: mockUpdateDocument, deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />)
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('Conflict Doc')).toBeInTheDocument()
+      })
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText('Uložiť'))
+      await waitFor(() => {
+        expect(screen.getByTestId('conflict-banner')).toBeInTheDocument()
+      })
+
+      // Click the reload action → fresh content loads, banner disappears
+      await user.click(screen.getByTestId('conflict-reload'))
+      await waitFor(() => {
+        expect(screen.queryByTestId('conflict-banner')).not.toBeInTheDocument()
+      })
+      await waitFor(() => {
+        expect(screen.getByDisplayValue('# Fresh content from another session')).toBeInTheDocument()
+      })
+    })
+  })
 })
