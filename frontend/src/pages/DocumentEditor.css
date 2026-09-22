@@ -657,3 +657,22 @@ input:checked + .toggle-slider:before {
     height: 2px;
   }
 }
+
+/* WIKI4AI-72: version conflict banner */
+.conflict-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 24px 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: #fff3cd;
+  border: 1px solid #ffe69c;
+  color: #664d03;
+  font-size: 14px;
+}
+
+.conflict-banner .conflict-reload-btn {
+  flex-shrink: 0;
+}

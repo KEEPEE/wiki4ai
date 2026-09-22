@@ -737,7 +737,7 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
 
-def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None, edits: Optional[List[Dict]] = None) -> dict:
+def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None, edits: Optional[List[Dict]] = None, expected_version: Optional[int] = None) -> dict:
     """Update an existing document by its slug within a project.
 
     PARTIAL UPDATE: `title`, `content` and `edits` are independently optional —
@@ -763,12 +763,23 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
     - Allowed combinations: title-only, content-only, edits-only,
       title+content, title+edits.
 
+    Optimistic locking (WIKI4AI-72): pass `expected_version` — the version you
+    last read from get_document() (sent as `expectedVersion` in the API body) —
+    to protect against concurrent writers. If
+    the document was modified since that version, the update is rejected with a
+    409 conflict error telling you the current version; re-read the document and
+    retry your change on the fresh content. Without `expected_version` the call
+    still works (backward compatible), but a concurrent commit can make it fail
+    with the same 409 conflict at write time — either way, never ignore the
+    conflict: re-read and reapply.
+
     Note: when `title` is changed the slug is regenerated from the new title —
     the response contains the NEW slug, while the URL identifier in the request
     stays the original slug.
 
     Successful responses that used `edits` include `editsApplied: n` where n is
-    the number of edits applied.
+    the number of edits applied. The response also includes `version` (the new
+    version after this update) — keep it for your next update's expected_version.
 
     Example usage:
         # Full content replacement (original behavior)
@@ -787,6 +798,8 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
         update_document("my-project", "my-doc", edits=[
             {"find": "wiki4ai", "replace": "Wiki4AI", "replaceAll": True}
         ])
+        # Concurrency-safe update: only applies if the document is still at version 3
+        update_document("my-project", "my-doc", content="...", expected_version=3)
 
     Args:
         project_slug: The URL-friendly slug of the project (required).
@@ -798,14 +811,20 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
             {"find": str (required, exact match),
              "replace": str (required, "" deletes the matched text),
              "replaceAll": bool (optional, default false)}.
+        expected_version: Optional document version you last read (from the `version`
+            field of get_document()). When provided and stale, the update fails with a
+            409 conflict error instead of overwriting another writer's changes.
 
     Returns:
         Updated DocumentDTO with id, title, slug (the new one if the title changed),
-        projectId, createdAt, updatedAt, and editsApplied (only when edits were used).
+        projectId, createdAt, updatedAt, version (new version after this update),
+        and editsApplied (only when edits were used).
 
     Raises:
         MCPToolError: With status_code=400 when nothing is provided, or when both
-            `content` and `edits` are given.
+            `content` and `edits` are given. With status_code=409 when the document
+            was modified since `expected_version` (or by a concurrent writer) — the
+            message tells you the current version; re-read and retry.
     """
     has_edits = edits is not None and len(edits) > 0
     if title is None and content is None and not has_edits:
@@ -822,7 +841,31 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
         body["content"] = content
     if has_edits:
         body["contentEdits"] = edits
-    return _api_request("PUT", f"/v1/projects/{project_slug}/documents/{doc_slug}", body)
+    if expected_version is not None:
+        body["expectedVersion"] = int(expected_version)
+    try:
+        return _api_request("PUT", f"/v1/projects/{project_slug}/documents/{doc_slug}", body)
+    except MCPToolError as e:
+        # WIKI4AI-72: translate the backend's 409 into an actionable message so the
+        # agent knows exactly what to do (re-read, then retry on fresh content).
+        if e.status_code == 409:
+            details = e.details if isinstance(e.details, dict) else {}
+            current = details.get("currentVersion")
+            stale = details.get("expectedVersion", expected_version)
+            if stale is not None and current is not None:
+                raise MCPToolError(
+                    f"Conflict: document was modified since version {stale} "
+                    f"(current version: {current}). Re-read the document and retry your change.",
+                    status_code=409, details=details) from e
+            if current is not None:
+                raise MCPToolError(
+                    f"Conflict: document was modified by another writer (current version: {current}). "
+                    f"Re-read the document and retry your change.",
+                    status_code=409, details=details) from e
+            raise MCPToolError(
+                "Conflict: document was modified by another writer. Re-read the document and retry your change.",
+                status_code=409, details=details) from e
+        raise
 
 
 def delete_document(project_slug: str, doc_slug: str) -> dict:

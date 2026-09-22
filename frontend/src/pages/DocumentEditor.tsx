@@ -84,6 +84,10 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const [lastSavedContent, setLastSavedContent] = useState(initialContent);
   const [lastSavedTitle, setLastSavedTitle] = useState('');
 
+  // WIKI4AI-72: true after a save failed with 409 (document modified by another
+  // session). Autosave is suspended while active; cleared on successful reload/save.
+  const [conflictActive, setConflictActive] = useState(false);
+
   // React Query hooks for document management
   const { updateDocument, createDocument } = useDocuments(projectSlug || '');
 
@@ -91,30 +95,31 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const debouncedContent = useDebounce(content, autosaveInterval);
   const debouncedTitle = useDebounce(title, autosaveInterval);
 
-  // Load existing document data when editing
+  // Load existing document data when editing (reused by the conflict banner's reload action)
+  const loadDocument = useCallback(async () => {
+    if (!projectSlug || !docSlug) return;
+    setLoading(true);
+    try {
+      const doc = await documentApi.get(projectSlug, docSlug);
+      setTitle(doc.title || '');
+      setContent(doc.content || initialContent);
+      setLastSavedTitle(doc.title || '');
+      setLastSavedContent(doc.content || initialContent);
+      setSaveStatus('idle');
+      setConflictActive(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load document';
+      console.error('Error loading document:', message);
+      setSaveStatus('error');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectSlug, docSlug, initialContent]);
+
   useEffect(() => {
-    if (!isEditing || !projectSlug || !docSlug) return;
-
-    const loadDocument = async () => {
-      setLoading(true);
-      try {
-        const doc = await documentApi.get(projectSlug, docSlug);
-        setTitle(doc.title || '');
-        setContent(doc.content || initialContent);
-        setLastSavedTitle(doc.title || '');
-        setLastSavedContent(doc.content || initialContent);
-        setSaveStatus('idle');
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load document';
-        console.error('Error loading document:', message);
-        setSaveStatus('error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    if (!isEditing) return;
     loadDocument();
-  }, [isEditing, projectSlug, docSlug, initialContent]);
+  }, [isEditing, loadDocument]);
 
   // Detect unsaved changes: when content/title differs from last saved
   useEffect(() => {
@@ -129,6 +134,13 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   // Auto-save debounced changes
   const handleAutoSave = useCallback(async () => {
     if (!projectSlug || !debouncedTitle.trim()) return;
+    // WIKI4AI-72: never auto-retry while a version conflict is active — the user
+    // must reload and reapply their changes on the fresh content.
+    if (conflictActive) return;
+    // WIKI4AI-72: skip no-op saves (e.g. right after loading a document). A PUT of
+    // unchanged content would still bump the document version and could trigger
+    // spurious 409 conflicts for other sessions editing the same document.
+    if (isEditing && debouncedTitle === lastSavedTitle && debouncedContent === lastSavedContent) return;
 
     try {
       setSaving(true);
@@ -143,20 +155,24 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       setLastSavedTitle(debouncedTitle);
       setLastSavedContent(debouncedContent);
       setSaveStatus('saved');
+      setConflictActive(false);
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (err) {
       console.error('Auto-save failed:', err);
+      if (err instanceof Error && err.message.startsWith('409')) {
+        setConflictActive(true);
+      }
       setSaveStatus('error');
     } finally {
       setSaving(false);
     }
-  }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate]);
+  }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate, conflictActive, lastSavedTitle, lastSavedContent]);
 
   // Trigger auto-save when debounced values change (and autosave is enabled)
   useEffect(() => {
-    if (!debouncedTitle.trim() || !autosaveEnabled) return;
+    if (!debouncedTitle.trim() || !autosaveEnabled || conflictActive) return;
     handleAutoSave();
-  }, [handleAutoSave, debouncedContent, debouncedTitle, autosaveEnabled]);
+  }, [handleAutoSave, debouncedContent, debouncedTitle, autosaveEnabled, conflictActive]);
 
   const handleManualSave = async () => {
     if (!projectSlug || !title.trim()) return;
@@ -174,6 +190,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       setLastSavedTitle(title);
       setLastSavedContent(content);
       setSaveStatus('saved');
+      setConflictActive(false);
       setTimeout(() => setSaveStatus('idle'), 2000);
 
       // Call external onSave callback if provided
@@ -182,6 +199,9 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       }
     } catch (err) {
       console.error('Manual save failed:', err);
+      if (err instanceof Error && err.message.startsWith('409')) {
+        setConflictActive(true);
+      }
       setSaveStatus('error');
     } finally {
       setSaving(false);
@@ -295,6 +315,16 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           <BackButton to={`/projects/${projectSlug}/documents/${docSlug}`} label="Späť" />
         </div>
       </header>
+
+      {/* WIKI4AI-72: version conflict banner (no auto-retry — user reloads and reapplies) */}
+      {conflictActive && isEditing && (
+        <div className="conflict-banner" data-testid="conflict-banner" role="alert">
+          <span>Document has been modified by another session. Please reload and reapply your changes.</span>
+          <button onClick={loadDocument} className="btn-secondary conflict-reload-btn" data-testid="conflict-reload">
+            Znovu načítať
+          </button>
+        </div>
+      )}
 
        {/* Editor body */}
        <div className={`editor-body view-mode-${viewMode}`}>
