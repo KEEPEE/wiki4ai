@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from '../components/AmbientBackground';
 import './Login.css';
@@ -48,7 +48,7 @@ export default function Register() {
   });
   const [serverError, setServerError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { register } = useAuth();
+  const { register, instanceInitialized, registrationOpen } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = useCallback(
@@ -82,6 +82,55 @@ export default function Register() {
     },
     [username, email, password, register, navigate],
   );
+
+  // WIKI4AI-69: on a fresh instance the first account must be created through the
+  // setup flow (it becomes ADMIN). Sending /register visitors to /setup preserves
+  // the "first account = ADMIN" invariant — otherwise an anonymous visitor could
+  // register a plain USER first and permanently close the setup endpoint.
+  if (instanceInitialized === false) {
+    return <Navigate to="/setup" replace />;
+  }
+
+  // WIKI4AI-70: the instance status probe is still in flight — wait for it so we
+  // do not flash the form on an instance where registration is closed.
+  if (instanceInitialized === null) {
+    return (
+      <>
+        <AmbientBackground />
+        <div className="auth-page">
+          <div className="auth-card">
+            <div className="loading-state" style={{ display: 'flex', justifyContent: 'center' }}>
+              <div className="spinner" />
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // WIKI4AI-70: registration closed on this instance (default after the first
+  // account exists). Show a clear message instead of a dead form.
+  if (!registrationOpen) {
+    return (
+      <>
+        <AmbientBackground />
+        <div className="auth-page">
+          <div className="auth-card">
+            <h1 className="auth-title">Create Account</h1>
+            <p className="auth-subtitle" data-testid="register-disabled">
+              Registration is disabled on this instance.
+            </p>
+            <p className="auth-footer">
+              Already have an account?{' '}
+              <Link to="/login" className="auth-link">
+                Login here
+              </Link>
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
