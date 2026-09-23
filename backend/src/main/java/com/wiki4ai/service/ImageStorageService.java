@@ -162,6 +162,37 @@ public class ImageStorageService {
     }
 
     /**
+     * Store image bytes under a caller-provided stored filename (WIKI4AI-74 first-run seed).
+     *
+     * <p>Unlike {@link #store(String, byte[], ImageType)} the filename is NOT generated:
+     * the caller passes an exact {uuid}.{ext} name so that markdown references in the
+     * seeded documents keep working without any content rewriting. The same strict
+     * validation as {@link #load} applies (lowercase UUID + allowed extension), so this
+     * method cannot be abused for path traversal.</p>
+     *
+     * @param projectSlug URL-friendly project slug (validated)
+     * @param storedName  exact stored filename ({uuid}.{ext}, validated)
+     * @param data        raw image bytes
+     * @return the stored filename (identical to the input)
+     */
+    public String storeWithFixedName(String projectSlug, String storedName, byte[] data) throws IOException {
+        if (!PROJECT_SLUG.matcher(projectSlug).matches()) {
+            throw new BadRequestException("Invalid project slug");
+        }
+        if (storedName == null || !STORED_FILENAME.matcher(storedName).matches()) {
+            throw new BadRequestException("Invalid image filename");
+        }
+        Path projectDir = rootDir.resolve(projectSlug);
+        Files.createDirectories(projectDir);
+        // Overwrite: seeded content is deterministic, and a re-run on the same fresh
+        // instance (e.g. after a mid-seed crash) must converge to the same state.
+        Path target = resolveStoredPath(projectSlug, storedName);
+        Files.write(target, data);
+        log.info("Stored image {} ({} bytes) for project {}", storedName, data.length, projectSlug);
+        return storedName;
+    }
+
+    /**
      * Load a stored image. The filename must match the strict stored-filename
      * pattern; any other value is rejected with IllegalArgumentException (400).
      *
