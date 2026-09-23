@@ -4,6 +4,10 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # postgres profile: Postgres driver + Flyway migrations (V1-V12) on first boot.
+      # Without it the backend defaults to the H2 dev profile and refuses the
+      # jdbc:postgresql URL (WIKI4AI-76 fresh-clone e2e finding).
+      - SPRING_PROFILES_ACTIVE=postgres
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/wiki4ai
       - SPRING_DATASOURCE_USERNAME=wiki4ai
       - SPRING_DATASOURCE_PASSWORD=wiki4ai
