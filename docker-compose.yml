@@ -15,7 +15,11 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    # Dockerfile.frontend copies `frontend/...` paths, so the build context is
+    # the repository root (same as the CI build).
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.frontend
     ports:
       - "80:80"
     depends_on:
@@ -54,6 +58,36 @@ services:
       timeout: 10s
       start_period: 900s
       retries: 15
+    restart: unless-stopped
+
+  # MCP server for AI agents (FastMCP, SSE on container port 8095; WIKI4AI-76).
+  # Host port 8099 follows the deployment convention. The command override points
+  # --base-url at the `backend` compose service name (the image default targets a
+  # differently named deployment). MCP_JWT_TOKEN defaults to empty = OPEN instance
+  # (no Bearer gate on the SSE endpoint); set it in your .env to gate access.
+  mcp:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile.standalone
+    ports:
+      - "8099:8095"
+    environment:
+      - MCP_JWT_TOKEN=${MCP_JWT_TOKEN:-}
+    command: ["python", "mcp_server.py", "--base-url=http://backend:8080/api", "--transport=sse", "--port=8095"]
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Self-hosted kroki diagram renderer (WIKI4AI-63). Stateless, NO host port —
+  # the frontend nginx proxies /plantuml/ -> http://kroki:8000. RAM cap 2 GB.
+  kroki:
+    image: yuzutech/kroki:0.32.1
+    mem_limit: 2g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
     restart: unless-stopped
 
 volumes:
