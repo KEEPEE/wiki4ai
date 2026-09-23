@@ -1,7 +1,9 @@
 /**
  * MarkdownEditor — Dark theme styling for Monaco Editor.
  *
- * Refined color palette for better readability and dark theme consistency:
+ * High-contrast color palette for comfortable long-form editing (WIKI4AI-77):
+ * - Base text: #e8e8f0 bright cool near-white (matches the wiki4ai-dark
+ *   Monaco theme base rule; ~15:1 contrast on the #12121f background)
  * - Line numbers: white at 30% opacity (subtle, not cyan)
  * - Cursor: bright cyan (#00f0ff)
  * - Selection: subtle cyan highlight
@@ -30,7 +32,7 @@
 
 .markdown-editor .monaco-editor {
   --vscode-editor-background: #12121f;                        /* matches var(--dark-2) */
-  --vscode-editor-foreground: rgba(255, 255, 255, 0.7);       /* soft white text */
+  --vscode-editor-foreground: #e8e8f0;                        /* high-contrast base text (was dimmed 70% white) */
   --vscode-lineNumberForeground: rgba(255, 255, 255, 0.3);    /* subtle white line numbers */
   --vscode-editorLineNumberForeground: rgba(255, 255, 255, 0.3);
   --vscode-editorCursorForeground: #00f0ff;                    /* cyan cursor */
@@ -62,17 +64,16 @@
   --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
 }
 
-/* ── Current line highlight — subtle cyan glow (0.08 opacity) ── */
+/* ── Loading placeholder (while Monaco + theme load) ─────────── */
 
-.markdown-editor .monaco-editor .current-line {
-  background: rgba(0, 240, 255, 0.08) !important;
-}
-
-/* ── Scrollbar styling ────────────────────────────────────────── */
-
-.markdown-editor .monaco-editor .scrollbar {
-  --vscode-scrollbar-slider-background: rgba(0, 240, 255, 0.12);
-  --vscode-scrollbar-slider-hoverBackground: rgba(0, 240, 255, 0.25);
+.markdown-editor__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 120px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.9rem;
 }
 
 /* ── Read-only mode visual indicator ──────────────────────────── */

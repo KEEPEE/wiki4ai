@@ -47,3 +47,6 @@ backups/
 
 # pnpm lockfile is a local artifact - CI uses npm ci with package-lock.json
 frontend/pnpm-lock.yaml
+
+# personal attachments (QR sources) — never commit
+.attachments/

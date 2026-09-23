@@ -19,7 +19,7 @@
   border-radius: 24px;
   padding: 32px;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: rgba(255, 255, 255, 0.85); /* high-contrast body text (WIKI4AI-77) */
 }
 
 /* ── Content Area — wraps MarkdownPreview or raw HTML ─────────── */
@@ -91,7 +91,7 @@
 .content-area p,
 .markdown-content p {
   margin-bottom: 1rem;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: rgba(255, 255, 255, 0.85); /* high-contrast body text (WIKI4AI-77) */
   line-height: 1.8;
 }
 
@@ -137,7 +137,7 @@
   padding: 0.5rem 16px;
   margin: 1rem 0;
   background-color: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.6); /* Nexaverse secondary text opacity */
+  color: rgba(255, 255, 255, 0.78); /* readable secondary text (WIKI4AI-77) */
 }
 
 /* ── Lists ────────────────────────────────────────────────────── */

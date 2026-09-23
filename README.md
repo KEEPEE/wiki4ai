@@ -176,6 +176,16 @@ cd mcp-server && pip install -r requirements.txt pytest && python -m pytest test
 - Backend: `cd backend && mvn spring-boot:run` — runs on `http://localhost:8080` with an in-memory H2 database (no Postgres needed); Swagger UI at `/swagger-ui.html`.
 - Frontend: `cd frontend && npm install && npm run dev` — Vite dev server on `http://localhost:5173` with hot reload, proxying to the backend.
 
+## Support development
+
+Wiki4AI is built and maintained by Michal in his spare time. If it saves you time or makes your team's docs easier to work with, a coffee (or more) would mean a lot — every contribution helps keep the project moving. 🙏
+
+**Pay via Revolut:** [revolut.me/michal4zvc](https://revolut.me/michal4zvc)
+
+<p align="center">
+  <img src="docs/screenshots/revolut-qr.png" alt="Revolut payment QR code (https://revolut.me/michal4zvc)" width="180" />
+</p>
+
 ## License
 
 Wiki4AI is licensed under the [MIT License](LICENSE) — Copyright (c) 2026 Michal Gaspierik.
