@@ -11,7 +11,7 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import Editor from '@monaco-editor/react';
+import Editor, { loader } from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import * as monaco from 'monaco-editor';
 import MarkdownToolbar from './MarkdownToolbar';
@@ -37,38 +37,87 @@ interface InsertSelection {
 }
 
 /**
- * Define the "wiki4ai-dark" Monaco theme with refined colors.
- * Called on editor mount to register the custom theme.
+ * The "wiki4ai-dark" Monaco theme with a high-contrast palette.
  *
- * Color palette:
+ * IMPORTANT: this must be registered on the Monaco instance that
+ * @monaco-editor/react actually loads (via `loader.init()`), NOT on the
+ * statically imported `monaco-editor` package — the two are separate
+ * instances, and registering only on the static import leaves the live
+ * editor on the default light "vs" token palette (black text on our dark
+ * background). See the monacoReady gate in the component below.
+ *
+ * Color palette (all text colors pass WCAG AA on #12121f):
+ * - Base text: #e8e8f0 bright cool near-white (~15:1) — comfortable for long editing
+ * - Headings / list markers / table pipes (keyword.md): #00f0ff brand cyan (~13:1)
+ * - Table header cells (keyword.table.header.md): #ffffff brightest white
+ * - Bold (strong.md): #ffffff pure white, brighter than base
+ * - Italic (emphasis.md): #c8b8ff soft lavender (~10:1)
+ * - Inline code + code block content (variable*.md): #ffd08a warm amber (~13:1)
+ * - Fenced code delimiters + indented code (string.md): #ffd08a warm amber
+ * - Links (string.link.md): #00f0ff brand cyan
+ * - Blockquote marker / HTML comments (comment.md): #9aa0b5 medium gray (~7:1)
+ * - Horizontal rule (meta.separator.md): #7d8497 muted slate (~5:1)
+ * - Inline HTML tags (tag.md): #ff9de6 soft magenta secondary accent
  * - Background: #12121f (deep dark matching --dark-2)
- * - Foreground: rgba(255, 255, 255, 0.7) soft white text
- * - Line numbers: rgba(255, 255, 255, 0.3) subtle white (not cyan)
- * - Cursor: #00f0ff bright cyan
- * - Selection: rgba(0, 240, 255, 0.15) gentle cyan highlight
- * - Find widget: cyan-themed background and text
- * - Scrollbar: consistent cyan tones at low opacity
- * - Current line: rgba(0, 240, 255, 0.08) subtle glow
+ * - Line numbers: subtle white 30% (unchanged)
+ * - Cursor: #00f0ff bright cyan (unchanged)
+ * - Selection: rgba(0, 240, 255, 0.2) gentle cyan highlight (unchanged)
+ * - Find widget / scrollbars / current line: cyan tones (unchanged)
  */
-function defineWiki4aiTheme() {
-  monaco.editor.defineTheme('wiki4ai-dark', {
-    base: 'vs-dark',
-    inherit: true,
-    rules: [
-      { token: '', foreground: 'FFFFFF', background: '12121F' },
-    ],
-    colors: {
-      'editor.background': '#12121f',
-      'editor.foreground': '#ffffff',
-      'editor.lineNumberForeground': '#666666',
-      'editorCursor.foreground': '#00f0ff',
-      'editor.selectionBackground': 'rgba(0, 240, 255, 0.2)',
-      'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
-      'editor.findWidget.foreground': '#00f0ff',
-      'scrollbarSlider.background': 'rgba(0, 240, 255, 0.12)',
-      'scrollbarSlider.hoverBackground': 'rgba(0, 240, 255, 0.25)',
-      'editor.lineHighlightBackground': 'rgba(0, 240, 255, 0.08)',
-    },
+const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    // Base text — bright, high-contrast near-white with a cool tint
+    { token: '', foreground: 'E8E8F0', background: '12121F' },
+    // Headings (#/##/###), list markers (*, -, 1.) and table pipes
+    { token: 'keyword.md', foreground: '00F0FF' },
+    // Table header cell text — brightest white
+    { token: 'keyword.table.header.md', foreground: 'FFFFFF' },
+    // Bold (**text**) — pure white, brighter than base
+    { token: 'strong.md', foreground: 'FFFFFF' },
+    // Italic (*text*) — soft lavender
+    { token: 'emphasis.md', foreground: 'C8B8FF' },
+    // Inline code (`code`) and fenced code block content — warm amber
+    { token: 'variable.md', foreground: 'FFD08A' },
+    { token: 'variable.source.md', foreground: 'FFD08A' },
+    // Fenced code delimiters (```/~~~) and 4-space indented code — warm amber
+    { token: 'string.md', foreground: 'FFD08A' },
+    // Links ([text](url)) — brand cyan
+    { token: 'string.link.md', foreground: '00F0FF' },
+    // Blockquote marker (>) and HTML comments — medium gray
+    { token: 'comment.md', foreground: '9AA0B5' },
+    // Horizontal rule (***) — muted slate
+    { token: 'meta.separator.md', foreground: '7D8497' },
+    // Inline HTML tags — soft magenta (secondary accent)
+    { token: 'tag.md', foreground: 'FF9DE6' },
+  ],
+  colors: {
+    'editor.background': '#12121f',
+    'editor.foreground': '#e8e8f0',
+    'editor.lineNumberForeground': '#666666',
+    'editorCursor.foreground': '#00f0ff',
+    'editor.selectionBackground': 'rgba(0, 240, 255, 0.2)',
+    'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
+    'editor.findWidget.foreground': '#00f0ff',
+    'scrollbarSlider.background': 'rgba(0, 240, 255, 0.12)',
+    'scrollbarSlider.hoverBackground': 'rgba(0, 240, 255, 0.25)',
+    'editor.lineHighlightBackground': 'rgba(0, 240, 255, 0.08)',
+  },
+};
+
+/**
+ * Register the wiki4ai-dark theme on the Monaco instance loaded by
+ * @monaco-editor/react (CDN by default). Resolves once the theme exists on
+ * that instance so the editor can be rendered with it from first paint.
+ */
+function registerWiki4aiTheme(): Promise<void> {
+  return loader.init().then((loadedMonaco) => {
+    try {
+      loadedMonaco.editor.defineTheme('wiki4ai-dark', WIKI4AI_DARK_THEME);
+    } catch {
+      // Theme already defined (e.g. hot reload) — non-fatal
+    }
   });
 }
 
@@ -80,6 +129,26 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const [editorHeight, setEditorHeight] = useState<number>(600);
+  // Gate: only render the Monaco Editor once wiki4ai-dark is registered on
+  // the instance @monaco-editor/react actually loads. Rendering earlier would
+  // make Monaco fall back to the default light "vs" token palette (black text
+  // on our dark background) because the theme name would not be found there.
+  const [monacoReady, setMonacoReady] = useState<boolean>(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    registerWiki4aiTheme()
+      .catch(() => {
+        // Monaco failed to load — render anyway so the user sees a usable
+        // (default-themed) editor instead of an empty pane.
+      })
+      .finally(() => {
+        if (!cancelled) setMonacoReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Use ResizeObserver to measure the actual container height in pixels.
   // This is more reliable than CSS percentage heights because Monaco Editor
@@ -122,17 +191,9 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   const handleEditorMount = useCallback((ed: editor.IStandaloneCodeEditor) => {
     editorRef.current = ed;
 
-    // Register the custom wiki4ai-dark theme on first mount.
-    // Guard against mock environments (tests) where defineTheme may not exist.
-    if (typeof monaco.editor.defineTheme === 'function') {
-      try {
-        defineWiki4aiTheme();
-      } catch {
-        // Theme already defined or definition failed — non-fatal in test env
-      }
-    }
-
-    // Force initial layout after mount
+    // Force initial layout after mount.
+    // (Theme registration happens in the monacoReady gate above, on the same
+    // Monaco instance this editor runs on.)
     requestAnimationFrame(() => {
       ed.layout();
     });
@@ -189,29 +250,36 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
   return (
     <div className="markdown-editor" ref={containerRef}>
-      {/* Formatting toolbar above the Monaco editor */}
-      {!readOnly && (
-        <MarkdownToolbar onInsert={handleInsert} />
+      {!monacoReady ? (
+        /* Waiting for Monaco + wiki4ai-dark theme registration */
+        <div className="markdown-editor__loading">Loading editor…</div>
+      ) : (
+        <>
+          {/* Formatting toolbar above the Monaco editor */}
+          {!readOnly && (
+            <MarkdownToolbar onInsert={handleInsert} />
+          )}
+          <Editor
+            language="markdown"
+            value={value}
+            onChange={handleEditorChange}
+            onMount={handleEditorMount}
+            height={editorHeight}
+            theme="wiki4ai-dark"
+            options={{
+              minimap: { enabled: false },
+              lineNumbers: 'on',
+              wordWrap: 'on',
+              fontSize: 14,
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              insertSpaces: true,
+              readOnly,
+            }}
+          />
+        </>
       )}
-      <Editor
-        language="markdown"
-        value={value}
-        onChange={handleEditorChange}
-        onMount={handleEditorMount}
-        height={editorHeight}
-        theme="wiki4ai-dark"
-        options={{
-          minimap: { enabled: false },
-          lineNumbers: 'on',
-          wordWrap: 'on',
-          fontSize: 14,
-          scrollBeyondLastLine: false,
-          automaticLayout: true,
-          tabSize: 2,
-          insertSpaces: true,
-          readOnly,
-        }}
-      />
     </div>
   );
 };
