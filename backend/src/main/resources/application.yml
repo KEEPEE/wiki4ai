@@ -115,6 +115,16 @@ auth:
 upload:
   dir: ${UPLOAD_DIR:/uploads}
 
+# First-run documentation seed (WIKI4AI-74). On a completely fresh instance
+# (users table empty AND projects table empty) startup seeds the bundled
+# "wiki4ai" documentation project — 9 English documents + 11 screenshots from
+# src/main/resources/seed/ — so "clone -> run" ships with full docs. Existing
+# instances are never touched (the freshness condition can only hold before any
+# user or project exists). Opt out with WIKI4AI_SEED_ENABLED=false.
+wiki4ai:
+  seed:
+    enabled: ${WIKI4AI_SEED_ENABLED:true}
+
 # Embedding sidecar (WIKI4AI-35, epic WIKI4AI-26).
 # In the docker stack the service name is 'embedding' on port 8030.
 # When unreachable, search degrades to text-only — never a hard failure.

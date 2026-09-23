@@ -199,6 +199,56 @@ class ImageStorageServiceTest {
         }
     }
 
+    // ── storeWithFixedName (WIKI4AI-74 first-run seed) ─────────────────────────
+
+    @Nested
+    @DisplayName("storeWithFixedName — caller-provided stored filename")
+    class StoreWithFixedNameTests {
+
+        private static final String UUID_PNG = "098614ea-7c51-41c3-8986-e367df144e80.png";
+
+        @Test
+        @DisplayName("Stores under the exact caller-provided name and round-trips through load()")
+        void storesUnderExactName() throws IOException {
+            String stored = service.storeWithFixedName("wiki4ai", UUID_PNG, pngBytes());
+            assertEquals(UUID_PNG, stored);
+
+            Path file = tempDir.resolve("wiki4ai").resolve(UUID_PNG);
+            assertTrue(Files.exists(file));
+            assertArrayEquals(pngBytes(), Files.readAllBytes(file));
+
+            StoredImage image = service.load("wiki4ai", UUID_PNG);
+            assertEquals(ImageType.PNG, image.type());
+        }
+
+        @Test
+        @DisplayName("Overwrites an existing file with the same name (idempotent re-seed)")
+        void overwritesExistingFile() throws IOException {
+            service.storeWithFixedName("wiki4ai", UUID_PNG, pngBytes());
+            byte[] second = jpegBytes();
+            service.storeWithFixedName("wiki4ai", UUID_PNG, second);
+            assertArrayEquals(second, Files.readAllBytes(tempDir.resolve("wiki4ai").resolve(UUID_PNG)));
+        }
+
+        @Test
+        @DisplayName("Rejects filenames that do not match the strict stored-filename pattern")
+        void rejectsBadFilenames() {
+            String uuid = java.util.UUID.randomUUID().toString();
+            assertThrows(BadRequestException.class, () -> service.storeWithFixedName("my-project", "../evil.png", pngBytes()));
+            assertThrows(BadRequestException.class, () -> service.storeWithFixedName("my-project", "not-a-uuid.png", pngBytes()));
+            assertThrows(BadRequestException.class, () -> service.storeWithFixedName("my-project", uuid.toUpperCase() + ".png", pngBytes()));
+            assertThrows(BadRequestException.class, () -> service.storeWithFixedName("my-project", uuid + ".exe", pngBytes()));
+            assertThrows(BadRequestException.class, () -> service.storeWithFixedName("my-project", null, pngBytes()));
+        }
+
+        @Test
+        @DisplayName("Rejects invalid project slugs")
+        void rejectsBadSlugs() {
+            assertThrows(BadRequestException.class,
+                    () -> service.storeWithFixedName("../etc", UUID_PNG, pngBytes()));
+        }
+    }
+
     @Test
     @DisplayName("init() creates the root directory")
     void initCreatesRoot() throws IOException {
