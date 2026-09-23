@@ -43,7 +43,7 @@ git clone <your-clone-url> wiki4ai && cd wiki4ai
 docker compose up -d
 ```
 
-This starts the frontend (nginx + React SPA), the Spring Boot backend, PostgreSQL 16 with pgvector and the embedding sidecar. The backend waits for the database healthcheck, then runs its Flyway migrations on first boot.
+This starts the complete stack: the frontend (nginx + React SPA), the Spring Boot backend, PostgreSQL 16 with pgvector, the embedding sidecar, the MCP server for AI agents (host port `8099`) and the kroki PlantUML renderer. The backend waits for the database healthcheck, then runs its Flyway migrations on first boot.
 
 > **Before exposing your instance publicly**, change the default values in `docker-compose.yml` — at minimum `SPRING_DATASOURCE_PASSWORD` / `POSTGRES_PASSWORD` (set to the same value) and `JWT_SECRET` (a long random string). See [Deployment](#deployment) for the full variable list.
 
@@ -100,7 +100,7 @@ The SSE endpoint can be gated with a shared Bearer token (`MCP_JWT_TOKEN`); the 
       "command": "npx",
       "args": [
         "-y", "mcp-remote",
-        "http://<your-host>:8095/sse",
+        "http://<your-host>:8099/sse",
         "--header", "Authorization: Bearer <MCP_JWT_TOKEN>",
         "--header", "X-Wiki4AI-JWT: <your-wiki4ai-user-jwt>",
         "--allow-http"
@@ -125,7 +125,7 @@ The full stack is six containers on one Docker network; three are required, thre
 | `wiki4ai-embedding` | CI-built `embedding:<image-tag>` | `8030` | Qwen3-Embedding-0.6B int8 ONNX sidecar powering semantic search | No — search becomes text-only |
 | `wiki4ai-kroki` | `yuzutech/kroki` | — (internal :8000) | Stateless PlantUML renderer; reached only via the nginx `/plantuml/` proxy | No — PlantUML blocks show an error card |
 
-Images are built by CI on every push to `main` and tagged with the **git short SHA** (immutable) plus a moving `latest` pointer. The repository's local compose file (`docker-compose.yml`) builds backend/frontend from source instead, so a plain clone-and-up works without any registry login.
+Images are built by CI on every push to `main` and tagged with the **git short SHA** (immutable) plus a moving `latest` pointer. The repository's local compose file (`docker-compose.yml`) builds `backend`, `frontend`, `mcp` and `embedding` from source instead (kroki is pulled as a public image), so a plain clone-and-up works without any registry login.
 
 **Required environment variables** (names only — set real values in your own compose file / `.env`, never in the repo):
 
@@ -151,11 +151,12 @@ wiki4ai/
 ├── frontend/    # React 18 + TypeScript + Vite SPA (Monaco editor, Tailwind)
 ├── mcp-server/  # Python 3.12 + FastMCP — 32 tools, stdio or SSE transport
 ├── embedding/   # Qwen3-Embedding-0.6B int8 ONNX sidecar (port 8030)
-├── docker-compose.yml          # local stack, builds backend/frontend from source
-├── docker-compose.deploy.yml   # pre-built images + MCP server (deploy convention)
-├── .gitlab-ci.yml              # test → build & push → deploy pipeline
+├── docker-compose.yml          # local stack: all six services, builds from source where needed
+├── docs/                     # API reference + README screenshots
 └── scripts/                    # db backup/restore helpers, pipeline helpers
 ```
+
+**CI.** This project is developed with a GitLab CI pipeline (test → build & push → deploy) that is intentionally not part of this public repository — the three test commands below are the same gates it runs.
 
 **Run the tests** (the same three gates CI runs):
 
@@ -174,3 +175,7 @@ cd mcp-server && pip install -r requirements.txt pytest && python -m pytest test
 
 - Backend: `cd backend && mvn spring-boot:run` — runs on `http://localhost:8080` with an in-memory H2 database (no Postgres needed); Swagger UI at `/swagger-ui.html`.
 - Frontend: `cd frontend && npm install && npm run dev` — Vite dev server on `http://localhost:5173` with hot reload, proxying to the backend.
+
+## License
+
+Wiki4AI is licensed under the [MIT License](LICENSE) — Copyright (c) 2026 Michal Gaspierik.

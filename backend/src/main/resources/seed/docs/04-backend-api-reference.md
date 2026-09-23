@@ -1,8 +1,8 @@
 # Backend API Reference
 
-Complete reference for the wiki4ai Spring Boot REST backend (all endpoints verified against the source code in `backend/src/main/java/com/wiki4ai/` and live on the dev instance).
+Complete reference for the wiki4ai Spring Boot REST backend (all endpoints verified against the source code in `backend/src/main/java/com/wiki4ai/`).
 
-- **Base URL:** `http://<host>:8086/api/v1` (dev: `http://192.168.77.219:8086`)
+- **Base URL:** `http://<host>:<backend-port>/api/v1` (container port 8080; the host side depends on your compose file)
 - **Format:** JSON request/response bodies (except multipart upload endpoints and the ZIP export)
 - **Auth header:** `Authorization: Bearer <accessToken>`
 
@@ -72,12 +72,12 @@ Role checks (USER vs ADMIN) and per-project permissions (READ/CREATE/UPDATE/DELE
 
 ```json
 // request
-{"username": "keepee", "password": "***"}
+{"username": "admin", "password": "<your-password>"}
 // response 200 (token values abbreviated)
 {
   "accessToken": "eyJhbG…9...",
   "refreshToken": "eyJhbG…9...",
-  "user": {"id": 1, "username": "keepee", "email": "keepee@localhost", "role": "ADMIN", "createdAt": "2026-09-14T08:42:35"}
+  "user": {"id": 1, "username": "admin", "email": "admin@example.com", "role": "ADMIN", "createdAt": "2026-09-14T08:42:35"}
 }
 ```
 
@@ -300,7 +300,7 @@ Controller-level conflicts are also expressed as 409 with a single `error` field
 
 Served by SpringDoc from the same backend process:
 
-- **UI:** `http://<host>:8086/swagger-ui/index.html`
-- **Spec:** `http://<host>:8086/v3/api-docs` (OpenAPI 3 JSON, ~60 KB)
+- **UI:** `http://<host>:<backend-port>/swagger-ui/index.html` (also via the frontend nginx proxy at `/swagger-ui/`)
+- **Spec:** `http://<host>:<backend-port>/v3/api-docs` (OpenAPI 3 JSON, ~60 KB; also proxied at `/v3/api-docs/`)
 
-Access: **any authenticated user** — the paths are not in the public matcher list, so anonymous requests get 401 and a valid JWT of any role gets 200 (verified live on dev). The OpenAPI document is generated from the `@Tag`/`@Operation`/`@ApiResponse` annotations on the controllers.
+Access: **any authenticated user** — the paths are not in the public matcher list, so anonymous requests get 401 and a valid JWT of any role gets 200. The OpenAPI document is generated from the `@Tag`/`@Operation`/`@ApiResponse` annotations on the controllers.

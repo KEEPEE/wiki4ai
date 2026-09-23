@@ -36,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * "no existing refresh token", both inserted, and one violated the unique constraint on
  * {@code refresh_tokens.user_id} → {@code DataIntegrityViolationException} → intermittent
  * 500 on POST /api/v1/auth/login under concurrent load (reproduced: up to ~64% failures
- * with 6 parallel workers; see .evidence-WIKI4AI-68/load-test-before-68.txt).</p>
+ * with 6 parallel workers).</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")

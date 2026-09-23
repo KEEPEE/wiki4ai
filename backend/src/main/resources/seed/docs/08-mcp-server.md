@@ -74,7 +74,7 @@ A Wiki4AI user JWT, selected per request by `select_jwt_token()` in this priorit
 
 ## Tool reference
 
-**32 tools** (verified live via `tools/list` against the dev instance, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
+**32 tools** (verified via `tools/list`, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
 
 ### Meta (3)
 
