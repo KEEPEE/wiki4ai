@@ -1,14 +1,16 @@
 #!/bin/bash
 # GitLab CI Pipeline Monitor for wiki4ai
 # Usage: ./scripts/monitor-pipeline.sh [commit_sha]
-# Environment variables required:
+# Environment variables required (no credentials in the repo):
 #   - GITLAB_TOKEN: Personal access token with api scope
-#   - GITLAB_URL: GitLab instance URL (default: https://git.keepee.duckdns.org)
+#   - GITLAB_URL: GitLab instance URL
+# Optional:
+#   - PROJECT_PATH: Project path (default: wiki4ai)
 
 set -e
 
-GITLAB_URL="${GITLAB_URL:-https://git.keepee.duckdns.org}"
-PROJECT_ID="services/wiki4ai"
+GITLAB_URL="${GITLAB_URL:?Set GITLAB_URL to your GitLab instance URL}"
+PROJECT_ID="${PROJECT_PATH:-wiki4ai}"
 COMMIT_SHA="${1:-$(git rev-parse HEAD)}"
 MAX_WAIT_MINUTES=30
 POLL_INTERVAL_SECONDS=15

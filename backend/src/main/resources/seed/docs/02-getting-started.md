@@ -18,9 +18,9 @@ No other host requirements — you do not need Java, Node.js, or a local Postgre
    docker compose up -d
    ```
 
-   This brings up the frontend (nginx + React SPA), the Spring Boot backend, PostgreSQL 16 with pgvector, and the embedding sidecar. The backend waits for the database healthcheck before starting, and runs Flyway migrations on first boot (schema V1–V11).
+   This brings up the full stack: the frontend (nginx + React SPA), the Spring Boot backend, PostgreSQL 16 with pgvector, the embedding sidecar, the MCP server for AI agents and the kroki PlantUML renderer. The backend waits for the database healthcheck before starting, and runs Flyway migrations on first boot (schema V1–V12).
 
-2. **Open the web UI** in your browser: `http://<host>:<port>` (port 80 in the reference compose; the dev stack maps it to 3016).
+2. **Open the web UI** in your browser: `http://<host>:<port>` (port 80 in the reference compose).
 
 3. **Complete the first-run setup.** On an empty instance (no accounts yet), the app probes `GET /api/v1/auth/status`; while `initialized` is `false`, the WebUI shows the **Setup** form instead of the login page. Enter a username and password:
    - Username: at least 2 characters.

@@ -5,8 +5,8 @@
  * - HTTPS
  * - localhost
  *
- * When running on HTTP (e.g., http://192.168.x.x:3000 - every current wiki4ai
- * deployment), we fall back to @noble/hashes and @noble/ciphers - small,
+ * When running on plain HTTP (e.g., http://<lan-ip>:3000 - typical for
+ * self-hosted deployments), we fall back to @noble/hashes and @noble/ciphers - small,
  * audited, widely-used implementations - rather than hand-rolled crypto.
  *
  * A hand-rolled SHA-256 fallback used to live here and had a bug (writing

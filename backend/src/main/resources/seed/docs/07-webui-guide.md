@@ -1,6 +1,6 @@
 # WebUI Guide
 
-This guide walks through the wiki4ai WebUI (React SPA) screen by screen: login and first-run setup, navigation, project management with subproject hierarchy, the document editor with autosave and version-conflict handling, diagram rendering (Mermaid + PlantUML), image uploads, hybrid search, wiki links, interface language, and admin user management. All screenshots below were captured live on the dev instance (image `cbd10466`, schema V12) unless noted otherwise; UI labels are quoted exactly as rendered. The interface language shown is **English** — the default since WIKI4AI-73; see [Interface Language](#interface-language).
+This guide walks through the wiki4ai WebUI (React SPA) screen by screen: login and first-run setup, navigation, project management with subproject hierarchy, the document editor with autosave and version-conflict handling, diagram rendering (Mermaid + PlantUML), image uploads, hybrid search, wiki links, interface language, and admin user management. All screenshots below were captured on a fresh instance (schema V12) unless noted otherwise; UI labels are quoted exactly as rendered. The interface language shown is **English** — the default since WIKI4AI-73; see [Interface Language](#interface-language).
 
 ## Login & first-run setup
 

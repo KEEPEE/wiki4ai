@@ -2,10 +2,15 @@
 # check_pipeline.sh - Check if GitLab pipeline has completed successfully
 # Waits for pipeline to finish (max 45 minutes), then reports detailed results
 # Usage: ./scripts/check_pipeline.sh
+#
+# Configuration via environment variables (no credentials in the repo):
+#   GITLAB_URL   - GitLab instance base URL (required)
+#   GITLAB_TOKEN - Personal access token with 'api' scope (required)
+#   PROJECT_PATH - Project path used for the status link (default: wiki4ai)
 
-GITLAB_URL="https://git.keepee.duckdns.org"
-PROJECT_PATH="services/wiki4ai"
-API_TOKEN="glpat-gIEpz_XjqFCm4MNYSMv4UG86MQp1OjIH.01.0w0vzklfn"
+GITLAB_URL="${GITLAB_URL:?Set GITLAB_URL to your GitLab instance URL}"
+PROJECT_PATH="${PROJECT_PATH:-wiki4ai}"
+API_TOKEN="${GITLAB_TOKEN:?Set GITLAB_TOKEN to a GitLab personal access token with api scope}"
 
 # Timeout: 45 minutes = 2700 seconds
 MAX_WAIT=2700

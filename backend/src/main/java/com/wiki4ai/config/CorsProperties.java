@@ -18,8 +18,6 @@ public class CorsProperties {
         "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:80",
-        "http://192.168.77.177:3000",
-        "http://192.168.77.177",
         "http://localhost"
     );
 

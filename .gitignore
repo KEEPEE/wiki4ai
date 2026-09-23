@@ -44,3 +44,6 @@ backups/
 .npm-cache/
 .session-extract/
 *.log
+
+# pnpm lockfile is a local artifact - CI uses npm ci with package-lock.json
+frontend/pnpm-lock.yaml
