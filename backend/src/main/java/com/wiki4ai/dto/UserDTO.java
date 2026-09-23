@@ -21,5 +21,7 @@ public class UserDTO {
     private String username;
     private String email;
     private Role role;
+    /** WIKI4AI-73: preferred UI language ("en" or "sk"); always non-null, defaults to "en". */
+    private String language;
     private LocalDateTime createdAt;
 }

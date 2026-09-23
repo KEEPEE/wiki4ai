@@ -61,6 +61,8 @@ class AuthControllerMeTest {
                 .username(username)
                 .email(email)
                 .role(role)
+                // WIKI4AI-73: profile always exposes the UI language preference
+                .language("en")
                 .createdAt(now)
                 .build();
     }
@@ -90,6 +92,8 @@ class AuthControllerMeTest {
                     .andExpect(jsonPath("$.username").value("testuser"))
                     .andExpect(jsonPath("$.email").value("test@example.com"))
                     .andExpect(jsonPath("$.role").value("USER"))
+                    // WIKI4AI-73: language preference is part of the profile contract
+                    .andExpect(jsonPath("$.language").value("en"))
                     .andExpect(jsonPath("$.createdAt").exists());
         }
 

@@ -50,6 +50,15 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    /**
+     * WIKI4AI-73: preferred UI language of this user ("en" or "sk").
+     * Defaults to 'en' (DB column default + builder default), so existing
+     * accounts see the English UI until they explicitly pick otherwise.
+     */
+    @Column(name = "language", nullable = false, length = 5)
+    @Builder.Default
+    private String language = "en";
+
     @Column(name = "vault_master_password_hash")
     private String vaultMasterPasswordHash;
 
@@ -125,12 +134,23 @@ public class User {
         this.vaultSalt = vaultSalt;
     }
 
+    /**
+     * Set the preferred UI language ("en" or "sk").
+     */
+    public void setLanguage(String language) {
+        this.language = language;
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         if (this.role == null) {
             this.role = Role.USER;
+        }
+        // WIKI4AI-73: never persist a blank language — fall back to the default.
+        if (this.language == null || this.language.isBlank()) {
+            this.language = "en";
         }
     }
 

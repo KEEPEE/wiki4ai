@@ -55,6 +55,13 @@ public class AuthService {
      * refresh_tokens.user_id (DataIntegrityViolationException → intermittent 500 on login).
      * Stripes avoid unbounded lock-object growth; single-JVM deployment is a documented invariant.
      */
+    /**
+     * WIKI4AI-73: UI locales the WebUI ships. The profile page only offers these,
+     * and {@link #updateUserProfile} rejects anything else so the database never
+     * stores a language the frontend cannot render.
+     */
+    public static final java.util.Set<String> SUPPORTED_UI_LANGUAGES = java.util.Set.of("en", "sk");
+
     private static final int REFRESH_TOKEN_LOCK_STRIPES = 64;
     private final Object[] refreshTokenLocks = new Object[REFRESH_TOKEN_LOCK_STRIPES];
 
@@ -348,8 +355,23 @@ public class AuthService {
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(user.getRole())
+                // WIKI4AI-73: always expose a non-null language (defensive default for
+                // rows that could not have been backfilled — V12 makes the column NOT NULL).
+                .language(normalizeUiLanguage(user.getLanguage()))
                 .createdAt(user.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * WIKI4AI-73: normalize a stored UI language to a supported value, falling back
+     * to the default "en" when absent or unrecognized.
+     */
+    private String normalizeUiLanguage(String language) {
+        if (language == null || language.isBlank()) {
+            return "en";
+        }
+        String normalized = language.trim().toLowerCase(java.util.Locale.ROOT);
+        return SUPPORTED_UI_LANGUAGES.contains(normalized) ? normalized : "en";
     }
 
     /**
@@ -579,6 +601,16 @@ public class AuthService {
             }
             String hashedNewPassword = passwordEncoder.encode(request.getNewPassword());
             user.setPassword(hashedNewPassword);
+        }
+
+        // WIKI4AI-73: update UI language if provided (only supported locales accepted)
+        if (request.getLanguage() != null && !request.getLanguage().isBlank()) {
+            String normalized = request.getLanguage().trim().toLowerCase(java.util.Locale.ROOT);
+            if (!SUPPORTED_UI_LANGUAGES.contains(normalized)) {
+                throw new IllegalArgumentException(
+                        "Unsupported language: must be one of " + SUPPORTED_UI_LANGUAGES);
+            }
+            user.setLanguage(normalized);
         }
 
         userRepository.save(user);
