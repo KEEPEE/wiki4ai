@@ -95,7 +95,8 @@ describe('SearchPage (WIKI4AI-61)', () => {
 
     renderSearchPage()
 
-    expect(screen.getByTestId('search-results-count')).toHaveTextContent('2 výsledky')
+    // WIKI4AI-73: EN default catalog
+    expect(screen.getByTestId('search-results-count')).toHaveTextContent('2 results')
   })
 
   it('should show the empty state when nothing matches', async () => {
@@ -105,7 +106,8 @@ describe('SearchPage (WIKI4AI-61)', () => {
     renderSearchPage()
 
     await waitFor(() => {
-      expect(screen.getByText('Žiadne dokumenty nevyhovujú vyhľadávaniu')).toBeInTheDocument()
+      // WIKI4AI-73: EN default catalog
+      expect(screen.getByText('No documents match your search')).toBeInTheDocument()
     })
   })
 
@@ -137,7 +139,8 @@ describe('SearchPage (WIKI4AI-61)', () => {
 
     renderSearchPage({ route: '/search?q=x' })
 
-    expect(screen.getByText(/Začnite písať aspoň 2 znaky/)).toBeInTheDocument()
+    // WIKI4AI-73: EN default catalog
+    expect(screen.getByText(/Start typing at least 2 characters/)).toBeInTheDocument()
   })
 
   it('should navigate to the document viewer when a result is clicked', async () => {

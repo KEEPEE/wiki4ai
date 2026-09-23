@@ -123,7 +123,7 @@ describe('DocumentEditor', () => {
       renderWithProviders(<DocumentEditor />)
 
       await waitFor(() => {
-        expect(screen.getByText('Uložiť')).toBeInTheDocument()
+        expect(screen.getByText('Save')).toBeInTheDocument()
       })
     })
 
@@ -145,7 +145,7 @@ describe('DocumentEditor', () => {
       })
 
       const user = userEvent.setup()
-      await user.click(screen.getByText('Uložiť'))
+      await user.click(screen.getByText('Save'))
 
       expect(mockUpdateDocument).toHaveBeenCalled()
     })
@@ -165,7 +165,7 @@ describe('DocumentEditor', () => {
 
       await waitFor(() => {
         // BackButton component renders with aria-label and class "back-button"
-        expect(screen.getByRole('button', { name: /navigate back/i })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
       })
     })
   })
@@ -457,7 +457,7 @@ describe('DocumentEditor', () => {
 
       // After debounce (instant in mock), auto-save fires and shows "saving" then "saved"
       await waitFor(() => {
-        expect(screen.getByTestId('save-status')).toHaveTextContent(/Uložené/)
+        expect(screen.getByTestId('save-status')).toHaveTextContent(/Saved/)
       }, { timeout: 3000 })
     })
 
@@ -495,7 +495,7 @@ describe('DocumentEditor', () => {
         expect(statusEl).toBeInTheDocument()
         // Status should be either "saving" or "unsaved" (not idle)
         const text = statusEl.textContent || ''
-        expect(text.includes('Ukladá sa') || text.includes('Neuložené')).toBe(true)
+        expect(text.includes('Saving...') || text.includes('Unsaved changes')).toBe(true)
       }, { timeout: 3000 })
     })
   })
@@ -522,7 +522,7 @@ describe('DocumentEditor', () => {
 
       const user = userEvent.setup()
       // Manual save → 409
-      await user.click(screen.getByText('Uložiť'))
+      await user.click(screen.getByText('Save'))
 
       // The conflict banner with the exact prescribed text is shown
       await waitFor(() => {
@@ -562,7 +562,7 @@ describe('DocumentEditor', () => {
       })
 
       const user = userEvent.setup()
-      await user.click(screen.getByText('Uložiť'))
+      await user.click(screen.getByText('Save'))
       await waitFor(() => {
         expect(screen.getByTestId('conflict-banner')).toBeInTheDocument()
       })

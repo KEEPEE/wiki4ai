@@ -13,6 +13,7 @@ import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
 import { generateSlug } from '../utils/slugify';
+import { useTranslation } from 'react-i18next';
 import './GraphView.css';
 
 export interface GraphViewProps {
@@ -59,6 +60,7 @@ function truncateLabel(label: string): string {
 }
 
 const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
+  const { t } = useTranslation();
   const [hoveredNode, setHoveredNode] = useState<{ node: GraphNode } | null>(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [showLabels, setShowLabels] = useState(true);
@@ -362,12 +364,12 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     return (
       <div className="graph-view">
         <header className="graph-header">
-          <h2>Graph Visualization</h2>
-          <p className="graph-subtitle">Document connections will appear here once documents have links</p>
+          <h2>{t('graph.visualizationTitle')}</h2>
+          <p className="graph-subtitle">{t('graph.emptySubtitle')}</p>
         </header>
         <div className="graph-container graph-empty">
-          <p>No document connections to display yet.</p>
-          <p className="hint">Create documents with [[Wiki Link]] syntax to see connections in the graph.</p>
+          <p>{t('graph.emptyState')}</p>
+          <p className="hint">{t('graph.emptyHint')}</p>
         </div>
       </div>
     );
@@ -376,19 +378,18 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
   return (
     <div className="graph-view">
       <header className="graph-header">
-        <h2>Document Graph</h2>
+        <h2>{t('graph.documentGraph')}</h2>
         <p className="graph-subtitle">
-          {documents.length} document{documents.length !== 1 ? 's' : ''} · {graphData.links.length} connection
-          {graphData.links.length !== 1 ? 's' : ''}
+          {t('graph.statsSummary', { docCount: documents.length, linkCount: graphData.links.length })}
         </p>
         <div className="label-toggle">
           <button
             onClick={() => setShowLabels((prev) => !prev)}
-            aria-label={showLabels ? 'Hide node labels' : 'Show node labels'}
-            title={showLabels ? 'Click to hide labels (hover only)' : 'Click to show labels always'}
+            aria-label={showLabels ? t('graph.hideLabels') : t('graph.showLabels')}
+            title={showLabels ? t('graph.hideLabelsTitle') : t('graph.showLabelsTitle')}
             className={`label-toggle-btn ${showLabels ? 'active' : ''}`}
           >
-            {showLabels ? '🏷️ Labels on' : '👁️ Hover only'}
+            {showLabels ? t('graph.labelsOn') : t('graph.hoverOnly')}
           </button>
         </div>
       </header>

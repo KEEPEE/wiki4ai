@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { getRedirectFromUrl } from '../services/apiClient';
 import AmbientBackground from '../components/AmbientBackground';
@@ -12,6 +13,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { login, instanceInitialized, registrationOpen } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -25,16 +27,21 @@ export default function Login() {
         const redirectUrl = getRedirectFromUrl();
         navigate(redirectUrl || '/');
       } catch (err) {
-        if (err instanceof Error) {
-          setError(err.message || 'Invalid credentials');
+        // Map the backend's generic 401 message to a localized string so the
+        // error banner is never mixed-language.
+        const msg = err instanceof Error ? err.message : '';
+        if (!msg) {
+          setError(t('login.loginFailed'));
+        } else if (msg === 'Invalid username or password') {
+          setError(t('login.invalidCredentials'));
         } else {
-          setError('Login failed. Please try again.');
+          setError(msg);
         }
       } finally {
         setIsLoading(false);
       }
     },
-    [username, password, login, navigate],
+    [username, password, login, navigate, t],
   );
 
   // WIKI4AI-69: on a fresh instance (no accounts yet) there is nothing to log in
@@ -67,7 +74,7 @@ export default function Login() {
       <AmbientBackground />
       <div className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-title">Login to Wiki4AI</h1>
+          <h1 className="auth-title">{t('login.title')}</h1>
 
           {error && (
             <div className="auth-error" role="alert" data-testid="login-error">
@@ -78,7 +85,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="auth-form" data-testid="login-form">
             <div className="form-group">
               <label htmlFor="username" className="form-label">
-                Username
+                {t('auth.username')}
               </label>
               <input
                 id="username"
@@ -86,7 +93,7 @@ export default function Login() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="form-input"
-                placeholder="Enter your username"
+                placeholder={t('login.usernamePlaceholder')}
                 required
                 autoComplete="username"
                 data-testid="login-username"
@@ -95,7 +102,7 @@ export default function Login() {
 
             <div className="form-group">
               <label htmlFor="password" className="form-label">
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="password"
@@ -103,7 +110,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="form-input"
-                placeholder="Enter your password"
+                placeholder={t('login.passwordPlaceholder')}
                 required
                 autoComplete="current-password"
                 data-testid="login-password"
@@ -116,7 +123,7 @@ export default function Login() {
               disabled={isLoading}
               data-testid="login-submit"
             >
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? t('login.loggingIn') : t('login.submit')}
             </button>
           </form>
 
@@ -126,9 +133,9 @@ export default function Login() {
               open → register link; closed (default) → no link. */}
           {registrationOpen && (
             <p className="auth-footer">
-              Don&apos;t have an account?{' '}
+              {t('login.noAccount')}{' '}
               <Link to="/register" className="auth-link">
-                Register here
+                {t('login.registerHere')}
               </Link>
             </p>
           )}

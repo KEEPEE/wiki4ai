@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
 import { cryptoApi } from '../services/cryptoApi';
 
 const VaultUnlockScreen: React.FC = () => {
+  const { t } = useTranslation();
   const { unlock, isLoading, error } = useVault();
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,9 +33,9 @@ const VaultUnlockScreen: React.FC = () => {
           </svg>
         </div>
 
-        <h1 className="vault-unlock-title">Unlock your Vault</h1>
+        <h1 className="vault-unlock-title">{t('vault.unlockTitle')}</h1>
         <p className="vault-unlock-description">
-          Enter your master password to access your vault entries.
+          {t('vault.unlockDesc')}
         </p>
 
         {error && (
@@ -42,14 +44,14 @@ const VaultUnlockScreen: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="vault-unlock-form">
           <div className="vault-input-group">
-            <label htmlFor="unlock-password" className="vault-label">Master Password</label>
+            <label htmlFor="unlock-password" className="vault-label">{t('vault.masterPasswordLabel')}</label>
             <div className="vault-input-wrapper">
               <input
                 id="unlock-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter master password"
+                placeholder={t('vault.unlockPasswordPlaceholder')}
                 data-testid="vault-unlock-password-input"
                 className="vault-input"
                 required
@@ -59,7 +61,7 @@ const VaultUnlockScreen: React.FC = () => {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="vault-toggle-visibility"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? t('vault.hidePassword') : t('vault.showPassword')}
               >
                 {showPassword ? '🙈' : '👁️'}
               </button>
@@ -72,12 +74,12 @@ const VaultUnlockScreen: React.FC = () => {
             data-testid="vault-unlock-submit-button"
             className={`vault-primary-button ${isLoading ? 'vault-button-loading' : ''}`}
           >
-            {isLoading ? 'Unlocking...' : 'Unlock'}
+            {isLoading ? t('vault.unlocking') : t('vault.unlockButton')}
           </button>
         </form>
 
         <p className="vault-security-note">
-          🔒 Your password is used locally to decrypt your vault data.
+          🔒 {t('vault.unlockSecurityNote')}
         </p>
       </div>
     </div>

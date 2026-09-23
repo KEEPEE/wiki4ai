@@ -5,12 +5,14 @@
 
 import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import BackButton from '../components/BackButton';
 import { useProjects } from '../hooks/useProjects';
 import type { ProjectDTO } from '../types/project';
 import './ProjectSettings.css';
 
 const ProjectSettings: React.FC = () => {
+  const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { projects, isLoading: loadingProjects, updateProject, deleteProject, isUpdating, isDeleting } = useProjects();
@@ -57,8 +59,8 @@ const ProjectSettings: React.FC = () => {
 
   const originalParentSlug = project?.parentSlug ?? null;
 
-  if (loadingProjects) return <div className="project-settings"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
-  if (!project) return <div className="project-settings error">Project not found.</div>;
+  if (loadingProjects) return <div className="project-settings"><div className="loading-state"><div className="spinner" /><p>{t('common.loading')}</p></div></div>;
+  if (!project) return <div className="project-settings error">{t('project.notFound')}</div>;
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +79,7 @@ const ProjectSettings: React.FC = () => {
       // Navigate back to project detail after successful save
       navigate(`/projects/${slug}`);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save changes');
+      setSaveError(err instanceof Error ? err.message : t('project.saveFailed'));
     }
   };
 
@@ -87,37 +89,37 @@ const ProjectSettings: React.FC = () => {
       await deleteProject(project.id);
       navigate('/');
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete project');
+      setDeleteError(err instanceof Error ? err.message : t('dashboard.deleteFailed'));
     }
   };
 
   return (
     <div className="project-settings">
       {/* Breadcrumb Navigation */}
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <Link to="/">Dashboard</Link>
+      <nav className="breadcrumb" aria-label={t('breadcrumb.ariaLabel')}>
+        <Link to="/">{t('breadcrumb.dashboard')}</Link>
         <span className="separator">&rsaquo;</span>
         <Link to={`/projects/${slug}`}>{project.name}</Link>
         <span className="separator">&rsaquo;</span>
-        <span className="current">Settings</span>
+        <span className="current">{t('project.settings')}</span>
       </nav>
 
       {/* Back Button — glassmorphism pill with neon hover */}
       <div className="settings-back-btn" data-testid="back-button-container">
-        <BackButton to={`/projects/${slug}`} label="Späť na projekt" />
+        <BackButton to={`/projects/${slug}`} label={t('project.backToProject')} />
       </div>
 
       <header className="settings-header">
-        <h1>Project Settings</h1>
-        <p className="settings-subtitle">Manage your project details and settings.</p>
+        <h1>{t('project.pageTitle')}</h1>
+        <p className="settings-subtitle">{t('project.subtitle')}</p>
       </header>
 
       {/* Edit Project Form */}
       <section className="settings-section">
-        <h2>Edit Project</h2>
+        <h2>{t('dashboard.editProjectTitle')}</h2>
         <form onSubmit={handleSave} className="settings-form" data-testid="settings-form">
           <div className="form-group">
-            <label htmlFor="project-name">Project Name</label>
+            <label htmlFor="project-name">{t('dashboard.projectName')}</label>
             <input
               id="project-name"
               type="text"
@@ -125,32 +127,32 @@ const ProjectSettings: React.FC = () => {
               onChange={(e) => setName(e.target.value)}
               required
               data-testid="project-name-input"
-              placeholder="Enter project name"
+              placeholder={t('project.namePlaceholder')}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="project-description">Description</label>
+            <label htmlFor="project-description">{t('dashboard.description')}</label>
             <textarea
               id="project-description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               data-testid="project-description-input"
-              placeholder="Enter project description (optional)"
+              placeholder={t('project.descPlaceholder')}
               rows={4}
             />
           </div>
 
           {/* Parent project selector — move in hierarchy (WIKI4AI-31) */}
           <div className="form-group">
-            <label htmlFor="project-parent">Parent project</label>
+            <label htmlFor="project-parent">{t('project.parentLabel')}</label>
             <select
               id="project-parent"
               value={parentSlug ?? ''}
               onChange={(e) => setParentSlug(e.target.value || null)}
               data-testid="project-parent-select"
             >
-              <option value="">— Root (top level) —</option>
+              <option value="">{t('project.rootOption')}</option>
               {parentOptions.map((p) => (
                 <option key={p.id} value={p.slug}>
                   {p.name}
@@ -158,16 +160,16 @@ const ProjectSettings: React.FC = () => {
               ))}
             </select>
             <p className="form-hint">
-              Moving a project changes its position in the hierarchy (max 5 levels).
+              {t('project.parentHint')}
             </p>
           </div>
 
           {saveError && <p className="error" data-testid="save-error">{saveError}</p>}
 
           <div className="form-actions">
-            <Link to={`/projects/${slug}`} className="btn-secondary">Cancel</Link>
+            <Link to={`/projects/${slug}`} className="btn-secondary">{t('common.cancel')}</Link>
             <button type="submit" className="btn-primary" disabled={isUpdating} data-testid="save-button">
-              {isUpdating ? 'Saving...' : 'Save Changes'}
+              {isUpdating ? t('dashboard.saving') : t('project.saveChanges')}
             </button>
           </div>
         </form>
@@ -175,9 +177,9 @@ const ProjectSettings: React.FC = () => {
 
       {/* Danger Zone */}
       <section className="settings-section danger-zone">
-        <h2>Danger Zone</h2>
+        <h2>{t('project.dangerZone')}</h2>
         <p className="danger-description">
-          Once you delete a project, there is no going back. Please be certain.
+          {t('project.dangerText')}
         </p>
         <button
           onClick={() => setShowDeleteConfirm(true)}
@@ -185,7 +187,7 @@ const ProjectSettings: React.FC = () => {
           disabled={isDeleting}
           data-testid="delete-button"
         >
-          Delete Project
+          {t('dashboard.deleteProjectTitle')}
         </button>
 
         {deleteError && <p className="error" data-testid="delete-error">{deleteError}</p>}
@@ -198,14 +200,14 @@ const ProjectSettings: React.FC = () => {
             <button
               onClick={() => setShowDeleteConfirm(false)}
               className="modal-close"
-              aria-label="Close dialog"
+              aria-label={t('common.close')}
             >
               &times;
             </button>
-            <h3>Delete Project</h3>
+            <h3>{t('dashboard.deleteProjectTitle')}</h3>
             <p className="delete-warning">
-              Are you sure you want to delete <strong>"{project.name}"</strong>? 
-              This action cannot be undone and all documents in this project will be permanently deleted.
+              {t('project.deleteConfirmStart')} <strong>"{project.name}"</strong>?{' '}
+              {t('project.deleteConfirmEnd')}
             </p>
             <div className="form-actions form-actions-delete">
               <button
@@ -214,14 +216,14 @@ const ProjectSettings: React.FC = () => {
                 disabled={isDeleting}
                 data-testid="confirm-delete-button"
               >
-                {isDeleting ? 'Deleting...' : 'Yes, Delete Project'}
+                {isDeleting ? t('dashboard.deleting') : t('project.confirmDelete')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="btn-secondary"
                 data-testid="cancel-delete-button"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

@@ -1,6 +1,9 @@
 import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+// WIKI4AI-73: i18n must be initialized before the app renders (default locale: en)
+import './i18n'
+import i18n from './i18n'
 import './index.css'
 import App from './App.tsx'
 
@@ -19,7 +22,7 @@ function LoadingFallback() {
     <div>
       <div>
         <div></div>
-        <p>Loading Wiki4AI...</p>
+        <p>{i18n.t('app.startingUp')}</p>
       </div>
     </div>
   )
@@ -65,10 +68,10 @@ try {
     rootElement.innerHTML = `
       <div>
         <div>
-          <h1>Application Error</h1>
-          <p>Failed to start application:</p>
+          <h1>${i18n.t('app.appErrorTitle')}</h1>
+          <p>${i18n.t('app.appErrorFailed')}</p>
           <pre>${errorObj.message}</pre>
-          <button onclick="window.location.reload()">Reload Page</button>
+          <button onclick="window.location.reload()">${i18n.t('app.reloadPage')}</button>
         </div>
       </div>
     `

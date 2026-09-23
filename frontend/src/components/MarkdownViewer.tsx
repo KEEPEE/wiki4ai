@@ -6,6 +6,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import MarkdownPreview from './MarkdownPreview';
 import './MarkdownViewer.css';
 
@@ -69,6 +70,8 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
   wikiLinks: propWikiLinks,
   onLinkClick,
 }) => {
+  const { t } = useTranslation();
+
   // Extract wiki links from raw markdown if not provided via props
   const wikiLinks = useMemo(
     () => propWikiLinks ?? extractWikiLinks(content),
@@ -119,7 +122,7 @@ const MarkdownViewer: React.FC<MarkdownViewerProps> = ({
       {/* Links section — extracted wiki links as clickable chips */}
       {wikiLinks.length > 0 && (
         <div className="links-section">
-          <h3>Prepojenia</h3>
+          <h3>{t('markdown.linksTitle')}</h3>
           <ul>
             {wikiLinks.map((link) => (
               <li key={link}>

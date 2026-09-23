@@ -5,6 +5,7 @@
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
 import { useEmbeddingStatus } from '../hooks/useEmbeddingStatus';
@@ -20,6 +21,7 @@ type TabType = 'documents' | 'graph';
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
 
 const ProjectDetail: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,7 +99,7 @@ const ProjectDetail: React.FC = () => {
       setNewSubprojectName('');
       setShowSubprojectForm(false);
     } catch (err) {
-      setSubprojectError(err instanceof Error ? err.message : 'Failed to create subproject');
+      setSubprojectError(err instanceof Error ? err.message : t('project.subprojectCreateFailed'));
     }
   };
 
@@ -114,16 +116,16 @@ const ProjectDetail: React.FC = () => {
       setNewTitle('');
       setShowCreateForm(false);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create document');
+      setCreateError(err instanceof Error ? err.message : t('project.docCreateFailed'));
     }
   };
 
   const handleDeleteDocument = async (docSlug: string) => {
-    if (!window.confirm(`Are you sure you want to delete "${docSlug}"?`)) return;
+    if (!window.confirm(t('project.deleteDocConfirm', { name: docSlug }))) return;
     try {
       await deleteDocument(docSlug);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete document');
+      alert(err instanceof Error ? err.message : t('project.docDeleteFailed'));
     }
   };
 
@@ -156,7 +158,7 @@ const ProjectDetail: React.FC = () => {
     } catch (err) {
       clearInterval(progressInterval);
       setUploadProgress(0);
-      setUploadError(err instanceof Error ? err.message : 'Failed to upload file');
+      setUploadError(err instanceof Error ? err.message : t('project.uploadFailed'));
     }
   };
 
@@ -165,7 +167,7 @@ const ProjectDetail: React.FC = () => {
     if (!file) return;
 
     if (!isValidMarkdownFile(file)) {
-      setUploadError('Please select a .md or .markdown file');
+      setUploadError(t('project.invalidFileSelect'));
       return;
     }
 
@@ -194,7 +196,7 @@ const ProjectDetail: React.FC = () => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to export project');
+      alert(err instanceof Error ? err.message : t('project.exportFailed'));
     } finally {
       setIsExporting(false);
     }
@@ -228,17 +230,18 @@ const ProjectDetail: React.FC = () => {
 
     const file = files[0];
     if (!isValidMarkdownFile(file)) {
-      setUploadError('Please drop a .md or .markdown file');
+      setUploadError(t('project.invalidFileDrop'));
       return;
     }
 
     handleUpload(file);
   }, [slug, isUploading]);
 
+  // WIKI4AI-73: dates follow the active UI language.
   const formatDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('sk-SK', {
+      return date.toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -254,8 +257,8 @@ const ProjectDetail: React.FC = () => {
   // so the hook order is identical on every render — a cold load (direct URL /
   // hard refresh) previously hit these before the drag-handler useCallbacks and
   // crashed with React error #310 (invalid hook call).
-  if (loadingProjects) return <div className="project-detail"><div className="loading-state"><div className="spinner" /><p>Loading...</p></div></div>;
-  if (!project) return <div className="project-detail error">Project not found.</div>;
+  if (loadingProjects) return <div className="project-detail"><div className="loading-state"><div className="spinner" /><p>{t('common.loading')}</p></div></div>;
+  if (!project) return <div className="project-detail error">{t('project.notFound')}</div>;
 
   return (
     <div
@@ -268,7 +271,7 @@ const ProjectDetail: React.FC = () => {
       {/* Drag & Drop Overlay */}
       {isDragOver && (
         <div className="drag-overlay">
-          <p>📁 Drop your .md file here</p>
+          <p>{t('project.dropFileHere')}</p>
         </div>
       )}
 
@@ -286,8 +289,8 @@ const ProjectDetail: React.FC = () => {
       />
 
       {/* Breadcrumb Navigation — full chain for nested projects (WIKI4AI-31) */}
-      <nav className="breadcrumb" aria-label="Breadcrumb" data-testid="project-breadcrumb">
-        <Link to="/">Dashboard</Link>
+      <nav className="breadcrumb" aria-label={t('breadcrumb.ariaLabel')} data-testid="project-breadcrumb">
+        <Link to="/">{t('breadcrumb.dashboard')}</Link>
         {ancestors.map((ancestor) => (
           <React.Fragment key={ancestor.id}>
             <span className="separator">&rsaquo;</span>
@@ -305,33 +308,33 @@ const ProjectDetail: React.FC = () => {
         {project.description && <p className="description">{project.description}</p>}
         <div className="header-actions">
           <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" disabled={activeTab !== 'documents'}>
-            + Nový dokument
+            + {t('project.newDocument')}
           </button>
           <button
             onClick={handleImportClick}
             className="btn-secondary btn-import"
             disabled={isUploading || activeTab !== 'documents'}
             data-testid="import-file-button"
-            title="Import .md file"
+            title={t('project.importTitle')}
           >
-            📁 Import file
+            📁 {t('project.importFile')}
           </button>
           <button
             onClick={handleExport}
             className="btn-secondary btn-export"
             disabled={isExporting}
             data-testid="export-button"
-            title="Export project as ZIP"
+            title={t('project.exportTitle')}
           >
-            {isExporting ? '⏳ Exporting...' : '📦 Export'}
+            {isExporting ? `⏳ ${t('project.exporting')}` : `📦 ${t('project.export')}`}
           </button>
           <Link
             to={`/projects/${slug}/settings`}
             className="btn-secondary btn-settings"
             data-testid="settings-link"
-            title="Project settings"
+            title={t('project.settingsTitle')}
           >
-            ⚙️ Settings
+            ⚙️ {t('project.settings')}
           </Link>
         </div>
       </header>
@@ -339,13 +342,13 @@ const ProjectDetail: React.FC = () => {
       {/* Subprojects (WIKI4AI-31) */}
       <section className="subprojects-section" data-testid="subprojects-section">
         <div className="subprojects-header">
-          <h2>Podprojekty {subprojects.length > 0 && <span className="subprojects-count">({subprojects.length})</span>}</h2>
+          <h2>{t('project.subprojects')} {subprojects.length > 0 && <span className="subprojects-count">({subprojects.length})</span>}</h2>
           <button
             onClick={() => setShowSubprojectForm((v) => !v)}
             className="btn-secondary btn-new-subproject"
             data-testid="create-subproject-button"
           >
-            {showSubprojectForm ? '✕ Zrušiť' : '+ Nový subprojekt'}
+            {showSubprojectForm ? `✕ ${t('common.cancel')}` : `+ ${t('project.newSubproject')}`}
           </button>
         </div>
 
@@ -360,7 +363,7 @@ const ProjectDetail: React.FC = () => {
           >
             <input
               type="text"
-              placeholder="Názov subprojektu"
+              placeholder={t('project.subprojectNamePlaceholder')}
               value={newSubprojectName}
               onChange={(e) => setNewSubprojectName(e.target.value)}
               required
@@ -370,7 +373,7 @@ const ProjectDetail: React.FC = () => {
             {subprojectError && <p className="error" data-testid="subproject-error">{subprojectError}</p>}
             <div className="form-actions">
               <button type="submit" className="btn-primary" disabled={isCreatingSubproject || !newSubprojectName.trim()}>
-                {isCreatingSubproject ? 'Vytváram...' : 'Vytvoriť subprojekt'}
+                {isCreatingSubproject ? t('project.creating') : t('project.createSubproject')}
               </button>
             </div>
           </form>
@@ -383,7 +386,7 @@ const ProjectDetail: React.FC = () => {
                 <Link to={`/projects/${sp.slug}`} className="subproject-link">
                   ↳ {sp.name}
                 </Link>
-                <span className="badge">{sp.documentCount} docs</span>
+                <span className="badge">{t('dashboard.docsCount', { count: sp.documentCount })}</span>
               </li>
             ))}
           </ul>
@@ -394,7 +397,7 @@ const ProjectDetail: React.FC = () => {
       {uploadProgress > 0 && (
         <div className="upload-progress-container">
           <div className="upload-progress-bar" style={{ width: `${uploadProgress}%` }} />
-          <span className="upload-progress-text">{uploadProgress === 100 ? '✓ Uploaded!' : `Uploading... ${uploadProgress}%`}</span>
+          <span className="upload-progress-text">{uploadProgress === 100 ? `✓ ${t('project.uploaded')}` : t('project.uploading', { percent: uploadProgress })}</span>
         </div>
       )}
 
@@ -412,14 +415,14 @@ const ProjectDetail: React.FC = () => {
           className={`tab ${activeTab === 'documents' ? 'active' : ''}`}
           onClick={() => setActiveTab('documents')}
         >
-          Dokumenty ({documents.length})
+          {t('project.documentsTab', { count: documents.length })}
         </button>
         <Link
           to={`/projects/${slug}/graph`}
           className={`tab ${activeTab === 'graph' ? 'active' : ''}`}
           onClick={() => setActiveTab('graph')}
         >
-          Graf
+          {t('project.graphTab')}
         </Link>
       </div>
 
@@ -429,7 +432,7 @@ const ProjectDetail: React.FC = () => {
           <form onSubmit={(e) => { e.preventDefault(); handleCreateDocument(); }} className="create-form">
             <input
               type="text"
-              placeholder="Názov dokumentu"
+              placeholder={t('project.docNamePlaceholder')}
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               required
@@ -438,10 +441,10 @@ const ProjectDetail: React.FC = () => {
             {createError && <p className="error">{createError}</p>}
             <div className="form-actions">
               <button type="submit" className="btn-primary" disabled={isCreating}>
-                {isCreating ? 'Vytváram...' : 'Vytvoriť'}
+                {isCreating ? t('project.creating') : t('common.create')}
               </button>
               <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
-                Zrušiť
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -452,13 +455,13 @@ const ProjectDetail: React.FC = () => {
       {activeTab === 'documents' && (
         <div key={`docs-${Date.now()}`} className="tab-content">
           <div className="documents-list">
-            <h2>Dokumenty ({hasSearched ? searchResults.length : documents.length})</h2>
+            <h2>{t('project.documentsHeading', { count: hasSearched ? searchResults.length : documents.length })}</h2>
 
             {/* Search Bar */}
             <div className="search-bar">
               <input
                 type="text"
-                placeholder="Search documents..."
+                placeholder={t('project.searchDocuments')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="search-input"
@@ -469,7 +472,7 @@ const ProjectDetail: React.FC = () => {
                   type="button"
                   onClick={() => setSearchQuery('')}
                   className="search-clear-btn"
-                  aria-label="Clear search"
+                  aria-label={t('dashboard.clearSearch')}
                   data-testid="clear-search-button"
                 >
                   &times;
@@ -480,23 +483,23 @@ const ProjectDetail: React.FC = () => {
             {/* Semantic search availability hint (WIKI4AI-36) */}
             {hasSearched && embeddingStatus && !embeddingStatus.available && (
               <div className="semantic-unavailable-banner" role="status" data-testid="semantic-unavailable-banner">
-                Semantické vyhľadávanie je nedostupné — zobrazujem len textové výsledky.
+                {t('project.semanticUnavailable')}
               </div>
             )}
             {hasSearched && embeddingStatus?.available && (
               <span className="semantic-status-badge" data-testid="semantic-status-badge">
-                semantické vyhľadávanie: aktívne
+                {t('project.semanticActive')}
               </span>
             )}
 
             {loadingDocuments && !hasSearched ? (
-              <div className="loading-state"><div className="spinner" /><p>Načítavam dokumenty...</p></div>
+              <div className="loading-state"><div className="spinner" /><p>{t('project.loadingDocuments')}</p></div>
             ) : searching ? (
-              <div className="loading-state"><div className="spinner" /><p>Searching...</p></div>
+              <div className="loading-state"><div className="spinner" /><p>{t('project.searching')}</p></div>
             ) : hasSearched && searchResults.length === 0 ? (
-              <p className="empty-state">No documents match your search</p>
+              <p className="empty-state">{t('project.noDocMatches')}</p>
             ) : !hasSearched && displayDocuments.length === 0 ? (
-              <p className="empty-state">Žiadne dokumenty. Vytvorte prvý dokument!</p>
+              <p className="empty-state">{t('project.emptyDocs')}</p>
             ) : (
               <ul className="document-items">
                 {displayDocuments.map((doc) => {
@@ -509,7 +512,7 @@ const ProjectDetail: React.FC = () => {
                         {hasSearched && doc.score != null && (
                           <span
                             className="doc-score"
-                            title="Relevance score hybridného vyhľadávania (RRF)"
+                            title={t('project.scoreTitle')}
                             data-testid={`search-score-${doc.id}`}
                           >
                             {doc.score.toFixed(4)}
@@ -522,7 +525,7 @@ const ProjectDetail: React.FC = () => {
                           onClick={(e) => { e.stopPropagation(); handleDeleteDocument(slug); }}
                           className="btn-delete"
                           disabled={isDeleting}
-                          title="Vymazať dokument"
+                          title={t('project.deleteDocTitle')}
                         >
                           &times;
                         </button>
@@ -541,9 +544,9 @@ const ProjectDetail: React.FC = () => {
         <div key={`graph-${Date.now()}`} className="tab-content">
           <Link to={`/projects/${slug}/graph`} className="graph-redirect">
             <div className="graph-preview">
-              <h2>Document Graph</h2>
-              <p>View the interactive graph visualization of document connections.</p>
-              <span className="btn-primary">Open Graph View &rarr;</span>
+              <h2>{t('graph.documentGraph')}</h2>
+              <p>{t('project.graphPreviewText')}</p>
+              <span className="btn-primary">{t('project.openGraphView')} &rarr;</span>
             </div>
           </Link>
         </div>

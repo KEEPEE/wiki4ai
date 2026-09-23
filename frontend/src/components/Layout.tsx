@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from './AmbientBackground';
 import WikiLogo from './WikiLogo';
@@ -13,6 +14,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // Global (cross-project) search — WIKI4AI-61. Submitting navigates to /search?q=...
   const [globalQuery, setGlobalQuery] = useState('');
@@ -81,10 +83,10 @@ export default function Layout({ children }: LayoutProps) {
               <input
                 type="text"
                 className="global-search-input"
-                placeholder="Hľadať vo wiki..."
+                placeholder={t('layout.searchPlaceholder')}
                 value={globalQuery}
                 onChange={(e) => setGlobalQuery(e.target.value)}
-                aria-label="Globálne vyhľadávanie dokumentov"
+                aria-label={t('layout.searchAriaLabel')}
                 data-testid="global-search-input"
               />
             </form>
@@ -105,7 +107,7 @@ export default function Layout({ children }: LayoutProps) {
                     <path d="M20 7h-3a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
                     <rect x="10" y="11" width="4" height="4" rx="1" />
                   </svg>
-                  Vault
+                  {t('layout.vault')}
                 </Link>
                 {(user as any).role === 'ADMIN' && (
                   <Link
@@ -115,7 +117,7 @@ export default function Layout({ children }: LayoutProps) {
                     }}
                     data-testid="nav-admin-users"
                   >
-                    Admin
+                    {t('layout.admin')}
                   </Link>
                 )}
                 <Link
@@ -131,7 +133,7 @@ export default function Layout({ children }: LayoutProps) {
                   }}
                   data-testid="logout-button"
                 >
-                  Logout
+                  {t('layout.logout')}
                 </button>
               </>
             ) : (
@@ -143,13 +145,13 @@ export default function Layout({ children }: LayoutProps) {
                   }}
                   data-testid="nav-login"
                 >
-                  Login
+                  {t('layout.login')}
                 </Link>
                 <Link
                   to="/register"
                   data-testid="nav-register"
                 >
-                  Register
+                  {t('layout.register')}
                 </Link>
               </nav>
             )}

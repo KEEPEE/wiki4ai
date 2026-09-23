@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { plantUmlSvgUrl } from '../utils/plantUmlEncoding';
 import './PlantUmlDiagram.css';
 
@@ -24,6 +25,7 @@ interface PlantUmlDiagramProps {
 }
 
 const PlantUmlDiagram: React.FC<PlantUmlDiagramProps> = ({ code, className }) => {
+  const { t } = useTranslation();
   const [svg, setSvg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +59,7 @@ const PlantUmlDiagram: React.FC<PlantUmlDiagramProps> = ({ code, className }) =>
         if (!cancelled) {
           // Graceful degradation: kroki unavailable or invalid diagram syntax —
           // show the raw source instead of crashing.
-          const message = err instanceof Error ? err.message : 'Failed to render diagram';
+          const message = err instanceof Error ? err.message : t('diagrams.renderFailed');
           setError(message);
         }
       })
@@ -77,17 +79,16 @@ const PlantUmlDiagram: React.FC<PlantUmlDiagramProps> = ({ code, className }) =>
       {isLoading && (
         <div className="plantuml-diagram__loading" role="status">
           <div className="plantuml-diagram__spinner" />
-          <span>Loading diagram…</span>
+          <span>{t('diagrams.loading')}</span>
         </div>
       )}
 
       {error && !isLoading && (
         <div className="plantuml-diagram__error" role="alert">
-          <strong>PlantUML diagram not rendered:</strong>
+          <strong>{t('diagrams.plantumlErrorLabel')}:</strong>
           <p>{error}</p>
           <p className="plantuml-diagram__hint">
-            The self-hosted kroki service may be unavailable, or the diagram source has a syntax
-            error. Raw PlantUML source:
+            {t('diagrams.plantumlHint')}
           </p>
           <pre className="plantuml-diagram__raw">
             <code>{code}</code>

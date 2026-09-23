@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
+import i18n from '../i18n' // WIKI4AI-73: class component — use the i18n instance directly
 
 interface ErrorBoundaryProps {
   children?: ReactNode
@@ -65,10 +66,10 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
             }}
           >
             <h1 style={{ fontSize: 24, fontWeight: 700, color: '#ff6b6b', margin: '0 0 16px' }}>
-              Niečo sa pokazilo
+              {i18n.t('errorBoundary.title')}
             </h1>
             <p style={{ color: 'rgba(255, 255, 255, 0.7)', lineHeight: 1.6, margin: '0 0 16px' }}>
-              Pri načítaní stránky došlo k chybe — napríklad zlyhalo načítanie časti aplikácie.
+              {i18n.t('errorBoundary.message')}
             </p>
             {this.state.error && (
               <pre
@@ -105,7 +106,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
                 cursor: 'pointer',
               }}
             >
-              Obnoviť stránku
+              {i18n.t('errorBoundary.reload')}
             </button>
           </div>
         </div>

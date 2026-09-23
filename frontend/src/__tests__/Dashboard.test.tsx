@@ -739,7 +739,8 @@ describe('Dashboard', () => {
 
       const searchInput = screen.getByTestId('search-input')
       expect(searchInput).toBeInTheDocument()
-      expect(searchInput).toHaveAttribute('placeholder', 'Hľadať projekty...')
+      // WIKI4AI-73: EN default catalog
+      expect(searchInput).toHaveAttribute('placeholder', 'Search projects...')
     })
 
     it('should not render search input when no projects exist', async () => {

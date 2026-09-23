@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { documentApi } from '../services/documentApi';
 import './DocumentLinks.css';
 
@@ -21,6 +22,7 @@ interface DocumentLinksProps {
 }
 
 const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onRefresh }) => {
+  const { t } = useTranslation();
   const [outgoingLinks, setOutgoingLinks] = useState<DocumentLinkItem[]>([]);
   const [backlinks, setBacklinks] = useState<DocumentLinkItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,15 +93,15 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
 
   return (
     <div className="document-links">
-      <h3 className="document-links-title">🔗 Prepojenia dokumentov</h3>
+      <h3 className="document-links-title">🔗 {t('doclinks.title')}</h3>
 
       {/* Outgoing links section */}
       <section className="links-section">
-        <h4 className="links-section-title">Odkazuje na (Outgoing)</h4>
+        <h4 className="links-section-title">{t('doclinks.outgoing')}</h4>
         {loading ? (
-          <p className="links-loading">Načítava sa...</p>
+          <p className="links-loading">{t('doclinks.loading')}</p>
         ) : outgoingLinks.length === 0 ? (
-          <p className="links-empty">Žiadne prepojenia</p>
+          <p className="links-empty">{t('doclinks.noLinks')}</p>
         ) : (
           <ul className="links-list">
             {outgoingLinks.map((link) => (
@@ -113,7 +115,7 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
                 <button
                   onClick={() => handleRemoveLink(link.id)}
                   className="btn-link-remove"
-                  title="Odstrániť prepojenie"
+                  title={t('doclinks.removeTitle')}
                 >
                   ✕
                 </button>
@@ -134,7 +136,7 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
             type="text"
             value={newLinkTarget}
             onChange={(e) => setNewLinkTarget(e.target.value)}
-            placeholder="ID dokumentu (napr. 123)"
+            placeholder={t('doclinks.idPlaceholder')}
             className="add-link-input"
           />
           <button
@@ -142,18 +144,18 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
             disabled={!!addingLink || !newLinkTarget.trim()}
             className={`btn-primary add-link-btn ${addingLink ? 'loading' : ''}`}
           >
-            {addingLink ? 'Pridáva sa...' : '+ Pridať prepojenie'}
+            {addingLink ? t('doclinks.adding') : `+ ${t('doclinks.addLink')}`}
           </button>
         </form>
       </section>
 
       {/* Backlinks section */}
       <section className="links-section">
-        <h4 className="links-section-title">Odkazuje z (Backlinks)</h4>
+        <h4 className="links-section-title">{t('doclinks.backlinks')}</h4>
         {loading ? (
-          <p className="links-loading">Načítava sa...</p>
+          <p className="links-loading">{t('doclinks.loading')}</p>
         ) : backlinks.length === 0 ? (
-          <p className="links-empty">Žiadne spätné odkazy</p>
+          <p className="links-empty">{t('doclinks.noBacklinks')}</p>
         ) : (
           <ul className="links-list">
             {backlinks.map((link) => (

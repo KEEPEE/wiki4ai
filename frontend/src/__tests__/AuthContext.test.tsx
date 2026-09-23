@@ -14,6 +14,8 @@ vi.mock('../services/authApi', () => ({
   register: vi.fn(),
   getAuthStatus: vi.fn().mockResolvedValue({ initialized: true, registrationOpen: false }),
   setup: vi.fn(),
+  // WIKI4AI-73: profile re-sync on mount (GET /auth/me)
+  getMe: vi.fn().mockResolvedValue({ id: 1, username: 'stored_user', email: 'test@example.com', createdAt: '' }),
 }))
 
 /** Create a fake JWT that won't expire for 1 hour */

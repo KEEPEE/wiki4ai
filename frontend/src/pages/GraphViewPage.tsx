@@ -8,11 +8,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments } from '../hooks/useDocuments';
 import GraphView from '../components/GraphView';
+import { useTranslation } from 'react-i18next';
 import './ProjectDetail.css'; // Reuse project detail styles for breadcrumb
 
 const GraphViewPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { projects, isLoading: loadingProjects } = useProjects();
   const { documents, isLoading: loadingDocuments } = useDocuments(slug ?? '');
 
@@ -22,21 +24,21 @@ const GraphViewPage: React.FC = () => {
   if (loadingProjects || loadingDocuments) {
     return (
       <div className="project-detail">
-        <nav className="breadcrumb" aria-label="Breadcrumb">
-          <a href="/">Dashboard</a>
+        <nav className="breadcrumb" aria-label={t('graph.breadcrumbAria')}>
+          <a href="/">{t('graph.dashboard')}</a>
           <span className="separator">&rsaquo;</span>
-          <a href={`/projects/${slug}`}>{project?.name ?? 'Project'}</a>
+          <a href={`/projects/${slug}`}>{project?.name ?? t('graph.project')}</a>
           <span className="separator">&rsaquo;</span>
-          <span className="current">Graph</span>
+          <span className="current">{t('graph.graphTab')}</span>
         </nav>
-        <div className="loading-state"><div className="spinner" /><p>Loading graph...</p></div>
+        <div className="loading-state"><div className="spinner" /><p>{t('graph.loadingGraph')}</p></div>
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="project-detail error">Project not found.</div>
+      <div className="project-detail error">{t('graph.projectNotFound')}</div>
     );
   }
 
@@ -47,17 +49,17 @@ const GraphViewPage: React.FC = () => {
   return (
     <div className="project-detail">
       {/* Breadcrumb Navigation */}
-      <nav className="breadcrumb" aria-label="Breadcrumb">
-        <a href="/">Dashboard</a>
+      <nav className="breadcrumb" aria-label={t('graph.breadcrumbAria')}>
+        <a href="/">{t('graph.dashboard')}</a>
         <span className="separator">&rsaquo;</span>
         <a href={`/projects/${slug}`}>{project.name}</a>
         <span className="separator">&rsaquo;</span>
-        <span className="current">Graph</span>
+        <span className="current">{t('graph.graphTab')}</span>
       </nav>
 
       <header className="detail-header">
-        <h1>{project.name} - Document Graph</h1>
-        <p className="description">Visualizing connections between documents in this project</p>
+        <h1>{t('graph.documentGraphTitle', { name: project.name })}</h1>
+        <p className="description">{t('graph.pageSubtitle')}</p>
       </header>
 
       {/* Graph Visualization */}

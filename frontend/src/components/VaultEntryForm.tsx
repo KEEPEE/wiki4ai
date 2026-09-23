@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { VaultEntry } from '../types/vault';
 import './VaultEntryForm.css';
 
@@ -46,6 +47,7 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
   isSubmitting = false,
   error,
 }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState<VaultEntryFormData>(DEFAULT_FORM_DATA);
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof VaultEntryFormData, string>>>({});
@@ -70,15 +72,15 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
     const errors: Partial<Record<keyof VaultEntryFormData, string>> = {};
 
     if (!formData.title.trim()) {
-      errors.title = 'Title is required';
+      errors.title = t('vault.errTitleRequired');
     }
 
     if (!formData.password) {
-      errors.password = 'Password is required';
+      errors.password = t('vault.errPasswordRequired');
     }
 
     if (formData.url && !isValidUrl(formData.url)) {
-      errors.url = 'Please enter a valid URL';
+      errors.url = t('vault.errValidUrl');
     }
 
     setFieldErrors(errors);
@@ -125,14 +127,14 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
 
   return (
     <form onSubmit={handleSubmit} className="vault-entry-form">
-      <h3>{isEditMode ? 'Edit Entry' : 'Add New Entry'}</h3>
+      <h3>{isEditMode ? t('vault.editEntry') : t('vault.addNewEntry')}</h3>
 
       <div className="form-field">
-        <label htmlFor="vault-form-title">Title</label>
+        <label htmlFor="vault-form-title">{t('vault.titleField')}</label>
         <input
           id="vault-form-title"
           type="text"
-          placeholder="Title (e.g., GitHub)"
+          placeholder={t('vault.titlePlaceholder')}
           value={formData.title}
           onChange={(e) => handleChange('title', e.target.value)}
           autoFocus
@@ -142,11 +144,11 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
       </div>
 
       <div className="form-field">
-        <label htmlFor="vault-form-url">URL</label>
+        <label htmlFor="vault-form-url">{t('markdown.urlLabel')}</label>
         <input
           id="vault-form-url"
           type="text"
-          placeholder="URL (optional)"
+          placeholder={t('vault.urlPlaceholder')}
           value={formData.url}
           onChange={(e) => handleChange('url', e.target.value)}
           data-testid="vault-form-url-input"
@@ -155,12 +157,12 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
       </div>
 
       <div className="form-field">
-        <label htmlFor="vault-form-group-path">Group Path</label>
+        <label htmlFor="vault-form-group-path">{t('vault.groupPathLabel')}</label>
         <div className="group-path-wrapper">
           <input
             id="vault-form-group-path"
             type="text"
-            placeholder="Group path (e.g., /Work, /Personal)"
+            placeholder={t('vault.groupPathPlaceholder')}
             value={formData.groupPath}
             onChange={(e) => handleChange('groupPath', e.target.value)}
             onFocus={() => setShowGroupSuggestions(true)}
@@ -187,11 +189,11 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
       </div>
 
       <div className="form-field">
-        <label htmlFor="vault-form-username">Username</label>
+        <label htmlFor="vault-form-username">{t('admin.username')}</label>
         <input
           id="vault-form-username"
           type="text"
-          placeholder="Username (optional)"
+          placeholder={t('vault.usernamePlaceholder')}
           value={formData.username}
           onChange={(e) => handleChange('username', e.target.value)}
           data-testid="vault-form-username-input"
@@ -199,12 +201,12 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
       </div>
 
       <div className="form-field">
-        <label htmlFor="vault-form-password">Password</label>
+        <label htmlFor="vault-form-password">{t('admin.password')}</label>
         <div className="password-wrapper">
           <input
             id="vault-form-password"
             type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
+            placeholder={t('vault.passwordPlaceholder')}
             value={formData.password}
             onChange={(e) => handleChange('password', e.target.value)}
             data-testid="vault-form-password-input"
@@ -213,7 +215,7 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
             type="button"
             className="toggle-password-btn"
             onClick={() => setShowPassword((prev) => !prev)}
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
+            aria-label={showPassword ? t('vault.hidePassword') : t('vault.showPassword')}
             data-testid="vault-form-toggle-password-button"
           >
             {showPassword ? '🙈' : '👁️'}
@@ -226,17 +228,17 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
             onClick={handleGeneratePassword}
             data-testid="vault-form-generate-password-button"
           >
-            Generate password
+            {t('vault.generatePassword')}
           </button>
         </div>
         {fieldErrors.password && <span className="field-error">{fieldErrors.password}</span>}
       </div>
 
       <div className="form-field">
-        <label htmlFor="vault-form-notes">Notes</label>
+        <label htmlFor="vault-form-notes">{t('vault.notesLabel')}</label>
         <textarea
           id="vault-form-notes"
-          placeholder="Notes (optional)"
+          placeholder={t('vault.notesPlaceholder')}
           value={formData.notes}
           onChange={(e) => handleChange('notes', e.target.value)}
           rows={3}
@@ -248,10 +250,10 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
 
       <div className="form-actions">
         <button type="submit" className="btn-primary" disabled={isSubmitting}>
-          {isEditMode ? 'Save Changes' : 'Add Entry'}
+          {isEditMode ? t('project.saveChanges') : t('vault.addEntry')}
         </button>
         <button type="button" onClick={onCancel} className="btn-secondary">
-          Cancel
+          {t('common.cancel')}
         </button>
       </div>
     </form>

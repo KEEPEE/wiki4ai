@@ -14,9 +14,9 @@ function renderWithRouter(ui: React.ReactElement) {
 }
 
 describe('BackButton', () => {
-  it('should render with default label "Späť"', () => {
+  it('should render with default label "Back" (WIKI4AI-73: EN default)', () => {
     renderWithRouter(<BackButton to="/projects/test-project" />)
-    expect(screen.getByText('Späť')).toBeInTheDocument()
+    expect(screen.getByText('Back')).toBeInTheDocument()
   })
 
   it('should render custom label when provided', () => {
@@ -29,7 +29,7 @@ describe('BackButton', () => {
     const button = container.querySelector('.back-button') as HTMLButtonElement
     expect(button).toBeInTheDocument()
     expect(button?.textContent).toContain('←')
-    expect(button?.textContent).toContain('Späť')
+    expect(button?.textContent).toContain('Back')
   })
 
   it('should navigate to the provided "to" route when clicked', () => {
@@ -43,7 +43,7 @@ describe('BackButton', () => {
   it('should have aria-label attribute for accessibility', () => {
     renderWithRouter(<BackButton to="/projects/test-project" />)
     const button = screen.getByRole('button') as HTMLButtonElement
-    expect(button).toHaveAttribute('aria-label', 'Navigate back to /projects/test-project')
+    expect(button).toHaveAttribute('aria-label', 'Back')
   })
 
   it('should have arrow icon with aria-hidden="true"', () => {
@@ -78,7 +78,7 @@ describe('BackButton', () => {
     renderWithRouter(<BackButton to="/projects/test-project" />)
     const icon = screen.getByText('←') as HTMLElement
     expect(icon).toHaveClass('back-button-icon')
-    expect(screen.getByText('Späť')).toHaveClass('back-button-text')
+    expect(screen.getByText('Back')).toHaveClass('back-button-text')
   })
 
   it('should be keyboard accessible', () => {
@@ -91,6 +91,6 @@ describe('BackButton', () => {
   it('should have correct aria-label when no "to" prop is provided', () => {
     renderWithRouter(<BackButton />)
     const button = screen.getByRole('button') as HTMLButtonElement
-    expect(button).toHaveAttribute('aria-label', 'Navigate back')
+    expect(button).toHaveAttribute('aria-label', 'Back')
   })
 })

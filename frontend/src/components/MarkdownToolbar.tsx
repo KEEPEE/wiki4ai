@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import './MarkdownToolbar.css';
 
 export interface MarkdownToolbarProps {
@@ -131,6 +132,7 @@ const InsertModal: React.FC<InsertModalProps> = ({
   onSubmit,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [val1, setVal1] = useState('');
   const [val2, setVal2] = useState('');
 
@@ -166,8 +168,8 @@ const InsertModal: React.FC<InsertModalProps> = ({
             />
           </label>
           <div className="toolbar-modal-actions">
-            <button type="button" onClick={onClose} className="modal-cancel-btn">Zrušiť</button>
-            <button type="submit" className="modal-submit-btn">Vložiť</button>
+            <button type="button" onClick={onClose} className="modal-cancel-btn">{t('common.cancel')}</button>
+            <button type="submit" className="modal-submit-btn">{t('markdown.insert')}</button>
           </div>
         </form>
       </div>
@@ -178,6 +180,7 @@ const InsertModal: React.FC<InsertModalProps> = ({
 /* ── Main Toolbar Component ───────────────────────────────── */
 
 const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
+  const { t } = useTranslation();
   const [headingOpen, setHeadingOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -252,12 +255,12 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
   }
 
   const toolbarButtons: ToolbarButtonDef[] = [
-    { id: 'bold', icon: <BoldIcon />, tooltip: 'Tučné (Ctrl+B)', onClick: handleBold },
-    { id: 'italic', icon: <ItalicIcon />, tooltip: 'Kurzíva (Ctrl+I)', onClick: handleItalic },
+    { id: 'bold', icon: <BoldIcon />, tooltip: t('markdown.boldTooltip'), onClick: handleBold },
+    { id: 'italic', icon: <ItalicIcon />, tooltip: t('markdown.italicTooltip'), onClick: handleItalic },
     {
       id: 'heading',
       icon: <HeadingIcon />,
-      tooltip: 'Nadpis H1-H6',
+      tooltip: t('markdown.headingTooltip'),
       children: (
         <div className="toolbar-dropdown">
           <button
@@ -265,7 +268,7 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
             className={`dropdown-toggle ${headingOpen ? 'active' : ''}`}
             onClick={() => setHeadingOpen((o) => !o)}
             aria-expanded={headingOpen}
-            title="Vybrať nadpis"
+            title={t('markdown.selectHeading')}
           >
             H <ChevronDownIcon />
           </button>
@@ -281,13 +284,13 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
         </div>
       ),
     },
-    { id: 'codeblock', icon: <CodeBlockIcon />, tooltip: 'Blok kódu', onClick: handleCodeBlock },
-    { id: 'inlinecode', icon: <InlineCodeIcon />, tooltip: 'Riadkový kód', onClick: handleInlineCode },
-    { id: 'quote', icon: <QuoteIcon />, tooltip: 'Citácia', onClick: handleQuote },
-    { id: 'link', icon: <LinkIcon />, tooltip: 'Odkaz', onClick: handleLink },
-    { id: 'image', icon: <ImageIcon />, tooltip: 'Obrázok', onClick: handleImage },
-    { id: 'divider', icon: <DividerIcon />, tooltip: 'Oddelič', onClick: handleDivider },
-    { id: 'table', icon: <TableIcon />, tooltip: 'Tabuľka 3x3', onClick: handleTable },
+    { id: 'codeblock', icon: <CodeBlockIcon />, tooltip: t('markdown.codeBlockTooltip'), onClick: handleCodeBlock },
+    { id: 'inlinecode', icon: <InlineCodeIcon />, tooltip: t('markdown.inlineCodeTooltip'), onClick: handleInlineCode },
+    { id: 'quote', icon: <QuoteIcon />, tooltip: t('markdown.quoteTooltip'), onClick: handleQuote },
+    { id: 'link', icon: <LinkIcon />, tooltip: t('markdown.linkTooltip'), onClick: handleLink },
+    { id: 'image', icon: <ImageIcon />, tooltip: t('markdown.imageTooltip'), onClick: handleImage },
+    { id: 'divider', icon: <DividerIcon />, tooltip: t('markdown.dividerTooltip'), onClick: handleDivider },
+    { id: 'table', icon: <TableIcon />, tooltip: t('markdown.tableTooltip'), onClick: handleTable },
   ];
 
   /* ── Render a single toolbar button ─────────────────── */
@@ -324,10 +327,10 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
         <button
           type="button"
           className="toolbar-btn toolbar-menu-toggle"
-          title="Formátovanie"
+          title={t('markdown.formattingTitle')}
           onClick={() => setMobileMenuOpen((o) => !o)}
           aria-expanded={mobileMenuOpen}
-          aria-label="Otvoriť menu formátovania"
+          aria-label={t('markdown.openFormatMenu')}
         >
           <MenuIcon />
         </button>
@@ -342,11 +345,11 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
       {/* Link insertion modal */}
       {linkModalOpen && (
         <InsertModal
-          title="Vložiť odkaz"
-          fieldLabel1="URL"
+          title={t('markdown.insertLinkTitle')}
+          fieldLabel1={t('markdown.urlLabel')}
           fieldPlaceholder1="https://..."
-          fieldLabel2="Text odkazu"
-          fieldPlaceholder2="Kliknite sem"
+          fieldLabel2={t('markdown.linkText')}
+          fieldPlaceholder2={t('markdown.linkTextPlaceholder')}
           onSubmit={handleLinkSubmit}
           onClose={() => setLinkModalOpen(false)}
         />
@@ -355,11 +358,11 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
       {/* Image insertion modal */}
       {imageModalOpen && (
         <InsertModal
-          title="Vložiť obrázok"
-          fieldLabel1="URL obrázku"
+          title={t('markdown.insertImageTitle')}
+          fieldLabel1={t('markdown.imageUrlLabel')}
           fieldPlaceholder1="https://..."
-          fieldLabel2="Alt text"
-          fieldPlaceholder2="Popis obrázku"
+          fieldLabel2={t('markdown.altTextLabel')}
+          fieldPlaceholder2={t('markdown.imageAltPlaceholder')}
           onSubmit={handleImageSubmit}
           onClose={() => setImageModalOpen(false)}
         />

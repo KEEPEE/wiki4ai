@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import MarkdownEditor from '../components/MarkdownEditor';
 import MarkdownPreview from '../components/MarkdownPreview';
 import BackButton from '../components/BackButton';
@@ -44,6 +45,7 @@ function getCharCount(text: string): number {
 }
 
 const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', onSave }) => {
+  const { t } = useTranslation();
   const { slug: projectSlug, docId: docSlug } = useParams<{ slug: string; docId: string }>();
   const navigate = useNavigate();
   const isEditing = !!docSlug;
@@ -108,13 +110,13 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       setSaveStatus('idle');
       setConflictActive(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load document';
+      const message = err instanceof Error ? err.message : t('viewer.loadFailed');
       console.error('Error loading document:', message);
       setSaveStatus('error');
     } finally {
       setLoading(false);
     }
-  }, [projectSlug, docSlug, initialContent]);
+  }, [projectSlug, docSlug, initialContent, t]);
 
   useEffect(() => {
     if (!isEditing) return;
@@ -210,6 +212,13 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
 
   const viewModes: ViewMode[] = ['edit', 'preview', 'split'];
 
+  // WIKI4AI-73: localized labels per view mode (button text, tooltip word, aria label).
+  const viewModeLabels: Record<ViewMode, { button: string; word: string }> = {
+    edit: { button: t('editor.btnEdit'), word: t('editor.modeEdit') },
+    preview: { button: t('editor.btnPreview'), word: t('editor.modePreview') },
+    split: { button: t('editor.btnSplit'), word: t('editor.modeSplit') },
+  };
+
   const handleViewModeChange = (mode: ViewMode) => {
     setViewMode(mode);
   };
@@ -232,9 +241,9 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     return (
       <div className="document-editor">
         <header className="editor-header">
-          <h1>Loading...</h1>
+          <h1>{t('common.loading')}</h1>
         </header>
-        <div className="loading-indicator editor-loading">Loading document...</div>
+        <div className="loading-indicator editor-loading">{t('viewer.loading')}</div>
       </div>
     );
   }
@@ -243,7 +252,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     <div className="document-editor">
       {/* Breadcrumb Navigation */}
       {projectSlug && (
-        <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug || 'Nový dokument'} ancestors={ancestors} />
+        <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug || t('editor.newDocFallback')} ancestors={ancestors} />
       )}
 
       {/* Header with title input and actions */}
@@ -252,7 +261,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder={isEditing ? 'Upraviť názov dokumentu...' : 'Názov nového dokumentu...'}
+          placeholder={isEditing ? t('editor.titlePlaceholderEdit') : t('editor.titlePlaceholderNew')}
           className="editor-title-input"
         />
 
@@ -264,7 +273,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
                 type="checkbox"
                 checked={autosaveEnabled}
                 onChange={toggleAutosave}
-                aria-label="Enable autosave"
+                aria-label={t('editor.autosaveAria')}
               />
               <span className="toggle-slider"></span>
             </label>
@@ -272,7 +281,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
               className="autosave-dropdown" 
               value={autosaveInterval} 
               onChange={(e) => handleIntervalChange(e.target.value)}
-              aria-label="Autosave interval"
+              aria-label={t('editor.intervalAria')}
             >
               <option value={1000}>1s</option>
               <option value={2000}>2s</option>
@@ -282,7 +291,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
             </select>
             {saveStatus !== 'idle' && (
               <div className={`save-status-compact ${saveStatus}`} data-testid="save-status">
-                {saveStatus === 'saving' ? 'Ukladá sa...' : saveStatus === 'saved' ? 'Uložené' : saveStatus === 'unsaved' ? 'Neuložené zmeny' : saveStatus === 'error' ? 'Chyba' : ''}
+                {saveStatus === 'saving' ? t('editor.statusSaving') : saveStatus === 'saved' ? t('editor.statusSaved') : saveStatus === 'unsaved' ? t('editor.statusUnsaved') : saveStatus === 'error' ? t('common.error') : ''}
               </div>
             )}
           </div>
@@ -294,10 +303,10 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
                 key={mode}
                 onClick={() => handleViewModeChange(mode)}
                 className={`view-mode-btn ${viewMode === mode ? 'active' : ''}`}
-                aria-label={`${mode.charAt(0).toUpperCase() + mode.slice(1)} view`}
-                title={`Zobraziť ako ${mode === 'edit' ? 'editor' : mode === 'preview' ? 'náhľad' : 'split'}`}
+                aria-label={t('editor.ariaView', { mode: viewModeLabels[mode].word })}
+                title={t('editor.showAs', { mode: viewModeLabels[mode].word })}
               >
-                {mode === 'edit' ? 'Edit' : mode === 'preview' ? 'Preview' : 'Split'}
+                {viewModeLabels[mode].button}
               </button>
             ))}
           </div>
@@ -308,20 +317,20 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
             disabled={saving || !title.trim()}
             className={`btn-primary save-btn ${saving ? 'saving' : ''}`}
           >
-            {saving ? 'Ukladá sa...' : 'Uložiť'}
+            {saving ? t('editor.statusSaving') : t('common.save')}
           </button>
 
           {/* Back button */}
-          <BackButton to={`/projects/${projectSlug}/documents/${docSlug}`} label="Späť" />
+          <BackButton to={`/projects/${projectSlug}/documents/${docSlug}`} label={t('common.back')} />
         </div>
       </header>
 
       {/* WIKI4AI-72: version conflict banner (no auto-retry — user reloads and reapplies) */}
       {conflictActive && isEditing && (
         <div className="conflict-banner" data-testid="conflict-banner" role="alert">
-          <span>Document has been modified by another session. Please reload and reapply your changes.</span>
+          <span>{t('editor.conflictMessage')}</span>
           <button onClick={loadDocument} className="btn-secondary conflict-reload-btn" data-testid="conflict-reload">
-            Znovu načítať
+            {t('editor.reload')}
           </button>
         </div>
       )}
@@ -341,7 +350,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
             {content.trim() ? (
               <MarkdownPreview content={content} />
             ) : (
-              <p className="empty-preview">Začnite písať markdown pre náhľad...</p>
+              <p className="empty-preview">{t('editor.emptyPreview')}</p>
             )}
           </div>
         )}
@@ -349,8 +358,8 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
 
       {/* Footer with word/character count */}
       <footer className="editor-footer">
-        <span className="word-count">{getWordCount(content)} words</span>
-        <span className="char-count">{getCharCount(content)} characters</span>
+        <span className="word-count">{t('editor.wordsCount', { count: getWordCount(content) })}</span>
+        <span className="char-count">{t('editor.charsCount', { count: getCharCount(content) })}</span>
       </footer>
 
       {/* Document Links Management - only when editing existing document */}

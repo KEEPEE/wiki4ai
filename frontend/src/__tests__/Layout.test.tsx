@@ -110,7 +110,8 @@ describe('Layout', () => {
       await waitFor(() => {
         expect(screen.getByTestId('global-search-input')).toBeInTheDocument()
       })
-      expect(screen.getByTestId('global-search-input')).toHaveAttribute('placeholder', 'Hľadať vo wiki...')
+      // WIKI4AI-73: EN default catalog
+      expect(screen.getByTestId('global-search-input')).toHaveAttribute('placeholder', 'Search the wiki...')
     })
 
     it('should not render the global search input when anonymous (login-only endpoint)', async () => {

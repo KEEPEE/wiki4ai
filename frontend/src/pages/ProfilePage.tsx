@@ -1,10 +1,16 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost, apiPut, apiDelete } from '../services/apiClient';
+import { applyUserLanguage, isSupportedLanguage, SUPPORTED_LANGUAGES } from '../i18n';
 import './Profile.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
+// WIKI4AI-73: mirrors USER_INFO_KEY in AuthContext — kept in sync so a language
+// change is applied instantly on reload, before the /auth/me re-sync returns.
+const USER_INFO_KEY = 'wiki4ai_user_info';
 
 // ── Storage keys for generated API tokens (persist across logout/login) ────
 const GENERATED_TOKEN_KEY = 'wiki4ai_generated_api_token';
@@ -24,6 +30,8 @@ interface UserProfile {
   username: string;
   email: string;
   role: string;
+  /** WIKI4AI-73: saved UI language preference. */
+  language?: 'en' | 'sk';
   createdAt: string;
 }
 
@@ -32,6 +40,8 @@ interface ProfileUpdateRequest {
   email?: string;
   currentPassword?: string;
   newPassword?: string;
+  /** WIKI4AI-73: UI language preference ('en' | 'sk'). */
+  language?: string;
 }
 
 interface ApiTokenInfo {
@@ -51,12 +61,20 @@ interface TokenCardData {
 }
 
 export default function ProfilePage() {
+  const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // WIKI4AI-73: language-aware date formatting (matches the dashboard pattern)
+  const locale = i18n.language === 'sk' ? 'sk-SK' : 'en-GB';
 
   // Profile data from API (may have more fields than context user)
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  // WIKI4AI-73: UI language preference
+  const [language, setLanguage] = useState<string>(user?.language ?? 'en');
+  const [isUpdatingLanguage, setIsUpdatingLanguage] = useState(false);
 
   // Edit form state
   const [editUsername, setEditUsername] = useState('');
@@ -97,8 +115,11 @@ export default function ProfilePage() {
         setProfile(data);
         setEditUsername(data.username);
         setEditEmail(data.email);
+        if (data.language) {
+          setLanguage(data.language);
+        }
       } catch {
-        setUpdateError('Failed to load profile');
+        setUpdateError(t('profile.loadFailed'));
       } finally {
         setIsLoadingProfile(false);
       }
@@ -162,18 +183,54 @@ export default function ProfilePage() {
       try {
         const updatedProfile = await apiPut<UserProfile>(`${API_BASE_URL}/auth/me`, body);
         setProfile(updatedProfile);
-        setUpdateMessage('Profile updated successfully');
+        setUpdateMessage(t('profile.updated'));
         // Clear password fields after successful update
         setCurrentPassword('');
         setNewPassword('');
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to update profile';
+        const message = err instanceof Error ? err.message : t('profile.updateFailed');
         setUpdateError(message);
       } finally {
         setIsUpdating(false);
       }
     },
-    [editUsername, editEmail, currentPassword, newPassword],
+    [editUsername, editEmail, currentPassword, newPassword, t],
+  );
+
+  // WIKI4AI-73: switch UI language — apply immediately, persist via PUT /auth/me.
+  const handleLanguageChange = useCallback(
+    async (lang: string) => {
+      if (!isSupportedLanguage(lang) || lang === language) return;
+
+      setIsUpdatingLanguage(true);
+      const previous = language;
+      setLanguage(lang);
+      applyUserLanguage(lang); // instant UI switch, no reload
+
+      try {
+        await apiPut<UserProfile>(`${API_BASE_URL}/auth/me`, { language: lang });
+        // Refresh the cached user so a page reload applies the new language
+        // instantly, before the /auth/me re-sync in AuthContext returns.
+        const cached = localStorage.getItem(USER_INFO_KEY);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            parsed.language = lang;
+            localStorage.setItem(USER_INFO_KEY, JSON.stringify(parsed));
+          } catch {
+            // Corrupted cache — the /auth/me re-sync will fix it on next load.
+          }
+        }
+      } catch {
+        // Roll back the UI switch if persistence failed.
+        setLanguage(previous);
+        applyUserLanguage(previous);
+        setUpdateError(t('profile.languageSaveFailed'));
+      } finally {
+        setIsUpdatingLanguage(false);
+      }
+    },
+    [language, t],
   );
 
   // Generate a single token (backward compatible)
@@ -194,11 +251,11 @@ export default function ProfilePage() {
       localStorage.setItem(GENERATED_TOKEN_KEY, response.accessToken);
       setTokenCopied(false);
     } catch {
-      setUpdateError('Failed to generate token');
+      setUpdateError(t('profile.generateTokenFailed'));
     } finally {
       setIsGeneratingToken(false);
     }
-  }, [useCustomExpiry, expiresAt]);
+  }, [useCustomExpiry, expiresAt, t]);
 
   // Generate a named API token
   const handleCreateNamedToken = useCallback(async () => {
@@ -246,12 +303,12 @@ export default function ProfilePage() {
       setNewTokenExpiresAt('');
       setUseNewTokenExpiry(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to create token';
+      const message = err instanceof Error ? err.message : t('profile.createTokenFailed');
       setUpdateError(message);
     } finally {
       setIsCreatingNamedToken(false);
     }
-  }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id, storedTokens]);
+  }, [newTokenName, newTokenExpiresAt, useNewTokenExpiry, profile?.id, storedTokens, t]);
 
   // ── Computed: merge stored tokens + API tokens into unified list ────
   const tokenCards = useMemo(() => {
@@ -291,9 +348,9 @@ export default function ProfilePage() {
 
   // ── Format helpers ────────────────────────────────────────────────
   const formatExpiration = (expiresAt: string | null): string => {
-    if (!expiresAt) return 'Never';
+    if (!expiresAt) return t('profile.never');
     try {
-      return new Date(expiresAt).toLocaleDateString();
+      return new Date(expiresAt).toLocaleDateString(locale);
     } catch {
       return expiresAt;
     }
@@ -358,10 +415,10 @@ export default function ProfilePage() {
         setApiTokens(tokens);
       }
 
-      setDeleteToast(`Token "${tokenName}" deleted`);
+      setDeleteToast(t('profile.tokenDeleted', { name: tokenName }));
       setTimeout(() => setDeleteToast(null), 3000);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to delete token';
+      const message = err instanceof Error ? err.message : t('profile.deleteTokenFailed');
       
       // If the API returns 404, the token is already gone from DB — still clean localStorage
       if (message.includes('404')) {
@@ -375,13 +432,13 @@ export default function ProfilePage() {
           setApiTokens(tokens);
         }
 
-        setDeleteToast(`Token "${tokenName}" already deleted`);
+        setDeleteToast(t('profile.tokenAlreadyDeleted', { name: tokenName }));
         setTimeout(() => setDeleteToast(null), 3000);
       } else {
         setUpdateError(message);
       }
     }
-  }, [profile?.id, storedTokens]);
+  }, [profile?.id, storedTokens, t]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -418,7 +475,7 @@ export default function ProfilePage() {
       <div className="profile-page">
         <div className="loading-state">
           <div className="spinner" />
-          <p>Loading profile...</p>
+          <p>{t('profile.loading')}</p>
         </div>
       </div>
     );
@@ -428,22 +485,22 @@ export default function ProfilePage() {
 
   return (
     <div className="profile-page">
-      <h1 className="page-title">My Profile</h1>
+      <h1 className="page-title">{t('profile.title')}</h1>
 
       {/* Current Profile Info */}
       <section className="profile-section" data-testid="profile-info-section">
-        <h2 className="section-title">Profile Information</h2>
+        <h2 className="section-title">{t('profile.infoTitle')}</h2>
         <div className="profile-info-card">
           <div className="info-row">
-            <span className="info-label">Username:</span>
+            <span className="info-label">{t('profile.usernameLabel')}:</span>
             <span className="info-value" data-testid="profile-username">{displayUser?.username ?? '—'}</span>
           </div>
           <div className="info-row">
-            <span className="info-label">Email:</span>
+            <span className="info-label">{t('profile.emailLabel')}:</span>
             <span className="info-value" data-testid="profile-email">{displayUser?.email ?? '—'}</span>
           </div>
           <div className="info-row">
-            <span className="info-label">Role:</span>
+            <span className="info-label">{t('profile.roleLabel')}:</span>
             <span className={`info-value role-badge role-${(displayUser as UserProfile)?.role?.toLowerCase() || 'user'}`} data-testid="profile-role">
               {(displayUser as UserProfile)?.role ?? (displayUser?.username ? 'USER' : '—')}
             </span>
@@ -451,9 +508,32 @@ export default function ProfilePage() {
         </div>
       </section>
 
+      {/* WIKI4AI-73: Language preference */}
+      <section className="profile-section" data-testid="language-section">
+        <h2 className="section-title">{t('profile.languageTitle')}</h2>
+        <p className="section-description">{t('profile.languageDesc')}</p>
+        <div className="form-group">
+          <label htmlFor="profile-language" className="form-label">{t('profile.languageLabel')}</label>
+          <select
+            id="profile-language"
+            className="form-input"
+            value={language}
+            onChange={(e) => handleLanguageChange(e.target.value)}
+            disabled={isUpdatingLanguage}
+            data-testid="language-select"
+          >
+            {SUPPORTED_LANGUAGES.map((code) => (
+              <option key={code} value={code}>
+                {t(code === 'en' ? 'profile.languageEn' : 'profile.languageSk')}
+              </option>
+            ))}
+          </select>
+        </div>
+      </section>
+
       {/* Edit Profile Form */}
       <section className="profile-section" data-testid="edit-profile-section">
-        <h2 className="section-title">Edit Profile</h2>
+        <h2 className="section-title">{t('profile.editTitle')}</h2>
 
         {updateMessage && (
           <div className="success-message" role="alert" data-testid="update-success">
@@ -468,53 +548,53 @@ export default function ProfilePage() {
 
         <form onSubmit={handleUpdateProfile} className="profile-form" data-testid="edit-profile-form">
           <div className="form-group">
-            <label htmlFor="profile-username" className="form-label">Username</label>
+            <label htmlFor="profile-username" className="form-label">{t('profile.usernameField')}</label>
             <input
               id="profile-username"
               type="text"
               value={editUsername}
               onChange={(e) => setEditUsername(e.target.value)}
               className="form-input"
-              placeholder="New username"
+              placeholder={t('profile.usernamePlaceholder')}
               data-testid="edit-username"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="profile-email" className="form-label">Email</label>
+            <label htmlFor="profile-email" className="form-label">{t('profile.emailField')}</label>
             <input
               id="profile-email"
               type="email"
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
               className="form-input"
-              placeholder="New email"
+              placeholder={t('profile.emailPlaceholder')}
               data-testid="edit-email"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="current-password" className="form-label">Current Password</label>
+            <label htmlFor="current-password" className="form-label">{t('profile.currentPasswordField')}</label>
             <input
               id="current-password"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               className="form-input"
-              placeholder="Required to change password"
+              placeholder={t('profile.currentPasswordPlaceholder')}
               data-testid="edit-current-password"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="new-password" className="form-label">New Password</label>
+            <label htmlFor="new-password" className="form-label">{t('profile.newPasswordField')}</label>
             <input
               id="new-password"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="form-input"
-              placeholder="Min 3 characters"
+              placeholder={t('profile.newPasswordPlaceholder')}
               data-testid="edit-new-password"
             />
           </div>
@@ -525,38 +605,35 @@ export default function ProfilePage() {
             disabled={isUpdating}
             data-testid="update-profile-btn"
           >
-            {isUpdating ? 'Saving...' : 'Save Changes'}
+            {isUpdating ? t('project.saving') : t('project.saveChanges')}
           </button>
         </form>
       </section>
 
       {/* API Token Section */}
       <section className="profile-section" data-testid="api-token-section">
-        <h2 className="section-title">API Tokens</h2>
-        <p className="section-description">
-          Generate JWT access tokens for API integrations or MCP server connections.
-          You can create multiple named tokens and manage them here.
-        </p>
+        <h2 className="section-title">{t('profile.apiTokensTitle')}</h2>
+        <p className="section-description">{t('profile.apiTokensDesc')}</p>
 
         {/* Named Token Creation Form */}
         <div className="form-group" style={{ marginTop: '16px' }}>
-          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Create New Token</h3>
+          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>{t('profile.createNewToken')}</h3>
 
           <div className="form-group">
-            <label htmlFor="token-name" className="form-label">Token Name</label>
+            <label htmlFor="token-name" className="form-label">{t('profile.tokenNameField')}</label>
             <input
               id="token-name"
               type="text"
               value={newTokenName}
               onChange={(e) => setNewTokenName(e.target.value)}
               className="form-input"
-              placeholder="e.g., MCP Server, CI/CD Pipeline"
+              placeholder={t('profile.tokenNamePlaceholder')}
               data-testid="api-token-name"
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="token-expiry" className="form-label">Expiration</label>
+            <label htmlFor="token-expiry" className="form-label">{t('profile.expirationField')}</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
@@ -565,7 +642,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUseNewTokenExpiry(e.target.checked)}
                 style={{ width: 'auto', marginRight: '8px' }}
               />
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.setCustomExpiry')}</span>
             </div>
 
             {useNewTokenExpiry && (
@@ -582,8 +659,8 @@ export default function ProfilePage() {
 
             <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
               {useNewTokenExpiry && newTokenExpiresAt
-                ? `Token will expire at ${new Date(newTokenExpiresAt).toLocaleString()}`
-                : 'Leave unchecked for a token that never expires'}
+                ? t('profile.expiresAtHint', { when: new Date(newTokenExpiresAt).toLocaleString(locale) })
+                : t('profile.neverExpiresHint')}
             </p>
           </div>
 
@@ -593,16 +670,16 @@ export default function ProfilePage() {
             disabled={isCreatingNamedToken || !newTokenName.trim()}
             data-testid="create-named-token-btn"
           >
-            {isCreatingNamedToken ? 'Creating...' : 'Create Named Token'}
+            {isCreatingNamedToken ? t('profile.creating') : t('profile.createNamedToken')}
           </button>
         </div>
 
         {/* Unified Token Cards */}
         <div className="token-cards" data-testid="api-tokens-list">
           {isFetchingTokens && storedTokens.length === 0 ? (
-            <p style={{ fontSize: '14px', color: '#6b7280' }}>Loading tokens...</p>
+            <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.loadingTokens')}</p>
           ) : tokenCards.length === 0 ? (
-            <p style={{ fontSize: '14px', color: '#6b7280' }}>No API tokens yet. Create one above.</p>
+            <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.noTokensYet')}</p>
           ) : (
               tokenCards.map((token) => {
                 const hasAccessToken = !!token.accessToken;
@@ -619,9 +696,9 @@ export default function ProfilePage() {
                       </div>
                     )}
                     <div className="token-card-meta">
-                      <span>Created: {new Date(token.createdAt).toLocaleDateString()}</span>
+                      <span>{t('profile.createdLabel')}: {new Date(token.createdAt).toLocaleDateString(locale)}</span>
                       <span className={isTokenExpired(token.expiresAt) ? 'expired-text' : ''}>
-                        Expires: {formatExpiration(token.expiresAt)}
+                        {t('profile.expiresLabel')}: {formatExpiration(token.expiresAt)}
                       </span>
                     </div>
                   </div>
@@ -633,7 +710,7 @@ export default function ProfilePage() {
                         className={`btn-copy-token ${copiedTokenId === token.tokenId ? 'copied' : ''}`}
                         data-testid={`copy-stored-token-${token.tokenId}`}
                       >
-                        {copiedTokenId === token.tokenId ? '✓ Copied!' : 'Copy'}
+                        {copiedTokenId === token.tokenId ? t('profile.copied') : t('profile.copy')}
                       </button>
                     )}
                     <button
@@ -641,7 +718,7 @@ export default function ProfilePage() {
                       className="btn-delete-token"
                       data-testid={`delete-token-${token.tokenId}`}
                     >
-                      Delete
+                      {t('common.delete')}
                     </button>
                   </div>
                 </div>
@@ -652,11 +729,11 @@ export default function ProfilePage() {
 
         {/* Legacy single token generation (backward compatible) */}
         <div style={{ marginTop: '24px', borderTop: '1px solid var(--glass-border)', paddingTop: '16px' }}>
-          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>Quick Generate Token</h3>
+          <h3 style={{ fontSize: '14px', marginBottom: '8px' }}>{t('profile.quickGenerateTitle')}</h3>
 
           {/* Expiration date picker */}
           <div className="form-group">
-            <label htmlFor="token-expiry" className="form-label">Token Expiration</label>
+            <label htmlFor="token-expiry" className="form-label">{t('profile.tokenExpirationField')}</label>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
                 type="checkbox"
@@ -665,7 +742,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUseCustomExpiry(e.target.checked)}
                 style={{ width: 'auto', marginRight: '8px' }}
               />
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>Set custom expiration date</span>
+              <span style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.setCustomExpiry')}</span>
             </div>
 
             {useCustomExpiry && (
@@ -682,8 +759,8 @@ export default function ProfilePage() {
 
             <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
               {useCustomExpiry && expiresAt
-                ? `Token will expire at ${new Date(expiresAt).toLocaleString()}`
-                : 'Leave unchecked for a token that never expires'}
+                ? t('profile.expiresAtHint', { when: new Date(expiresAt).toLocaleString(locale) })
+                : t('profile.neverExpiresHint')}
             </p>
           </div>
 
@@ -693,7 +770,7 @@ export default function ProfilePage() {
             disabled={isGeneratingToken || (useCustomExpiry && !expiresAt)}
             data-testid="generate-token-btn"
           >
-            {isGeneratingToken ? 'Generating...' : 'Generate New Token'}
+            {isGeneratingToken ? t('profile.generating') : t('profile.generateNewToken')}
           </button>
 
           {/* Legacy token display */}
@@ -705,7 +782,7 @@ export default function ProfilePage() {
                 className="btn btn-small copy-btn"
                 data-testid="copy-token-btn"
               >
-                {tokenCopied ? '✓ Copied!' : 'Copy'}
+                {tokenCopied ? t('profile.copied') : t('profile.copy')}
               </button>
             </div>
           )}
@@ -721,14 +798,14 @@ export default function ProfilePage() {
 
       {/* Logout */}
       <section className="profile-section profile-danger-zone">
-        <h2 className="section-title section-danger">Danger Zone</h2>
-        <p className="section-description">Log out of your account on this device.</p>
+        <h2 className="section-title section-danger">{t('project.dangerZone')}</h2>
+        <p className="section-description">{t('profile.logoutDesc')}</p>
         <button
           onClick={handleLogout}
           className="btn btn-danger"
           data-testid="profile-logout-btn"
         >
-          Logout
+          {t('layout.logout')}
         </button>
       </section>
     </div>

@@ -80,8 +80,8 @@ describe('lazyWithRetry', () => {
     const factory = vi.fn().mockRejectedValue(new Error('Failed to fetch dynamically imported module: /assets/DocumentViewer-XXX.js'))
     const LazyComp = lazyWithRetry(() => factory())
     renderLazy(LazyComp)
-    // The ErrorBoundary fallback is shown — NOT an empty #root
-    expect(await screen.findByText('Niečo sa pokazilo')).toBeInTheDocument()
+    // The ErrorBoundary fallback is shown — NOT an empty #root (WIKI4AI-73: EN default)
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
     expect(factory).toHaveBeenCalledTimes(2) // initial attempt + 1 retry
     expect(reload).toHaveBeenCalledTimes(1)
     expect(sessionStorage.getItem(CHUNK_RELOAD_FLAG)).toBe('1')
@@ -92,7 +92,7 @@ describe('lazyWithRetry', () => {
     const factory = vi.fn().mockRejectedValue(new Error('Failed to fetch dynamically imported module: /assets/DocumentViewer-XXX.js'))
     const LazyComp = lazyWithRetry(() => factory())
     renderLazy(LazyComp)
-    expect(await screen.findByText('Niečo sa pokazilo')).toBeInTheDocument()
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
     expect(factory).toHaveBeenCalledTimes(2) // initial attempt + 1 retry (retry is always allowed)
     expect(reload).not.toHaveBeenCalled() // no second auto-reload — loop protection
   })

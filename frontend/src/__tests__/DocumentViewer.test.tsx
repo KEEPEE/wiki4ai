@@ -78,7 +78,8 @@ describe('DocumentViewer', () => {
       renderWithProviders(<DocumentViewer />)
 
       await waitFor(() => {
-        expect(screen.getByText('Back to Project')).toBeInTheDocument()
+        // WIKI4AI-73: EN default catalog ("Back to project")
+        expect(screen.getByText('Back to project')).toBeInTheDocument()
       })
     })
   })
@@ -124,7 +125,7 @@ describe('DocumentViewer', () => {
       renderWithProviders(<DocumentViewer />)
 
       await waitFor(() => {
-        expect(screen.getByText('Upraviť')).toBeInTheDocument()
+        expect(screen.getByText('Edit')).toBeInTheDocument()
       })
     })
 
@@ -171,7 +172,7 @@ describe('DocumentViewer', () => {
 
       await waitFor(() => {
         // Wiki links section should be rendered
-        expect(screen.getByText(/Prepojenia/)).toBeInTheDocument()
+        expect(screen.getByText(/Links/)).toBeInTheDocument()
       })
     })
   })
@@ -187,11 +188,11 @@ describe('DocumentViewer', () => {
       renderWithProviders(<DocumentViewer />)
 
       await waitFor(() => {
-        expect(screen.getByText('Upraviť')).toBeInTheDocument()
+        expect(screen.getByText('Edit')).toBeInTheDocument()
       })
 
       const user = userEvent.setup()
-      await user.click(screen.getByText('Upraviť'))
+      await user.click(screen.getByText('Edit'))
     })
   })
 

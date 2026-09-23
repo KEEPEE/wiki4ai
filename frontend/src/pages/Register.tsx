@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from '../components/AmbientBackground';
 import './Login.css';
@@ -14,6 +16,7 @@ function validateForm(
   username: string,
   email: string,
   password: string,
+  t: TFunction,
 ): FieldError {
   const errors: FieldError = {
     username: null,
@@ -22,16 +25,16 @@ function validateForm(
   };
 
   if (username.length < 3) {
-    errors.username = 'Username must be at least 3 characters';
+    errors.username = t('register.validationUsernameTooShort');
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    errors.email = 'Please enter a valid email address';
+    errors.email = t('register.validationInvalidEmail');
   }
 
   if (password.length < 8) {
-    errors.password = 'Password must be at least 8 characters';
+    errors.password = t('register.validationPasswordTooShort');
   }
 
   return errors;
@@ -50,6 +53,7 @@ export default function Register() {
   const [isLoading, setIsLoading] = useState(false);
   const { register, instanceInitialized, registrationOpen } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -57,7 +61,7 @@ export default function Register() {
       setServerError(null);
 
       // Client-side validation
-      const errors = validateForm(username, email, password);
+      const errors = validateForm(username, email, password, t);
       if (errors.username || errors.email || errors.password) {
         setFieldErrors(errors);
         return;
@@ -72,15 +76,15 @@ export default function Register() {
         navigate('/login');
       } catch (err) {
         if (err instanceof Error) {
-          setServerError(err.message || 'Registration failed. Please try again.');
+          setServerError(err.message || t('register.registrationFailed'));
         } else {
-          setServerError('Registration failed. Please try again.');
+          setServerError(t('register.registrationFailed'));
         }
       } finally {
         setIsLoading(false);
       }
     },
-    [username, email, password, register, navigate],
+    [username, email, password, register, navigate, t],
   );
 
   // WIKI4AI-69: on a fresh instance the first account must be created through the
@@ -116,14 +120,14 @@ export default function Register() {
         <AmbientBackground />
         <div className="auth-page">
           <div className="auth-card">
-            <h1 className="auth-title">Create Account</h1>
+            <h1 className="auth-title">{t('register.title')}</h1>
             <p className="auth-subtitle" data-testid="register-disabled">
-              Registration is disabled on this instance.
+              {t('register.disabled')}
             </p>
             <p className="auth-footer">
-              Already have an account?{' '}
+              {t('auth.haveAccount')}{' '}
               <Link to="/login" className="auth-link">
-                Login here
+                {t('auth.loginHere')}
               </Link>
             </p>
           </div>
@@ -137,7 +141,7 @@ export default function Register() {
       <AmbientBackground />
       <div className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-title">Create Account</h1>
+          <h1 className="auth-title">{t('register.title')}</h1>
 
           {serverError && (
             <div className="auth-error" role="alert" data-testid="register-server-error">
@@ -148,7 +152,7 @@ export default function Register() {
           <form onSubmit={handleSubmit} className="auth-form" data-testid="register-form">
             <div className="form-group">
               <label htmlFor="reg-username" className="form-label">
-                Username
+                {t('auth.username')}
               </label>
               <input
                 id="reg-username"
@@ -156,7 +160,7 @@ export default function Register() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className={`form-input ${fieldErrors.username ? 'form-input-error' : ''}`}
-                placeholder="Choose a username (min 3 chars)"
+                placeholder={t('register.usernamePlaceholder')}
                 required
                 autoComplete="username"
                 data-testid="register-username"
@@ -170,7 +174,7 @@ export default function Register() {
 
             <div className="form-group">
               <label htmlFor="reg-email" className="form-label">
-                Email
+                {t('register.email')}
               </label>
               <input
                 id="reg-email"
@@ -178,7 +182,7 @@ export default function Register() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className={`form-input ${fieldErrors.email ? 'form-input-error' : ''}`}
-                placeholder="your@email.com"
+                placeholder={t('register.emailPlaceholder')}
                 required
                 autoComplete="email"
                 data-testid="register-email"
@@ -192,7 +196,7 @@ export default function Register() {
 
             <div className="form-group">
               <label htmlFor="reg-password" className="form-label">
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="reg-password"
@@ -200,7 +204,7 @@ export default function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
-                placeholder="Min 8 characters"
+                placeholder={t('register.passwordPlaceholder')}
                 required
                 autoComplete="new-password"
                 data-testid="register-password"
@@ -218,14 +222,14 @@ export default function Register() {
               disabled={isLoading}
               data-testid="register-submit"
             >
-              {isLoading ? 'Creating account...' : 'Register'}
+              {isLoading ? t('register.creatingAccount') : t('register.submit')}
             </button>
           </form>
 
           <p className="auth-footer">
-            Already have an account?{' '}
+            {t('auth.haveAccount')}{' '}
             <Link to="/login" className="auth-link">
-              Login here
+              {t('auth.loginHere')}
             </Link>
           </p>
         </div>

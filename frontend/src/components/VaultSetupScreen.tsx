@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
 import { cryptoApi } from '../services/cryptoApi';
 
 const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }) => {
+  const { t } = useTranslation();
   const { setupVault, isLoading, error } = useVault();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -37,11 +39,11 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
           </svg>
         </div>
 
-        <h1 className="vault-setup-title">{isReinit ? 'Set up Vault for this browser' : 'Set up your Vault'}</h1>
+        <h1 className="vault-setup-title">{isReinit ? t('vault.setupTitleReinit') : t('vault.setupTitle')}</h1>
         <p className="vault-setup-description">
           {isReinit
-            ? 'You are accessing Vault from a new browser or device. Please enter your master password again to initialize encryption for this environment. Use the same password as before.'
-            : 'Create a master password to encrypt and protect your vault entries. This password is used locally to decrypt your data and cannot be recovered if lost.'}
+            ? t('vault.setupDescReinit')
+            : t('vault.setupDesc')}
         </p>
 
         {error && (
@@ -50,14 +52,14 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
 
         <form onSubmit={handleSubmit} className="vault-setup-form">
           <div className="vault-input-group">
-            <label htmlFor="master-password" className="vault-label">Master Password</label>
+            <label htmlFor="master-password" className="vault-label">{t('vault.masterPasswordLabel')}</label>
             <div className="vault-input-wrapper">
               <input
                 id="master-password"
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter master password (min 8 characters)"
+                placeholder={t('vault.masterPasswordPlaceholder')}
                 data-testid="vault-setup-password-input"
                 className="vault-input"
                 required
@@ -66,7 +68,7 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="vault-toggle-visibility"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={showPassword ? t('vault.hidePassword') : t('vault.showPassword')}
               >
                 {showPassword ? '🙈' : '👁️'}
               </button>
@@ -74,13 +76,13 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
           </div>
 
           <div className="vault-input-group">
-            <label htmlFor="confirm-password" className="vault-label">Confirm Password</label>
+            <label htmlFor="confirm-password" className="vault-label">{t('vault.confirmPasswordLabel')}</label>
             <input
               id="confirm-password"
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm master password"
+              placeholder={t('vault.confirmPasswordPlaceholder')}
               data-testid="vault-setup-confirm-input"
               className={`vault-input ${!passwordsMatch && confirmPassword ? 'vault-input-error' : ''}`}
               required
@@ -89,16 +91,16 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
 
           <div className="vault-password-requirements">
             {!isStrongEnough && (
-              <span className="vault-requirement vault-requirement-fail">At least 8 characters</span>
+              <span className="vault-requirement vault-requirement-fail">{t('vault.reqMinChars')}</span>
             )}
             {isStrongEnough && (
-              <span className="vault-requirement vault-requirement-pass">✓ At least 8 characters</span>
+              <span className="vault-requirement vault-requirement-pass">✓ {t('vault.reqMinChars')}</span>
             )}
             {!passwordsMatch && confirmPassword && (
-              <span className="vault-requirement vault-requirement-fail">Passwords must match</span>
+              <span className="vault-requirement vault-requirement-fail">{t('vault.reqMatch')}</span>
             )}
             {passwordsMatch && (
-              <span className="vault-requirement vault-requirement-pass">✓ Passwords match</span>
+              <span className="vault-requirement vault-requirement-pass">✓ {t('vault.reqMatchPass')}</span>
             )}
           </div>
 
@@ -108,12 +110,12 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
             data-testid="vault-setup-submit-button"
             className={`vault-primary-button ${isLoading ? 'vault-button-loading' : ''}`}
           >
-            {isLoading ? 'Setting up...' : 'Set up Vault'}
+            {isLoading ? t('vault.settingUp') : t('vault.setupButton')}
           </button>
         </form>
 
         <p className="vault-security-note">
-          🔒 Your master password is encrypted locally and never stored in plain text on our servers.
+          🔒 {t('vault.securityNote')}
         </p>
       </div>
     </div>

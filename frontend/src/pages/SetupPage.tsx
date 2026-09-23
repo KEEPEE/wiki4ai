@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { setup as apiSetup } from '../services/authApi';
 import AmbientBackground from '../components/AmbientBackground';
@@ -11,7 +13,7 @@ interface FieldError {
 }
 
 /** Validate the first-run setup form fields (WIKI4AI-69). */
-function validateForm(username: string, password: string, confirm: string): FieldError {
+function validateForm(username: string, password: string, confirm: string, t: TFunction): FieldError {
   const errors: FieldError = {
     username: null,
     password: null,
@@ -19,15 +21,15 @@ function validateForm(username: string, password: string, confirm: string): Fiel
   };
 
   if (username.length < 2) {
-    errors.username = 'Username must be at least 2 characters';
+    errors.username = t('setup.validationUsernameTooShort');
   }
 
   if (password.length < 8) {
-    errors.password = 'Password must be at least 8 characters';
+    errors.password = t('setup.validationPasswordTooShort');
   }
 
   if (confirm !== password) {
-    errors.confirm = 'Passwords do not match';
+    errors.confirm = t('setup.validationPasswordsMismatch');
   }
 
   return errors;
@@ -53,6 +55,7 @@ export default function SetupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { isAuthenticated, instanceInitialized, markInstanceInitialized } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // NOTE: all hooks (useState/useCallback) must run before any conditional return
   // below — react-hooks/rules-of-hooks.
@@ -61,7 +64,7 @@ export default function SetupPage() {
       e.preventDefault();
       setServerError(null);
 
-      const errors = validateForm(username, password, confirm);
+      const errors = validateForm(username, password, confirm, t);
       if (errors.username || errors.password || errors.confirm) {
         setFieldErrors(errors);
         return;
@@ -78,15 +81,15 @@ export default function SetupPage() {
         navigate('/login');
       } catch (err) {
         if (err instanceof Error) {
-          setServerError(err.message || 'Setup failed. Please try again.');
+          setServerError(err.message || t('setup.setupFailed'));
         } else {
-          setServerError('Setup failed. Please try again.');
+          setServerError(t('setup.setupFailed'));
         }
       } finally {
         setIsLoading(false);
       }
     },
-    [username, password, confirm, markInstanceInitialized, navigate],
+    [username, password, confirm, markInstanceInitialized, navigate, t],
   );
 
   // Already authenticated → straight into the app.
@@ -120,10 +123,9 @@ export default function SetupPage() {
       <AmbientBackground />
       <div className="auth-page">
         <div className="auth-card">
-          <h1 className="auth-title">First-time setup</h1>
+          <h1 className="auth-title">{t('setup.title')}</h1>
           <p className="auth-subtitle" data-testid="setup-subtitle">
-            This instance has no accounts yet. The account you create now will become
-            the administrator.
+            {t('setup.subtitle')}
           </p>
 
           {serverError && (
@@ -135,7 +137,7 @@ export default function SetupPage() {
           <form onSubmit={handleSubmit} className="auth-form" data-testid="setup-form">
             <div className="form-group">
               <label htmlFor="setup-username" className="form-label">
-                Username
+                {t('auth.username')}
               </label>
               <input
                 id="setup-username"
@@ -143,7 +145,7 @@ export default function SetupPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className={`form-input ${fieldErrors.username ? 'form-input-error' : ''}`}
-                placeholder="Choose a username (min 2 chars)"
+                placeholder={t('setup.usernamePlaceholder')}
                 required
                 autoComplete="username"
                 data-testid="setup-username"
@@ -157,7 +159,7 @@ export default function SetupPage() {
 
             <div className="form-group">
               <label htmlFor="setup-password" className="form-label">
-                Password
+                {t('auth.password')}
               </label>
               <input
                 id="setup-password"
@@ -165,7 +167,7 @@ export default function SetupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className={`form-input ${fieldErrors.password ? 'form-input-error' : ''}`}
-                placeholder="Min 8 characters"
+                placeholder={t('setup.passwordPlaceholder')}
                 required
                 autoComplete="new-password"
                 data-testid="setup-password"
@@ -179,7 +181,7 @@ export default function SetupPage() {
 
             <div className="form-group">
               <label htmlFor="setup-confirm" className="form-label">
-                Confirm password
+                {t('setup.confirmPassword')}
               </label>
               <input
                 id="setup-confirm"
@@ -187,7 +189,7 @@ export default function SetupPage() {
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
                 className={`form-input ${fieldErrors.confirm ? 'form-input-error' : ''}`}
-                placeholder="Repeat the password"
+                placeholder={t('setup.confirmPlaceholder')}
                 required
                 autoComplete="new-password"
                 data-testid="setup-confirm"
@@ -205,14 +207,14 @@ export default function SetupPage() {
               disabled={isLoading}
               data-testid="setup-submit"
             >
-              {isLoading ? 'Creating admin account...' : 'Create admin account'}
+              {isLoading ? t('setup.creatingAdminAccount') : t('setup.submit')}
             </button>
           </form>
 
           <p className="auth-footer">
-            Already have an account?{' '}
+            {t('auth.haveAccount')}{' '}
             <Link to="/login" className="auth-link">
-              Login here
+              {t('auth.loginHere')}
             </Link>
           </p>
         </div>

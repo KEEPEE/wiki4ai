@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import mermaid from 'mermaid';
 import './MermaidDiagram.css';
 
@@ -52,6 +53,7 @@ interface MermaidDiagramProps {
 }
 
 const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
+  const { t } = useTranslation();
   const [svg, setSvg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +88,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
       })
       .catch((err) => {
         if (!cancelled) {
-          const message = err instanceof Error ? err.message : 'Failed to render diagram';
+          const message = err instanceof Error ? err.message : t('diagrams.renderFailed');
           setError(message);
         }
       })
@@ -112,13 +114,13 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
       {isLoading && (
         <div className="mermaid-diagram__loading" role="status">
           <div className="mermaid-diagram__spinner" />
-          <span>Loading diagram…</span>
+          <span>{t('diagrams.loading')}</span>
         </div>
       )}
 
       {error && !isLoading && (
         <div className="mermaid-diagram__error" role="alert">
-          <strong>Diagram Error:</strong>
+          <strong>{t('diagrams.errorLabel')}:</strong>
           <p>{error}</p>
         </div>
       )}
