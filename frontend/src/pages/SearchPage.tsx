@@ -18,7 +18,7 @@ import './SearchPage.css';
 const SearchPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // Local input state, seeded from ?q= and kept in sync when the parameter
   // changes (e.g. a fresh header search while already on /search).
@@ -37,7 +37,7 @@ const SearchPage: React.FC = () => {
   const formatDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('sk-SK', {
+      return date.toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
