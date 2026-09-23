@@ -93,7 +93,7 @@ All configuration is passed as environment variables; there are no config files 
 
 | Variable | Default | Container | Description |
 |---|---|---|---|
-| `SPRING_PROFILES_ACTIVE` | unset (H2 in-memory dev mode) | backend | Must be `postgres` for any persistent instance — enables the Postgres datasource, Flyway migrations and `ddl-auto: validate`. The repo's local compose relies on the postgres profile via `SPRING_DATASOURCE_URL` + `ddl-auto: update`. |
+| `SPRING_PROFILES_ACTIVE` | unset (H2 in-memory dev mode) | backend | Must be `postgres` for any persistent instance — enables the Postgres driver, Flyway migrations and `ddl-auto: validate`. The repo's local compose sets it explicitly, so a fresh `docker compose up` runs the V1–V12 migrations on first boot. |
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://db:5432/wiki4ai` (postgres profile) | backend | JDBC URL; host is the compose service name `db`. |
 | `SPRING_DATASOURCE_USERNAME` | `wiki4ai` (postgres profile) | backend | DB user; must match `POSTGRES_USER`. |
 | `SPRING_DATASOURCE_PASSWORD` | none — must be set | backend | DB password; must match `POSTGRES_PASSWORD` on the db service. |
