@@ -44,16 +44,16 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     )
     expect(screen.getByText('ok content')).toBeInTheDocument()
-    expect(screen.queryByText('Niečo sa pokazilo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
   })
 
-  it('renders fallback UI "Niečo sa pokazilo" when a child throws during render', () => {
+  it('renders fallback UI "Something went wrong" when a child throws during render (WIKI4AI-73: EN default)', () => {
     render(
       <ErrorBoundary>
         <Thrower />
       </ErrorBoundary>,
     )
-    expect(screen.getByText('Niečo sa pokazilo')).toBeInTheDocument()
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
   })
 
   it('shows the error message in the fallback UI', () => {
@@ -67,14 +67,14 @@ describe('ErrorBoundary', () => {
     ).toBeInTheDocument()
   })
 
-  it('provides an "Obnoviť stránku" button that reloads the page', () => {
+  it('provides a "Reload Page" button that reloads the page (WIKI4AI-73: EN default)', () => {
     const reload = mockLocation()
     render(
       <ErrorBoundary>
         <Thrower />
       </ErrorBoundary>,
     )
-    const button = screen.getByRole('button', { name: 'Obnoviť stránku' })
+    const button = screen.getByRole('button', { name: 'Reload Page' })
     fireEvent.click(button)
     expect(reload).toHaveBeenCalledTimes(1)
   })
@@ -86,7 +86,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>,
     )
     expect(screen.getByText('custom fallback ui')).toBeInTheDocument()
-    expect(screen.queryByText('Niečo sa pokazilo')).not.toBeInTheDocument()
+    expect(screen.queryByText('Something went wrong')).not.toBeInTheDocument()
   })
 
   it('keeps the boundary in error state after a child keeps throwing', () => {
@@ -97,6 +97,6 @@ describe('ErrorBoundary', () => {
     )
     // Re-rendering the same (still broken) subtree must not crash the app —
     // the fallback stays visible.
-    expect(screen.getByText('Niečo sa pokazilo')).toBeInTheDocument()
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument()
   })
 })

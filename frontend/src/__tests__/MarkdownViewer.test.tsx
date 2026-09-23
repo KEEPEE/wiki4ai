@@ -134,7 +134,8 @@ describe('MarkdownViewer', () => {
         />
       )
 
-      expect(screen.getByText('Prepojenia')).toBeInTheDocument()
+      // WIKI4AI-73: EN default catalog
+      expect(screen.getByText('Links')).toBeInTheDocument()
       expect(screen.getByText('Doc 1')).toBeInTheDocument()
       expect(screen.getByText('Doc 2')).toBeInTheDocument()
     })

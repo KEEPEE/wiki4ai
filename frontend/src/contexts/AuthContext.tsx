@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
-import { login as apiLogin, register as apiRegister, getAuthStatus, type UserInfo } from '../services/authApi';
+import { login as apiLogin, register as apiRegister, getAuthStatus, getMe, type UserInfo } from '../services/authApi';
+import { applyUserLanguage, DEFAULT_LANGUAGE } from '../i18n';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'wiki4ai_access_token';
@@ -94,10 +95,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (storedToken && storedUser) {
       try {
-        const userInfo = JSON.parse(storedUser);
+        const userInfo: UserInfo = JSON.parse(storedUser);
         setAccessToken(storedToken);
         setRefreshToken(storedRefresh);
         setUser(userInfo);
+
+        // WIKI4AI-73: apply the cached language preference immediately (no flash),
+        // then re-sync from GET /auth/me — authoritative, so a preference change
+        // made on another device takes effect on this one.
+        applyUserLanguage(userInfo.language);
+        if (!isTokenExpired(storedToken)) {
+          getMe(storedToken)
+            .then((fresh) => {
+              setUser(fresh);
+              localStorage.setItem(USER_INFO_KEY, JSON.stringify(fresh));
+              applyUserLanguage(fresh.language);
+            })
+            .catch(() => {
+              // Token rejected server-side — the apiClient refresh flow (or the
+              // next 401) handles clearing auth state; language stays as cached.
+            });
+        }
 
         // Check if token is expired
         if (isTokenExpired(storedToken)) {
@@ -162,6 +180,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     setAccessToken(null);
     setRefreshToken(null);
+    // WIKI4AI-73: every path to the anonymous state (logout, expired token,
+    // failed refresh) returns the UI to the default language.
+    applyUserLanguage(DEFAULT_LANGUAGE);
   }, []);
 
   const saveAuthState = useCallback((token: string, refresh: string, userInfo: UserInfo) => {
@@ -177,6 +198,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await apiLogin(username, password);
       saveAuthState(response.accessToken, response.refreshToken, response.user);
+      // WIKI4AI-73: the login response carries the user's language preference —
+      // switch the UI immediately, no extra roundtrip.
+      applyUserLanguage(response.user.language);
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -197,7 +221,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const logout = useCallback(() => {
-    clearAuthState();
+    clearAuthState(); // also resets i18n to the default language (WIKI4AI-73)
   }, [clearAuthState]);
 
   const refreshTokenAction = useCallback(async () => {

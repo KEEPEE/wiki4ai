@@ -3,6 +3,10 @@
  */
 import '@testing-library/jest-dom'
 
+// WIKI4AI-73: initialize i18next so components render with the EN default
+// catalog in tests (mirrors anonymous/first-run behavior).
+import '../i18n'
+
 // Mock window.matchMedia for responsive tests
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

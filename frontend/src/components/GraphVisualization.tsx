@@ -5,6 +5,7 @@
  */
 
 import React, { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import './GraphVisualization.css';
 
 interface Node {
@@ -46,6 +47,7 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
   nodes = defaultNodes,
   edges = defaultEdges,
 }) => {
+  const { t } = useTranslation();
   const svgContent = useMemo(() => {
     return (
       <svg className="graph-svg" viewBox="0 0 800 500">
@@ -93,8 +95,8 @@ const GraphVisualization: React.FC<GraphVisualizationProps> = ({
   return (
     <div className="graph-visualization">
       <header className="graph-header">
-        <h2>Document Graph</h2>
-        <p className="graph-subtitle">Visualizing connections between documents</p>
+        <h2>{t('graph.documentGraph')}</h2>
+        <p className="graph-subtitle">{t('graph.connectionsSubtitle')}</p>
       </header>
       <div className="graph-container">
         {svgContent}

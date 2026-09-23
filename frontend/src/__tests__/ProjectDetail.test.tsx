@@ -181,9 +181,9 @@ describe('ProjectDetail', () => {
 
       renderWithProviders(<ProjectDetail />)
 
-      // Documents count appears in tab button and h2 - use getAllByText
+      // Documents count appears in tab button and h2 - use getAllByText (WIKI4AI-73: EN default)
       await waitFor(() => {
-        const headers = screen.getAllByText(/Dokumenty \(2\)/)
+        const headers = screen.getAllByText(/Documents \(2\)/)
         expect(headers.length).toBeGreaterThanOrEqual(1)
       })
     })
@@ -209,7 +209,8 @@ describe('ProjectDetail', () => {
       renderWithProviders(<ProjectDetail />)
 
       await waitFor(() => {
-        expect(screen.getByText(/Žiadne dokumenty/)).toBeInTheDocument()
+        // WIKI4AI-73: EN default catalog
+        expect(screen.getByText(/No documents yet/)).toBeInTheDocument()
       })
     })
   })
@@ -237,11 +238,12 @@ describe('ProjectDetail', () => {
 
       const user = userEvent.setup()
       
+      // WIKI4AI-73: EN default catalog
       await waitFor(() => {
-        expect(screen.getByText('+ Nový dokument')).toBeInTheDocument()
+        expect(screen.getByText('+ New Document')).toBeInTheDocument()
       })
 
-      await user.click(screen.getByText('+ Nový dokument'))
+      await user.click(screen.getByText('+ New Document'))
     })
   })
 
@@ -432,7 +434,8 @@ describe('ProjectDetail', () => {
       await waitFor(() => {
         expect(screen.getByTestId('semantic-unavailable-banner')).toBeInTheDocument()
       })
-      expect(screen.getByTestId('semantic-unavailable-banner')).toHaveTextContent(/Semantické vyhľadávanie je nedostupné/)
+      // WIKI4AI-73: EN default catalog
+      expect(screen.getByTestId('semantic-unavailable-banner')).toHaveTextContent(/Semantic search is unavailable/)
     })
 
     it('should show an active badge when the sidecar is up', async () => {

@@ -6,6 +6,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
 import type { Project, ProjectDTO } from '../types/project';
@@ -25,6 +26,7 @@ interface SubprojectRowProps {
 }
 
 const SubprojectRow: React.FC<SubprojectRowProps> = ({ project, depth, childrenByParent, onNavigate }) => {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const children = childrenByParent.get(project.slug) ?? [];
   const hasChildren = children.length > 0;
@@ -51,7 +53,7 @@ const SubprojectRow: React.FC<SubprojectRowProps> = ({ project, depth, childrenB
       >
         <span className="subproject-icon" aria-hidden="true">↳</span>
         <span className="subproject-name">{project.name}</span>
-        <span className="badge subproject-badge">{project.documentCount} docs</span>
+        <span className="badge subproject-badge">{t('dashboard.docsCount', { count: project.documentCount })}</span>
         {hasChildren && (
           <button
             type="button"
@@ -60,7 +62,7 @@ const SubprojectRow: React.FC<SubprojectRowProps> = ({ project, depth, childrenB
               e.stopPropagation();
               setCollapsed((c) => !c);
             }}
-            aria-label={collapsed ? `Expand ${project.name}` : `Collapse ${project.name}`}
+            aria-label={collapsed ? t('dashboard.expandProject', { name: project.name }) : t('dashboard.collapseProject', { name: project.name })}
             data-testid={`subproject-toggle-${project.slug}`}
           >
             {collapsed ? '▸' : '▾'}
@@ -90,6 +92,7 @@ interface DeleteConfirmationDialogProps {
 }
 
 const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ project, onConfirm, onCancel, isDeleting }) => {
+  const { t } = useTranslation();
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleConfirm = async () => {
@@ -97,7 +100,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
     try {
       await onConfirm(project.id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete project');
+      setDeleteError(err instanceof Error ? err.message : t('dashboard.deleteFailed'));
     }
   };
 
@@ -111,10 +114,11 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="delete-modal">
       <div className="modal-content modal-delete" role="dialog" aria-labelledby="delete-modal-title">
-        <button type="button" className="modal-close" onClick={onCancel} aria-label="Close modal">×</button>
-        <h3 id="delete-modal-title" data-testid="delete-modal-title">Delete Project</h3>
+        <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>×</button>
+        <h3 id="delete-modal-title" data-testid="delete-modal-title">{t('dashboard.deleteProjectTitle')}</h3>
         <p className="delete-warning" data-testid="delete-warning-text">
-          Are you sure you want to delete project &ldquo;<strong>{project.name}</strong>&rdquo;? All documents and subprojects will be permanently removed.
+          {t('dashboard.deleteWarningStart')} &ldquo;<strong>{project.name}</strong>&rdquo;?{' '}
+          {t('dashboard.deleteWarningEnd')}
         </p>
         {deleteError && <p className="error">{deleteError}</p>}
         <div className="form-actions form-actions-delete">
@@ -125,10 +129,10 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
             disabled={isDeleting}
             data-testid="delete-confirm-button"
           >
-            {isDeleting ? 'Deleting...' : 'Delete'}
+            {isDeleting ? t('dashboard.deleting') : t('common.delete')}
           </button>
           <button type="button" onClick={onCancel} className="btn-secondary" data-testid="delete-cancel-button">
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>
@@ -145,6 +149,7 @@ interface EditProjectModalProps {
 }
 
 const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, onCancel, isSaving }) => {
+  const { t } = useTranslation();
   const [editName, setEditName] = useState(project.name);
   const [editDescription, setEditDescription] = useState(project.description || '');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -161,7 +166,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
       };
       await onSave(project.id, dto);
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to update project');
+      setSaveError(err instanceof Error ? err.message : t('dashboard.updateFailed'));
     }
   };
 
@@ -175,10 +180,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
   return (
     <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="edit-modal">
       <div className="modal-content" role="dialog" aria-labelledby="edit-modal-title">
-        <button type="button" className="modal-close" onClick={onCancel} aria-label="Close modal">×</button>
-        <h3 id="edit-modal-title">Edit Project</h3>
+        <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>×</button>
+        <h3 id="edit-modal-title">{t('dashboard.editProjectTitle')}</h3>
         <form onSubmit={handleSave}>
-          <label htmlFor="edit-name">Project Name</label>
+          <label htmlFor="edit-name">{t('dashboard.projectName')}</label>
           <input
             id="edit-name"
             type="text"
@@ -189,7 +194,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
             data-testid="edit-name-input"
           />
 
-          <label htmlFor="edit-description">Description</label>
+          <label htmlFor="edit-description">{t('dashboard.description')}</label>
           <textarea
             id="edit-description"
             value={editDescription}
@@ -202,10 +207,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
 
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={isSaving} data-testid="edit-save-button">
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? t('dashboard.saving') : t('common.save')}
             </button>
             <button type="button" onClick={onCancel} className="btn-secondary" data-testid="edit-cancel-button">
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </form>
@@ -216,6 +221,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const {
     projects,
     isLoading,
@@ -269,7 +275,7 @@ const Dashboard: React.FC = () => {
   const handleSaveEdit = async (id: number, dto: ProjectDTO) => {
     await updateProject({ id, dto });
     setEditingProject(null);
-    addToast('Project updated successfully', 'success');
+    addToast(t('dashboard.toastUpdated'), 'success');
   };
 
   const handleCancelEdit = () => {
@@ -285,7 +291,7 @@ const Dashboard: React.FC = () => {
   const handleConfirmDelete = async (id: number) => {
     await deleteProjectMutation(id);
     setDeletingProject(null);
-    addToast('Project deleted successfully', 'success');
+    addToast(t('dashboard.toastDeleted'), 'success');
   };
 
   const handleCancelDelete = () => {
@@ -303,18 +309,19 @@ const Dashboard: React.FC = () => {
       setNewName('');
       setNewDescription('');
       setShowCreateForm(false);
-      addToast('Project created successfully', 'success');
+      addToast(t('dashboard.toastCreated'), 'success');
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create project';
+      const errorMsg = err instanceof Error ? err.message : t('dashboard.createFailed');
       setCreateError(errorMsg);
       addToast(errorMsg, 'error');
     }
   };
 
+  // WIKI4AI-73: dates follow the active UI language.
   const formatDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString('sk-SK', {
+      return date.toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -369,18 +376,18 @@ const Dashboard: React.FC = () => {
 
       {/* Hero Section */}
       <section className="hero-section">
-        <h1>Wiki4AI Projects</h1>
-        <p className="hero-subtitle">Manage and organize your AI documentation projects</p>
+        <h1>{t('dashboard.title')}</h1>
+        <p className="hero-subtitle">{t('dashboard.subtitle')}</p>
         {projects.length > 0 && (
           <div className="stats-row">
             <div className="stat-item">
               <span className="stat-number">{projects.length}</span>
-              <span className="stat-label">Projects</span>
+              <span className="stat-label">{t('dashboard.statsProjects')}</span>
             </div>
             <div className="stat-divider" />
             <div className="stat-item">
               <span className="stat-number">{totalDocs}</span>
-              <span className="stat-label">Documents</span>
+              <span className="stat-label">{t('dashboard.statsDocuments')}</span>
             </div>
           </div>
         )}
@@ -389,17 +396,17 @@ const Dashboard: React.FC = () => {
       {/* Create Project Form */}
       {showCreateForm && (
         <form onSubmit={handleCreate} className="create-form">
-          <h3>Create New Project</h3>
+          <h3>{t('dashboard.createNewProject')}</h3>
           <input
             type="text"
-            placeholder="Project name"
+            placeholder={t('dashboard.projectNamePlaceholder')}
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             required
             autoFocus
           />
           <textarea
-            placeholder="Description (optional)"
+            placeholder={t('dashboard.descriptionPlaceholder')}
             value={newDescription}
             onChange={(e) => setNewDescription(e.target.value)}
             rows={3}
@@ -407,10 +414,10 @@ const Dashboard: React.FC = () => {
           {createError && <p className="error">{createError}</p>}
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={isCreating}>
-              {isCreating ? 'Creating...' : 'Create'}
+              {isCreating ? t('dashboard.creating') : t('common.create')}
             </button>
             <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </form>
@@ -419,7 +426,7 @@ const Dashboard: React.FC = () => {
       {/* Action Button */}
       {!showCreateForm && (
         <button onClick={() => setShowCreateForm(true)} className="btn-create-new">
-          + New Project
+          + {t('dashboard.newProject')}
         </button>
       )}
 
@@ -432,7 +439,7 @@ const Dashboard: React.FC = () => {
           <input
             type="text"
             className="search-input"
-            placeholder="Hľadať projekty..."
+            placeholder={t('dashboard.searchProjects')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             data-testid="search-input"
@@ -442,7 +449,7 @@ const Dashboard: React.FC = () => {
               type="button"
               className="search-clear"
               onClick={() => setSearchQuery('')}
-              aria-label="Clear search"
+              aria-label={t('dashboard.clearSearch')}
               data-testid="search-clear-button"
             >
               ×
@@ -454,7 +461,7 @@ const Dashboard: React.FC = () => {
       {/* Results Count */}
       {projects.length > 0 && debouncedSearchQuery.trim() && (
         <p className="results-count" data-testid="results-count">
-          Showing {filteredProjects.length} of {projects.length} projects
+          {t('dashboard.showingResults', { shown: filteredProjects.length, total: projects.length })}
         </p>
       )}
 
@@ -462,7 +469,7 @@ const Dashboard: React.FC = () => {
       {isLoading && (
         <div className="loading-state">
           <div className="spinner" />
-          <p>Loading projects...</p>
+          <p>{t('dashboard.loadingProjects')}</p>
         </div>
       )}
 
@@ -471,7 +478,7 @@ const Dashboard: React.FC = () => {
         <div className="error-state">
           <p className="error">{error.message}</p>
           <button onClick={() => window.location.reload()} className="btn-secondary">
-            Retry
+            {t('dashboard.retry')}
           </button>
         </div>
       )}
@@ -484,10 +491,10 @@ const Dashboard: React.FC = () => {
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
-              <p className="empty-text">No projects yet.</p>
+              <p className="empty-text">{t('dashboard.emptyState')}</p>
               {!showCreateForm && (
                 <button onClick={() => setShowCreateForm(true)} className="btn-primary">
-                  Create your first project!
+                  {t('dashboard.createFirstProject')}
                 </button>
               )}
             </div>
@@ -496,7 +503,7 @@ const Dashboard: React.FC = () => {
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="empty-text">No projects match your search</p>
+              <p className="empty-text">{t('dashboard.noMatches')}</p>
             </div>
           ) : (
             (isSearching ? filteredProjects : rootProjects).map((project) => (
@@ -516,7 +523,7 @@ const Dashboard: React.FC = () => {
                   type="button"
                   className="edit-button"
                   onClick={(e) => handleEditClick(e, project)}
-                  aria-label={`Edit ${project.name}`}
+                  aria-label={t('dashboard.ariaEdit', { name: project.name })}
                   data-testid={`edit-button-${project.id}`}
                 >
                   ✏️
@@ -525,14 +532,14 @@ const Dashboard: React.FC = () => {
                   type="button"
                   className="delete-button"
                   onClick={(e) => handleDeleteClick(e, project)}
-                  aria-label={`Delete ${project.name}`}
+                  aria-label={t('dashboard.ariaDelete', { name: project.name })}
                   data-testid={`delete-button-${project.id}`}
                 >
                   🗑️
                 </button>
                 <div className="card-header">
                   <h3>{project.name}</h3>
-                  <span className="badge">{project.documentCount} docs</span>
+                  <span className="badge">{t('dashboard.docsCount', { count: project.documentCount })}</span>
                 </div>
                 {project.description && (
                   <p className="description" title={project.description}>

@@ -21,6 +21,8 @@ export interface UserInfo {
   username: string;
   email: string;
   role?: 'ADMIN' | 'USER';
+  /** WIKI4AI-73: saved UI language preference ('en' | 'sk'); always present on fresh responses. */
+  language?: 'en' | 'sk';
   createdAt: string;
 }
 
@@ -95,6 +97,23 @@ export async function getAuthStatus(signal?: AbortSignal): Promise<AuthStatus> {
 
   if (!response.ok) {
     throw new Error(`Failed to load auth status: ${response.statusText}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * WIKI4AI-73: fetch the profile of the currently authenticated user
+ * (GET /api/v1/auth/me). Used on page load to re-sync the UI language with
+ * the account's saved preference (authoritative over the cached localStorage copy).
+ */
+export async function getMe(accessToken: string): Promise<UserInfo> {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to load profile: ${response.statusText}`);
   }
 
   return response.json();

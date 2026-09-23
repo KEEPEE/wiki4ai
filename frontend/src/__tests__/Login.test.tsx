@@ -127,7 +127,8 @@ describe('Login', () => {
         expect(screen.getByTestId('login-error')).toBeInTheDocument()
       })
 
-      expect(screen.getByTestId('login-error')).toHaveTextContent('Invalid username or password')
+      // WIKI4AI-73: known backend messages are mapped to localized UI strings
+      expect(screen.getByTestId('login-error')).toHaveTextContent('Invalid credentials')
     })
 
     it('should disable submit button while loading', async () => {

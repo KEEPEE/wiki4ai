@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { isUploadedImageSrc, resolveUploadedImageUrl } from '../services/imageApi';
 import './UploadedImage.css';
 
@@ -20,6 +21,7 @@ interface UploadedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
 }
 
 const UploadedImage: React.FC<UploadedImageProps> = ({ src, alt, node: _node, ...rest }) => {
+  const { t } = useTranslation();
   const isUploaded = isUploadedImageSrc(src);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -48,15 +50,15 @@ const UploadedImage: React.FC<UploadedImageProps> = ({ src, alt, node: _node, ..
 
   if (error) {
     return (
-      <span className="uploaded-image uploaded-image--error" role="img" aria-label={alt || 'image'}>
-        [Image unavailable]
+      <span className="uploaded-image uploaded-image--error" role="img" aria-label={alt || t('common.image')}>
+        [{t('uploadedImage.unavailable')}]
       </span>
     );
   }
 
   if (!resolvedUrl) {
     return (
-      <span className="uploaded-image uploaded-image--loading" role="img" aria-label={alt || 'image'} />
+      <span className="uploaded-image uploaded-image--loading" role="img" aria-label={alt || t('common.image')} />
     );
   }
 

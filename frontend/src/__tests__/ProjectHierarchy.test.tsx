@@ -268,7 +268,8 @@ describe('ProjectDetail hierarchy (WIKI4AI-31)', () => {
 
     await user.click(screen.getByTestId('create-subproject-button'))
     await user.type(screen.getByTestId('subproject-name-input'), 'New Sub')
-    await user.click(screen.getByRole('button', { name: /Vytvoriť subprojekt/ }))
+    // WIKI4AI-73: EN default catalog
+    await user.click(screen.getByRole('button', { name: /Create Subproject/ }))
 
     await waitFor(() => {
       expect(createProject).toHaveBeenCalledWith({ name: 'New Sub', parentId: 1 })

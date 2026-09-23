@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import MarkdownPreview from '../components/MarkdownPreview';
 import BackButton from '../components/BackButton';
 import Breadcrumb from '../components/Breadcrumb';
@@ -56,6 +57,7 @@ function slugify(text: string): string {
 }
 
 const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjectSlug }) => {
+  const { t } = useTranslation();
   const { slug: paramProjectSlug, docId: paramDocSlug } = useParams<{ slug: string; docId: string }>();
   const navigate = useNavigate();
 
@@ -106,12 +108,12 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
         setBacklinks([]);
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load document';
+      const message = err instanceof Error ? err.message : t('viewer.loadFailed');
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [projectSlug, docSlug]);
+  }, [projectSlug, docSlug, t]);
 
   useEffect(() => {
     loadDocument();
@@ -137,7 +139,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   if (!projectSlug || !docSlug) {
     return (
       <div className="document-viewer">
-        <p>Document not found.</p>
+        <p>{t('viewer.notFound')}</p>
       </div>
     );
   }
@@ -145,7 +147,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   if (loading) {
     return (
       <div className="document-viewer">
-        <div className="loading-indicator">Loading document...</div>
+        <div className="loading-indicator">{t('viewer.loading')}</div>
       </div>
     );
   }
@@ -154,9 +156,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
     return (
       <div className="document-viewer">
         <div className="error-message">
-          <p>Error: {error}</p>
+          <p>{t('viewer.errorLabel')}: {error}</p>
           <button onClick={() => navigate(`/projects/${projectSlug}`)} className="btn-secondary">
-            Back to Project
+            {t('project.backToProject')}
           </button>
         </div>
       </div>
@@ -172,9 +174,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       <header className="document-header">
         <h1>{title || docSlug}</h1>
         <div className="document-actions">
-          <BackButton to={`/projects/${projectSlug}`} label="Späť na projekt" />
+          <BackButton to={`/projects/${projectSlug}`} label={t('project.backToProject')} />
           <button onClick={handleEdit} className="btn-primary">
-            Upraviť
+            {t('viewer.edit')}
           </button>
         </div>
       </header>
@@ -184,14 +186,14 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
         {content.trim() ? (
           <MarkdownPreview content={content} />
         ) : (
-          <p className="empty-preview">This document has no content yet. Click "Upraviť" to add content.</p>
+          <p className="empty-preview">{t('viewer.emptyContent')}</p>
         )}
       </div>
 
       {/* Wiki Links Section */}
       {wikiLinks.length > 0 && (
-        <section className="backlinks-section" aria-label="Wiki Links">
-          <h3>🔗 Prepojenia ({wikiLinks.length})</h3>
+        <section className="backlinks-section" aria-label={t('viewer.wikiLinksAria')}>
+          <h3>🔗 {t('viewer.linksHeading', { count: wikiLinks.length })}</h3>
           <ul className="backlinks-list">
             {wikiLinks.map((link) => (
               <li key={link} className="backlink-item">
@@ -209,8 +211,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       )}
 
       {/* Backlinks Section - Linked from (read-only) */}
-      <section className="backlinks-section" aria-label="Linked from">
-        <h3>📎 Linked from ({backlinks.length})</h3>
+      <section className="backlinks-section" aria-label={t('viewer.linkedFromAria')}>
+        <h3>📎 {t('viewer.linkedFromHeading', { count: backlinks.length })}</h3>
         {backlinks.length > 0 ? (
           <ul className="backlinks-list">
             {backlinks.map((doc) => (
@@ -226,7 +228,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
             ))}
           </ul>
         ) : (
-          <p className="no-backlinks">No documents link to this page</p>
+          <p className="no-backlinks">{t('viewer.noBacklinks')}</p>
         )}
       </section>
     </div>

@@ -9,10 +9,12 @@ import {
   type CreateUserRequest,
   type ChangeRoleRequest,
 } from '../services/adminApi';
+import { useTranslation } from 'react-i18next';
 import './AdminUsers.css';
 
 export default function AdminUsersPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
+  const { t } = useTranslation();
   // Cast to access role property stored in localStorage but not typed in UserInfo
   const isAdmin = (user as any)?.role === 'ADMIN';
   const currentUserId = (user as any)?.id ?? null;
@@ -57,16 +59,16 @@ export default function AdminUsersPage() {
       const response = await listUsers(0, 100);
       setUsers(response.content || []);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to load users';
+      const msg = err instanceof Error ? err.message : t('admin.loadUsersFailed');
       if (msg.includes('403') || msg.includes('Forbidden')) {
-        setLoadError('Access denied. Admin role required.');
+        setLoadError(t('admin.accessDeniedError'));
       } else {
         setLoadError(msg);
       }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!isAuthLoading && isAdmin) {
@@ -93,8 +95,8 @@ export default function AdminUsersPage() {
 
       try {
         await createUser(request);
-        setCreateMessage('User created successfully');
-        showToast('User created successfully', 'success');
+        setCreateMessage(t('admin.userCreated'));
+        showToast(t('admin.userCreated'), 'success');
         // Reset form
         setCreateUsername('');
         setCreateEmail('');
@@ -103,14 +105,14 @@ export default function AdminUsersPage() {
         // Reload users list
         await loadUsers();
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to create user';
+        const msg = err instanceof Error ? err.message : t('admin.createUserFailed');
         setCreateError(msg);
         showToast(msg, 'error');
       } finally {
         setIsCreating(false);
       }
     },
-    [createUsername, createEmail, createPassword, createRole, loadUsers, showToast],
+    [createUsername, createEmail, createPassword, createRole, loadUsers, showToast, t],
   );
 
   // Handle role change via dropdown
@@ -124,15 +126,15 @@ export default function AdminUsersPage() {
         setUsers((prev) =>
           prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u)),
         );
-        showToast(`Role updated to ${newRole}`, 'success');
+        showToast(t('admin.roleUpdated', { role: newRole }), 'success');
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to update role';
+        const msg = err instanceof Error ? err.message : t('admin.updateRoleFailed');
         showToast(msg, 'error');
         // Reload to restore correct state on error
         await loadUsers();
       }
     },
-    [loadUsers, showToast],
+    [loadUsers, showToast, t],
   );
 
   // Handle delete confirmation
@@ -144,15 +146,15 @@ export default function AdminUsersPage() {
         setDeleteConfirmUser(null);
         // Remove from local state
         setUsers((prev) => prev.filter((u) => u.id !== userId));
-        showToast('User deleted successfully', 'success');
+        showToast(t('admin.userDeleted'), 'success');
       } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to delete user';
+        const msg = err instanceof Error ? err.message : t('admin.deleteUserFailed');
         showToast(msg, 'error');
       } finally {
         setIsDeleting(false);
       }
     },
-    [showToast],
+    [showToast, t],
   );
 
   // Wait for auth context to load before checking admin status
@@ -161,7 +163,7 @@ export default function AdminUsersPage() {
       <div className="admin-users-page">
         <div className="loading-state">
           <div className="spinner" />
-          <p>Loading...</p>
+          <p>{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -172,8 +174,8 @@ export default function AdminUsersPage() {
     return (
       <div className="admin-users-page">
         <div className="access-denied" data-testid="access-denied">
-          <h1>403 - Access Denied</h1>
-          <p>You need ADMIN role to access this page.</p>
+          <h1>{t('admin.accessDeniedTitle')}</h1>
+          <p>{t('admin.accessDeniedText')}</p>
         </div>
       </div>
     );
@@ -181,7 +183,7 @@ export default function AdminUsersPage() {
 
   return (
     <div className="admin-users-page">
-      <h1 className="page-title">User Management</h1>
+      <h1 className="page-title">{t('admin.pageTitle')}</h1>
 
       {/* Toast Notification */}
       {toast && (
@@ -198,10 +200,9 @@ export default function AdminUsersPage() {
       {deleteConfirmUser && (
         <div className="modal-overlay" data-testid="delete-confirm-overlay" onClick={() => setDeleteConfirmUser(null)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">Confirm Delete</h2>
+            <h2 className="modal-title">{t('admin.confirmDeleteTitle')}</h2>
             <p className="modal-text">
-              Are you sure you want to delete user <strong>{deleteConfirmUser.username}</strong>?
-              This action cannot be undone.
+              {t('admin.deleteUserConfirm', { username: deleteConfirmUser.username, trans: true })}
             </p>
             <div className="modal-actions">
               <button
@@ -210,7 +211,7 @@ export default function AdminUsersPage() {
                 data-testid="delete-cancel-btn"
                 disabled={isDeleting}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 className="btn btn-danger"
@@ -218,7 +219,7 @@ export default function AdminUsersPage() {
                 data-testid="delete-confirm-btn"
                 disabled={isDeleting}
               >
-                {isDeleting ? 'Deleting...' : 'Delete'}
+                {isDeleting ? t('admin.deleting') : t('common.delete')}
               </button>
             </div>
           </div>
@@ -227,7 +228,7 @@ export default function AdminUsersPage() {
 
       {/* Create User Form */}
       <section className="admin-section" data-testid="create-user-section">
-        <h2 className="section-title">Create New User</h2>
+        <h2 className="section-title">{t('admin.createNewUser')}</h2>
 
         {createMessage && (
           <div className="success-message" role="alert" data-testid="create-success">
@@ -243,14 +244,14 @@ export default function AdminUsersPage() {
         <form onSubmit={handleCreateUser} className="admin-form" data-testid="create-user-form">
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="new-username" className="form-label">Username</label>
+              <label htmlFor="new-username" className="form-label">{t('admin.username')}</label>
               <input
                 id="new-username"
                 type="text"
                 value={createUsername}
                 onChange={(e) => setCreateUsername(e.target.value)}
                 className="form-input"
-                placeholder="Username (2-50 chars)"
+                placeholder={t('admin.usernamePlaceholder')}
                 required
                 minLength={2}
                 maxLength={50}
@@ -259,7 +260,7 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="new-email" className="form-label">Email</label>
+              <label htmlFor="new-email" className="form-label">{t('admin.email')}</label>
               <input
                 id="new-email"
                 type="email"
@@ -275,14 +276,14 @@ export default function AdminUsersPage() {
 
           <div className="form-row">
             <div className="form-group">
-              <label htmlFor="new-password" className="form-label">Password</label>
+              <label htmlFor="new-password" className="form-label">{t('admin.password')}</label>
               <input
                 id="new-password"
                 type="password"
                 value={createPassword}
                 onChange={(e) => setCreatePassword(e.target.value)}
                 className="form-input"
-                placeholder="Min 8 characters"
+                placeholder={t('admin.passwordPlaceholder')}
                 required
                 minLength={8}
                 data-testid="create-password"
@@ -290,7 +291,7 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="form-group">
-              <label htmlFor="new-role" className="form-label">Role</label>
+              <label htmlFor="new-role" className="form-label">{t('admin.role')}</label>
               <select
                 id="new-role"
                 value={createRole}
@@ -310,14 +311,14 @@ export default function AdminUsersPage() {
             disabled={isCreating}
             data-testid="create-user-btn"
           >
-            {isCreating ? 'Creating...' : 'Create User'}
+            {isCreating ? t('admin.creating') : t('admin.createUser')}
           </button>
         </form>
       </section>
 
       {/* Users Table */}
       <section className="admin-section" data-testid="users-list-section">
-        <h2 className="section-title">All Users ({users.length})</h2>
+        <h2 className="section-title">{t('admin.allUsers', { count: users.length })}</h2>
 
         {loadError && (
           <div className="error-message" role="alert" data-testid="load-error">
@@ -328,19 +329,19 @@ export default function AdminUsersPage() {
         {isLoading ? (
           <div className="loading-state">
             <div className="spinner" />
-            <p>Loading users...</p>
+            <p>{t('admin.loadingUsers')}</p>
           </div>
         ) : (
           <div className="table-wrapper">
             <table className="admin-table" data-testid="users-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Username</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Created</th>
-                  <th>Actions</th>
+                  <th>{t('admin.headerId')}</th>
+                  <th>{t('admin.username')}</th>
+                  <th>{t('admin.email')}</th>
+                  <th>{t('admin.role')}</th>
+                  <th>{t('admin.created')}</th>
+                  <th>{t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -370,7 +371,7 @@ export default function AdminUsersPage() {
                           className="btn btn-sm btn-danger-outline"
                           onClick={() => setDeleteConfirmUser(u)}
                           disabled={isSelf}
-                          title={isSelf ? 'Cannot delete your own account' : `Delete ${u.username}`}
+                          title={isSelf ? t('admin.cannotDeleteSelf') : t('admin.deleteUserTitle', { username: u.username })}
                           data-testid={`delete-user-btn-${u.id}`}
                         >
                           {isSelf ? '🔒' : '🗑️'}

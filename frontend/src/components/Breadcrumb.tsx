@@ -11,6 +11,7 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import './Breadcrumb.css';
 
 interface BreadcrumbProps {
@@ -41,13 +42,14 @@ interface BreadcrumbProps {
  * The document title uses Syne font and gets a neon glow on hover.
  */
 const Breadcrumb: React.FC<BreadcrumbProps> = ({ projectSlug, documentTitle, ancestors }) => {
+  const { t } = useTranslation();
   return (
-    <nav className="breadcrumb" aria-label="Breadcrumb">
+    <nav className="breadcrumb" aria-label={t('breadcrumb.ariaLabel')}>
       <ol className="breadcrumb-list">
         {/* Dashboard home link */}
         <li className="breadcrumb-item">
           <Link to="/" className="breadcrumb-link breadcrumb-home">
-            Dashboard
+            {t('breadcrumb.dashboard')}
           </Link>
         </li>
 

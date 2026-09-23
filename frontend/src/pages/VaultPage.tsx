@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
 import { useVaultEntries } from '../hooks/useVaultEntries';
 import type { VaultEntry, VaultEntryData, BackendVaultEntry } from '../types/vault';
@@ -110,6 +111,7 @@ interface GroupedEntries {
 }
 
 const VaultPage: React.FC = () => {
+  const { t } = useTranslation();
   const vault = useVault();
 
   useEffect(() => {
@@ -230,7 +232,7 @@ const VaultPage: React.FC = () => {
       <div className="vault-page">
         <div className="loading-state">
           <div className="spinner" />
-          <p>Loading vault...</p>
+          <p>{t('vault.loading')}</p>
         </div>
       </div>
     );
@@ -265,7 +267,7 @@ const VaultPage: React.FC = () => {
 
       closeForm();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to save entry');
+      setFormError(err instanceof Error ? err.message : t('vault.saveFailed'));
     }
   };
 
@@ -292,12 +294,12 @@ const VaultPage: React.FC = () => {
 
   const handleImportSubmit = async () => {
     if (!importFile) {
-      setImportError('Please select a KDBX file');
+      setImportError(t('vault.importSelectFile'));
       return;
     }
 
     if (!importPassword.trim()) {
-      setImportError('Please enter the database password');
+      setImportError(t('vault.importPasswordRequired'));
       return;
     }
 
@@ -308,7 +310,7 @@ const VaultPage: React.FC = () => {
       const entries = await vaultApi.importFromKdbx(importFile, importPassword);
 
       if (entries.length === 0) {
-        setImportError('No entries found in the KDBX file');
+        setImportError(t('vault.importNoEntries'));
         return;
       }
 
@@ -318,7 +320,7 @@ const VaultPage: React.FC = () => {
         if (entry.notes?.trim()) data.notes = entry.notes.trim();
 
         await createEntry({
-          title: entry.title || 'Untitled',
+          title: entry.title || t('vault.untitled'),
           url: entry.url?.trim() || undefined,
           groupPath: entry.groupPath?.trim() || undefined,
           data,
@@ -327,7 +329,7 @@ const VaultPage: React.FC = () => {
 
       closeImportModal();
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Failed to import KDBX file');
+      setImportError(err instanceof Error ? err.message : t('vault.importFailed'));
     } finally {
       setIsImporting(false);
     }
@@ -352,7 +354,7 @@ const VaultPage: React.FC = () => {
         downloadFile(content, `vault-export-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
       }
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : 'Failed to export entries');
+      setExportError(err instanceof Error ? err.message : t('vault.exportFailed'));
     } finally {
       setIsExporting(false);
     }
@@ -369,14 +371,14 @@ const VaultPage: React.FC = () => {
   };
 
   const handleDeleteEntry = async (entry: VaultEntry) => {
-    if (!window.confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('vault.deleteConfirm', { title: entry.title }))) return;
 
     setDeleteError(null);
     setDeletingId(entry.id);
     try {
       await deleteEntry(entry.id);
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete entry');
+      setDeleteError(err instanceof Error ? err.message : t('vault.deleteFailed'));
     } finally {
       setDeletingId(null);
     }
@@ -388,7 +390,7 @@ const VaultPage: React.FC = () => {
       <div className="vault-page">
         <div className="loading-state">
           <div className="spinner" />
-          <p>Loading vault...</p>
+          <p>{t('vault.loading')}</p>
         </div>
       </div>
     );
@@ -401,7 +403,7 @@ const VaultPage: React.FC = () => {
         <div className="error-state">
           <p className="error">{error.message}</p>
           <button onClick={() => window.location.reload()} className="btn-secondary">
-            Retry
+            {t('dashboard.retry')}
           </button>
         </div>
       </div>
@@ -412,10 +414,10 @@ const VaultPage: React.FC = () => {
     <div className="vault-page">
       {/* Header */}
       <header className="vault-header">
-        <h1>Vault</h1>
+        <h1>{t('vault.title')}</h1>
         <div className="vault-actions">
           <button onClick={openImportModal} className="btn-import" data-testid="vault-import-button">
-            Import KDBX
+            {t('vault.importKdbx')}
           </button>
           <div ref={exportMenuRef} className="export-menu-wrapper" style={{ position: 'relative', display: 'inline-block' }}>
             <button
@@ -425,7 +427,7 @@ const VaultPage: React.FC = () => {
               className="btn-import"
               data-testid="vault-export-button"
             >
-              Export
+              {t('vault.export')}
             </button>
             {showExportMenu && (
               <div className="export-dropdown" style={{
@@ -456,7 +458,7 @@ const VaultPage: React.FC = () => {
                   }}
                   data-testid="vault-export-csv-button"
                 >
-                  Export as CSV
+                  {t('vault.exportCsv')}
                 </button>
                 <button
                   type="button"
@@ -474,7 +476,7 @@ const VaultPage: React.FC = () => {
                   }}
                   data-testid="vault-export-json-button"
                 >
-                  Export as JSON
+                  {t('vault.exportJson')}
                 </button>
               </div>
             )}
@@ -486,7 +488,7 @@ const VaultPage: React.FC = () => {
             <input
               type="text"
               className="search-input"
-              placeholder="Search entries..."
+              placeholder={t('vault.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               data-testid="vault-search-input"
@@ -496,7 +498,7 @@ const VaultPage: React.FC = () => {
                 type="button"
                 className="search-clear"
                 onClick={() => setSearchQuery('')}
-                aria-label="Clear search"
+                aria-label={t('dashboard.clearSearch')}
                 data-testid="vault-search-clear-button"
               >
                 ×
@@ -534,7 +536,7 @@ const VaultPage: React.FC = () => {
       {!showForm && (
         <>
           <button onClick={openCreateForm} className="btn-create-new" data-testid="vault-add-entry-button">
-            + Add New Entry
+            + {t('vault.addNewEntry')}
           </button>
 
           {entries.length === 0 ? (
@@ -542,9 +544,9 @@ const VaultPage: React.FC = () => {
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              <p className="empty-text">No entries in your vault yet.</p>
+              <p className="empty-text">{t('vault.emptyState')}</p>
               <button onClick={openCreateForm} className="btn-primary">
-                Add your first entry!
+                {t('vault.addFirstEntry')}
               </button>
             </div>
           ) : (
@@ -570,7 +572,7 @@ const VaultPage: React.FC = () => {
               <main className="vault-main">
                 {Object.keys(filteredGroups).length === 0 && searchQuery ? (
                   <div className="empty-state">
-                    <p className="empty-text">No entries match your search</p>
+                    <p className="empty-text">{t('vault.noMatches')}</p>
                   </div>
                 ) : (
                   Object.entries(filteredGroups).map(([groupPath, groupEntries]) => (
@@ -586,7 +588,7 @@ const VaultPage: React.FC = () => {
                                   type="button"
                                   className="vault-entry-edit-button"
                                   onClick={() => openEditForm(entry)}
-                                  aria-label={`Edit ${entry.title}`}
+                                  aria-label={t('vault.ariaEdit', { title: entry.title })}
                                   data-testid={`vault-edit-entry-${entry.id}`}
                                 >
                                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -597,7 +599,7 @@ const VaultPage: React.FC = () => {
                                   type="button"
                                   className="vault-entry-copy-button"
                                   onClick={() => copyPassword(entry)}
-                                  aria-label={`Copy password for ${entry.title}`}
+                                  aria-label={t('vault.ariaCopy', { title: entry.title })}
                                   data-testid={`vault-copy-password-${entry.id}`}
                                 >
                                   {copiedId === entry.id ? (
@@ -615,7 +617,7 @@ const VaultPage: React.FC = () => {
                                   className="vault-entry-delete-button"
                                   onClick={() => handleDeleteEntry(entry)}
                                   disabled={deletingId === entry.id}
-                                  aria-label={`Delete ${entry.title}`}
+                                  aria-label={t('vault.ariaDelete', { title: entry.title })}
                                   data-testid={`vault-delete-entry-${entry.id}`}
                                 >
                                   <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -650,11 +652,11 @@ const VaultPage: React.FC = () => {
       {showImportModal && (
         <div className="import-modal-overlay" data-testid="vault-import-modal">
           <div className="import-modal">
-            <h2>Import from KDBX</h2>
-            <p className="import-description">Upload a KeePass (.kdbx) database file to import entries into your vault.</p>
+            <h2>{t('vault.importTitle')}</h2>
+            <p className="import-description">{t('vault.importDescription')}</p>
 
             <div className="import-field">
-              <label htmlFor="kdbx-file-input">KDBX File</label>
+              <label htmlFor="kdbx-file-input">{t('vault.kdbxFileLabel')}</label>
               <input
                 id="kdbx-file-input"
                 type="file"
@@ -667,11 +669,11 @@ const VaultPage: React.FC = () => {
             </div>
 
             <div className="import-field">
-              <label htmlFor="kdbx-password-input">Database Password</label>
+              <label htmlFor="kdbx-password-input">{t('vault.databasePasswordLabel')}</label>
               <input
                 id="kdbx-password-input"
                 type="password"
-                placeholder="Enter KDBX password"
+                placeholder={t('vault.kdbxPasswordPlaceholder')}
                 value={importPassword}
                 onChange={(e) => setImportPassword(e.target.value)}
                 disabled={isImporting}
@@ -689,7 +691,7 @@ const VaultPage: React.FC = () => {
                 className="btn-secondary"
                 data-testid="vault-import-cancel-button"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 type="button"
@@ -698,7 +700,7 @@ const VaultPage: React.FC = () => {
                 className="btn-primary"
                 data-testid="vault-import-submit-button"
               >
-                {isImporting ? 'Importing...' : 'Import'}
+                {isImporting ? t('vault.importing') : t('vault.importButton')}
               </button>
             </div>
           </div>

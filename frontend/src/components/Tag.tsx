@@ -11,6 +11,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './Tag.css';
 
 interface TagProps {
@@ -23,10 +24,11 @@ interface TagProps {
  * Render a styled tag/label badge with glassmorphism and neon effects.
  */
 const Tag: React.FC<TagProps> = ({ label, variant = 'default', onClick }) => {
+  const { t } = useTranslation();
   const className = `tag ${variant === 'admin' ? 'tag-admin' : variant === 'user' ? 'tag-user' : ''}`;
 
   return (
-    <span className={className} role="img" aria-label={`Tag: ${label}`} onClick={onClick}>
+    <span className={className} role="img" aria-label={t('tag.label', { label })} onClick={onClick}>
       {label}
     </span>
   );

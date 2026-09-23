@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 export default function LoadingScreen() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(true);
 
   useEffect(() => {
@@ -15,7 +17,7 @@ export default function LoadingScreen() {
   return (
     <div className={`loading-screen ${visible ? '' : 'hidden'}`}>
       <div className="loader-ring" />
-      <div className="loading-text">Initializing Experience...</div>
+      <div className="loading-text">{t('app.initializingExperience')}</div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Suspense, type ReactElement } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import { VaultProvider } from './contexts/VaultContext'
@@ -25,11 +26,12 @@ const GraphViewPage = lazyWithRetry(() => import('./pages/GraphViewPage'))
 const DocumentViewer = lazyWithRetry(() => import('./pages/DocumentViewer'))
 const DocumentEditor = lazyWithRetry(() => import('./pages/DocumentEditor'))
 
-function LazyRouteFallback({ label = 'Loading...' }: { label?: string }) {
+function LazyRouteFallback({ label }: { label?: string }) {
+  const { t } = useTranslation()
   return (
     <div className="loading-state">
       <div className="spinner" />
-      <p>{label}</p>
+      <p>{label ?? t('app.loading')}</p>
     </div>
   )
 }
@@ -50,6 +52,7 @@ function LazyRoute({ children, label }: { children: ReactElement; label?: string
 }
 
 function App() {
+  const { t } = useTranslation()
   return (
     <>
       <LoadingScreen />
@@ -80,7 +83,7 @@ function App() {
                   <Route
                     path="projects/:slug/graph"
                     element={
-                      <LazyRoute label="Loading graph...">
+                      <LazyRoute label={t('app.loadingGraph')}>
                         <GraphViewPage />
                       </LazyRoute>
                     }

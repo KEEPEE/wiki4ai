@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import MermaidDiagram from './MermaidDiagram';
@@ -121,12 +122,13 @@ function buildCustomComponents(): Components {
 }
 
 const MarkdownPreview: React.FC<MarkdownPreviewProps> = ({ content, className }) => {
+  const { t } = useTranslation();
   const customComponents = buildCustomComponents();
 
   if (!content) {
     return (
       <div className={`markdown-preview ${className ?? ''}`}>
-        <p className="markdown-preview__empty">No content</p>
+        <p className="markdown-preview__empty">{t('markdown.noContent')}</p>
       </div>
     );
   }

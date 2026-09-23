@@ -10,6 +10,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import './Toast.css';
 
 /** Toast type enum */
@@ -38,6 +39,7 @@ interface ToastItemProps {
 }
 
 const ToastItemComponent: React.FC<ToastItemProps> = ({ item, onDismiss }) => {
+  const { t } = useTranslation();
   const [isExiting, setIsExiting] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -78,7 +80,7 @@ const ToastItemComponent: React.FC<ToastItemProps> = ({ item, onDismiss }) => {
         type="button"
         className="toast-dismiss"
         onClick={handleDismiss}
-        aria-label="Dismiss notification"
+        aria-label={t('toast.dismissAria')}
       >
         ×
       </button>

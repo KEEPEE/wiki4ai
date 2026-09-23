@@ -11,16 +11,14 @@ import { useGlobalSearch } from '../hooks/useGlobalSearch';
 import { useEmbeddingStatus } from '../hooks/useEmbeddingStatus';
 import { useDebounce } from '../hooks/useDebounce';
 import { generateSlug } from '../utils/slugify';
+import { useTranslation } from 'react-i18next';
 import './ProjectDetail.css'; // shared search-bar / document-items / score-badge classes
 import './SearchPage.css';
-
-/** Slovak plural for the result counter. */
-const resultsWord = (n: number): string =>
-  n === 1 ? 'výsledok' : n >= 2 && n <= 4 ? 'výsledky' : 'výsledkov';
 
 const SearchPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // Local input state, seeded from ?q= and kept in sync when the parameter
   // changes (e.g. a fresh header search while already on /search).
@@ -57,16 +55,16 @@ const SearchPage: React.FC = () => {
 
   return (
     <div className="search-page">
-      <h1 className="search-page-title">Globálne vyhľadávanie</h1>
+      <h1 className="search-page-title">{t('search.title')}</h1>
       <p className="search-page-subtitle">
-        Hybridné (text + semantické) vyhľadávanie po všetkých projektoch wiki4ai.
+        {t('search.subtitle')}
       </p>
 
       {/* Search bar — reuses ProjectDetail .search-bar/.search-input classes */}
       <div className="search-bar">
         <input
           type="text"
-          placeholder="Hľadať vo wiki..."
+          placeholder={t('search.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="search-input"
@@ -77,7 +75,7 @@ const SearchPage: React.FC = () => {
             type="button"
             onClick={() => setQuery('')}
             className="search-clear-btn"
-            aria-label="Clear search"
+            aria-label={t('search.clearSearchAria')}
             data-testid="clear-global-search-button"
           >
             &times;
@@ -88,25 +86,25 @@ const SearchPage: React.FC = () => {
       {/* Semantic search availability hint (WIKI4AI-36) */}
       {hasSearched && embeddingStatus && !embeddingStatus.available && (
         <div className="semantic-unavailable-banner" role="status" data-testid="semantic-unavailable-banner">
-          Semantické vyhľadávanie je nedostupné — zobrazujem len textové výsledky.
+          {t('search.semanticUnavailable')}
         </div>
       )}
       {hasSearched && embeddingStatus?.available && (
         <span className="semantic-status-badge" data-testid="semantic-status-badge">
-          semantické vyhľadávanie: aktívne
+          {t('search.semanticActive')}
         </span>
       )}
 
       {searching ? (
-        <div className="loading-state"><div className="spinner" /><p>Hľadám...</p></div>
+        <div className="loading-state"><div className="spinner" /><p>{t('search.searching')}</p></div>
       ) : hasSearched && results.length === 0 ? (
-        <p className="empty-state">Žiadne dokumenty nevyhovujú vyhľadávaniu</p>
+        <p className="empty-state">{t('search.noResults')}</p>
       ) : !hasSearched ? (
-        <p className="empty-state">Začnite písať aspoň 2 znaky pre globálne vyhľadávanie.</p>
+        <p className="empty-state">{t('search.startTypingHint')}</p>
       ) : (
         <>
           <p className="search-results-count" data-testid="search-results-count">
-            {results.length} {resultsWord(results.length)}
+            {t('search.resultsCount', { count: results.length })}
           </p>
           <ul className="document-items">
             {results.map((doc) => {
@@ -118,7 +116,7 @@ const SearchPage: React.FC = () => {
                     {doc.score != null && (
                       <span
                         className="doc-score"
-                        title="Relevance score hybridného vyhľadávania (RRF)"
+                        title={t('search.scoreTitle')}
                         data-testid={`search-score-${doc.id}`}
                       >
                         {doc.score.toFixed(4)}
@@ -126,7 +124,7 @@ const SearchPage: React.FC = () => {
                     )}
                     <span
                       className="project-badge"
-                      title={`Projekt: ${doc.projectName || doc.projectSlug}`}
+                      title={t('search.projectBadge', { project: doc.projectName || doc.projectSlug })}
                       data-testid={`project-badge-${doc.id}`}
                     >
                       {doc.projectName || doc.projectSlug}
