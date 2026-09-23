@@ -14,7 +14,7 @@ import './AdminUsers.css';
 
 export default function AdminUsersPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // Cast to access role property stored in localStorage but not typed in UserInfo
   const isAdmin = (user as any)?.role === 'ADMIN';
   const currentUserId = (user as any)?.id ?? null;
@@ -364,7 +364,7 @@ export default function AdminUsersPage() {
                         </select>
                       </td>
                       <td className="cell-date">
-                        {new Date(u.createdAt).toLocaleDateString()}
+                        {new Date(u.createdAt).toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB')}
                       </td>
                       <td className="cell-actions">
                         <button
