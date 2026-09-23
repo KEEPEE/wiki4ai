@@ -37,3 +37,10 @@ backups/
 
 # KeePass databases - contain secrets, never commit (WIKI4AI-47)
 *.kdbx
+
+# Agent evidence & local build caches - never commit (WIKI4AI-76)
+.evidence-*
+.m2-repo/
+.npm-cache/
+.session-extract/
+*.log
