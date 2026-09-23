@@ -26,4 +26,11 @@ public class ProfileUpdateRequestDTO {
 
     @Size(min = 3, message = "New password must be at least 3 characters long")
     private String newPassword;
+
+    /**
+     * WIKI4AI-73: preferred UI language ("en" or "sk"). Optional — only applied
+     * when provided. The service rejects values outside the supported set.
+     */
+    @Size(min = 2, max = 5, message = "Language must be a 2-5 character code")
+    private String language;
 }
