@@ -685,3 +685,31 @@ input:checked + .toggle-slider:before {
 .conflict-banner .conflict-reload-btn {
   flex-shrink: 0;
 }
+
+/* WIKI4AI-83: full error state when an existing document fails to load (e.g. a
+   404 slug). Mirrors DocumentViewer's .error-message styling so the user gets a
+   clear, usable panel instead of an empty editable editor + tiny status pill. */
+.editor-error-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.editor-error-panel {
+  width: 100%;
+  max-width: 560px;
+  padding: 2.5rem 2rem;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.editor-error-panel p {
+  color: var(--color-error-text);
+  font-size: 1.05rem;
+  margin-bottom: 1.25rem;
+  word-break: break-word;
+}

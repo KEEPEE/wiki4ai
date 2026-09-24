@@ -577,4 +577,32 @@ describe('DocumentEditor', () => {
       })
     })
   })
+
+  describe('WIKI4AI-83: failed document load (404)', () => {
+    it('shows a full error panel with back-to-project button instead of an editable empty editor', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.get).mockRejectedValue(new Error('404: Document not found'))
+
+      const { useDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<DocumentEditor />, { route: '/projects/test-project/documents/neexistujuci/edit' })
+
+      // The full error panel is shown with the API message…
+      const errorPanel = await screen.findByTestId('editor-load-error')
+      expect(errorPanel).toBeInTheDocument()
+      expect(screen.getByText(/404: Document not found/)).toBeInTheDocument()
+      // …with a way back to the project (same label as DocumentViewer's error state)…
+      const backButton = screen.getByRole('button', { name: /back to project|späť na projekt/i })
+      expect(backButton).toBeInTheDocument()
+      // …and the editor is NOT rendered (no empty editable buffer for a 404 doc)
+      expect(screen.queryByTestId('monaco-editor-input')).not.toBeInTheDocument()
+
+      // Clicking back does not crash (navigates to /projects/:slug via MemoryRouter)
+      const user = userEvent.setup()
+      await user.click(backButton)
+    })
+  })
 })

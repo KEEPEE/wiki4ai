@@ -71,10 +71,15 @@ interface InsertSelection {
  * - Background: #12121f (deep dark matching --dark-2)
  * - Line numbers: subtle white 30% (unchanged)
  * - Cursor: #00f0ff bright cyan (unchanged)
- * - Selection: rgba(0, 240, 255, 0.2) gentle cyan highlight (unchanged)
+ * - Selection: #00F0FF33 (= rgba(0, 240, 255, 0.2)) gentle cyan highlight
  * - Find widget / scrollbars / current line: cyan tones (unchanged)
+ *
+ * WIKI4AI-83: every value in `colors` MUST be a hex string (#RRGGBB or
+ * #RRGGBBAA). Monaco's StandaloneTheme parses them with Color.fromHex(), which
+ * silently falls back to #ff0000 (Color.red) for anything non-hex — the old
+ * rgba() strings rendered the selection and line highlight bright red.
  */
-const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
+export const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,
   rules: [
@@ -107,12 +112,20 @@ const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
     'editor.foreground': '#e8e8f0',
     'editor.lineNumberForeground': '#666666',
     'editorCursor.foreground': '#00f0ff',
-    'editor.selectionBackground': 'rgba(0, 240, 255, 0.2)',
-    'editor.findWidget.background': 'rgba(0, 240, 255, 0.1)',
+    // WIKI4AI-83: hex8 (#RRGGBBAA) equivalents of the old rgba() values — see the
+    // fromHex/#ff0000 note in the header comment above.
+    'editor.selectionBackground': '#00F0FF33', // was rgba(0, 240, 255, 0.2)
+    'editor.findWidget.background': '#00F0FF1A', // was rgba(0, 240, 255, 0.1)
     'editor.findWidget.foreground': '#00f0ff',
-    'scrollbarSlider.background': 'rgba(0, 240, 255, 0.12)',
-    'scrollbarSlider.hoverBackground': 'rgba(0, 240, 255, 0.25)',
-    'editor.lineHighlightBackground': 'rgba(0, 240, 255, 0.08)',
+    'scrollbarSlider.background': '#00F0FF1F', // was rgba(0, 240, 255, 0.12)
+    'scrollbarSlider.hoverBackground': '#00F0FF40', // was rgba(0, 240, 255, 0.25)
+    'editor.lineHighlightBackground': '#00F0FF14', // was rgba(0, 240, 255, 0.08)
+    // WIKI4AI-83: defensive neutral for the orphan `]` of [[WikiLink]] — the
+    // markdown tokenizer swallows `[[…` up to the first `]` into one string.link
+    // token, leaving the final bracket unbalanced and decorated with
+    // "unexpected-closing-bracket". Primary fix is bracketPairColorization: false
+    // below; this only guards against re-enabling it in the future.
+    'editorBracketHighlight.unexpectedBracket.foreground': '#E8E8F0',
   },
 };
 
@@ -300,6 +313,15 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 tabSize: 2,
                 insertSpaces: true,
                 readOnly,
+                // WIKI4AI-83: disable bracket pair colorization. The markdown
+                // tokenizer emits `[[WikiLink]` as a single string.link token, so
+                // the final `]` of every valid wiki link looks like an unbalanced
+                // closing bracket and Monaco paints it red
+                // (unexpected-closing-bracket). Disabling the colorization provider
+                // removes those decorations at the source; brackets keep their
+                // normal token colors. Hover matching (bracketPairColorization's
+                // sibling, bracketMatching) stays enabled.
+                bracketPairColorization: { enabled: false },
               }}
             />
           </div>

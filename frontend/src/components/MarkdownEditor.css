@@ -47,17 +47,20 @@
 }
 
 /* ── Monaco Editor VS Code CSS custom properties ──────────────── */
-/* These control internal Monaco theming elements that CSS alone cannot target */
+/* These control internal Monaco theming elements that CSS alone cannot target.
+   WIKI4AI-83: variable names MUST match exactly what Monaco 0.55 generates from
+   its color IDs (dots → dashes, camelCase preserved per segment — e.g.
+   editor.selectionBackground → --vscode-editor-selectionBackground). The old
+   camelCase names were dead code; the red selection came from the defineTheme
+   colors map instead (see MarkdownEditor.tsx). Values mirror WIKI4AI_DARK_THEME. */
 
 .markdown-editor .monaco-editor {
   --vscode-editor-background: #12121f;                        /* matches var(--dark-2) */
   --vscode-editor-foreground: #e8e8f0;                        /* high-contrast base text (was dimmed 70% white) */
-  --vscode-lineNumberForeground: rgba(255, 255, 255, 0.3);    /* subtle white line numbers */
-  --vscode-editorLineNumberForeground: rgba(255, 255, 255, 0.3);
-  --vscode-editorCursorForeground: #00f0ff;                    /* cyan cursor */
-  --vscode-editorSelectionBackground: rgba(0, 240, 255, 0.15); /* subtle cyan selection */
-  --vscode-findWidget-background: rgba(0, 240, 255, 0.1);     /* find widget background */
-  --vscode-findWidget-foreground: #00f0ff;                     /* find widget text */
+  --vscode-editorLineNumber-foreground: rgba(255, 255, 255, 0.3); /* subtle white line numbers */
+  --vscode-editorCursor-foreground: #00f0ff;                  /* cyan cursor */
+  --vscode-editor-selectionBackground: rgba(0, 240, 255, 0.2);  /* subtle cyan selection (= #00F0FF33 in theme) */
+  --vscode-editor-lineHighlightBackground: rgba(0, 240, 255, 0.08); /* current line glow */
   --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.12);
   --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
 }

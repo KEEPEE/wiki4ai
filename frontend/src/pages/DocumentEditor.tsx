@@ -113,6 +113,11 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   // session). Autosave is suspended while active; cleared on successful reload/save.
   const [conflictActive, setConflictActive] = useState(false);
 
+  // WIKI4AI-83: message when loading an existing document failed (e.g. 404 for a
+  // non-existent slug). Renders a full error panel instead of leaving an editable
+  // empty editor with only the tiny "Error" status pill.
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   // React Query hooks for document management
   const { updateDocument, createDocument } = useDocuments(projectSlug || '');
 
@@ -124,6 +129,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const loadDocument = useCallback(async () => {
     if (!projectSlug || !docSlug) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const doc = await documentApi.get(projectSlug, docSlug);
       setTitle(doc.title || '');
@@ -135,6 +141,9 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     } catch (err) {
       const message = err instanceof Error ? err.message : t('viewer.loadFailed');
       console.error('Error loading document:', message);
+      // WIKI4AI-83: surface a clear, usable error state (full panel with a way
+      // back to the project) instead of only the tiny status pill.
+      setLoadError(message);
       setSaveStatus('error');
     } finally {
       setLoading(false);
@@ -267,6 +276,25 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           <h1>{t('common.loading')}</h1>
         </header>
         <div className="loading-indicator editor-loading">{t('viewer.loading')}</div>
+      </div>
+    );
+  }
+
+  // WIKI4AI-83: document failed to load (e.g. 404) → full error panel with a way
+  // back to the project, mirroring DocumentViewer's error state. The editor is
+  // intentionally not rendered: an empty editable buffer for a non-existent doc
+  // would invite saving garbage under the typed slug.
+  if (loadError) {
+    return (
+      <div className="document-editor">
+        <div className="editor-error-state" data-testid="editor-load-error">
+          <div className="editor-error-panel">
+            <p>{t('viewer.errorLabel')}: {loadError}</p>
+            <button onClick={() => navigate(`/projects/${projectSlug}`)} className="btn-secondary">
+              {t('project.backToProject')}
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
