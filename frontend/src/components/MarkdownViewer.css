@@ -67,6 +67,10 @@
 .content-area h1,
 .markdown-content h1 {
   font-size: 2rem;
+  /* WIKI4AI-83: explicit weight so viewer-side H1 always matches .markdown-preview h1
+     (700) instead of relying on the cascade — Tailwind preflight resets h1 to
+     font-weight: inherit (400), which is how the viewer/preview mismatch appeared. */
+  font-weight: 700;
   background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

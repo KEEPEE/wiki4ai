@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import MarkdownEditor from '../components/MarkdownEditor';
+import MarkdownEditor, { WIKI4AI_DARK_THEME } from '../components/MarkdownEditor';
 
 // Mock @monaco-editor/react — the real Editor requires Web Workers + iframes
 vi.mock('@monaco-editor/react', () => ({
@@ -39,6 +39,9 @@ vi.mock('@monaco-editor/react', () => ({
         <span data-testid="editor-theme">{theme}</span>
         <span data-testid="editor-read-only">{isReadOnly ? 'true' : 'false'}</span>
         <span data-testid="editor-height">{height}</span>
+        <span data-testid="editor-bracket-colorization">
+          {options?.bracketPairColorization?.enabled === false ? 'disabled' : 'enabled'}
+        </span>
         <button
           data-testid="trigger-change"
           onClick={() => onChange?.('mocked new content')}
@@ -177,5 +180,36 @@ describe('MarkdownEditor', () => {
     expect(await screen.findByTestId('monaco-editor')).toBeInTheDocument();
     expect(screen.getByTestId('editor-language')).toHaveTextContent('markdown');
     expect(screen.getByTestId('editor-theme')).toHaveTextContent('wiki4ai-dark');
+  });
+});
+
+describe('MarkdownEditor — WIKI4AI-83 theme regression', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('only uses hex color values in the theme colors map (Monaco Color.fromHex trap)', () => {
+    // Monaco's StandaloneTheme parses every colors-map value with Color.fromHex(),
+    // which silently falls back to #ff0000 (Color.red) for non-hex input — this is
+    // how the old rgba() strings rendered the selection and line highlight red.
+    const hexPattern = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)$/;
+    for (const [id, value] of Object.entries(WIKI4AI_DARK_THEME.colors ?? {})) {
+      expect(value, `theme color "${id}" must be hex, got ${value}`).toMatch(hexPattern);
+    }
+  });
+
+  it('keeps selection and line highlight cyan — never #ff0000', () => {
+    const colors = WIKI4AI_DARK_THEME.colors ?? {};
+    // Cyan (#00F0FF) with alpha, not the red fallback
+    expect(colors['editor.selectionBackground']).toMatch(/^#00F0FF[0-9a-fA-F]{2}$/i);
+    expect(colors['editor.lineHighlightBackground']).toMatch(/^#00F0FF[0-9a-fA-F]{2}$/i);
+    for (const [id, value] of Object.entries(colors)) {
+      expect(value.toUpperCase(), `theme color "${id}" must not be the red fallback`).not.toBe('#FF0000');
+    }
+  });
+
+  it('disables bracket pair colorization so [[WikiLink]] is not painted as an unexpected closing bracket', async () => {
+    render(<MarkdownEditor value="see [[Getting Started]] for setup" />);
+    expect(await screen.findByTestId('editor-bracket-colorization')).toHaveTextContent('disabled');
   });
 });
