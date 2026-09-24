@@ -92,6 +92,14 @@
 .role-badge {
   display: inline-block;
   padding: 4px 12px;
+  /* WIKI4AI-80: the badge also carries .info-value, whose gradient-text trick sets
+     -webkit-text-fill-color: transparent; the badge's own `background:` shorthand
+     additionally resets background-clip to border-box → invisible text on the pill.
+     Force an opaque fill (resolves to the per-role `color`) so ADMIN/USER are visible
+     while the pill background stays intact. Username/email spans keep .info-value
+     gradient text untouched. */
+  -webkit-text-fill-color: currentColor;
+  background-clip: border-box;
   background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(255, 0, 212, 0.15) 100%);
   border: 1px solid rgba(0, 240, 255, 0.3);
   border-radius: 50px; /* pill shape */
