@@ -42,6 +42,9 @@ vi.mock('@monaco-editor/react', () => ({
         <span data-testid="editor-bracket-colorization">
           {options?.bracketPairColorization?.enabled === false ? 'disabled' : 'enabled'}
         </span>
+        <span data-testid="editor-bracket-colorization-leaf">
+          {options?.['bracketPairColorization.enabled'] === false ? 'disabled' : 'enabled'}
+        </span>
         <button
           data-testid="trigger-change"
           onClick={() => onChange?.('mocked new content')}
@@ -210,6 +213,11 @@ describe('MarkdownEditor — WIKI4AI-83 theme regression', () => {
 
   it('disables bracket pair colorization so [[WikiLink]] is not painted as an unexpected closing bracket', async () => {
     render(<MarkdownEditor value="see [[Getting Started]] for setup" />);
+    // Object form (typed, forward-compatible with newer Monaco)…
     expect(await screen.findByTestId('editor-bracket-colorization')).toHaveTextContent('disabled');
+    // …and the leaf key that Monaco 0.55.1 actually forwards to the standalone
+    // configuration service (the object form is silently dropped there — see the
+    // comment on the options in MarkdownEditor.tsx).
+    expect(screen.getByTestId('editor-bracket-colorization-leaf')).toHaveTextContent('disabled');
   });
 });

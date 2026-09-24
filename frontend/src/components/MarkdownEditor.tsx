@@ -319,10 +319,21 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
                 // closing bracket and Monaco paints it red
                 // (unexpected-closing-bracket). Disabling the colorization provider
                 // removes those decorations at the source; brackets keep their
-                // normal token colors. Hover matching (bracketPairColorization's
-                // sibling, bracketMatching) stays enabled.
+                // normal token colors. Hover matching (bracketMatching) stays on.
                 bracketPairColorization: { enabled: false },
-              }}
+                // Monaco 0.55.1 gap (verified in esm source + live): the object
+                // form above is silently dropped — StandaloneConfigurationService
+                // only forwards option keys known to the config schema, and the
+                // schema registers only the LEAF keys editor.bracketPairColorization.*
+                // (isEditorConfigurationKey('bracketPairColorization') === false).
+                // Without this leaf key the text model keeps colorization enabled
+                // and the orphan `]` renders red. The leaf key is what actually
+                // reaches the standalone configuration service → ModelService →
+                // text model, disabling the provider. (Kept alongside the object
+                // form so a future Monaco that registers the parent key stays
+                // consistent.)
+                'bracketPairColorization.enabled': false,
+              } as editor.IStandaloneEditorConstructionOptions}
             />
           </div>
         </>
