@@ -8,6 +8,16 @@
  * - Configurable height, read-only mode, and change callbacks
  * - Uses ResizeObserver for reliable container height measurement
  * - MarkdownToolbar with formatting buttons above the editor
+ *
+ * WIKI4AI-79 (height runaway loop): the Monaco wrapper receives an explicit
+ * pixel height from state. That state is measured with a ResizeObserver, so
+ * the observed element MUST be a stable container whose own height does not
+ * depend on the Monaco wrapper's explicit height. The editor therefore renders
+ * inside a dedicated flex host (.markdown-editor__host, flex: 1; min-height: 0)
+ * that is sized by the (viewport-bounded) flex chain — NOT in the outer
+ * .markdown-editor container, which also holds the toolbar and whose content
+ * height used to equal toolbar + Monaco wrapper (each observer cycle added the
+ * toolbar's height back into the measured value → unbounded page growth).
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -126,7 +136,10 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   onChange,
   readOnly = false,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  // WIKI4AI-79: the stable measurement target — a flex host whose height is
+  // determined by the viewport-bounded flex chain, independent of the Monaco
+  // wrapper's explicit pixel height (see file header).
+  const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const [editorHeight, setEditorHeight] = useState<number>(600);
   // Gate: only render the Monaco Editor once wiki4ai-dark is registered on
@@ -153,13 +166,21 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   // Use ResizeObserver to measure the actual container height in pixels.
   // This is more reliable than CSS percentage heights because Monaco Editor
   // internally creates an iframe that needs explicit pixel dimensions.
+  //
+  // WIKI4AI-79: observe the dedicated flex host, not .markdown-editor itself.
+  // The host's height comes from the viewport-bounded flex chain (flex: 1;
+  // min-height: 0), so it is stable regardless of the Monaco wrapper's
+  // explicit pixel height — observing the outer container closed a feedback
+  // loop (container height = toolbar + Monaco wrapper → measured value fed
+  // back into the wrapper height → unbounded page growth). The host only
+  // exists once monacoReady, hence the dependency.
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const host = hostRef.current;
+    if (!host) return;
 
     // Initial measurement
     const updateHeight = () => {
-      const newHeight = container.clientHeight;
+      const newHeight = host.clientHeight;
       if (newHeight > 0) {
         setEditorHeight(newHeight);
       }
@@ -168,12 +189,12 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
 
     // Watch for size changes
     const observer = new ResizeObserver(updateHeight);
-    observer.observe(container);
+    observer.observe(host);
 
     return () => {
       observer.disconnect();
     };
-  }, []);
+  }, [monacoReady]);
 
   // Force Monaco to relayout after height changes
   useEffect(() => {
@@ -249,7 +270,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   }, []);
 
   return (
-    <div className="markdown-editor" ref={containerRef}>
+    <div className="markdown-editor">
       {!monacoReady ? (
         /* Waiting for Monaco + wiki4ai-dark theme registration */
         <div className="markdown-editor__loading">Loading editor…</div>
@@ -259,25 +280,29 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           {!readOnly && (
             <MarkdownToolbar onInsert={handleInsert} />
           )}
-          <Editor
-            language="markdown"
-            value={value}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            height={editorHeight}
-            theme="wiki4ai-dark"
-            options={{
-              minimap: { enabled: false },
-              lineNumbers: 'on',
-              wordWrap: 'on',
-              fontSize: 14,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              insertSpaces: true,
-              readOnly,
-            }}
-          />
+          {/* WIKI4AI-79: stable measurement host — sized by the flex chain,
+              independent of the Monaco wrapper's explicit pixel height. */}
+          <div className="markdown-editor__host" ref={hostRef}>
+            <Editor
+              language="markdown"
+              value={value}
+              onChange={handleEditorChange}
+              onMount={handleEditorMount}
+              height={editorHeight}
+              theme="wiki4ai-dark"
+              options={{
+                minimap: { enabled: false },
+                lineNumbers: 'on',
+                wordWrap: 'on',
+                fontSize: 14,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+                readOnly,
+              }}
+            />
+          </div>
         </>
       )}
     </div>

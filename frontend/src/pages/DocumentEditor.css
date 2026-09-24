@@ -2,12 +2,19 @@
  * CSS styles for Document Editor page — Nexaverse dark mode with glassmorphism, neon effects.
  */
 
+/* WIKI4AI-79: viewport-bounded editor page. The previous `height: 100%` had no
+   definite ancestor (Layout's page-content div is plain document flow), so it
+   resolved to auto and the page grew with Monaco's content — feeding the
+   ResizeObserver runaway loop. Bounding the page to the viewport (minus the
+   sticky top-nav, measured into --w4a-nav-height by DocumentEditor.tsx) makes
+   every nested `height: 100%` / `flex: 1` below resolve against a definite
+   size; Monaco then scrolls internally instead of stretching the page. */
 .document-editor {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0; /* critical for nested flex height calculation */
-  height: 100%; /* fill parent flex container */
+  height: calc(100vh - var(--w4a-nav-height, 64px)); /* WIKI4AI-79: viewport bound */
   background: var(--dark-1);
 }
 
@@ -27,6 +34,7 @@
   padding: 0.75rem 2rem;
   border-bottom: 1px solid var(--glass-border);
   background: var(--dark-2);
+  flex-shrink: 0; /* WIKI4AI-79: fixed-height chrome — only .editor-body may shrink */
 }
 
 /* Editor title input — glassmorphism style */
@@ -617,6 +625,7 @@ input:checked + .toggle-slider:before {
   border-top: 1px solid var(--glass-border);
   font-size: 12px;
   color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0; /* WIKI4AI-79: fixed-height chrome — only .editor-body may shrink */
 }
 
 .word-count,

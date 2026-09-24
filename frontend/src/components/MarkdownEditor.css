@@ -25,6 +25,25 @@
   backdrop-filter: blur(10px);
   flex: 1; /* fill parent flex container (e.g. .editor-pane) */
   min-height: 0; /* critical for nested flex height calculation */
+  /* WIKI4AI-79: column layout so the toolbar takes its natural height and the
+     Monaco host below it gets exactly the remaining (stable) space. */
+  display: flex;
+  flex-direction: column;
+}
+
+/* WIKI4AI-79: stable measurement host for the Monaco wrapper. Its height is
+   determined by the viewport-bounded flex chain (flex: 1; min-height: 0),
+   never by the Monaco wrapper's explicit pixel height — this is what breaks
+   the old ResizeObserver feedback loop. */
+.markdown-editor__host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+/* WIKI4AI-79: toolbar keeps its natural height inside the column layout */
+.markdown-editor .markdown-toolbar {
+  flex-shrink: 0;
 }
 
 /* ── Monaco Editor VS Code CSS custom properties ──────────────── */
@@ -70,7 +89,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
+  flex: 1; /* WIKI4AI-79: fill the column container */
   min-height: 120px;
   color: rgba(255, 255, 255, 0.45);
   font-size: 0.9rem;

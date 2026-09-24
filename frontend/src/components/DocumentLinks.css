@@ -7,6 +7,12 @@
   border-radius: 12px;
   padding: 1.5rem;
   margin-top: 1.5rem;
+  /* WIKI4AI-79: the panel is a flex item of the viewport-bounded editor page.
+     Cap its height so a long link list scrolls internally instead of growing
+     the page (or shrinking Monaco); it stays visible in normal flow. */
+  flex-shrink: 0;
+  max-height: 35vh;
+  overflow-y: auto;
 }
 
 .document-links-title {

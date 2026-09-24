@@ -4,7 +4,7 @@
  * Supports both creating new documents and editing existing ones.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from '../components/MarkdownEditor';
@@ -49,6 +49,29 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   const { slug: projectSlug, docId: docSlug } = useParams<{ slug: string; docId: string }>();
   const navigate = useNavigate();
   const isEditing = !!docSlug;
+
+  // WIKI4AI-79: the editor page must be bounded to the viewport. The sticky
+  // top-nav in Layout occupies flow space above this page, so its rendered
+  // height (which can change with viewport width / wrapping) is measured and
+  // exposed as the --w4a-nav-height CSS variable consumed by .document-editor's
+  // `height: calc(100vh - var(--w4a-nav-height))`. Without a definite page
+  // height the Monaco wrapper's explicit pixel height feeds back into the
+  // container it is measured from (ResizeObserver loop, unbounded growth).
+  useLayoutEffect(() => {
+    const nav = document.querySelector<HTMLElement>('main > header');
+    if (!nav) return;
+    const update = () => {
+      document.documentElement.style.setProperty('--w4a-nav-height', `${nav.offsetHeight}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   // Ancestor chain for nested-project breadcrumbs (WIKI4AI-31)
   const { projects } = useProjects();
