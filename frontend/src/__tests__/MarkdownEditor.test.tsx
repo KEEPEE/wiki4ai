@@ -138,10 +138,21 @@ describe('MarkdownEditor', () => {
     expect(heightValue).toMatch(/^\d+$/); // Should be a numeric pixel value
   });
 
-  it('should have markdown-editor CSS class on wrapper', async () => {
+  it('should have markdown-editor CSS class on outer wrapper', async () => {
     render(<MarkdownEditor />);
-    const wrapper = (await screen.findByTestId('monaco-editor')).parentElement;
-    expect(wrapper).toHaveClass('markdown-editor');
+    const monaco = await screen.findByTestId('monaco-editor');
+    // WIKI4AI-79: Monaco renders inside the stable measurement host, which is
+    // a direct child of the .markdown-editor container.
+    expect(monaco.parentElement).toHaveClass('markdown-editor__host');
+    expect(monaco.closest('.markdown-editor')).toBeInTheDocument();
+  });
+
+  it('should render the Monaco editor inside the stable host (WIKI4AI-79 loop break)', async () => {
+    // The ResizeObserver must observe an element whose height does not depend
+    // on the Monaco wrapper's explicit pixel height: the dedicated flex host.
+    render(<MarkdownEditor />);
+    const host = await screen.findByTestId('monaco-editor');
+    expect(host.parentElement?.className).toContain('markdown-editor__host');
   });
 
   it('should have proper TypeScript interface (compile-time check)', async () => {
