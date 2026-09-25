@@ -127,7 +127,10 @@ p, span, a, button, input, textarea {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  transition: opacity 0.8s ease, visibility 0.8s ease;
+  /* WIKI4AI-82: shorter fade — the splash now hides on the content-ready
+     signal (not a fixed 1 s), so a long tail would keep it visibly up over
+     the page loader and recreate the double-spinner overlap. */
+  transition: opacity 0.35s ease, visibility 0.35s ease;
 }
 
 .loading-screen.hidden {

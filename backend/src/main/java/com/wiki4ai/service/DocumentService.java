@@ -724,24 +724,116 @@ public class DocumentService {
     private static final int EXCERPT_CONTEXT = 100;
 
     /**
+     * Maximum length of a partial word an excerpt window may drop in order to land on
+     * a word boundary (WIKI4AI-82). When the partial word at a window edge is longer
+     * than this (pathological content such as minified code), the mid-word cut is kept
+     * instead of discarding most of the window.
+     */
+    private static final int MAX_PARTIAL_WORD = 60;
+
+    /**
      * Build a ~200-character excerpt for global search results: a window of
      * {@value EXCERPT_CONTEXT} characters on each side of the first (case-insensitive)
      * keyword occurrence, or the beginning of the content when the keyword does not
-     * appear literally. Whitespace runs are collapsed to single spaces; ellipses mark
-     * truncated ends.
+     * appear literally. Markdown markup is stripped before the window is built so
+     * excerpts read as plain prose (WIKI4AI-82); whitespace runs are collapsed to
+     * single spaces; window edges land on word boundaries when doing so drops at most
+     * {@value MAX_PARTIAL_WORD} characters; ellipses mark truncated ends.
      */
     static String buildExcerpt(String content, String keyword) {
         if (content == null || content.isBlank()) {
             return "";
         }
-        String normalized = content.replaceAll("\\s+", " ");
+        String normalized = stripMarkdownMarkup(content).replaceAll("\\s+", " ").trim();
+        if (normalized.isEmpty()) {
+            return "";
+        }
         int idx = keyword == null ? -1 : normalized.toLowerCase().indexOf(keyword.toLowerCase());
         if (idx < 0) {
-            return normalized.substring(0, Math.min(EXCERPT_CONTEXT * 2, normalized.length()));
+            // No literal keyword: leading window, word-boundary cut + trailing ellipsis.
+            int end = Math.min(EXCERPT_CONTEXT * 2, normalized.length());
+            end = backToWordBoundary(normalized, 0, end);
+            return normalized.substring(0, end) + (end < normalized.length() ? "…" : "");
         }
+        int keywordEnd = idx + keyword.length();
         int start = Math.max(0, idx - EXCERPT_CONTEXT);
-        int end = Math.min(normalized.length(), idx + keyword.length() + EXCERPT_CONTEXT);
+        int end = Math.min(normalized.length(), keywordEnd + EXCERPT_CONTEXT);
+        start = forwardToWordBoundary(normalized, idx, start);
+        end = backToWordBoundary(normalized, keywordEnd, end);
         return (start > 0 ? "…" : "") + normalized.substring(start, end) + (end < normalized.length() ? "…" : "");
+    }
+
+    /**
+     * Move {@code start} forward to just after the next space (dropping a leading
+     * partial word), unless the partial word is longer than
+     * {@value MAX_PARTIAL_WORD} or the boundary would fall at/after {@code protectTo}
+     * (which must stay inside the window, e.g. the keyword start).
+     */
+    private static int forwardToWordBoundary(String text, int protectTo, int start) {
+        if (start <= 0) {
+            return start;
+        }
+        int ws = text.indexOf(' ', start);
+        if (ws >= 0 && ws < protectTo && ws - start <= MAX_PARTIAL_WORD) {
+            return ws + 1;
+        }
+        return start;
+    }
+
+    /**
+     * Move {@code end} back to the last space before it (dropping a trailing partial
+     * word), unless the partial word is longer than {@value MAX_PARTIAL_WORD} or the
+     * boundary would fall at/before {@code protectFrom} (which must stay inside the
+     * window, e.g. the keyword end).
+     */
+    private static int backToWordBoundary(String text, int protectFrom, int end) {
+        if (end >= text.length()) {
+            return end;
+        }
+        int ws = text.lastIndexOf(' ', end - 1);
+        if (ws > protectFrom && end - ws <= MAX_PARTIAL_WORD) {
+            return ws;
+        }
+        return end;
+    }
+
+    /**
+     * Strip Markdown markup so search excerpts read as plain prose (WIKI4AI-82):
+     * code-fence markers, images (keep alt text), links (keep link text), wiki links
+     * {@code [[Target|alias]]} (keep alias/target), heading markers, list bullets and
+     * ordered-list numbers, horizontal rules, blockquote markers, emphasis /
+     * strikethrough markers, inline-code backticks and stray HTML tags. The content
+     * between the markup is preserved.
+     */
+    static String stripMarkdownMarkup(String content) {
+        String text = content;
+        // Fenced code blocks: drop the fence marker lines, keep the code text.
+        text = text.replaceAll("(?m)^\\s*```.*$", " ");
+        // Horizontal rules (---, ***, ___).
+        text = text.replaceAll("(?m)^\\s*(?:-{3,}|\\*{3,}|_{3,})\\s*$", " ");
+        // Images ![alt](url) → alt (or a space when there is no alt).
+        text = text.replaceAll("!\\[([^\\]]*)]\\([^)]*\\)", "$1");
+        // Links [text](url) → text.
+        text = text.replaceAll("\\[([^\\]]+)]\\([^)]*\\)", "$1");
+        // Wiki links [[Target|alias]] → alias, then [[Target]] → Target.
+        text = text.replaceAll("\\[\\[[^\\]|]+\\|([^\\]]+)\\]\\]", "$1");
+        text = text.replaceAll("\\[\\[([^\\]]+)\\]\\]", "$1");
+        // Heading markers (# .. ######) at line starts.
+        text = text.replaceAll("(?m)^\\s{0,3}#{1,6}\\s+", " ");
+        // List bullets (-, *, +) and ordered-list numbers (1., 1)) at line starts.
+        text = text.replaceAll("(?m)^\\s*(?:[-*+]|\\d+[.)])\\s+", " ");
+        // Blockquote markers.
+        text = text.replaceAll("(?m)^\\s*>+\\s?", " ");
+        // Bold / strikethrough / italic marker pairs (non-greedy).
+        text = text.replaceAll("\\*\\*(.+?)\\*\\*", "$1");
+        text = text.replaceAll("__(.+?)__", "$1");
+        text = text.replaceAll("~~(.+?)~~", "$1");
+        text = text.replaceAll("(?<![*\\w])\\*([^*\\s][^*]*?)\\*(?![*\\w])", "$1");
+        // Inline-code backticks (any remaining).
+        text = text.replace("`", "");
+        // Stray HTML tags.
+        text = text.replaceAll("<[^>]{1,200}>", " ");
+        return text;
     }
 
     // ==================== MOVE/COPY OPERATIONS ====================
