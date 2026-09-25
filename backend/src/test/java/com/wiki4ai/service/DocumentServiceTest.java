@@ -5,6 +5,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.config.SearchProperties;
 import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
@@ -65,6 +66,9 @@ class DocumentServiceTest {
     @Mock
     private EmbeddingClient embeddingClient;
 
+    @Mock
+    private SearchProperties searchProperties;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -75,6 +79,10 @@ class DocumentServiceTest {
 
     @BeforeEach
     void setUp() {
+        // Default threshold (WIKI4AI-90); lenient because most non-search tests never
+        // consult it. Search tests that need a different value re-stub in the test body.
+        lenient().when(searchProperties.getSemanticMinSimilarity()).thenReturn(0.35);
+
         testProject = Project.builder()
                 .id(1L)
                 .name("Test Project")
@@ -996,6 +1004,136 @@ class DocumentServiceTest {
             assertThat(result).hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(1L);
         }
+
+        @Test
+        @DisplayName("Hybrid: should drop vector hits below the semantic similarity threshold (WIKI4AI-90)")
+        void shouldDropVectorHitsBelowThreshold() {
+            // given — text hit: doc 1; vector: doc 3 at 0.40 (kept), doc 4 at 0.30 (dropped, < 0.35)
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document aboveThreshold = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit Above Threshold")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-above")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.of(
+                            new Object[]{3L, 0.40},
+                            new Object[]{4L, 0.30}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(aboveThreshold));
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then — doc 4 (below threshold) is excluded and never even loaded
+            assertThat(result).extracting(DocumentDTO::getId).containsExactlyInAnyOrder(1L, 3L);
+            verify(documentRepository, never()).findById(4L);
+        }
+
+        @Test
+        @DisplayName("Hybrid: should include a vector hit exactly at the threshold (inclusive bound)")
+        void shouldIncludeVectorHitExactlyAtThreshold() {
+            // given — text hit: doc 1; vector: doc 3 at exactly 0.35
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document atThreshold = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit At Threshold")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-at-threshold")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.<Object[]>of(new Object[]{3L, 0.35}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(atThreshold));
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then — inclusive bound: a hit exactly at the minimum is kept
+            assertThat(result).extracting(DocumentDTO::getId).containsExactlyInAnyOrder(1L, 3L);
+        }
+
+        @Test
+        @DisplayName("Hybrid: should degrade to text-only when every vector hit is below the threshold")
+        void shouldDegradeToTextOnlyWhenAllVectorHitsBelowThreshold() {
+            // given — text hit: doc 1; all vector hits below 0.35
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.of(
+                            new Object[]{3L, 0.34},
+                            new Object[]{4L, 0.20}));
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then — text path intact, no below-threshold semantic candidate leaks in
+            assertThat(result).extracting(DocumentDTO::getId).containsExactly(1L);
+            verify(documentRepository, never()).findById(3L);
+            verify(documentRepository, never()).findById(4L);
+        }
+
+        @Test
+        @DisplayName("Hybrid: should keep all vector hits when the threshold is disabled (0)")
+        void shouldKeepAllVectorHitsWhenThresholdDisabled() {
+            // given — filtering disabled via configuration
+            when(searchProperties.getSemanticMinSimilarity()).thenReturn(0.0);
+            when(documentRepository.findByProjectIdAndContentContaining(1L, "login"))
+                    .thenReturn(List.of(sourceDocument));
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document lowHitA = Document.builder()
+                    .id(3L)
+                    .title("Low Semantic Hit A")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-low-a")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            Document lowHitB = Document.builder()
+                    .id(4L)
+                    .title("Low Semantic Hit B")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-low-b")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarity(eq(1L), anyString(), eq(20)))
+                    .thenReturn(List.of(
+                            new Object[]{3L, 0.10},
+                            new Object[]{4L, 0.20}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(lowHitA));
+            when(documentRepository.findById(4L)).thenReturn(Optional.of(lowHitB));
+
+            // when
+            List<DocumentDTO> result = documentService.searchDocuments(1L, "login");
+
+            // then — pre-WIKI4AI-90 behaviour: every vector hit is fused
+            assertThat(result).extracting(DocumentDTO::getId).containsExactlyInAnyOrder(1L, 3L, 4L);
+        }
     }
 
     @Nested
@@ -1107,6 +1245,59 @@ class DocumentServiceTest {
             // then
             assertThat(result).hasSize(1);
             assertThat(result.get(0).getId()).isEqualTo(1L);
+        }
+
+        @Test
+        @DisplayName("Hybrid global: should drop below-threshold vector hits and make the empty state reachable (WIKI4AI-90)")
+        void shouldDropBelowThresholdHitsAndReachEmptyState() {
+            // given — no text hits; a single vector hit at 0.20 (below 0.35)
+            when(documentRepository.findByContentContaining("xyzzy")).thenReturn(List.of());
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("xyzzy")).thenReturn(queryVector);
+            when(documentRepository.findTopByEmbeddingSimilarityGlobal(anyString(), eq(20)))
+                    .thenReturn(List.<Object[]>of(new Object[]{3L, 0.20}));
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("xyzzy", "alice", 50);
+
+            // then — the below-threshold semantic hit is dropped → zero results
+            assertThat(result).isEmpty();
+            verify(documentRepository, never()).findById(3L);
+        }
+
+        @Test
+        @DisplayName("Hybrid global: should keep above-threshold vector hits and attribute their project")
+        void shouldKeepAboveThresholdVectorHits() {
+            // given — no text hits; vector hit doc 3 at 0.50 (kept) in testProject
+            when(documentRepository.findByContentContaining("login")).thenReturn(List.of());
+            when(embeddingService.getClient()).thenReturn(embeddingClient);
+            when(embeddingClient.isAvailable()).thenReturn(true);
+            float[] queryVector = new float[1024];
+            queryVector[0] = 1f;
+            when(embeddingClient.embedQuery("login")).thenReturn(queryVector);
+            Document vectorOnly = Document.builder()
+                    .id(3L)
+                    .title("Semantic Hit")
+                    .content("nothing matches the literal keyword")
+                    .slug("semantic-hit")
+                    .project(testProject)
+                    .linkedDocuments(new ArrayList<>())
+                    .build();
+            when(documentRepository.findTopByEmbeddingSimilarityGlobal(anyString(), eq(20)))
+                    .thenReturn(List.<Object[]>of(new Object[]{3L, 0.50}));
+            when(documentRepository.findById(3L)).thenReturn(Optional.of(vectorOnly));
+            when(projectRepository.findAllById(anyList())).thenReturn(List.of(testProject));
+
+            // when
+            List<GlobalSearchResultDTO> result = documentService.searchDocumentsGlobal("login", "alice", 50);
+
+            // then — above-threshold hit survives with correct project attribution
+            assertThat(result).extracting(GlobalSearchResultDTO::getId).containsExactly(3L);
+            assertThat(result.get(0).getProjectSlug()).isEqualTo("test-project");
+            assertThat(result.get(0).getScore()).isNotNull().isPositive();
         }
 
         @Test

@@ -6,6 +6,7 @@ import com.wiki4ai.dto.DocumentCreateDTO;
 import com.wiki4ai.dto.DocumentDTO;
 import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
+import com.wiki4ai.config.SearchProperties;
 import com.wiki4ai.dto.GlobalSearchResultDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
@@ -17,6 +18,7 @@ import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@EnableConfigurationProperties(SearchProperties.class)
 public class DocumentService {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(DocumentService.class);
@@ -52,6 +55,7 @@ public class DocumentService {
     private final MarkdownService markdownService;
     private final PermissionService permissionService;
     private final EmbeddingService embeddingService;
+    private final SearchProperties searchProperties;
 
     // ==================== READ OPERATIONS (require READ permission) ====================
 
@@ -554,6 +558,12 @@ public class DocumentService {
      * (or fails mid-request) only the text path runs — search never 500s
      * because of embeddings. Documents without an embedding are simply absent
      * from the vector ranking.</p>
+     *
+     * <p><b>Similarity threshold (WIKI4AI-90):</b> vector hits below
+     * {@code wiki4ai.search.semantic-min-similarity} (default 0.35) are dropped
+     * from the vector ranking before fusion — see {@link #applySemanticThreshold}.
+     * The text path is unaffected; a query whose vector hits all fall below the
+     * threshold degrades to text-only results.</p>
      */
     public List<DocumentDTO> searchDocuments(Long projectId, String keyword, String username) {
         permissionService.checkPermission(username, projectId, Permission.READ);
@@ -572,7 +582,8 @@ public class DocumentService {
             try {
                 float[] queryVector = embeddingService.getClient().embedQuery(keyword.trim());
                 String literal = EmbeddingClient.toVectorLiteral(queryVector);
-                vectorHits = documentRepository.findTopByEmbeddingSimilarity(projectId, literal, VECTOR_TOP_N);
+                vectorHits = applySemanticThreshold(
+                        documentRepository.findTopByEmbeddingSimilarity(projectId, literal, VECTOR_TOP_N));
                 for (Object[] hit : vectorHits) {
                     Long id = (Long) hit[0];
                     if (!byId.containsKey(id)) {
@@ -621,6 +632,12 @@ public class DocumentService {
      * embeddings. Documents without an embedding are simply absent from the vector
      * ranking.</p>
      *
+     * <p><b>Similarity threshold (WIKI4AI-90):</b> vector hits below
+     * {@code wiki4ai.search.semantic-min-similarity} (default 0.35) are dropped
+     * from the vector ranking before fusion — see {@link #applySemanticThreshold}.
+     * The text path is unaffected; a query whose vector hits all fall below the
+     * threshold degrades to text-only results, making the empty state reachable.</p>
+     *
      * @param keyword  search keyword (already validated as non-blank by the controller)
      * @param username authenticated user name (kept for API symmetry; wiki convention:
      *                 every authenticated user can read all projects)
@@ -641,7 +658,8 @@ public class DocumentService {
             try {
                 float[] queryVector = embeddingService.getClient().embedQuery(keyword.trim());
                 String literal = EmbeddingClient.toVectorLiteral(queryVector);
-                vectorHits = documentRepository.findTopByEmbeddingSimilarityGlobal(literal, VECTOR_TOP_N);
+                vectorHits = applySemanticThreshold(
+                        documentRepository.findTopByEmbeddingSimilarityGlobal(literal, VECTOR_TOP_N));
                 for (Object[] hit : vectorHits) {
                     Long id = (Long) hit[0];
                     if (!byId.containsKey(id)) {
@@ -718,6 +736,33 @@ public class DocumentService {
             scores.merge((Long) hit[0], 1.0 / (RRF_K + rank++), Double::sum);
         }
         return scores;
+    }
+
+    /**
+     * Drop vector hits below the configured minimum cosine similarity (WIKI4AI-90).
+     *
+     * <p>The repository returns up to {@value VECTOR_TOP_N} rows ordered by
+     * descending similarity, so filtering here is equivalent to a SQL-side
+     * threshold: once a row falls below
+     * {@code wiki4ai.search.semantic-min-similarity}, every later row does too.
+     * The text path is untouched — when no vector hit qualifies, the query simply
+     * degrades to text-only, which makes the "no results" empty state reachable
+     * for genuinely unrelated queries instead of always returning up to the limit
+     * of low-relevance semantic hits.</p>
+     *
+     * <p>A non-positive threshold disables filtering (pre-WIKI4AI-90 behaviour).</p>
+     *
+     * @param vectorHits rows of {@code [Long id, Double similarity]} from the vector path
+     * @return only the rows whose similarity reaches the configured minimum
+     */
+    private List<Object[]> applySemanticThreshold(List<Object[]> vectorHits) {
+        double min = searchProperties.getSemanticMinSimilarity();
+        if (vectorHits.isEmpty() || min <= 0.0) {
+            return vectorHits;
+        }
+        return vectorHits.stream()
+                .filter(hit -> ((Number) hit[1]).doubleValue() >= min)
+                .toList();
     }
 
     /** Context window size (characters per side) for global search excerpts. */
