@@ -20,16 +20,22 @@
 
 /* ── SVG Output ─────────────────────────────────────────────────── */
 
+/* WIKI4AI-84: wide diagrams keep their natural size (MermaidDiagram.tsx pins
+   the width/height attributes from the viewBox) and scroll horizontally when
+   they exceed the column — previously `max-width: 100%` downscaled them to
+   ~50%, making labels unreadable. Narrow diagrams stay centered. The wrapper
+   is a plain block (not flex): with justify-content:center an overflowing
+   child would also spill left, where it cannot be scrolled to. */
 .mermaid-diagram__svg {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow-x: auto;
 }
 
 .mermaid-diagram__svg svg {
-  max-width: 100%;
+  max-width: none; /* never shrink below the natural (viewBox) size */
   height: auto;
+  display: block;
+  margin: 0 auto; /* centered when narrow, left-scroll when wide */
 }
 
 /* ── Loading State — Spinner ────────────────────────────────────── */

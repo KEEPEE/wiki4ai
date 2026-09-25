@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
-import MermaidDiagram from '../components/MermaidDiagram';
+import MermaidDiagram, { withNaturalSize } from '../components/MermaidDiagram';
 
 // ── Mock mermaid library ──────────────────────────────────────────
 
@@ -247,5 +247,27 @@ describe('MermaidDiagram', () => {
       // If we got here without errors, the cancelled flag is working correctly
       expect(true).toBe(true);
     });
+  });
+});
+
+describe('withNaturalSize (WIKI4AI-84)', () => {
+  it('should rewrite width="100%" to the natural pixel size from the viewBox', () => {
+    const input =
+      '<svg xmlns="http://www.w3.org/2000/svg" id="mermaid-1" width="100%" height="100%" viewBox="0 0 842.5 595"><text>hi</text></svg>';
+    const out = withNaturalSize(input);
+    expect(out).toContain('width="843"');
+    expect(out).toContain('height="595"');
+    expect(out).not.toContain('width="100%"');
+  });
+
+  it('should add width/height when the svg has a viewBox but no size attributes', () => {
+    const out = withNaturalSize('<svg viewBox="0 0 300 200"><text>hi</text></svg>');
+    expect(out).toContain('width="300"');
+    expect(out).toContain('height="200"');
+  });
+
+  it('should leave svgs without a viewBox unchanged', () => {
+    const input = '<svg xmlns="http://www.w3.org/2000/svg"><text>Mock</text></svg>';
+    expect(withNaturalSize(input)).toBe(input);
   });
 });

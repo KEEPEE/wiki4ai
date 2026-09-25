@@ -45,6 +45,41 @@ function simpleHash(str: string): string {
   return Math.abs(hash).toString(16);
 }
 
+/**
+ * WIKI4AI-84: force the rendered SVG to its natural pixel size.
+ *
+ * Mermaid emits a `viewBox` plus either an explicit width or `width="100%"`.
+ * With `width="100%"` the CSS rule `max-width: none` alone cannot restore the
+ * intrinsic size, so wide diagrams (e.g. the Architecture Overview flowchart)
+ * were downscaled to ~50% and labels became unreadable. Mermaid draws in px
+ * units at 96 dpi, so the viewBox width/height ARE the natural pixel size —
+ * rewrite the width/height attributes from it. SVGs without a viewBox (e.g.
+ * test mocks) are returned unchanged. The wrapper then scrolls horizontally
+ * when the diagram is wider than the column instead of shrinking it.
+ */
+export function withNaturalSize(renderedSvg: string): string {
+  const vb = renderedSvg.match(/<svg[^>]*\bviewBox="([^"]+)"/);
+  if (!vb) return renderedSvg;
+  const parts = vb[1].trim().split(/[\s,]+/).map(Number);
+  if (parts.length < 4 || !Number.isFinite(parts[2]) || !Number.isFinite(parts[3])) {
+    return renderedSvg;
+  }
+  const w = Math.max(1, Math.round(parts[2]));
+  const h = Math.max(1, Math.round(parts[3]));
+  let out = renderedSvg;
+  if (/\bwidth="[^"]*"/.test(out)) {
+    out = out.replace(/\bwidth="[^"]*"/, `width="${w}"`);
+  } else {
+    out = out.replace(/<svg/, `<svg width="${w}"`);
+  }
+  if (/\bheight="[^"]*"/.test(out)) {
+    out = out.replace(/\bheight="[^"]*"/, `height="${h}"`);
+  } else {
+    out = out.replace(/<svg/, `<svg height="${h}"`);
+  }
+  return out;
+}
+
 interface MermaidDiagramProps {
   /** Mermaid syntax code to render */
   code: string;
@@ -83,7 +118,9 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
     mermaid.render(stableId, code)
       .then(({ svg: renderedSvg }) => {
         if (!cancelled) {
-          setSvg(renderedSvg);
+          // WIKI4AI-84: pin the SVG to its natural pixel size so the CSS can
+          // scroll wide diagrams instead of downscaling them.
+          setSvg(withNaturalSize(renderedSvg));
         }
       })
       .catch((err) => {

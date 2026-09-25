@@ -93,6 +93,7 @@
 
 .breadcrumb-current {
   /* No link styling for current page */
+  min-width: 0; /* WIKI4AI-84: allow the flex item to shrink so the title can ellipsis */
 }
 
 .breadcrumb-doc-title {
@@ -103,6 +104,13 @@
   border-radius: 4px;
   transition: all 0.3s ease;
   cursor: default;
+  /* WIKI4AI-84: long titles (130+ chars) ellipsis-truncate instead of
+     wrapping to multiple lines; the full text is available via the
+     title attribute tooltip on the span (see Breadcrumb.tsx). */
+  max-width: min(480px, 45vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Neon hover effect on document title */
