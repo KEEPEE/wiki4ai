@@ -315,7 +315,9 @@
     "created": "Created",
     "actions": "Actions",
     "cannotDeleteSelf": "Cannot delete your own account",
-    "deleteUserTitle": "Delete {{username}}"
+    "deleteUserTitle": "Delete {{username}}",
+    "deleteUserAction": "Delete user...",
+    "rowActionsAria": "Actions for {{username}}"
   },
   "graph": {
     "breadcrumbAria": "Breadcrumb",

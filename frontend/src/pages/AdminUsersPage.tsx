@@ -10,7 +10,29 @@ import {
   type ChangeRoleRequest,
 } from '../services/adminApi';
 import { useTranslation } from 'react-i18next';
+import { Menu, MenuItem, MenuDivider, MenuRadioItem, MenuSectionLabel } from '../components/Menu';
 import './AdminUsers.css';
+
+// ── WIKI4AI-86: SVG icons (no emoji — the container has no emoji font) ────
+
+function KebabIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="12" cy="5" r="1.8" />
+      <circle cx="12" cy="12" r="1.8" />
+      <circle cx="12" cy="19" r="1.8" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
 
 export default function AdminUsersPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
@@ -352,30 +374,49 @@ export default function AdminUsersPage() {
                       <td className="cell-id">{u.id}</td>
                       <td className="cell-username" data-testid={`user-username-${u.username}`}>{u.username}</td>
                       <td className="cell-email">{u.email}</td>
-                      <td>
-                        <select
-                          className="role-select form-select"
-                          value={u.role}
-                          onChange={(e) => handleRoleChange(u.id, e.target.value as 'ADMIN' | 'USER')}
-                          data-testid={`user-role-select-${u.id}`}
-                        >
-                          <option value="USER">USER</option>
-                          <option value="ADMIN">ADMIN</option>
-                        </select>
+                      {/* WIKI4AI-86: role is read-only here; changes happen in the
+                          kebab menu (no more native select popup in the table). */}
+                      <td data-testid={`user-role-${u.id}`}>
+                        <span className={`admin-role-badge role-${u.role.toLowerCase()}`}>{u.role}</span>
                       </td>
                       <td className="cell-date">
                         {new Date(u.createdAt).toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB')}
                       </td>
+                      {/* WIKI4AI-86: single kebab menu per row — Role submenu
+                          (radio, current highlighted) + Delete user... with the
+                          existing confirmation modal. */}
                       <td className="cell-actions">
-                        <button
-                          className="btn btn-sm btn-danger-outline"
-                          onClick={() => setDeleteConfirmUser(u)}
-                          disabled={isSelf}
-                          title={isSelf ? t('admin.cannotDeleteSelf') : t('admin.deleteUserTitle', { username: u.username })}
-                          data-testid={`delete-user-btn-${u.id}`}
+                        <Menu
+                          triggerClassName="kebab-trigger"
+                          ariaLabel={t('admin.rowActionsAria', { username: u.username })}
+                          testId={`user-row-menu-${u.id}`}
+                          panelTestId={`user-row-panel-${u.id}`}
+                          align="end"
+                          trigger={<KebabIcon />}
                         >
-                          {isSelf ? '🔒' : '🗑️'}
-                        </button>
+                          <MenuSectionLabel>{t('admin.role')}</MenuSectionLabel>
+                          {(['USER', 'ADMIN'] as const).map((role) => (
+                            <MenuRadioItem
+                              key={role}
+                              selected={u.role === role}
+                              onClick={() => handleRoleChange(u.id, role)}
+                              testId={`role-option-${u.id}-${role}`}
+                            >
+                              {role}
+                            </MenuRadioItem>
+                          ))}
+                          <MenuDivider />
+                          <MenuItem
+                            danger
+                            icon={<TrashIcon />}
+                            disabled={isSelf}
+                            title={isSelf ? t('admin.cannotDeleteSelf') : undefined}
+                            onClick={() => setDeleteConfirmUser(u)}
+                            testId={`delete-user-btn-${u.id}`}
+                          >
+                            {t('admin.deleteUserAction')}
+                          </MenuItem>
+                        </Menu>
                       </td>
                     </tr>
                   );

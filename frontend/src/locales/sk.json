@@ -315,7 +315,9 @@
     "created": "Vytvorené",
     "actions": "Akcie",
     "cannotDeleteSelf": "Nemôžete vymazať vlastný účet",
-    "deleteUserTitle": "Vymazať {{username}}"
+    "deleteUserTitle": "Vymazať {{username}}",
+    "deleteUserAction": "Vymazať používateľa...",
+    "rowActionsAria": "Akcie pre {{username}}"
   },
   "graph": {
     "breadcrumbAria": "Drobová krúma",

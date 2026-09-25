@@ -280,13 +280,20 @@ describe('AdminUsersPage', () => {
     })
   })
 
-  describe('edit role', () => {
+  describe('edit role (WIKI4AI-86 kebab menu)', () => {
     const mockUsersList = [
       { id: 1, username: 'admin_one', email: 'admin1@test.com', role: 'ADMIN' as const, createdAt: '2026-01-01T00:00:00' },
       { id: 2, username: 'user_two', email: 'user2@test.com', role: 'USER' as const, createdAt: '2026-02-01T00:00:00' },
     ]
 
-    it('should render role select dropdown for each user', async () => {
+    async function openRowMenu(userId: number) {
+      await userEvent.click(screen.getByTestId(`user-row-menu-${userId}`))
+      await waitFor(() => {
+        expect(screen.getByTestId(`user-row-panel-${userId}`)).toBeInTheDocument()
+      }, { timeout: 3000 })
+    }
+
+    it('should render a kebab menu trigger and role badge per row (no native select)', async () => {
       vi.mocked(mockAdminApi.listUsers).mockResolvedValue({
         content: mockUsersList, totalElements: 2, totalPages: 1, number: 0, size: 20,
       })
@@ -301,12 +308,18 @@ describe('AdminUsersPage', () => {
         expect(screen.getByTestId('users-table')).toBeInTheDocument()
       }, { timeout: 3000 })
 
-      // Check role select exists for each user
-      expect(screen.getByTestId('user-role-select-1')).toBeInTheDocument()
-      expect(screen.getByTestId('user-role-select-2')).toBeInTheDocument()
+      // Kebab trigger + read-only role badge per row
+      expect(screen.getByTestId('user-row-menu-1')).toBeInTheDocument()
+      expect(screen.getByTestId('user-row-menu-2')).toBeInTheDocument()
+      expect(screen.getByTestId('user-role-1')).toHaveTextContent('ADMIN')
+      expect(screen.getByTestId('user-role-2')).toHaveTextContent('USER')
+
+      // No native role select left in the table
+      const table = screen.getByTestId('users-table')
+      expect(table.querySelectorAll('select')).toHaveLength(0)
     })
 
-    it('should send correct PUT request when role dropdown changes', async () => {
+    it('should highlight the current role and send PUT when a different role is chosen', async () => {
       vi.mocked(mockAdminApi.listUsers).mockResolvedValue({
         content: mockUsersList, totalElements: 2, totalPages: 1, number: 0, size: 20,
       })
@@ -325,12 +338,24 @@ describe('AdminUsersPage', () => {
         expect(screen.getByTestId('users-table')).toBeInTheDocument()
       }, { timeout: 3000 })
 
+      // Open user_two's kebab menu (current role USER)
+      await openRowMenu(2)
+
+      const userOption = screen.getByTestId('role-option-2-USER') as HTMLButtonElement
+      const adminOption = screen.getByTestId('role-option-2-ADMIN') as HTMLButtonElement
+      expect(userOption).toHaveAttribute('aria-checked', 'true')
+      expect(adminOption).toHaveAttribute('aria-checked', 'false')
+
       // Change user_two's role from USER to ADMIN
-      const roleSelect = screen.getByTestId('user-role-select-2') as HTMLSelectElement
-      await userEvent.selectOptions(roleSelect, 'ADMIN')
+      await userEvent.click(adminOption)
 
       await waitFor(() => {
         expect(mockAdminApi.updateUserRole).toHaveBeenCalledWith(2, { role: 'ADMIN' })
+      }, { timeout: 3000 })
+
+      // Optimistic update: badge now shows ADMIN
+      await waitFor(() => {
+        expect(screen.getByTestId('user-role-2')).toHaveTextContent('ADMIN')
       }, { timeout: 3000 })
     })
 
@@ -353,8 +378,8 @@ describe('AdminUsersPage', () => {
         expect(screen.getByTestId('users-table')).toBeInTheDocument()
       }, { timeout: 3000 })
 
-      const roleSelect = screen.getByTestId('user-role-select-2') as HTMLSelectElement
-      await userEvent.selectOptions(roleSelect, 'ADMIN')
+      await openRowMenu(2)
+      await userEvent.click(screen.getByTestId('role-option-2-ADMIN'))
 
       await waitFor(() => {
         expect(screen.getByTestId('toast-notification')).toHaveTextContent('Role updated to ADMIN')
@@ -378,8 +403,8 @@ describe('AdminUsersPage', () => {
         expect(screen.getByTestId('users-table')).toBeInTheDocument()
       }, { timeout: 3000 })
 
-      const roleSelect = screen.getByTestId('user-role-select-2') as HTMLSelectElement
-      await userEvent.selectOptions(roleSelect, 'ADMIN')
+      await openRowMenu(2)
+      await userEvent.click(screen.getByTestId('role-option-2-ADMIN'))
 
       await waitFor(() => {
         expect(screen.getByTestId('toast-notification')).toHaveTextContent('Forbidden')
@@ -387,13 +412,20 @@ describe('AdminUsersPage', () => {
     })
   })
 
-  describe('delete user', () => {
+  describe('delete user (WIKI4AI-86 kebab menu)', () => {
     const mockUsersList = [
       { id: 1, username: 'admin_one', email: 'admin1@test.com', role: 'ADMIN' as const, createdAt: '2026-01-01T00:00:00' },
       { id: 2, username: 'user_two', email: 'user2@test.com', role: 'USER' as const, createdAt: '2026-02-01T00:00:00' },
     ]
 
-    it('should open confirmation dialog when delete button is clicked', async () => {
+    async function openRowMenu(userId: number) {
+      await userEvent.click(screen.getByTestId(`user-row-menu-${userId}`))
+      await waitFor(() => {
+        expect(screen.getByTestId(`user-row-panel-${userId}`)).toBeInTheDocument()
+      }, { timeout: 3000 })
+    }
+
+    it('should open confirmation dialog when delete action is clicked', async () => {
       vi.mocked(mockAdminApi.listUsers).mockResolvedValue({
         content: mockUsersList, totalElements: 2, totalPages: 1, number: 0, size: 20,
       })
@@ -409,6 +441,7 @@ describe('AdminUsersPage', () => {
       }, { timeout: 3000 })
 
       // Click delete button for user_two (id=2)
+      await openRowMenu(2)
       const deleteBtn = screen.getByTestId('delete-user-btn-2')
       await userEvent.click(deleteBtn)
 
@@ -439,6 +472,7 @@ describe('AdminUsersPage', () => {
       }, { timeout: 3000 })
 
       // Open confirmation dialog
+      await openRowMenu(2)
       const deleteBtn = screen.getByTestId('delete-user-btn-2')
       await userEvent.click(deleteBtn)
 
@@ -472,6 +506,7 @@ describe('AdminUsersPage', () => {
       }, { timeout: 3000 })
 
       // Open and confirm delete
+      await openRowMenu(2)
       const deleteBtn = screen.getByTestId('delete-user-btn-2')
       await userEvent.click(deleteBtn)
 
@@ -503,6 +538,7 @@ describe('AdminUsersPage', () => {
       }, { timeout: 3000 })
 
       // Open confirmation dialog
+      await openRowMenu(2)
       const deleteBtn = screen.getByTestId('delete-user-btn-2')
       await userEvent.click(deleteBtn)
 
@@ -537,11 +573,18 @@ describe('AdminUsersPage', () => {
         expect(screen.getByTestId('users-table')).toBeInTheDocument()
       }, { timeout: 3000 })
 
-      // Own account (id=1) delete button should be disabled
+      // Own account (id=1): open the kebab menu, delete action must be disabled
+      await openRowMenu(1)
       const ownDeleteBtn = screen.getByTestId('delete-user-btn-1')
       expect(ownDeleteBtn).toBeDisabled()
 
-      // Other user's (id=2) delete button should NOT be disabled
+      // Close via Esc, then check another user's row (id=2): delete enabled
+      await userEvent.keyboard('{Escape}')
+      await waitFor(() => {
+        expect(screen.queryByTestId('user-row-panel-1')).not.toBeInTheDocument()
+      }, { timeout: 3000 })
+
+      await openRowMenu(2)
       const otherDeleteBtn = screen.getByTestId('delete-user-btn-2')
       expect(otherDeleteBtn).not.toBeDisabled()
     })
@@ -566,6 +609,7 @@ describe('AdminUsersPage', () => {
       expect(screen.getByText('user_two')).toBeInTheDocument()
 
       // Open and confirm delete for user_two (id=2)
+      await openRowMenu(2)
       const deleteBtn = screen.getByTestId('delete-user-btn-2')
       await userEvent.click(deleteBtn)
 

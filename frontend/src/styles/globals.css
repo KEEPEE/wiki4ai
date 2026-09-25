@@ -197,6 +197,19 @@ body {
   color: var(--text-primary);
 }
 
+/* ── WIKI4AI-86 — readable native <option> popups app-wide ─────────────
+ * The OS-level dropdown for a native <select> ignores most CSS, but the
+ * <option> background/color are honored by Chromium. Without this, options
+ * render as white text on a light popup (unreadable) on the dark theme.
+ * This is intentionally minimal option styling only — NOT a select redesign
+ * (that is WIKI4AI-89). Page-scoped rules (e.g. ProjectSettings.css) may still
+ * override per-form. */
+select optgroup,
+select option {
+  background-color: var(--dark-3);
+  color: var(--text-primary);
+}
+
 /* ── WIKI4AI-53 — explicit base reset (replaces removed @import "tailwindcss") ───────────────── */
 /*
  * The build previously pulled in Tailwind v4 via a plain CSS import (no
