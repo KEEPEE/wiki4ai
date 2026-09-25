@@ -148,6 +148,7 @@ const ProjectSettings: React.FC = () => {
             <label htmlFor="project-parent">{t('project.parentLabel')}</label>
             <select
               id="project-parent"
+              className="form-select"
               value={parentSlug ?? ''}
               onChange={(e) => setParentSlug(e.target.value || null)}
               data-testid="project-parent-select"

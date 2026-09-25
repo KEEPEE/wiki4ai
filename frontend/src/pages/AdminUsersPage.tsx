@@ -318,7 +318,7 @@ export default function AdminUsersPage() {
                 id="new-role"
                 value={createRole}
                 onChange={(e) => setCreateRole(e.target.value as 'ADMIN' | 'USER')}
-                className="form-input form-select"
+                className="form-select"
                 data-testid="create-role"
               >
                 <option value="USER">USER</option>

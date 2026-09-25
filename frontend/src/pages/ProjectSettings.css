@@ -92,7 +92,8 @@
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(220, 38, 38, 0.3); /* neon red border per story */
-  border-radius: 16px; /* danger zone specific radius */
+  /* WIKI4AI-89 (V-D7): no radius override — inherits the 24 px of
+     .settings-section so the danger card matches every other card. */
 }
 
 .danger-zone h2 {
@@ -204,21 +205,12 @@
   }
 }
 
-/* Parent selector (WIKI4AI-31) */
-.form-group select {
-  width: 100%;
-  padding: 0.6rem 0.75rem;
-  border-radius: 10px;
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  font-family: 'Outfit', sans-serif;
-}
-
-.form-group select option {
-  background: #1a1a2e;
-  color: #fff;
-}
+/* WIKI4AI-89: the page-scoped `.form-group select` rules were removed — they
+   leaked into every page sharing the single CSS bundle (e.g. the admin
+   create-user role select) and diverged from inputs (radius 10 vs 12, no
+   chevron). The parent selector now uses the shared app-wide .form-select
+   from styles/globals.css; option readability comes from the global
+   `select option` rule (WIKI4AI-86). */
 
 .form-hint {
   margin: 0.4rem 0 0;

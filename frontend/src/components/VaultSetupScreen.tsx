@@ -29,8 +29,15 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
     await setupVault(masterPasswordHash);
   };
 
-  const passwordsMatch = password && confirmPassword && password === confirmPassword;
   const isStrongEnough = password.length >= 8;
+  const passwordsMatch = password !== '' && confirmPassword !== '' && password === confirmPassword;
+
+  // WIKI4AI-89 (V-D8): each requirement has a neutral "pending" state until
+  // its field(s) are touched — no red on an unfilled form, and both lines are
+  // always rendered so the checklist layout never jumps.
+  const minCharsState = password === '' ? 'pending' : isStrongEnough ? 'pass' : 'fail';
+  const matchState =
+    password === '' || confirmPassword === '' ? 'pending' : passwordsMatch ? 'pass' : 'fail';
 
   return (
     <div className="vault-setup-screen">
@@ -91,19 +98,16 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
             />
           </div>
 
+          {/* WIKI4AI-89 (V-D8): both requirements always rendered — neutral
+              gray "pending" until touched, red only on a real failure. */}
           <div className="vault-password-requirements">
-            {!isStrongEnough && (
-              <span className="vault-requirement vault-requirement-fail">{t('vault.reqMinChars')}</span>
-            )}
-            {isStrongEnough && (
-              <span className="vault-requirement vault-requirement-pass">✓ {t('vault.reqMinChars')}</span>
-            )}
-            {!passwordsMatch && confirmPassword && (
-              <span className="vault-requirement vault-requirement-fail">{t('vault.reqMatch')}</span>
-            )}
-            {passwordsMatch && (
-              <span className="vault-requirement vault-requirement-pass">✓ {t('vault.reqMatchPass')}</span>
-            )}
+            <span className={`vault-requirement vault-requirement-${minCharsState}`}>
+              {minCharsState === 'pass' ? '✓ ' : ''}{t('vault.reqMinChars')}
+            </span>
+            <span className={`vault-requirement vault-requirement-${matchState}`}>
+              {matchState === 'pass' ? '✓ ' : ''}
+              {t(matchState === 'pass' ? 'vault.reqMatchPass' : 'vault.reqMatch')}
+            </span>
           </div>
 
           <button

@@ -40,9 +40,11 @@
   margin-bottom: 1rem;
 }
 
-.section-danger {
-  color: var(--color-error-text);
-}
+/* WIKI4AI-89 (V-D6): the `.section-danger` class was removed. The Profile
+   Danger Zone section no longer exists (removed in WIKI4AI-85 — Logout moved
+   to the top-nav user menu), so there is no profile danger heading left to
+   style. The only remaining Danger Zone is Project Settings', which uses its
+   own red `.danger-zone h2` treatment. */
 
 .section-description {
   font-size: 0.875rem;
@@ -287,12 +289,8 @@
   background-color: rgba(255, 255, 255, 0.06);
 }
 
-/* ── Danger zone — red glassmorphism ───────────────────────────── */
-
-.profile-danger-zone {
-  border: 1px solid rgba(220, 38, 38, 0.3); /* per spec */
-  background-color: rgba(220, 38, 38, 0.05); /* per spec */
-}
+/* WIKI4AI-89 (V-D6): `.profile-danger-zone` removed — the Profile Danger Zone
+   section no longer exists (removed in WIKI4AI-85), so the class was dead. */
 
 /* ── Token cards — unified clean layout ────────────────────────── */
 
