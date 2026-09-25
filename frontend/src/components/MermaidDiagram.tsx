@@ -66,18 +66,25 @@ export function withNaturalSize(renderedSvg: string): string {
   }
   const w = Math.max(1, Math.round(parts[2]));
   const h = Math.max(1, Math.round(parts[3]));
-  let out = renderedSvg;
-  if (/\bwidth="[^"]*"/.test(out)) {
-    out = out.replace(/\bwidth="[^"]*"/, `width="${w}"`);
+  // Operate on the ROOT svg tag only (up to its closing '>'). Mermaid output
+  // contains nested elements with their own width/height attributes (e.g. the
+  // background <rect>), and a whole-string replace would clobber them instead
+  // of sizing the root — found live on .219 during WIKI4AI-84 verification.
+  const tagStart = vb.index ?? 0;
+  const tagEnd = renderedSvg.indexOf('>', tagStart);
+  if (tagEnd === -1) return renderedSvg;
+  let tag = renderedSvg.slice(0, tagEnd + 1);
+  if (/\bwidth="[^"]*"/.test(tag)) {
+    tag = tag.replace(/\bwidth="[^"]*"/, `width="${w}"`);
   } else {
-    out = out.replace(/<svg/, `<svg width="${w}"`);
+    tag = tag.replace(/<svg/, `<svg width="${w}"`);
   }
-  if (/\bheight="[^"]*"/.test(out)) {
-    out = out.replace(/\bheight="[^"]*"/, `height="${h}"`);
+  if (/\bheight="[^"]*"/.test(tag)) {
+    tag = tag.replace(/\bheight="[^"]*"/, `height="${h}"`);
   } else {
-    out = out.replace(/<svg/, `<svg height="${h}"`);
+    tag = tag.replace(/<svg/, `<svg height="${h}"`);
   }
-  return out;
+  return tag + renderedSvg.slice(tagEnd + 1);
 }
 
 interface MermaidDiagramProps {
