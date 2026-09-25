@@ -1,16 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost, apiPut, apiDelete } from '../services/apiClient';
-import { applyUserLanguage, isSupportedLanguage, SUPPORTED_LANGUAGES } from '../i18n';
 import './Profile.css';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
-
-// WIKI4AI-73: mirrors USER_INFO_KEY in AuthContext — kept in sync so a language
-// change is applied instantly on reload, before the /auth/me re-sync returns.
-const USER_INFO_KEY = 'wiki4ai_user_info';
 
 // ── Storage keys for generated API tokens (persist across logout/login) ────
 const GENERATED_TOKEN_KEY = 'wiki4ai_generated_api_token';
@@ -62,8 +55,6 @@ interface TokenCardData {
 
 export default function ProfilePage() {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
 
   // WIKI4AI-73: language-aware date formatting (matches the dashboard pattern)
   const locale = i18n.language === 'sk' ? 'sk-SK' : 'en-GB';
@@ -71,10 +62,6 @@ export default function ProfilePage() {
   // Profile data from API (may have more fields than context user)
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-
-  // WIKI4AI-73: UI language preference
-  const [language, setLanguage] = useState<string>(user?.language ?? 'en');
-  const [isUpdatingLanguage, setIsUpdatingLanguage] = useState(false);
 
   // Edit form state
   const [editUsername, setEditUsername] = useState('');
@@ -115,9 +102,6 @@ export default function ProfilePage() {
         setProfile(data);
         setEditUsername(data.username);
         setEditEmail(data.email);
-        if (data.language) {
-          setLanguage(data.language);
-        }
       } catch {
         setUpdateError(t('profile.loadFailed'));
       } finally {
@@ -197,41 +181,8 @@ export default function ProfilePage() {
     [editUsername, editEmail, currentPassword, newPassword, t],
   );
 
-  // WIKI4AI-73: switch UI language — apply immediately, persist via PUT /auth/me.
-  const handleLanguageChange = useCallback(
-    async (lang: string) => {
-      if (!isSupportedLanguage(lang) || lang === language) return;
-
-      setIsUpdatingLanguage(true);
-      const previous = language;
-      setLanguage(lang);
-      applyUserLanguage(lang); // instant UI switch, no reload
-
-      try {
-        await apiPut<UserProfile>(`${API_BASE_URL}/auth/me`, { language: lang });
-        // Refresh the cached user so a page reload applies the new language
-        // instantly, before the /auth/me re-sync in AuthContext returns.
-        const cached = localStorage.getItem(USER_INFO_KEY);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            parsed.language = lang;
-            localStorage.setItem(USER_INFO_KEY, JSON.stringify(parsed));
-          } catch {
-            // Corrupted cache — the /auth/me re-sync will fix it on next load.
-          }
-        }
-      } catch {
-        // Roll back the UI switch if persistence failed.
-        setLanguage(previous);
-        applyUserLanguage(previous);
-        setUpdateError(t('profile.languageSaveFailed'));
-      } finally {
-        setIsUpdatingLanguage(false);
-      }
-    },
-    [language, t],
-  );
+  // WIKI4AI-85: the UI language switch moved out of this page into the top-nav
+  // user menu (see components/UserMenu.tsx + hooks/useUserLanguage.ts).
 
   // Generate a single token (backward compatible)
   const handleGenerateToken = useCallback(async () => {
@@ -440,10 +391,7 @@ export default function ProfilePage() {
     }
   }, [profile?.id, storedTokens, t]);
 
-  const handleLogout = useCallback(() => {
-    logout();
-    navigate('/login');
-  }, [logout, navigate]);
+  // WIKI4AI-85: logout moved to the top-nav user menu (single location).
 
   // ── Legacy token copy (for the quick generate flow) ────────────────
   const handleCopyLegacyToken = useCallback(() => {
@@ -481,7 +429,9 @@ export default function ProfilePage() {
     );
   }
 
-  const displayUser = profile || user;
+  // WIKI4AI-85: `user` from AuthContext is no longer needed here — the profile
+  // API response carries all displayed fields (username/email/role).
+  const displayUser = profile;
 
   return (
     <div className="profile-page">
@@ -508,28 +458,7 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* WIKI4AI-73: Language preference */}
-      <section className="profile-section" data-testid="language-section">
-        <h2 className="section-title">{t('profile.languageTitle')}</h2>
-        <p className="section-description">{t('profile.languageDesc')}</p>
-        <div className="form-group">
-          <label htmlFor="profile-language" className="form-label">{t('profile.languageLabel')}</label>
-          <select
-            id="profile-language"
-            className="form-input"
-            value={language}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            disabled={isUpdatingLanguage}
-            data-testid="language-select"
-          >
-            {SUPPORTED_LANGUAGES.map((code) => (
-              <option key={code} value={code}>
-                {t(code === 'en' ? 'profile.languageEn' : 'profile.languageSk')}
-              </option>
-            ))}
-          </select>
-        </div>
-      </section>
+      {/* WIKI4AI-85: language preference moved to the top-nav user menu. */}
 
       {/* Edit Profile Form */}
       <section className="profile-section" data-testid="edit-profile-section">
@@ -796,18 +725,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Logout */}
-      <section className="profile-section profile-danger-zone">
-        <h2 className="section-title section-danger">{t('project.dangerZone')}</h2>
-        <p className="section-description">{t('profile.logoutDesc')}</p>
-        <button
-          onClick={handleLogout}
-          className="btn btn-danger"
-          data-testid="profile-logout-btn"
-        >
-          {t('layout.logout')}
-        </button>
-      </section>
+      {/* WIKI4AI-85: logout lives in the top-nav user menu (single location). */}
     </div>
   );
 }

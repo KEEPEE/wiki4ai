@@ -4,16 +4,18 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from './AmbientBackground';
 import WikiLogo from './WikiLogo';
+import UserMenu from './UserMenu';
 import { signalContentReady } from '../utils/appReady';
 import './WikiLogo.css';
 import './GlobalSearchBar.css';
+import './Layout.css';
 
 interface LayoutProps {
   children?: React.ReactNode;
 }
 
 export default function Layout({ children }: LayoutProps) {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -53,11 +55,6 @@ export default function Layout({ children }: LayoutProps) {
     if (q.length >= 2) {
       navigate(`/search?q=${encodeURIComponent(q)}`);
     }
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
   };
 
   return (
@@ -120,65 +117,17 @@ export default function Layout({ children }: LayoutProps) {
             </form>
           )}
 
-          {/* Auth section */}
+          {/* Auth section — WIKI4AI-85: single user menu (avatar + chevron)
+              for authenticated users; login/register links when anonymous. */}
           <div data-testid="auth-section">
             {isAuthenticated && user ? (
-              <>
-                <Link
-                  to="/vault"
-                  style={{
-                    background: '#8b5cf6',
-                  }}
-                  data-testid="nav-vault"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20 7h-3a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z" />
-                    <rect x="10" y="11" width="4" height="4" rx="1" />
-                  </svg>
-                  {t('layout.vault')}
-                </Link>
-                {(user as any).role === 'ADMIN' && (
-                  <Link
-                    to="/admin/users"
-                    style={{
-                      background: '#f59e0b',
-                    }}
-                    data-testid="nav-admin-users"
-                  >
-                    {t('layout.admin')}
-                  </Link>
-                )}
-                <Link
-                  to="/profile"
-                  data-testid="nav-profile"
-                >
-                  {user.username}
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  style={{
-                    background: '#ef4444',
-                  }}
-                  data-testid="logout-button"
-                >
-                  {t('layout.logout')}
-                </button>
-              </>
+              <UserMenu />
             ) : (
-              <nav>
-                <Link
-                  to="/login"
-                  style={{
-                    background: '#3b82f6',
-                  }}
-                  data-testid="nav-login"
-                >
+              <nav className="nav-anonymous">
+                <Link to="/login" className="nav-auth-link nav-auth-login" data-testid="nav-login">
                   {t('layout.login')}
                 </Link>
-                <Link
-                  to="/register"
-                  data-testid="nav-register"
-                >
+                <Link to="/register" className="nav-auth-link nav-auth-register" data-testid="nav-register">
                   {t('layout.register')}
                 </Link>
               </nav>
