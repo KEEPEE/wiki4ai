@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -252,6 +252,124 @@ describe('Dashboard', () => {
 
       // When isCreating=true, the button shows "Creating..." and is disabled
       expect(screen.getByText('Creating...')).toBeInTheDocument()
+    })
+
+    // ── WIKI4AI-88: create form is a proper modal ────────────────────────
+
+    it('should render create form as a modal with backdrop, X button and visible labels', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      // Modal with dialog role + close (X) button
+      expect(screen.getByTestId('create-modal')).toBeInTheDocument()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByTestId('create-modal-close')).toBeInTheDocument()
+
+      // WIKI4AI-88: visible labels (login pattern), not placeholder-only
+      expect(screen.getByText('Project Name')).toBeInTheDocument()
+      expect(screen.getByText('Description')).toBeInTheDocument()
+    })
+
+    it('should focus the name input when the create modal opens', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      expect(screen.getByTestId('create-name-input')).toHaveFocus()
+    })
+
+    it('should close the create modal when Escape is pressed', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+      expect(screen.getByTestId('create-modal')).toBeInTheDocument()
+
+      await user.keyboard('{Escape}')
+
+      expect(screen.queryByTestId('create-modal')).not.toBeInTheDocument()
+    })
+
+    it('should close the create modal when the backdrop is clicked', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      // Click the backdrop itself (not the modal content) — fireEvent targets
+      // the backdrop element directly, so e.target === e.currentTarget in the
+      // close handler.
+      fireEvent.click(screen.getByTestId('create-modal'))
+
+      expect(screen.queryByTestId('create-modal')).not.toBeInTheDocument()
+    })
+
+    it('should show a themed validation error and not call createProject when name is empty', async () => {
+      const mockCreateProject = vi.fn()
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: mockCreateProject, updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      // Submit with an empty name — no native `required` tooltip (noValidate),
+      // the themed .error message appears instead.
+      await user.click(screen.getByTestId('create-submit-button'))
+
+      const error = screen.getByTestId('create-error')
+      expect(error).toHaveTextContent('Project name is required.')
+      expect(mockCreateProject).not.toHaveBeenCalled()
+    })
+
+    it('should show a themed validation error when the edit modal name is emptied', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Project Alpha', slug: 'project-alpha', description: null, documentCount: 5, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByTestId('edit-button-1'))
+
+      // Empty the pre-filled name and save → themed error, no API call
+      const nameInput = screen.getByTestId('edit-name-input')
+      await user.clear(nameInput)
+      await user.click(screen.getByTestId('edit-save-button'))
+
+      expect(screen.getByText('Project name is required.')).toBeInTheDocument()
     })
   })
 

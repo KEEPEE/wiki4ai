@@ -403,6 +403,13 @@ const ProjectDetail: React.FC = () => {
             ))}
           </ul>
         )}
+
+        {/* WIKI4AI-88: empty state — bare header alone was confusing */}
+        {subprojects.length === 0 && !showSubprojectForm && (
+          <p className="subprojects-empty" data-testid="subprojects-empty">
+            {t('project.noSubprojects')}
+          </p>
+        )}
       </section>
 
       {/* Upload Progress Bar */}
