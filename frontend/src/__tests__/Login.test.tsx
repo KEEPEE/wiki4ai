@@ -151,6 +151,15 @@ describe('Login', () => {
       await userEvent.click(submitBtn)
 
       expect(screen.getByText('Logging in...')).toBeInTheDocument()
+
+      // WIKI4AI-84 (CI flake): the mocked login resolves via a real 200 ms
+      // timer. If the test ended before it fired, the finally-block
+      // setIsLoading(false) would run after jsdom teardown → unhandled
+      // "window is not defined" rejection on CI. Drain the promise by waiting
+      // for the post-login redirect instead.
+      await waitFor(() => {
+        expect(screen.getByTestId('dashboard-page')).toBeInTheDocument()
+      }, { timeout: 1000 })
     })
   })
 
