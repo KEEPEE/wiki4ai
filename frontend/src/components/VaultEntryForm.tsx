@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VaultEntry } from '../types/vault';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { EyeIcon, EyeOffIcon } from './icons';
 import './VaultEntryForm.css';
 
 export interface VaultEntryFormData {
@@ -218,7 +220,7 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
             aria-label={showPassword ? t('vault.hidePassword') : t('vault.showPassword')}
             data-testid="vault-form-toggle-password-button"
           >
-            {showPassword ? '🙈' : '👁️'}
+            {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
           </button>
         </div>
         <div className="password-actions">

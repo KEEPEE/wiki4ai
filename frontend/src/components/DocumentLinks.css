@@ -24,6 +24,13 @@
   border-bottom: 1px solid rgba(0, 229, 255, 0.1);
 }
 
+/* WIKI4AI-87: align the inline SVG icon with the title text */
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .links-section {
   margin-bottom: 1.5rem;
 }

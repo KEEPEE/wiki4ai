@@ -37,6 +37,10 @@
   cursor: pointer;
   transition: all var(--transition-base);
   user-select: none;
+  /* WIKI4AI-87: align the inline SVG icon with the label text */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .label-toggle-btn:hover {

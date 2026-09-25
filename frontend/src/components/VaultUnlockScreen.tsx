@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
 import { cryptoApi } from '../services/cryptoApi';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { EyeIcon, EyeOffIcon, LockIcon } from './icons';
 
 const VaultUnlockScreen: React.FC = () => {
   const { t } = useTranslation();
@@ -63,7 +65,7 @@ const VaultUnlockScreen: React.FC = () => {
                 className="vault-toggle-visibility"
                 aria-label={showPassword ? t('vault.hidePassword') : t('vault.showPassword')}
               >
-                {showPassword ? '🙈' : '👁️'}
+                {showPassword ? <EyeOffIcon size={18} /> : <EyeIcon size={18} />}
               </button>
             </div>
           </div>
@@ -79,7 +81,7 @@ const VaultUnlockScreen: React.FC = () => {
         </form>
 
         <p className="vault-security-note">
-          🔒 {t('vault.unlockSecurityNote')}
+          <LockIcon size={14} /> {t('vault.unlockSecurityNote')}
         </p>
       </div>
     </div>

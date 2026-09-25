@@ -108,15 +108,20 @@
   right: 0.5rem;
   background: none;
   border: none;
-  font-size: 1.1rem;
   cursor: pointer;
   padding: 0.25rem;
   line-height: 1;
-  transition: transform var(--transition-fast);
+  transition: transform var(--transition-fast), color var(--transition-fast);
+  /* WIKI4AI-87: centre the inline SVG eye icon (currentColor) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .toggle-password-btn:hover {
   transform: scale(1.15);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .password-actions {

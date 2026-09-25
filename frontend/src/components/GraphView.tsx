@@ -14,6 +14,8 @@ import ForceGraph2D from 'react-force-graph-2d';
 import type { Document } from '../types/document';
 import { generateSlug } from '../utils/slugify';
 import { useTranslation } from 'react-i18next';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { TagIcon, EyeIcon } from './icons';
 import './GraphView.css';
 
 export interface GraphViewProps {
@@ -389,7 +391,15 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
             title={showLabels ? t('graph.hideLabelsTitle') : t('graph.showLabelsTitle')}
             className={`label-toggle-btn ${showLabels ? 'active' : ''}`}
           >
-            {showLabels ? t('graph.labelsOn') : t('graph.hoverOnly')}
+            {showLabels ? (
+              <>
+                <TagIcon size={14} /> {t('graph.labelsOn')}
+              </>
+            ) : (
+              <>
+                <EyeIcon size={14} /> {t('graph.hoverOnly')}
+              </>
+            )}
           </button>
         </div>
       </header>

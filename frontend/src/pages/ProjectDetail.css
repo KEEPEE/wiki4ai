@@ -20,6 +20,14 @@
   flex-wrap: wrap;
 }
 
+/* WIKI4AI-87: icon + label alignment in header action buttons (inline SVG) */
+.header-actions .btn-primary,
+.header-actions .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .btn-import {
   font-size: 0.9rem;
 }
@@ -119,10 +127,17 @@
   background: rgba(0, 240, 255, 0.1);
   backdrop-filter: blur(4px);
   display: flex;
+  flex-direction: column; /* WIKI4AI-87: stack folder icon above the hint text */
   align-items: center;
   justify-content: center;
   z-index: 1000;
   pointer-events: none;
+}
+
+/* WIKI4AI-87: SVG folder icon above the drop hint (emoji rendered as tofu) */
+.drag-overlay-icon {
+  color: var(--primary);
+  margin-bottom: 0.75rem;
 }
 
 .drag-overlay p {
