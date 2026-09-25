@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useLayoutEffect } from 'react';
 import { Outlet, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from './AmbientBackground';
 import WikiLogo from './WikiLogo';
+import { signalContentReady } from '../utils/appReady';
 import './WikiLogo.css';
 import './GlobalSearchBar.css';
 
@@ -15,6 +16,33 @@ export default function Layout({ children }: LayoutProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  // WIKI4AI-82: signal that the app shell has rendered so the global splash
+  // hands off to page-level loaders (single visible spinner). useLayoutEffect
+  // fires before paint, so the splash fade and the page loader never overlap.
+  useLayoutEffect(() => {
+    signalContentReady();
+  }, []);
+
+  // WIKI4AI-82: expose the sticky top-nav height as --w4a-nav-height for
+  // viewport-bounded pages (moved here from DocumentEditor, which was the only
+  // consumer — GraphViewPage now needs it too so its graph container can fill
+  // the remaining viewport height without page scroll).
+  useLayoutEffect(() => {
+    const nav = document.querySelector<HTMLElement>('main > header');
+    if (!nav) return;
+    const update = () => {
+      document.documentElement.style.setProperty('--w4a-nav-height', `${nav.offsetHeight}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(nav);
+    window.addEventListener('resize', update);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   // Global (cross-project) search — WIKI4AI-61. Submitting navigates to /search?q=...
   const [globalQuery, setGlobalQuery] = useState('');

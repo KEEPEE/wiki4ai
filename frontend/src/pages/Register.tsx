@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useLayoutEffect } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from '../components/AmbientBackground';
+import { signalContentReady } from '../utils/appReady';
 import './Login.css';
 
 /** Validation result for a single field */
@@ -41,6 +42,12 @@ function validateForm(
 }
 
 export default function Register() {
+  // WIKI4AI-82: standalone route (no Layout) — hide the global splash as soon
+  // as this page shell renders so no two spinners are ever visible at once.
+  useLayoutEffect(() => {
+    signalContentReady();
+  }, []);
+
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

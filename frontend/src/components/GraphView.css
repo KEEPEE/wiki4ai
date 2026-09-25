@@ -70,6 +70,32 @@
   padding: 16px; /* 16px padding as specified */
 }
 
+/* ===== Viewport-bounded graph page (WIKI4AI-82) ==================
+   The fixed 600px container left ~300px of dead space below the graph on a
+   1920x1080 viewport (and forced inner scroll when it was too short). The
+   .graph-page wrapper (set on GraphViewPage) now bounds the whole page to the
+   viewport height below the sticky nav (--w4a-nav-height, measured by
+   Layout.tsx) and lets the container flex-fill the remaining space. */
+
+.graph-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--w4a-nav-height, 64px));
+}
+
+.graph-page .graph-view {
+  flex: 1;
+  min-height: 0; /* allow the flex child to shrink below content size */
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-page .graph-container {
+  flex: 1;
+  min-height: 320px; /* stay usable on very short viewports (page scrolls) */
+  height: auto; /* overrides the fixed 600px above */
+}
+
 .graph-empty {
   display: flex;
   flex-direction: column;

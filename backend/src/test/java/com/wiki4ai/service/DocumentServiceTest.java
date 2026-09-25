@@ -1242,6 +1242,65 @@ class DocumentServiceTest {
             assertThat(excerpt).doesNotContain("\n").doesNotContain("  ");
             assertThat(excerpt).contains("Keyword");
         }
+
+        @Test
+        @DisplayName("WIKI4AI-82: should strip markdown markup (headings, bold, links, wiki links, code)")
+        void shouldStripMarkdownMarkup() {
+            String content = "# Title\n\n## Section with **bold** and *italic*\n"
+                    + "Some [link text](https://example.com) and [[Wiki Target|alias]] plus `inline code`.\n"
+                    + "- bullet one\n- bullet two";
+            String excerpt = DocumentService.buildExcerpt(content, "Section");
+            assertThat(excerpt).doesNotContain("#").doesNotContain("**").doesNotContain("`");
+            assertThat(excerpt).doesNotContain("https://example.com").doesNotContain("[[Wiki Target|alias]]");
+            assertThat(excerpt).contains("Section with bold and italic");
+            assertThat(excerpt).contains("link text");
+            assertThat(excerpt).contains("alias");
+        }
+
+        @Test
+        @DisplayName("WIKI4AI-82: should cut the leading window at a word boundary with ellipsis")
+        void shouldCutLeadingWindowAtWordBoundaryWithEllipsis() {
+            String content = "alpha beta gamma delta epsilon zeta eta theta ".repeat(5).trim();
+            String excerpt = DocumentService.buildExcerpt(content, "missing");
+            assertThat(excerpt).endsWith("…");
+            // The cut must land on a word boundary: the first dropped character is a space.
+            String body = excerpt.substring(0, excerpt.length() - 1);
+            assertThat(content.charAt(body.length())).isEqualTo(' ');
+        }
+
+        @Test
+        @DisplayName("WIKI4AI-82: should not cut mid-word at window edges (normal prose)")
+        void shouldNotCutMidWordAtWindowEdges() {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < 40; i++) {
+                if (i > 0) sb.append(' ');
+                sb.append("word").append(i);
+            }
+            String content = sb.toString(); // "word0 word1 ... word39" (~269 chars)
+            String excerpt = DocumentService.buildExcerpt(content, "missing");
+            // Leading window (no keyword): starts at a word start and ends on a boundary.
+            assertThat(excerpt).startsWith("word0").endsWith("…");
+            String body = excerpt.substring(0, excerpt.length() - 1);
+            for (String part : body.split(" ")) {
+                assertThat(part.matches("word\\d+"))
+                        .as("excerpt fragment '%s' must be a whole word", part)
+                        .isTrue();
+            }
+        }
+
+        @Test
+        @DisplayName("WIKI4AI-82: should keep the keyword intact when trimming to word boundaries")
+        void shouldKeepKeywordIntactWhenTrimmingToWordBoundaries() {
+            String content = "a ".repeat(50) + "the quick brown fox" + " b".repeat(60);
+            String excerpt = DocumentService.buildExcerpt(content, "quick");
+            assertThat(excerpt).contains("the quick brown fox");
+        }
+
+        @Test
+        @DisplayName("WIKI4AI-82: should return empty for markup-only content")
+        void shouldReturnEmptyForMarkupOnlyContent() {
+            assertThat(DocumentService.buildExcerpt("```java\n```", "x")).isEmpty();
+        }
     }
 
     @Nested

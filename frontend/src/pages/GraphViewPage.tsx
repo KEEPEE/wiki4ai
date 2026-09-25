@@ -47,7 +47,11 @@ const GraphViewPage: React.FC = () => {
   };
 
   return (
-    <div className="project-detail">
+    // WIKI4AI-82: .graph-page bounds the page to the viewport height below the
+    // sticky nav so the graph container flex-fills it (no fixed 600px, no inner
+    // scroll at 1920x1080). Scoped here so ProjectDetail's use of the shared
+    // .project-detail class is unaffected.
+    <div className="project-detail graph-page">
       {/* Breadcrumb Navigation */}
       <nav className="breadcrumb" aria-label={t('graph.breadcrumbAria')}>
         <a href="/">{t('graph.dashboard')}</a>
