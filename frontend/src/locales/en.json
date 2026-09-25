@@ -139,7 +139,7 @@
     "invalidFileDrop": "Please drop a .md or .markdown file",
     "exportFailed": "Failed to export project",
     "notFound": "Project not found.",
-    "dropFileHere": "📁 Drop your .md file here",
+    "dropFileHere": "Drop your .md file here",
     "newDocument": "New Document",
     "importTitle": "Import .md file",
     "importFile": "Import file",
@@ -338,8 +338,8 @@
     "showLabels": "Show node labels",
     "hideLabelsTitle": "Click to hide labels (hover only)",
     "showLabelsTitle": "Click to show labels always",
-    "labelsOn": "🏷️ Labels on",
-    "hoverOnly": "👁️ Hover only",
+    "labelsOn": "Labels on",
+    "hoverOnly": "Hover only",
     "connectionsSubtitle": "Visualizing connections between documents"
   },
   "vault": {

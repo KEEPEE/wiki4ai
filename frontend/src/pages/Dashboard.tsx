@@ -11,6 +11,8 @@ import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
 import type { Project, ProjectDTO } from '../types/project';
 import { ToastContainer, type ToastItem } from '../components/Toast';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { EditIcon, TrashIcon } from '../components/icons';
 import './Dashboard.css';
 
 /**
@@ -526,7 +528,7 @@ const Dashboard: React.FC = () => {
                   aria-label={t('dashboard.ariaEdit', { name: project.name })}
                   data-testid={`edit-button-${project.id}`}
                 >
-                  ✏️
+                  <EditIcon size={15} />
                 </button>
                 <button
                   type="button"
@@ -535,7 +537,7 @@ const Dashboard: React.FC = () => {
                   aria-label={t('dashboard.ariaDelete', { name: project.name })}
                   data-testid={`delete-button-${project.id}`}
                 >
-                  🗑️
+                  <TrashIcon size={15} />
                 </button>
                 <div className="card-header">
                   <h3>{project.name}</h3>

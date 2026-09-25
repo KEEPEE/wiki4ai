@@ -483,6 +483,15 @@
 
 /* ── Edit & Delete Buttons on Card ───────────────────────────── */
 
+/* WIKI4AI-87: icon-only buttons — centre the inline SVG (currentColor) */
+.edit-button,
+.delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+}
+
 .edit-button {
   position: absolute;
   top: 0.75rem;
@@ -491,7 +500,6 @@
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
-  font-size: 1rem;
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--transition-base), background-color var(--transition-base), transform var(--transition-fast);
@@ -507,7 +515,6 @@
   border: 1px solid var(--glass-border);
   border-radius: 6px;
   padding: 0.35rem 0.5rem;
-  font-size: 1rem;
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--transition-base), background-color var(--transition-base), transform var(--transition-fast);
@@ -526,12 +533,14 @@
 
 .edit-button:hover {
   background: rgba(0, 240, 255, 0.1);
+  color: var(--text-primary);
   transform: scale(1.1);
 }
 
 .delete-button:hover {
   background: var(--color-error-bg);
   border-color: var(--color-error-border);
+  color: var(--color-error-text);
   transform: scale(1.1);
 }
 

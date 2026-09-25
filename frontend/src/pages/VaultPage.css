@@ -623,10 +623,19 @@
   right: 0.75rem;
   background: none;
   border: none;
-  font-size: 1.1rem;
   cursor: pointer;
   padding: 0.25rem;
   line-height: 1;
+  /* WIKI4AI-87: centre the inline SVG eye icon (currentColor) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  transition: color var(--transition-fast);
+}
+
+.vault-toggle-visibility:hover {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ── Password Requirements ───────────────────────────── */
@@ -704,6 +713,15 @@
   color: var(--text-muted);
   margin-top: 1.25rem;
   line-height: 1.5;
+  /* WIKI4AI-87: align the inline SVG lock icon with the note text */
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.vault-security-note svg {
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* ── Responsive for Setup/Unlock Screens ───────────── */

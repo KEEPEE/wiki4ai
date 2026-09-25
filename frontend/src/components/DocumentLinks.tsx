@@ -7,6 +7,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { documentApi } from '../services/documentApi';
+// WIKI4AI-87: SVG icon (no emoji — the container has no emoji font)
+import { LinkIcon } from './icons';
 import './DocumentLinks.css';
 
 interface DocumentLinkItem {
@@ -93,7 +95,9 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
 
   return (
     <div className="document-links">
-      <h3 className="document-links-title">🔗 {t('doclinks.title')}</h3>
+      <h3 className="document-links-title panel-heading">
+        <LinkIcon size={16} /> {t('doclinks.title')}
+      </h3>
 
       {/* Outgoing links section */}
       <section className="links-section">

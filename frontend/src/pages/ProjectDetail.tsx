@@ -14,6 +14,8 @@ import { projectApi } from '../services/projectApi';
 import { generateSlug } from '../utils/slugify';
 import type { CreateDocumentDto } from '../types/document';
 import type { Project } from '../types/project';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { FolderIcon, DownloadIcon, ClockIcon, SettingsIcon } from '../components/icons';
 import './ProjectDetail.css';
 
 type TabType = 'documents' | 'graph';
@@ -271,6 +273,8 @@ const ProjectDetail: React.FC = () => {
       {/* Drag & Drop Overlay */}
       {isDragOver && (
         <div className="drag-overlay">
+          {/* WIKI4AI-87: SVG folder icon (emoji rendered as tofu in container) */}
+          <FolderIcon size={32} className="drag-overlay-icon" />
           <p>{t('project.dropFileHere')}</p>
         </div>
       )}
@@ -317,7 +321,7 @@ const ProjectDetail: React.FC = () => {
             data-testid="import-file-button"
             title={t('project.importTitle')}
           >
-            📁 {t('project.importFile')}
+            <FolderIcon size={16} /> {t('project.importFile')}
           </button>
           <button
             onClick={handleExport}
@@ -326,7 +330,15 @@ const ProjectDetail: React.FC = () => {
             data-testid="export-button"
             title={t('project.exportTitle')}
           >
-            {isExporting ? `⏳ ${t('project.exporting')}` : `📦 ${t('project.export')}`}
+            {isExporting ? (
+              <>
+                <ClockIcon size={16} /> {t('project.exporting')}
+              </>
+            ) : (
+              <>
+                <DownloadIcon size={16} /> {t('project.export')}
+              </>
+            )}
           </button>
           <Link
             to={`/projects/${slug}/settings`}
@@ -334,7 +346,7 @@ const ProjectDetail: React.FC = () => {
             data-testid="settings-link"
             title={t('project.settingsTitle')}
           >
-            ⚙️ {t('project.settings')}
+            <SettingsIcon size={16} /> {t('project.settings')}
           </Link>
         </div>
       </header>

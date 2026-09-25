@@ -139,7 +139,7 @@
     "invalidFileDrop": "Pretiahnite sem súbor .md alebo .markdown",
     "exportFailed": "Nepodarilo sa exportovať projekt",
     "notFound": "Projekt nenájdený.",
-    "dropFileHere": "📁 Pustite sem váš súbor .md",
+    "dropFileHere": "Pustite sem váš súbor .md",
     "newDocument": "Nový dokument",
     "importTitle": "Importovať súbor .md",
     "importFile": "Importovať súbor",
@@ -338,8 +338,8 @@
     "showLabels": "Zobraziť popisky uzlov",
     "hideLabelsTitle": "Kliknutím skryjete popisky (len pri prejdení kurzora)",
     "showLabelsTitle": "Kliknutím zobrazíte popisky trvalo",
-    "labelsOn": "🏷️ Popisky zapnuté",
-    "hoverOnly": "👁️ Len pri prejdení",
+    "labelsOn": "Popisky zapnuté",
+    "hoverOnly": "Len pri prejdení",
     "connectionsSubtitle": "Vizualizácia spojení medzi dokumentmi"
   },
   "vault": {

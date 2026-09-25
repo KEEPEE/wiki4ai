@@ -250,6 +250,13 @@
   margin: 0 0 1rem 0;
 }
 
+/* WIKI4AI-87: align the inline SVG icon with the heading text */
+.panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .backlinks-list {
   list-style: none;
   padding: 0;

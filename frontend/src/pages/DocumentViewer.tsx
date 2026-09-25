@@ -13,6 +13,8 @@ import Breadcrumb from '../components/Breadcrumb';
 import { useProjects } from '../hooks/useProjects';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
+// WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
+import { LinkIcon, PaperclipIcon } from '../components/icons';
 import './DocumentViewer.css';
 
 interface DocumentViewerProps {
@@ -194,7 +196,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       {/* Wiki Links Section */}
       {wikiLinks.length > 0 && (
         <section className="backlinks-section" aria-label={t('viewer.wikiLinksAria')}>
-          <h3>🔗 {t('viewer.linksHeading', { count: wikiLinks.length })}</h3>
+          <h3 className="panel-heading">
+            <LinkIcon size={16} /> {t('viewer.linksHeading', { count: wikiLinks.length })}
+          </h3>
           <ul className="backlinks-list">
             {wikiLinks.map((link) => (
               <li key={link} className="backlink-item">
@@ -213,7 +217,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
 
       {/* Backlinks Section - Linked from (read-only) */}
       <section className="backlinks-section" aria-label={t('viewer.linkedFromAria')}>
-        <h3>📎 {t('viewer.linkedFromHeading', { count: backlinks.length })}</h3>
+        <h3 className="panel-heading">
+          <PaperclipIcon size={16} /> {t('viewer.linkedFromHeading', { count: backlinks.length })}
+        </h3>
         {backlinks.length > 0 ? (
           <ul className="backlinks-list">
             {backlinks.map((doc) => (
