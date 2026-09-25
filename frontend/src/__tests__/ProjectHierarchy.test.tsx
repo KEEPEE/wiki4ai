@@ -295,6 +295,28 @@ describe('ProjectDetail hierarchy (WIKI4AI-31)', () => {
     // Only the direct child is listed, not the grandchild
     expect(screen.queryByTestId('subproject-entry-grandchild-project')).not.toBeInTheDocument()
   })
+
+  it('shows a muted empty state in the subprojects section when there are no subprojects (WIKI4AI-88)', async () => {
+    mockUseProjects(hierarchyProjects)
+    mockUseDocuments()
+
+    // grandchild-project has no children of its own
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<div>HOME</div>} />
+        <Route path="/projects/:slug" element={<ProjectDetail />} />
+      </Routes>,
+      ['/projects/grandchild-project'],
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('subprojects-section')).toBeInTheDocument()
+    })
+
+    // WIKI4AI-88: bare header alone was confusing — muted hint text instead
+    const empty = screen.getByTestId('subprojects-empty')
+    expect(empty).toHaveTextContent('No subprojects yet.')
+  })
 })
 
 describe('ProjectDetail cold load (hook order regression)', () => {

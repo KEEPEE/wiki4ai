@@ -281,7 +281,8 @@
   background-color: rgba(0, 240, 255, 0.08);
   border-color: var(--primary);
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 200, 220, 0.2);
-  transform: translateY(-10px) scale(1.02);
+  /* WIKI4AI-88: calmer hover lift — translateY(-10px) scale(1.02) was jumpy */
+  transform: translateY(-3px);
 }
 
 .project-card:focus-visible {
@@ -299,6 +300,13 @@
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 0.75rem;
+}
+
+/* WIKI4AI-88: title takes the remaining width so the actions cluster + badge
+   stay pinned to the right (no overlap, no layout shift) */
+.card-header h3 {
+  flex: 1;
+  min-width: 0;
 }
 
 .project-card h3 {
@@ -481,54 +489,37 @@
   cursor: not-allowed;
 }
 
-/* ── Edit & Delete Buttons on Card ───────────────────────────── */
+/* ── Edit & Delete Buttons on Card — WIKI4AI-88 ─────────────── */
+/* In-flow .card-actions cluster between the title and the "N docs" badge:
+   the reserved space means hover actions can never overlap the badge.
+   Hidden by default, revealed on card hover / focus-within; always visible
+   on mobile (no pointer). Icon-only buttons centre their inline SVG
+   (currentColor, WIKI4AI-87). */
 
-/* WIKI4AI-87: icon-only buttons — centre the inline SVG (currentColor) */
+.card-actions {
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity var(--transition-base);
+}
+
+.project-card:hover .card-actions,
+.project-card:focus-within .card-actions {
+  opacity: 1;
+}
+
 .edit-button,
 .delete-button {
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  cursor: pointer;
   color: var(--text-secondary);
-}
-
-.edit-button {
-  position: absolute;
-  top: 0.75rem;
-  right: 2.75rem;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  padding: 0.35rem 0.5rem;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--transition-base), background-color var(--transition-base), transform var(--transition-fast);
-  z-index: 2;
-  line-height: 1;
-}
-
-.delete-button {
-  position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 6px;
-  padding: 0.35rem 0.5rem;
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--transition-base), background-color var(--transition-base), transform var(--transition-fast);
-  z-index: 2;
-  line-height: 1;
-}
-
-.project-card {
-  position: relative;
-}
-
-.project-card:hover .edit-button,
-.project-card:hover .delete-button {
-  opacity: 1;
+  transition: background-color var(--transition-base), color var(--transition-base), transform var(--transition-fast);
 }
 
 .edit-button:hover {
@@ -795,9 +786,8 @@
     width: 100%;
   }
 
-  /* Always show edit and delete buttons on mobile */
-  .edit-button,
-  .delete-button {
+  /* WIKI4AI-88: always show card actions on mobile (no pointer to hover) */
+  .card-actions {
     opacity: 1;
   }
 

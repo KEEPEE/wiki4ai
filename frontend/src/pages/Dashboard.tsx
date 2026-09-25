@@ -4,7 +4,7 @@
  * Uses React Query (TanStack Query) for data fetching and cache management.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProjects } from '../hooks/useProjects';
@@ -158,7 +158,11 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editName.trim()) return;
+    // WIKI4AI-88: JS validation + themed error (no native `required` tooltip)
+    if (!editName.trim()) {
+      setSaveError(t('dashboard.nameRequired'));
+      return;
+    }
 
     setSaveError(null);
     try {
@@ -190,8 +194,10 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
             id="edit-name"
             type="text"
             value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            required
+            onChange={(e) => {
+              setEditName(e.target.value);
+              if (saveError) setSaveError(null);
+            }}
             autoFocus
             data-testid="edit-name-input"
           />
@@ -221,6 +227,105 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
   );
 };
 
+/** Create Project Modal — WIKI4AI-88: proper modal via .modal-backdrop (the
+ *  create form used to be an inline panel with no backdrop/X/Esc). */
+interface CreateProjectModalProps {
+  onCreate: (dto: ProjectDTO) => Promise<void>;
+  onCancel: () => void;
+  isCreating: boolean;
+}
+
+const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCancel, isCreating }) => {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+
+  // WIKI4AI-88: Escape closes the modal (parity with edit/delete modals)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  // WIKI4AI-88: focus the name input when the modal opens
+  useEffect(() => {
+    nameInputRef.current?.focus();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // WIKI4AI-88: JS validation + themed error (no native `required` tooltip)
+    if (!name.trim()) {
+      setError(t('dashboard.nameRequired'));
+      nameInputRef.current?.focus();
+      return;
+    }
+    setError(null);
+    try {
+      await onCreate({ name: name.trim(), description: description.trim() || undefined });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('dashboard.createFailed'));
+    }
+  };
+
+  // Handle backdrop click to close
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onCancel();
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="create-modal">
+      <div className="modal-content" role="dialog" aria-labelledby="create-modal-title">
+        <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')} data-testid="create-modal-close">×</button>
+        <h3 id="create-modal-title">{t('dashboard.createNewProject')}</h3>
+        {/* WIKI4AI-88: visible labels (login pattern) instead of placeholder-only */}
+        <form onSubmit={handleSubmit} noValidate>
+          <label htmlFor="create-name">{t('dashboard.projectName')}</label>
+          <input
+            id="create-name"
+            ref={nameInputRef}
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (error) setError(null);
+            }}
+            placeholder={t('dashboard.projectNamePlaceholder')}
+            data-testid="create-name-input"
+          />
+
+          <label htmlFor="create-description">{t('dashboard.description')}</label>
+          <textarea
+            id="create-description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            placeholder={t('dashboard.descriptionPlaceholder')}
+            data-testid="create-description-input"
+          />
+
+          {error && <p className="error" data-testid="create-error">{error}</p>}
+
+          <div className="form-actions">
+            <button type="submit" className="btn-primary" disabled={isCreating} data-testid="create-submit-button">
+              {isCreating ? t('dashboard.creating') : t('common.create')}
+            </button>
+            <button type="button" onClick={onCancel} className="btn-secondary" data-testid="create-cancel-button">
+              {t('common.cancel')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
@@ -236,10 +341,9 @@ const Dashboard: React.FC = () => {
     isDeleting,
   } = useProjects();
 
+  // WIKI4AI-88: the create form is now a modal (CreateProjectModal) — its
+  // field state lives inside the component; only the open flag stays here.
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [createError, setCreateError] = useState<string | null>(null);
 
   // Edit state
   const [editingProject, setEditingProject] = useState<{ id: number; name: string; description: string | null } | null>(null);
@@ -300,23 +404,16 @@ const Dashboard: React.FC = () => {
     setDeletingProject(null);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newName.trim()) return;
+  // WIKI4AI-88: create via modal — the modal owns validation + error display;
+  // this handler closes the modal and toasts on success, rethrows on failure.
+  const handleCreateSubmit = async (dto: ProjectDTO) => {
+    await createProject(dto);
+    setShowCreateForm(false);
+    addToast(t('dashboard.toastCreated'), 'success');
+  };
 
-    setCreateError(null);
-    try {
-      const dto: ProjectDTO = { name: newName.trim(), description: newDescription.trim() || undefined };
-      await createProject(dto);
-      setNewName('');
-      setNewDescription('');
-      setShowCreateForm(false);
-      addToast(t('dashboard.toastCreated'), 'success');
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : t('dashboard.createFailed');
-      setCreateError(errorMsg);
-      addToast(errorMsg, 'error');
-    }
+  const handleCancelCreate = () => {
+    setShowCreateForm(false);
   };
 
   // WIKI4AI-73: dates follow the active UI language.
@@ -395,42 +492,10 @@ const Dashboard: React.FC = () => {
         )}
       </section>
 
-      {/* Create Project Form */}
-      {showCreateForm && (
-        <form onSubmit={handleCreate} className="create-form">
-          <h3>{t('dashboard.createNewProject')}</h3>
-          <input
-            type="text"
-            placeholder={t('dashboard.projectNamePlaceholder')}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            required
-            autoFocus
-          />
-          <textarea
-            placeholder={t('dashboard.descriptionPlaceholder')}
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            rows={3}
-          />
-          {createError && <p className="error">{createError}</p>}
-          <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={isCreating}>
-              {isCreating ? t('dashboard.creating') : t('common.create')}
-            </button>
-            <button type="button" onClick={() => setShowCreateForm(false)} className="btn-secondary">
-              {t('common.cancel')}
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* Action Button */}
-      {!showCreateForm && (
-        <button onClick={() => setShowCreateForm(true)} className="btn-create-new">
-          + {t('dashboard.newProject')}
-        </button>
-      )}
+      <button onClick={() => setShowCreateForm(true)} className="btn-create-new">
+        + {t('dashboard.newProject')}
+      </button>
 
       {/* Search Bar */}
       {projects.length > 0 && (
@@ -521,26 +586,30 @@ const Dashboard: React.FC = () => {
                   }
                 }}
               >
-                <button
-                  type="button"
-                  className="edit-button"
-                  onClick={(e) => handleEditClick(e, project)}
-                  aria-label={t('dashboard.ariaEdit', { name: project.name })}
-                  data-testid={`edit-button-${project.id}`}
-                >
-                  <EditIcon size={15} />
-                </button>
-                <button
-                  type="button"
-                  className="delete-button"
-                  onClick={(e) => handleDeleteClick(e, project)}
-                  aria-label={t('dashboard.ariaDelete', { name: project.name })}
-                  data-testid={`delete-button-${project.id}`}
-                >
-                  <TrashIcon size={15} />
-                </button>
                 <div className="card-header">
                   <h3>{project.name}</h3>
+                  {/* WIKI4AI-88: in-flow actions cluster — reserved space between
+                      title and badge, so hover actions never overlap the badge */}
+                  <div className="card-actions">
+                    <button
+                      type="button"
+                      className="edit-button"
+                      onClick={(e) => handleEditClick(e, project)}
+                      aria-label={t('dashboard.ariaEdit', { name: project.name })}
+                      data-testid={`edit-button-${project.id}`}
+                    >
+                      <EditIcon size={15} />
+                    </button>
+                    <button
+                      type="button"
+                      className="delete-button"
+                      onClick={(e) => handleDeleteClick(e, project)}
+                      aria-label={t('dashboard.ariaDelete', { name: project.name })}
+                      data-testid={`delete-button-${project.id}`}
+                    >
+                      <TrashIcon size={15} />
+                    </button>
+                  </div>
                   <span className="badge">{t('dashboard.docsCount', { count: project.documentCount })}</span>
                 </div>
                 {project.description && (
@@ -572,6 +641,15 @@ const Dashboard: React.FC = () => {
             ))
           )}
         </div>
+      )}
+
+      {/* Create Project Modal — WIKI4AI-88 */}
+      {showCreateForm && (
+        <CreateProjectModal
+          onCreate={handleCreateSubmit}
+          onCancel={handleCancelCreate}
+          isCreating={isCreating}
+        />
       )}
 
       {/* Edit Project Modal */}

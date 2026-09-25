@@ -333,7 +333,7 @@
   white-space: nowrap;
 }
 
-/* ── Delete Button ─────────────────────────────────────────── */
+/* ── Delete Button — WIKI4AI-88: hover/focus-gated (was always visible) ── */
 
 .btn-delete {
   background: none;
@@ -343,12 +343,26 @@
   font-size: 1.25rem;
   padding: 0.25rem 0.5rem;
   border-radius: 4px;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
+  opacity: 0;
+  transition: color var(--transition-fast), background-color var(--transition-fast),
+              opacity var(--transition-fast);
+}
+
+/* Reveal on row hover or when the button (or its row) has keyboard focus */
+.document-item:hover .btn-delete,
+.document-item:focus-within .btn-delete {
+  opacity: 1;
 }
 
 .btn-delete:hover:not(:disabled) {
   color: #ef4444; /* brighter red */
   background-color: rgba(239, 68, 68, 0.15);
+}
+
+.btn-delete:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .btn-delete:disabled {
@@ -607,6 +621,13 @@
   gap: 0.35rem;
 }
 
+/* WIKI4AI-88: empty state for the subprojects panel (muted hint text) */
+.subprojects-empty {
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
 .subproject-entry {
   display: flex;
   align-items: center;
@@ -662,4 +683,11 @@
   background: rgba(139, 92, 246, 0.14);
   border: 1px solid rgba(139, 92, 246, 0.35);
   border-radius: 999px;
+}
+
+/* WIKI4AI-88: touch devices have no hover — keep the document delete X visible */
+@media (max-width: 640px) {
+  .btn-delete {
+    opacity: 1;
+  }
 }
