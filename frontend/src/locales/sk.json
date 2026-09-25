@@ -192,6 +192,9 @@
     "searchAriaLabel": "Globálne vyhľadávanie dokumentov",
     "vault": "Trezor",
     "admin": "Administrátor",
+    "profile": "Profil",
+    "language": "Jazyk",
+    "userMenuAria": "Používateľské menu",
     "logout": "Odhlásiť sa",
     "login": "Prihlásenie",
     "register": "Registrácia"

@@ -223,42 +223,32 @@ describe('ProfilePage', () => {
     })
   })
 
-  describe('logout', () => {
-    it('should render logout button in danger zone section', async () => {
+  describe('WIKI4AI-85: language + logout moved to the top-nav user menu', () => {
+    it('should no longer render a language section on this page', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockProfile)
 
       renderProfilePage()
 
       await waitFor(() => {
-        expect(screen.getByTestId('profile-logout-btn')).toBeInTheDocument()
+        expect(screen.getByTestId('profile-username')).toBeInTheDocument()
       })
 
-      expect(screen.getByTestId('profile-logout-btn')).toHaveTextContent('Logout')
+      // Language switch now lives in the top-nav user menu (UserMenu.tsx).
+      expect(screen.queryByTestId('language-section')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('language-select')).not.toBeInTheDocument()
     })
 
-    it('should clear auth and redirect to login on logout', async () => {
+    it('should no longer render a duplicate logout button', async () => {
       vi.mocked(apiClient.apiGet).mockResolvedValue(mockProfile)
 
-      render(
-        <AuthProvider>
-          <MemoryRouter initialEntries={['/profile']}>
-            <Routes>
-              <Route path="/profile" element={<ProfilePage />} />
-              <Route path="/login" element={<div data-testid="login-page">Login Page</div>} />
-            </Routes>
-          </MemoryRouter>
-        </AuthProvider>,
-      )
+      renderProfilePage()
 
       await waitFor(() => {
-        expect(screen.getByTestId('profile-logout-btn')).toBeInTheDocument()
+        expect(screen.getByTestId('profile-username')).toBeInTheDocument()
       })
 
-      const logoutBtn = screen.getByTestId('profile-logout-btn')
-      await userEvent.click(logoutBtn)
-
-      // After logout, localStorage should be cleared and we redirect to login
-      expect(localStorage.getItem('wiki4ai_access_token')).toBeNull()
+      // Logout now lives in the top-nav user menu (single location).
+      expect(screen.queryByTestId('profile-logout-btn')).not.toBeInTheDocument()
     })
   })
 

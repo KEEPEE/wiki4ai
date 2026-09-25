@@ -2,12 +2,23 @@
  * Tests for Layout component
  */
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { AuthProvider } from '../contexts/AuthContext'
+import * as apiClient from '../services/apiClient'
+import i18n from '../i18n'
+
+// WIKI4AI-85: the user menu persists language via PUT /auth/me (apiClient).
+vi.mock('../services/apiClient', () => ({
+  apiGet: vi.fn(),
+  apiPost: vi.fn(),
+  apiPut: vi.fn(),
+  apiDelete: vi.fn(),
+  getRedirectFromUrl: vi.fn(() => null),
+}))
 
 /** Build a syntactically valid JWT with an `exp` in the future. */
 function makeFakeJwt(expSeconds: number): string {
@@ -17,13 +28,13 @@ function makeFakeJwt(expSeconds: number): string {
 }
 
 /** Seed localStorage so AuthProvider restores an authenticated session. */
-function seedAuthenticatedSession() {
+function seedAuthenticatedSession(role: 'ADMIN' | 'USER' = 'ADMIN') {
   const futureExp = Math.floor(Date.now() / 1000) + 3600
   localStorage.setItem('wiki4ai_access_token', makeFakeJwt(futureExp))
   localStorage.setItem('wiki4ai_refresh_token', 'fake-refresh')
   localStorage.setItem(
     'wiki4ai_user_info',
-    JSON.stringify({ id: 1, username: 'keepee', email: 'keepee@example.com', role: 'ADMIN' }),
+    JSON.stringify({ id: 1, username: 'keepee', email: 'keepee@example.com', role }),
   )
 }
 
@@ -35,6 +46,9 @@ function renderLayout(route = '/') {
           <Route path="/" element={<Layout />}>
             <Route index element={<div>Main Content</div>} />
             <Route path="/search" element={<div data-testid="search-page-stub">Search Page</div>} />
+            <Route path="/profile" element={<div data-testid="profile-page-stub">Profile Page</div>} />
+            <Route path="/vault" element={<div data-testid="vault-page-stub">Vault Page</div>} />
+            <Route path="/admin/users" element={<div data-testid="admin-page-stub">Admin Page</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -148,6 +162,172 @@ describe('Layout', () => {
       await user.keyboard('{Enter}')
 
       expect(screen.queryByTestId('search-page-stub')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('User menu (WIKI4AI-85)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+    })
+
+    afterEach(async () => {
+      // The language toggle test mutates the shared i18n instance — always
+      // leave it on EN for the rest of the suite.
+      await i18n.changeLanguage('en')
+    })
+
+    async function openUserMenu(user = userEvent.setup()) {
+      await user.click(screen.getByTestId('user-menu-button'))
+      await waitFor(() => {
+        expect(screen.getByTestId('user-menu-panel')).toBeInTheDocument()
+      }, { timeout: 3000 })
+    }
+
+    it('should render an initials avatar trigger instead of the old auth badges', async () => {
+      seedAuthenticatedSession()
+      renderLayout()
+
+      const avatar = await screen.findByTestId('user-menu-avatar')
+      expect(avatar).toHaveTextContent('K') // "keepee" → "K"
+
+      // The old debug-styled cluster is gone.
+      expect(screen.queryByTestId('nav-vault')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-admin-users')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('nav-profile')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('logout-button')).not.toBeInTheDocument()
+
+      // Panel is closed initially.
+      expect(screen.queryByTestId('user-menu-panel')).not.toBeInTheDocument()
+    })
+
+    it('should open a dropdown with Profile, Vault, Admin (ADMIN user), Language and Logout', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession('ADMIN')
+      renderLayout()
+
+      await openUserMenu(user)
+
+      expect(screen.getByTestId('user-menu-profile')).toHaveTextContent('Profile')
+      expect(screen.getByTestId('user-menu-vault')).toHaveTextContent('Vault')
+      expect(screen.getByTestId('user-menu-admin')).toHaveTextContent('Admin')
+      expect(screen.getByTestId('user-menu-language-row')).toBeInTheDocument()
+      expect(screen.getByTestId('user-menu-logout')).toHaveTextContent('Logout')
+    })
+
+    it('should hide the Admin item for non-admin users (role gating)', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession('USER')
+      renderLayout()
+
+      await openUserMenu(user)
+
+      expect(screen.getByTestId('user-menu-profile')).toBeInTheDocument()
+      expect(screen.queryByTestId('user-menu-admin')).not.toBeInTheDocument()
+    })
+
+    it('should navigate to /profile, /vault and /admin/users from the menu', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession('ADMIN')
+      renderLayout()
+
+      await openUserMenu(user)
+      await user.click(screen.getByTestId('user-menu-profile'))
+      expect(await screen.findByTestId('profile-page-stub')).toBeInTheDocument()
+
+      // Re-open and go to Vault
+      await openUserMenu(user)
+      await user.click(screen.getByTestId('user-menu-vault'))
+      expect(await screen.findByTestId('vault-page-stub')).toBeInTheDocument()
+
+      // Re-open and go to Admin
+      await openUserMenu(user)
+      await user.click(screen.getByTestId('user-menu-admin'))
+      expect(await screen.findByTestId('admin-page-stub')).toBeInTheDocument()
+    })
+
+    it('should switch language from the menu via PUT /auth/me (SK → EN round trip)', async () => {
+      const user = userEvent.setup()
+      vi.mocked(apiClient.apiPut).mockResolvedValue({} as never)
+      seedAuthenticatedSession()
+      renderLayout()
+
+      await openUserMenu(user)
+
+      // Switch to SK — the UI switches instantly and persists via the API.
+      await user.click(screen.getByTestId('user-menu-lang-sk'))
+      await waitFor(() => {
+        expect(apiClient.apiPut).toHaveBeenCalledWith(
+          expect.stringContaining('/auth/me'),
+          { language: 'sk' },
+        )
+      })
+      // i18n applied: the search placeholder is now Slovak.
+      await waitFor(() => {
+        expect(screen.getByTestId('global-search-input')).toHaveAttribute('placeholder', 'Hľadať vo wiki...')
+      })
+
+      // Switch back to EN — leave the app in English.
+      await user.click(screen.getByTestId('user-menu-lang-en'))
+      await waitFor(() => {
+        expect(apiClient.apiPut).toHaveBeenCalledWith(
+          expect.stringContaining('/auth/me'),
+          { language: 'en' },
+        )
+      })
+      await waitFor(() => {
+        expect(screen.getByTestId('global-search-input')).toHaveAttribute('placeholder', 'Search the wiki...')
+      })
+
+      // The menu stays open across the toggle so the change is visible in place.
+      expect(screen.getByTestId('user-menu-panel')).toBeInTheDocument()
+    })
+
+    it('should close on Escape and return focus to the trigger', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession()
+      renderLayout()
+
+      await openUserMenu(user)
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('user-menu-profile'))
+      })
+
+      await user.keyboard('{Escape}')
+
+      expect(screen.queryByTestId('user-menu-panel')).not.toBeInTheDocument()
+      expect(document.activeElement).toBe(screen.getByTestId('user-menu-button'))
+    })
+
+    it('should close on click outside', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession()
+      renderLayout()
+
+      await openUserMenu(user)
+      await user.click(screen.getByText('Main Content'))
+
+      expect(screen.queryByTestId('user-menu-panel')).not.toBeInTheDocument()
+    })
+
+    it('should support keyboard navigation: Enter opens, arrows move, Enter activates', async () => {
+      const user = userEvent.setup()
+      seedAuthenticatedSession('ADMIN')
+      renderLayout()
+
+      // Focus the trigger and open with Enter (keyboard-only path).
+      screen.getByTestId('user-menu-button').focus()
+      await user.keyboard('{Enter}')
+
+      // First item receives focus on open.
+      await waitFor(() => {
+        expect(document.activeElement).toBe(screen.getByTestId('user-menu-profile'))
+      })
+
+      // ArrowDown → Vault, Enter activates it.
+      await user.keyboard('{ArrowDown}')
+      expect(document.activeElement).toBe(screen.getByTestId('user-menu-vault'))
+      await user.keyboard('{Enter}')
+      expect(await screen.findByTestId('vault-page-stub')).toBeInTheDocument()
     })
   })
 })

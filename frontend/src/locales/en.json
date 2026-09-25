@@ -192,6 +192,9 @@
     "searchAriaLabel": "Global document search",
     "vault": "Vault",
     "admin": "Admin",
+    "profile": "Profile",
+    "language": "Language",
+    "userMenuAria": "User menu",
     "logout": "Logout",
     "login": "Login",
     "register": "Register"
