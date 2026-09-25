@@ -351,8 +351,12 @@ input:checked + .toggle-slider:before {
 /* WIKI4AI-84: in preview-only mode the rendered document should read like the
    viewer — a centered ~900px column (matching .document-viewer's max-width) —
    not a full-bleed ~1900px pane. The rendered content is MarkdownPreview's
-   .markdown-preview panel; split/edit modes are intentionally untouched. */
+   .markdown-preview panel; split/edit modes are intentionally untouched.
+   width: 100% is required because the auto margins below disable flex
+   stretch on this column-flex item (it would otherwise shrink to
+   fit-content); max-width then caps it at the viewer column width. */
 .view-mode-preview .preview-pane .markdown-preview {
+  width: 100%;
   max-width: 900px;
   margin-left: auto;
   margin-right: auto;
