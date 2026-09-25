@@ -502,16 +502,18 @@
   padding: 2rem;
 }
 
-/* ── Search Bar ───────────────────────────────────────────── */
+/* ── Search Bar (WIKI4AI-81: scoped to .project-search-* — no icon here,
+   rectangular shape is intentional; the generic names used to leak across
+   Dashboard/Vault/Search pages in the shared bundle) ───────────── */
 
-.search-bar {
+.project-search-bar {
   position: relative;
   margin-bottom: 1.5rem;
   display: flex;
   align-items: center;
 }
 
-.search-input {
+.project-search-input {
   width: 100%;
   padding: 0.75rem 2.5rem 0.75rem 1rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -523,12 +525,12 @@
   color: var(--text-primary);
 }
 
-.search-input:focus {
+.project-search-input:focus {
   border-color: var(--primary);
   box-shadow: var(--focus-ring-shadow);
 }
 
-.search-clear-btn {
+.project-search-clear-btn {
   position: absolute;
   right: 0.5rem;
   background: none;
@@ -541,7 +543,7 @@
   transition: color var(--transition-fast);
 }
 
-.search-clear-btn:hover {
+.project-search-clear-btn:hover {
   color: var(--text-primary);
 }
 

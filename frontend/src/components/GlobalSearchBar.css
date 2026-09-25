@@ -24,7 +24,10 @@
 
 .global-search-input {
   width: 100%;
-  padding: 12px 20px;
+  /* WIKI4AI-81: left padding must clear the magnifier icon (left: 16px,
+     width: 18px → occupies x 16–34). 44px leaves a consistent 10px gap
+     between icon and text; the old 20px overlapped the first character. */
+  padding: 12px 20px 12px 44px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 50px; /* pill shape */
   font-size: 0.95rem;

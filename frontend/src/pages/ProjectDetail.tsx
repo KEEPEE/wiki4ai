@@ -458,20 +458,20 @@ const ProjectDetail: React.FC = () => {
             <h2>{t('project.documentsHeading', { count: hasSearched ? searchResults.length : documents.length })}</h2>
 
             {/* Search Bar */}
-            <div className="search-bar">
+            <div className="project-search-bar">
               <input
                 type="text"
                 placeholder={t('project.searchDocuments')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="search-input"
+                className="project-search-input"
                 data-testid="document-search-input"
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="search-clear-btn"
+                  className="project-search-clear-btn"
                   aria-label={t('dashboard.clearSearch')}
                   data-testid="clear-search-button"
                 >
