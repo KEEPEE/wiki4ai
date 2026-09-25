@@ -85,12 +85,17 @@ const Breadcrumb: React.FC<BreadcrumbProps> = ({ projectSlug, documentTitle, anc
         {/* Separator */}
         <li className="breadcrumb-separator" aria-hidden="true">→</li>
 
-        {/* Current document title — Syne font, highlighted color */}
+        {/* Current document title — Syne font, highlighted color.
+            WIKI4AI-84: long titles are ellipsis-truncated (see Breadcrumb.css);
+            the title attribute exposes the full text as a tooltip. */}
         <li
           className="breadcrumb-item breadcrumb-current"
           aria-current="page"
         >
-          <span className="breadcrumb-doc-title">
+          <span
+            className="breadcrumb-doc-title"
+            title={documentTitle || projectSlug}
+          >
             {documentTitle || projectSlug}
           </span>
         </li>

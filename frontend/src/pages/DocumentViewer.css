@@ -13,45 +13,11 @@
   width: 100%;
 }
 
-/* Breadcrumb Navigation */
-.breadcrumb {
-  margin-bottom: 1.5rem;
-  font-size: 0.875rem;
-}
-
-.breadcrumb ol {
-  display: flex;
-  align-items: center;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  gap: 0.5rem;
-}
-
-.breadcrumb li {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.breadcrumb li:not(:last-child)::after {
-  content: '/';
-  color: var(--text-muted);
-}
-
-.breadcrumb a {
-  color: var(--primary);
-  text-decoration: none;
-}
-
-.breadcrumb a:hover {
-  text-decoration: underline;
-}
-
-.breadcrumb li.current {
-  color: var(--text-secondary);
-  font-weight: 500;
-}
+/* WIKI4AI-84: the legacy .breadcrumb rules that lived here were removed —
+   they appended a '/' via ::after to every li, which doubled the separator on
+   the shared Breadcrumb component (which renders its own explicit '→'
+   separator <li>s), producing "/ → /". Breadcrumb.css now governs the
+   component everywhere it is used. */
 
 /* Document Header */
 .document-header {
@@ -67,11 +33,20 @@
   font-size: 2rem;
   color: var(--text-primary);
   margin: 0;
+  /* WIKI4AI-84: long titles (130+ chars) ellipsis-truncate on one line
+     instead of wrapping to two lines next to the action buttons. The h1 is a
+     flex item, so min-width: 0 lets it shrink below its content width; the
+     full text is available via the title attribute tooltip (DocumentViewer.tsx). */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .document-actions {
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0; /* WIKI4AI-84: buttons keep their size; the h1 absorbs all shrinking */
 }
 
 /* Document Content — glass panel, fills available height */
@@ -322,9 +297,5 @@
 
   .document-header h1 {
     font-size: 1.5rem;
-  }
-
-  .breadcrumb ol {
-    flex-wrap: wrap;
   }
 }

@@ -170,9 +170,10 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       {/* Breadcrumb Navigation */}
       <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug} ancestors={ancestors} />
 
-      {/* Document Header */}
+      {/* Document Header — WIKI4AI-84: long titles ellipsis-truncate (see
+          .document-header h1 in DocumentViewer.css); full text via tooltip. */}
       <header className="document-header">
-        <h1>{title || docSlug}</h1>
+        <h1 title={title || docSlug}>{title || docSlug}</h1>
         <div className="document-actions">
           <BackButton to={`/projects/${projectSlug}`} label={t('project.backToProject')} />
           <button onClick={handleEdit} className="btn-primary">
