@@ -161,14 +161,16 @@
   justify-content: flex-end;
 }
 
-/* ── Search Bar ─────────────────────────────────────────────────── */
+/* ── Search Bar (WIKI4AI-81: scoped to .dashboard-search-* — the generic
+   .search-bar/.search-input names collided with ProjectDetail.css and
+   VaultPage.css in the shared bundle, so each page now owns its classes) ── */
 
-.search-bar {
+.dashboard-search-bar {
   position: relative;
   margin-bottom: 0.75rem;
 }
 
-.search-icon {
+.dashboard-search-icon {
   position: absolute;
   left: 1rem;
   top: 50%;
@@ -179,9 +181,10 @@
   pointer-events: none;
 }
 
-.search-input {
+.dashboard-search-input {
   width: 100%;
-  padding: 12px 20px;
+  /* WIKI4AI-81: left padding clears the magnifier (x 16–34) with a 10px gap */
+  padding: 12px 20px 12px 44px;
   border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
   border-radius: 50px; /* pill shape */
   font-size: 0.95rem;
@@ -191,24 +194,24 @@
   color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
 }
 
-.search-input::placeholder {
+.dashboard-search-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
 
 /* Hover stav (pred focus) — Nexaverse hover efekt */
-.search-input:hover:not(:focus) {
+.dashboard-search-input:hover:not(:focus) {
   border-color: rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
 }
 
 /* Focus stav — neon cyan glow */
-.search-input:focus {
+.dashboard-search-input:focus {
   outline: none; /* odstrániť default browser outline */
   border-color: var(--primary); /* #00f0ff cyan */
   box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow — Nexaverse feel */
 }
 
-.search-clear {
+.dashboard-search-clear {
   position: absolute;
   right: 0.75rem;
   top: 50%;
@@ -223,7 +226,7 @@
   transition: color var(--transition-base);
 }
 
-.search-clear:hover {
+.dashboard-search-clear:hover {
   color: var(--text-primary);
 }
 

@@ -60,21 +60,26 @@ const SearchPage: React.FC = () => {
         {t('search.subtitle')}
       </p>
 
-      {/* Search bar — reuses ProjectDetail .search-bar/.search-input classes */}
-      <div className="search-bar">
+      {/* Search bar — WIKI4AI-81: own scoped classes with the same icon
+          treatment as the top-nav GlobalSearchBar (previously inherited the
+          generic .search-input names, which VaultPage.css leaked onto it). */}
+      <div className="page-search-bar">
+        <svg className="page-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
         <input
           type="text"
           placeholder={t('search.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="search-input"
+          className="page-search-input"
           data-testid="global-search-page-input"
         />
         {query && (
           <button
             type="button"
             onClick={() => setQuery('')}
-            className="search-clear-btn"
+            className="page-search-clear"
             aria-label={t('search.clearSearchAria')}
             data-testid="clear-global-search-button"
           >

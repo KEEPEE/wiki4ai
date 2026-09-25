@@ -36,14 +36,16 @@
   gap: 1rem;
 }
 
-/* ── Search Bar ─────────────────────────────────────────── */
+/* ── Search Bar (WIKI4AI-81: scoped to .vault-search-* — these generic
+   names previously won the shared-bundle cascade on every page, leaking the
+   pill shape + 36px left padding into /search and ProjectDetail inputs) ── */
 
-.search-bar {
+.vault-search-bar {
   position: relative;
   min-width: 280px;
 }
 
-.search-icon {
+.vault-search-icon {
   position: absolute;
   left: 1rem;
   top: 50%;
@@ -54,9 +56,10 @@
   pointer-events: none;
 }
 
-.search-input {
+.vault-search-input {
   width: 100%;
-  padding: 12px 40px 12px 36px;
+  /* WIKI4AI-81: 44px left padding = consistent 10px gap after the icon (x 16–34) */
+  padding: 12px 40px 12px 44px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 50px;
   font-size: 0.95rem;
@@ -66,22 +69,22 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
-.search-input::placeholder {
+.vault-search-input::placeholder {
   color: rgba(255, 255, 255, 0.4);
 }
 
-.search-input:hover:not(:focus) {
+.vault-search-input:hover:not(:focus) {
   border-color: rgba(255, 255, 255, 0.15);
   background: rgba(255, 255, 255, 0.06);
 }
 
-.search-input:focus {
+.vault-search-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
 }
 
-.search-clear {
+.vault-search-clear {
   position: absolute;
   right: 0.75rem;
   top: 50%;
@@ -96,7 +99,7 @@
   transition: color var(--transition-base);
 }
 
-.search-clear:hover {
+.vault-search-clear:hover {
   color: var(--text-primary);
 }
 
@@ -487,7 +490,7 @@
     width: 100%;
   }
 
-  .search-bar {
+  .vault-search-bar {
     min-width: unset;
     width: 100%;
   }

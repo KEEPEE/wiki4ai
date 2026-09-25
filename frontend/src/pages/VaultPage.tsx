@@ -481,13 +481,13 @@ const VaultPage: React.FC = () => {
               </div>
             )}
           </div>
-          <div className="search-bar">
-            <svg className="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="vault-search-bar">
+            <svg className="vault-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               type="text"
-              className="search-input"
+              className="vault-search-input"
               placeholder={t('vault.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -496,7 +496,7 @@ const VaultPage: React.FC = () => {
             {searchQuery && (
               <button
                 type="button"
-                className="search-clear"
+                className="vault-search-clear"
                 onClick={() => setSearchQuery('')}
                 aria-label={t('dashboard.clearSearch')}
                 data-testid="vault-search-clear-button"
