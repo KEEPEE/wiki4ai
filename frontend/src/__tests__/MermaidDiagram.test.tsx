@@ -270,4 +270,19 @@ describe('withNaturalSize (WIKI4AI-84)', () => {
     const input = '<svg xmlns="http://www.w3.org/2000/svg"><text>Mock</text></svg>';
     expect(withNaturalSize(input)).toBe(input);
   });
+
+  it('should size the root svg without clobbering nested width/height attributes', () => {
+    // Mermaid flowchart output: root has width="100%" but NO height; the first
+    // child is a background <rect> with its own height. The old whole-string
+    // replace overwrote the rect's height instead of adding one to the root.
+    const input =
+      '<svg id="m" width="100%" viewBox="0 0 500 250"><rect width="100%" height="77"/><text>hi</text></svg>';
+    const out = withNaturalSize(input);
+    // Both sizes land on the ROOT tag...
+    const rootTag = out.slice(0, out.indexOf('>'));
+    expect(rootTag).toContain('width="500"');
+    expect(rootTag).toContain('height="250"');
+    // ...and the nested rect keeps its own height untouched.
+    expect(out).toContain('<rect width="100%" height="77"/>');
+  });
 });
