@@ -122,6 +122,13 @@ upload:
 wiki4ai:
   seed:
     enabled: ${WIKI4AI_SEED_ENABLED:true}
+  # Hybrid search (WIKI4AI-90): minimum cosine similarity a vector hit must reach
+  # to be fused into the hybrid result; below it, semantic candidates are dropped
+  # and the query degrades to text-only (empty state becomes reachable). Default
+  # 0.35 is data-driven from the dev corpus: best unrelated-query score 0.3374 vs
+  # relevant-hit floor ~0.37 (see WIKI4AI-90 evidence). Set 0 to disable filtering.
+  search:
+    semantic-min-similarity: ${WIKI4AI_SEARCH_SEMANTIC_MIN_SIMILARITY:0.35}
 
 # Embedding sidecar (WIKI4AI-35, epic WIKI4AI-26).
 # In the docker stack the service name is 'embedding' on port 8030.
