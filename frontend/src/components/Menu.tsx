@@ -11,6 +11,16 @@
  * role="menuitem" and radio choices are role="menuitemradio" with
  * aria-checked. All items are focusable <button>s so keyboard users can reach
  * them without extra tab stops.
+ *
+ * WIKI4AI-91: the panel is rendered through a portal into document.body with
+ * position: fixed coordinates derived from the trigger's getBoundingClientRect,
+ * so overflow ancestors (e.g. .table-wrapper on /admin/users) can no longer
+ * clip it. The panel drops down by default, flips up when there is not enough
+ * room below the viewport bottom, and is clamped inside the viewport
+ * horizontally (and vertically as a safety net). While open it repositions on
+ * window resize and on ANY scroll — a capture-phase document listener catches
+ * nested scrollers such as .table-wrapper, so the panel never floats away from
+ * its trigger. All listeners are passive.
  */
 import {
   createContext,
@@ -18,12 +28,23 @@ import {
   useContext,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import './Menu.css';
+
+// ── WIKI4AI-91: portal placement constants ─────────────────────────────────
+const PANEL_GAP = 8; // px between the trigger edge and the panel
+const VIEWPORT_MARGIN = 8; // minimum distance of the panel from viewport edges
+
+interface PanelPosition {
+  top: number;
+  left: number;
+}
 
 // ── Context ────────────────────────────────────────────────────────────────
 
@@ -68,6 +89,10 @@ export function Menu({
   children,
 }: MenuProps) {
   const [open, setOpen] = useState(false);
+  // WIKI4AI-91: fixed viewport coordinates for the portal panel. Null until the
+  // first measurement pass (the panel is then rendered off-screen and measured
+  // in a useLayoutEffect before paint, so there is no visible flicker).
+  const [panelPos, setPanelPos] = useState<PanelPosition | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -75,14 +100,69 @@ export function Menu({
 
   const close = useCallback(() => setOpen(false), []);
 
+  // WIKI4AI-91: compute the panel's fixed position from the trigger's current
+  // viewport rect. Drops down by default; flips up when there is not enough
+  // room below the viewport bottom (and there IS room above); clamped to stay
+  // inside the viewport horizontally, with a vertical safety clamp for the
+  // case where the trigger itself has been scrolled out of view.
+  const updatePanelPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    const panel = panelRef.current;
+    if (!trigger || !panel) return;
+    const t = trigger.getBoundingClientRect();
+    const p = panel.getBoundingClientRect(); // only width/height matter here
+    let top = t.bottom + PANEL_GAP;
+    const fitsBelow = top + p.height <= window.innerHeight - VIEWPORT_MARGIN;
+    const spaceAbove = t.top - p.height - PANEL_GAP;
+    if (!fitsBelow && spaceAbove >= VIEWPORT_MARGIN) {
+      top = t.top - p.height - PANEL_GAP; // flip up near the viewport bottom
+    }
+    top = Math.min(
+      Math.max(top, VIEWPORT_MARGIN),
+      Math.max(window.innerHeight - p.height - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
+    );
+    let left = align === 'end' ? t.right - p.width : t.left;
+    left = Math.min(
+      Math.max(left, VIEWPORT_MARGIN),
+      Math.max(window.innerWidth - p.width - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
+    );
+    setPanelPos({ top: Math.round(top), left: Math.round(left) });
+  }, [align]);
+
+  // First measurement pass on open (layout effect → before paint, no flicker).
+  useLayoutEffect(() => {
+    if (!open) return;
+    updatePanelPosition();
+  }, [open, updatePanelPosition]);
+
+  // WIKI4AI-91: keep the panel pinned to the trigger while it is open.
+  // Reposition (rather than close) on window resize and on any scroll: the
+  // capture-phase document listener also fires for nested scrollers such as
+  // .table-wrapper, whose overflow would otherwise leave a stale panel behind.
+  useEffect(() => {
+    if (!open) return;
+    const reposition = () => updatePanelPosition();
+    window.addEventListener('resize', reposition, { passive: true });
+    window.addEventListener('scroll', reposition, { passive: true });
+    document.addEventListener('scroll', reposition, { passive: true, capture: true });
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition);
+      document.removeEventListener('scroll', reposition, true);
+    };
+  }, [open, updatePanelPosition]);
+
   // Click outside → close, and Escape → close (document-level so it works
-  // regardless of which element currently holds focus).
+  // regardless of which element currently holds focus). WIKI4AI-91: the panel
+  // lives in a portal on document.body, so "inside the menu" now means inside
+  // the trigger root OR inside the portal panel.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      const target = e.target as Node;
+      if (rootRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKeyDown = (e: globalThis.KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -152,20 +232,30 @@ export function Menu({
       >
         {trigger}
       </button>
-      {open && (
-        <div
-          ref={panelRef}
-          id={panelId}
-          role="menu"
-          className="menu-panel"
-          data-testid={panelTestId}
-          onKeyDown={onPanelKeyDown}
-        >
-          <MenuContext.Provider value={{ close }}>
-            {children}
-          </MenuContext.Provider>
-        </div>
-      )}
+      {open &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="menu"
+            className="menu-panel"
+            data-testid={panelTestId}
+            // WIKI4AI-91: position fixed; top/left come from the trigger's
+            // getBoundingClientRect (see updatePanelPosition). Until the first
+            // measurement pass the panel sits off-screen — useLayoutEffect
+            // corrects it before paint.
+            style={{
+              top: panelPos?.top ?? -9999,
+              left: panelPos?.left ?? -9999,
+            }}
+            onKeyDown={onPanelKeyDown}
+          >
+            <MenuContext.Provider value={{ close }}>
+              {children}
+            </MenuContext.Provider>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
