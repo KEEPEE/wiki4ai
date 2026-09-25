@@ -651,6 +651,13 @@
   font-size: 0.8rem;
 }
 
+/* WIKI4AI-89 (V-D8): neutral "pending" state — shown from the initial load of
+   an unfilled form (both requirements always visible, stable layout). Red is
+   reserved for a real failure once the relevant field(s) are touched. */
+.vault-requirement-pending {
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .vault-requirement-fail {
   color: #ff4757;
 }
@@ -756,6 +763,48 @@
   background: rgba(255, 255, 255, 0.06);
   color: var(--text-primary);
   border-color: rgba(0, 240, 255, 0.3);
+}
+
+/* ── Export dropdown — themed (WIKI4AI-89, audit V-D9) ───────────
+ * Previously inline-styled with a hardcoded white background (#fff) and light
+ * border (#e2e8f0) — a light box that looked foreign in the dark neon UI.
+ * Now uses glassmorphism theme variables, consistent with the rest of the app. */
+.export-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 140px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  overflow: hidden;
+}
+
+.export-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-primary);
+  transition: background-color var(--transition-fast);
+}
+
+.export-dropdown button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.export-dropdown button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* ── Import Modal ───────────────────────────────────── */

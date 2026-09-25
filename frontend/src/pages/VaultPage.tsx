@@ -430,32 +430,13 @@ const VaultPage: React.FC = () => {
               {t('vault.export')}
             </button>
             {showExportMenu && (
-              <div className="export-dropdown" style={{
-                position: 'absolute',
-                top: '100%',
-                right: 0,
-                marginTop: 4,
-                backgroundColor: '#fff',
-                border: '1px solid #e2e8f0',
-                borderRadius: 6,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                zIndex: 50,
-                minWidth: 140,
-              }}>
+              /* WIKI4AI-89 (V-D9): themed via .export-dropdown in VaultPage.css
+                 (glassmorphism vars) — no more inline white box in the dark UI. */
+              <div className="export-dropdown">
                 <button
                   type="button"
                   onClick={() => handleExport('csv')}
                   disabled={isExporting}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'none',
-                    textAlign: 'left',
-                    cursor: isExporting ? 'not-allowed' : 'pointer',
-                    fontSize: 14,
-                  }}
                   data-testid="vault-export-csv-button"
                 >
                   {t('vault.exportCsv')}
@@ -464,16 +445,6 @@ const VaultPage: React.FC = () => {
                   type="button"
                   onClick={() => handleExport('json')}
                   disabled={isExporting}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'none',
-                    textAlign: 'left',
-                    cursor: isExporting ? 'not-allowed' : 'pointer',
-                    fontSize: 14,
-                  }}
                   data-testid="vault-export-json-button"
                 >
                   {t('vault.exportJson')}

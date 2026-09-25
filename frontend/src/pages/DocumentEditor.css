@@ -132,14 +132,23 @@ input:checked + .toggle-slider:before {
   box-shadow: 0 0 8px var(--primary);
 }
 
-/* Autosave interval dropdown */
+/* Autosave interval dropdown — compact variant of the shared .form-select
+   (WIKI4AI-89). It lives inside the 35 px editor-toolbar pill, so it keeps a
+   small size instead of the 42 px form-field height, but reuses the SAME
+   custom chevron asset + appearance:none as .form-select so no native OS
+   arrow appears anywhere in the app. */
 .autosave-dropdown {
-  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
   border: 1px solid var(--glass-border);
   color: rgba(255, 255, 255, 0.6);
   font-family: 'Outfit', sans-serif;
   font-size: 0.75rem;
-  padding: 2px 6px;
+  padding: 2px 18px 2px 6px;
   border-radius: 4px;
   cursor: pointer;
   outline: none;
