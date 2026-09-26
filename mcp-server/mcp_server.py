@@ -1642,6 +1642,296 @@ def copy_document(project_slug: str, doc_slug: str, target_project_slug: Optiona
     return _api_request("POST", f"/v1/projects/{project_slug}/documents/{doc_slug}/copy", body)
 
 
+# ─── Calendar Tools (WIKI4AI-98) ──────────────────────────────────────────────
+# Calendar events and event types (backend API from WIKI4AI-96). Visibility
+# rules — private events are visible only to their creator and ADMIN users,
+# update/delete only for owner or ADMIN — are enforced by the backend API.
+# These tools only forward the caller's identity JWT via _api_request().
+
+import datetime as _datetime
+from urllib.parse import urlencode as _urlencode
+
+
+def _calendar_validate_date(value: str, param_name: str) -> str:
+    """Validate a YYYY-MM-DD calendar date; raise MCPToolError otherwise."""
+    try:
+        _datetime.datetime.strptime(value, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        raise MCPToolError(
+            f"Invalid {param_name} '{value}': expected format is YYYY-MM-DD (e.g. '2026-09-26')."
+        )
+    return value
+
+
+def _calendar_validate_time(value: str, param_name: str) -> str:
+    """Validate an HH:MM (or HH:MM:SS) time of day; raise MCPToolError otherwise."""
+    for fmt in ("%H:%M", "%H:%M:%S"):
+        try:
+            _datetime.datetime.strptime(value, fmt)
+            return value
+        except (ValueError, TypeError):
+            continue
+    raise MCPToolError(
+        f"Invalid {param_name} '{value}': expected format is HH:MM (e.g. '10:00') or HH:MM:SS."
+    )
+
+
+def _calendar_validate_visibility(value: str) -> str:
+    """Normalize a visibility value to lowercase; raise MCPToolError if invalid."""
+    v = (value or "").strip().lower()
+    if v not in ("public", "private"):
+        raise MCPToolError(
+            f"Invalid visibility '{value}': must be 'public' or 'private'."
+        )
+    return v
+
+
+def calendar_create_event(
+    title: str,
+    date: str,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    description: Optional[str] = None,
+    event_type: Optional[str] = None,
+    visibility: str = "public",
+) -> dict:
+    """Create a new calendar event.
+
+    The event is created for the current user (identity from the client's JWT).
+    An event without start_time/end_time is an all-day event (date only);
+    providing start_time makes it a precise-time event, optionally bounded by end_time.
+
+    Visibility: 'public' events are visible to every user; 'private' events are
+    visible only to their creator and ADMIN users (enforced by the backend API).
+
+    Args:
+        title: Event title (required, max 255 chars).
+        date: Calendar day of the event in YYYY-MM-DD format (required), e.g. '2026-09-26'.
+        start_time: Optional precise start time in HH:MM format (e.g. '10:00'). Omit for an all-day event.
+        end_time: Optional precise end time in HH:MM format (e.g. '11:30'). Only meaningful with start_time.
+        description: Optional free-text description of the event (max 10000 chars).
+        event_type: Name of the event type (case-insensitive), e.g. 'Agent task'. Get available
+            names from calendar_list_event_types(). If omitted, the first available type is used.
+            An unknown name is rejected with a clear error listing all available types.
+        visibility: 'public' (default) or 'private'.
+
+    Returns:
+        Created event object with id, title, description, eventTypeId, eventType, eventColor,
+        eventDate, startTime (null for all-day), endTime, visibility, createdBy, createdAt, updatedAt.
+
+    Example:
+        # All-day public event of type 'Agent task'
+        calendar_create_event("Deploy to staging", "2026-09-30", event_type="Agent task")
+        # Precise-time private event
+        calendar_create_event("Team sync", "2026-09-28", start_time="10:00", end_time="10:30", visibility="private")
+    """
+    _calendar_validate_date(date, "date")
+    if start_time is not None:
+        _calendar_validate_time(start_time, "start_time")
+    if end_time is not None:
+        _calendar_validate_time(end_time, "end_time")
+    body = {
+        "title": title,
+        "eventDate": date,
+        "visibility": _calendar_validate_visibility(visibility),
+    }
+    if event_type is None:
+        # The backend requires an event type; default to the first available one
+        # (seed types come first, ordered by id).
+        available = _api_request("GET", "/v1/calendar/event-types")
+        if not available:
+            raise MCPToolError(
+                "No event types are available. Create one first with calendar_create_event_type()."
+            )
+        body["eventType"] = available[0]["name"]
+    else:
+        body["eventType"] = event_type
+    if description is not None:
+        body["description"] = description
+    if start_time is not None:
+        body["startTime"] = start_time
+    if end_time is not None:
+        body["endTime"] = end_time
+    return _api_request("POST", "/v1/calendar/events", body)
+
+
+def calendar_list_events(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    event_type: Optional[str] = None,
+    mine: bool = False,
+) -> list[dict]:
+    """List calendar events in a date range.
+
+    Returns public events plus the current user's own private events (identity
+    from the client's JWT; ADMIN users see all events). Results are sorted by
+    date and time (all-day events first).
+
+    Args:
+        from_date: Start day of the range in YYYY-MM-DD format (optional, inclusive).
+            Default: 1st day of the current month.
+        to_date: End day of the range in YYYY-MM-DD format (optional, inclusive).
+            Default: last day of the current month.
+        event_type: Optional filter by event type name (case-insensitive), e.g. 'Agent task'.
+        mine: If True, return only the current user's own events (both visibilities).
+
+    Returns:
+        List of event objects. Each contains: id, title, description, eventTypeId, eventType,
+        eventColor, eventDate, startTime (null for all-day), endTime, visibility, createdBy,
+        createdAt, updatedAt.
+
+    Example:
+        # Events of the current month (default range)
+        calendar_list_events()
+        # Only my 'Agent task' events in a specific week
+        calendar_list_events(from_date="2026-09-28", to_date="2026-10-04", event_type="Agent task", mine=True)
+    """
+    if from_date is not None:
+        _calendar_validate_date(from_date, "from_date")
+    if to_date is not None:
+        _calendar_validate_date(to_date, "to_date")
+    params = {}
+    if from_date is not None:
+        params["from"] = from_date
+    if to_date is not None:
+        params["to"] = to_date
+    if event_type is not None:
+        params["type"] = event_type
+    if mine:
+        params["mine"] = "true"
+    query = _urlencode(params)
+    path = "/v1/calendar/events" + (f"?{query}" if query else "")
+    return _api_request("GET", path)
+
+
+def calendar_update_event(
+    event_id: int,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    date: Optional[str] = None,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None,
+    event_type: Optional[str] = None,
+    visibility: Optional[str] = None,
+    clear_time: bool = False,
+) -> dict:
+    """Update an existing calendar event. Partial update — only provided fields change.
+
+    Only the event's creator or ADMIN users may update it (backend enforces this:
+    someone else's private event → 404, someone else's public event → 403).
+
+    Args:
+        event_id: ID of the event to update (required). Get IDs from calendar_list_events().
+        title: New title (optional, max 255 chars). Omit to keep the current value.
+        description: New description (optional, max 10000 chars). Omit to keep the current value.
+        date: New calendar day in YYYY-MM-DD format (optional). Omit to keep the current value.
+        start_time: New precise start time in HH:MM format (optional). Omit to keep the current value.
+        end_time: New precise end time in HH:MM format (optional). Omit to keep the current value.
+        event_type: New event type name (case-insensitive, optional). An unknown name is rejected
+            with a clear error listing all available types. Omit to keep the current value.
+        visibility: New visibility, 'public' or 'private' (optional). Omit to keep the current value.
+        clear_time: Set True to turn a timed event back into an all-day event (startTime and
+            endTime are both set to null). Because omitted fields mean "no change", this explicit
+            flag is the only way to clear a precise time. Default False.
+
+    Returns:
+        Updated event object (same shape as calendar_create_event's return value).
+
+    Example:
+        # Change only the title
+        calendar_update_event(42, title="Renamed event")
+        # Move to another day and make it private
+        calendar_update_event(42, date="2026-10-01", visibility="private")
+        # Revert a timed event to all-day
+        calendar_update_event(42, clear_time=True)
+    """
+    body = {}
+    if title is not None:
+        body["title"] = title
+    if description is not None:
+        body["description"] = description
+    if date is not None:
+        body["eventDate"] = _calendar_validate_date(date, "date")
+    if start_time is not None:
+        body["startTime"] = _calendar_validate_time(start_time, "start_time")
+    if end_time is not None:
+        body["endTime"] = _calendar_validate_time(end_time, "end_time")
+    if event_type is not None:
+        body["eventType"] = event_type
+    if visibility is not None:
+        body["visibility"] = _calendar_validate_visibility(visibility)
+    if clear_time:
+        body["clearTime"] = True
+    if not body:
+        raise MCPToolError(
+            "No fields to update: provide at least one of title, description, date, start_time, "
+            "end_time, event_type, visibility or clear_time=True."
+        )
+    return _api_request("PUT", f"/v1/calendar/events/{event_id}", body)
+
+
+def calendar_delete_event(event_id: int) -> dict:
+    """Delete a calendar event. This action is irreversible.
+
+    Only the event's creator or ADMIN users may delete it (backend enforces this:
+    someone else's private event → 404, someone else's public event → 403).
+
+    Args:
+        event_id: ID of the event to delete (required). Get IDs from calendar_list_events().
+
+    Returns:
+        Confirmation message on success.
+
+    Example:
+        calendar_delete_event(42)  # Deletes the event permanently
+    """
+    _api_request("DELETE", f"/v1/calendar/events/{event_id}")
+    return {"message": f"Calendar event {event_id} deleted successfully"}
+
+
+def calendar_list_event_types() -> list[dict]:
+    """List all calendar event types.
+
+    Use this to discover available type names before creating or updating events
+    (the event_type parameter of calendar_create_event / calendar_update_event).
+
+    Returns:
+        List of event type objects, ordered by id (seed types first). Each contains:
+        - id (int): Internal numeric ID
+        - name (str): Type name used in the event_type parameter (e.g. 'Agent task')
+        - color (str or null): Optional hex color for UI rendering (e.g. '#4f8cff')
+        - createdAt (str): ISO 8601 creation timestamp
+
+    Example:
+        types = calendar_list_event_types()
+        # → [{"id": 1, "name": "Agent task", "color": "#4f8cff", ...}, ...]
+    """
+    return _api_request("GET", "/v1/calendar/event-types")
+
+
+def calendar_create_event_type(name: str, color: Optional[str] = None) -> dict:
+    """Create a new calendar event type.
+
+    A duplicate name (case-insensitive) is rejected with HTTP 409 — use
+    calendar_list_event_types() to check existing names first.
+
+    Args:
+        name: Name of the event type (required, max 100 chars), e.g. 'Deployment'.
+        color: Optional hex color used by the UI for rendering events of this type (e.g. '#4f8cff', max 20 chars).
+
+    Returns:
+        Created event type object with id, name, color, createdAt.
+
+    Example:
+        calendar_create_event_type("Deployment", color="#ff6b35")
+        # → {"id": 3, "name": "Deployment", "color": "#ff6b35", ...}
+    """
+    body = {"name": name}
+    if color is not None:
+        body["color"] = color
+    return _api_request("POST", "/v1/calendar/event-types", body)
+
+
 # ─── Vault Crypto Helpers ─────────────────────────────────────────────────────
 # Vault entries are end-to-end encrypted: username/password/notes are encrypted
 # HERE, in this MCP server process, with a key derived from the user's master
@@ -2103,6 +2393,12 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(copy_document)
     mcp.add_tool(get_mermaid_guide)
     mcp.add_tool(get_plantuml_guide)
+    mcp.add_tool(calendar_create_event)
+    mcp.add_tool(calendar_list_events)
+    mcp.add_tool(calendar_update_event)
+    mcp.add_tool(calendar_delete_event)
+    mcp.add_tool(calendar_list_event_types)
+    mcp.add_tool(calendar_create_event_type)
     mcp.add_tool(vault_status)
     mcp.add_tool(vault_list_entries)
     mcp.add_tool(vault_search_entries)
