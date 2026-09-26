@@ -206,6 +206,12 @@ public class CalendarEventService {
         if (dto.getEndTime() != null) {
             event.setEndTime(dto.getEndTime());
         }
+        // WIKI4AI-97: explicit clear signal — PATCH-like semantics treat null as
+        // "no change", so a timed event cannot be reverted to all-day without it.
+        if (Boolean.TRUE.equals(dto.getClearTime())) {
+            event.setStartTime(null);
+            event.setEndTime(null);
+        }
         if (dto.getVisibility() != null && !dto.getVisibility().isBlank()) {
             validateVisibility(dto.getVisibility());
             event.setVisibility(normalizeVisibility(dto.getVisibility()));

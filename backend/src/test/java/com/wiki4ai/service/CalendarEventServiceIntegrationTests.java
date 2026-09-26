@@ -191,6 +191,35 @@ class CalendarEventServiceIntegrationTests {
         }
 
         @Test
+        @DisplayName("clearTime=true reverts a timed event to all-day (WIKI4AI-97)")
+        void shouldClearPreciseTimeWhenClearTimeIsTrue() {
+            LocalDate today = YearMonth.now().atDay(15);
+            CalendarEventDTO created = calendarEventService.createEvent(
+                    eventDto("Timed", today, "Agent task", LocalTime.of(14, 0), LocalTime.of(15, 0), "public"), ALICE);
+
+            CalendarEventDTO updated = calendarEventService.updateEvent(created.getId(),
+                    CalendarEventUpdateDTO.builder().clearTime(true).build(), ALICE);
+
+            assertThat(updated.getStartTime()).isNull();
+            assertThat(updated.getEndTime()).isNull();
+        }
+
+        @Test
+        @DisplayName("clearTime=false (default) leaves an existing time untouched")
+        void shouldKeepTimeWhenClearTimeIsFalse() {
+            LocalDate today = YearMonth.now().atDay(15);
+            CalendarEventDTO created = calendarEventService.createEvent(
+                    eventDto("Timed", today, "Agent task", LocalTime.of(14, 0), LocalTime.of(15, 0), "public"), ALICE);
+
+            CalendarEventDTO updated = calendarEventService.updateEvent(created.getId(),
+                    CalendarEventUpdateDTO.builder().title("Renamed").clearTime(false).build(), ALICE);
+
+            assertThat(updated.getTitle()).isEqualTo("Renamed");
+            assertThat(updated.getStartTime()).isEqualTo(LocalTime.of(14, 0));
+            assertThat(updated.getEndTime()).isEqualTo(LocalTime.of(15, 0));
+        }
+
+        @Test
         @DisplayName("Deletes an event")
         void shouldDeleteEvent() {
             LocalDate today = YearMonth.now().atDay(15);
