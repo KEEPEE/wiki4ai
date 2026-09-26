@@ -1705,7 +1705,7 @@ class TestUpdateDocument:
             update_document("my-project", "my-doc")
 
         assert exc_info.value.status_code == 400
-        assert "At least one of title, content or edits must be provided" in str(exc_info.value)
+        assert "At least one of title, content, edits or visibility must be provided" in str(exc_info.value)
         # No HTTP request must have been made
         mock_api_request.assert_not_called()
 
@@ -2201,7 +2201,8 @@ class TestProjectHierarchy:
         request, body = self._sent_request(mock_urlopen)
         assert request.get_method() == "POST"
         assert request.full_url.endswith("/v1/projects")
-        assert body == {"name": "Sub", "parentId": 7}
+        # WIKI4AI-101: visibility 'public' is always sent (default).
+        assert body == {"name": "Sub", "parentId": 7, "visibility": "public"}
         assert result["id"] == 9
 
     @patch("mcp_server.urlopen")
@@ -2214,7 +2215,8 @@ class TestProjectHierarchy:
         create_project("Root")
 
         _, body = self._sent_request(mock_urlopen)
-        assert body == {"name": "Root"}
+        # WIKI4AI-101: visibility 'public' is always sent (default).
+        assert body == {"name": "Root", "visibility": "public"}
         assert "parentId" not in body
 
     @patch("mcp_server.urlopen")
@@ -2239,7 +2241,8 @@ class TestProjectHierarchy:
         create_project("Sub", description="d", parent_id=3)
 
         _, body = self._sent_request(mock_urlopen)
-        assert body == {"name": "Sub", "description": "d", "parentId": 3}
+        # WIKI4AI-101: visibility 'public' is always sent (default).
+        assert body == {"name": "Sub", "description": "d", "parentId": 3, "visibility": "public"}
 
     # ── update_project tri-state ──
 
