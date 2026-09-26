@@ -49,4 +49,12 @@ public class CalendarEventUpdateDTO {
     /** New visibility ('public' or 'private'); null = no change. */
     @Size(max = 10, message = "Visibility must be at most 10 characters")
     private String visibility;
+
+    /**
+     * Explicit signal to clear the precise time (WIKI4AI-97). Because PATCH-like
+     * semantics treat null as "no change", a client cannot revert a timed event
+     * back to all-day by sending null times. When true, both startTime and
+     * endTime are set to null (all-day event); defaults to false.
+     */
+    private Boolean clearTime;
 }
