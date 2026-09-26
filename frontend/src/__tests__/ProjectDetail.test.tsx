@@ -188,6 +188,83 @@ describe('ProjectDetail', () => {
       })
     })
 
+    // ── WIKI4AI-100: lock icon on private documents in the list ──────────
+
+    it('should show a lock icon next to private documents and none for public ones', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 2, createdAt: '', updatedAt: '' },
+      ]
+
+      const mockDocuments = [
+        { id: 1, title: 'Private Doc', content: '', projectId: 1, createdAt: '', updatedAt: '', visibility: 'private' },
+        { id: 2, title: 'Public Doc', content: '', projectId: 1, createdAt: '', updatedAt: '', visibility: 'public' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: mockDocuments, isLoading: false, error: null, refetch: vi.fn(), createDocument: vi.fn(), updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Private Doc')).toBeInTheDocument()
+        expect(screen.getByText('Public Doc')).toBeInTheDocument()
+      })
+
+      // Lock icon present for the private document...
+      expect(screen.getByTestId('doc-lock-1')).toBeInTheDocument()
+      // ...and absent for the public one (legacy docs without the field too)
+      expect(screen.queryByTestId('doc-lock-2')).not.toBeInTheDocument()
+    })
+
+    it('should include the chosen visibility when creating a document', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
+      ]
+
+      const createDocumentMock = vi.fn().mockResolvedValue({ id: 9, title: 'New Doc', content: '', projectId: 1, createdAt: '', updatedAt: '' })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      const { useDocuments, useSearchDocuments } = await import('../hooks/useDocuments')
+      vi.mocked(useDocuments).mockReturnValue({
+        documents: [], isLoading: false, error: null, refetch: vi.fn(), createDocument: createDocumentMock, updateDocument: vi.fn(), deleteDocument: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+      vi.mocked(useSearchDocuments).mockReturnValue({
+        searchResults: [], isLoading: false, hasSearched: false,
+      } as any)
+
+      renderWithProviders(<ProjectDetail />)
+
+      const user = userEvent.setup()
+      await waitFor(() => {
+        expect(screen.getByText('+ New Document')).toBeInTheDocument()
+      })
+      await user.click(screen.getByText('+ New Document'))
+
+      // WIKI4AI-100: toggle rendered with Public default in the create form
+      expect(screen.getByTestId('doc-create-visibility-public')).toHaveAttribute('aria-pressed', 'true')
+
+      await user.type(screen.getByPlaceholderText('Document title'), 'New Doc')
+      await user.click(screen.getByTestId('doc-create-visibility-private'))
+      // Submit the create form (common.create = "Create")
+      await user.click(screen.getByRole('button', { name: 'Create' }))
+
+      expect(createDocumentMock).toHaveBeenCalledWith({ title: 'New Doc', content: '', visibility: 'private' })
+    })
+
     it('should show empty state when no documents', async () => {
       const mockProjects = [
         { id: 1, name: 'Test Project', slug: 'test-project', description: null, documentCount: 0, createdAt: '', updatedAt: '' },

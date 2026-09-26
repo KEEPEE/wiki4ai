@@ -191,9 +191,10 @@ describe('ProjectSettings', () => {
       await user.click(saveButton)
 
       await waitFor(() => {
+        // WIKI4AI-100: the update payload now carries the chosen visibility (default public)
         expect(updateMock).toHaveBeenCalledWith({
           id: 1,
-          dto: { name: 'New Project Name', description: 'A test project' },
+          dto: { name: 'New Project Name', description: 'A test project', visibility: 'public' },
         })
       })
     })
@@ -239,6 +240,55 @@ describe('ProjectSettings', () => {
         const saveButton = screen.getByTestId('save-button')
         expect(saveButton).toBeDisabled()
         expect(saveButton).toHaveTextContent('Saving...')
+      })
+    })
+
+    // ── WIKI4AI-100: visibility toggle in project settings ───────────────
+
+    it('should render a visibility toggle pre-filled from the project (private stays private)', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Test Project', slug: 'test-project', description: 'A test project', documentCount: 5, createdAt: '', updatedAt: '', visibility: 'private' as const },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        ...getMockUseProjects(),
+        projects: mockProjects,
+      })
+
+      renderWithProviders(<ProjectSettings />)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('project-settings-visibility-private')).toHaveAttribute('aria-pressed', 'true')
+      })
+      expect(screen.getByTestId('project-settings-visibility-public')).toHaveAttribute('aria-pressed', 'false')
+      expect(screen.getByTestId('settings-visibility-hint')).toBeInTheDocument()
+    })
+
+    it('should send the new visibility when the toggle is switched and saved', async () => {
+      const updateMock = vi.fn().mockResolvedValue({ id: 1, name: 'Test Project' })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        ...getMockUseProjects(),
+        updateProject: updateMock,
+      })
+
+      renderWithProviders(<ProjectSettings />)
+
+      const user = userEvent.setup()
+      await waitFor(() => {
+        expect(screen.getByTestId('project-settings-visibility-public')).toHaveAttribute('aria-pressed', 'true')
+      })
+
+      await user.click(screen.getByTestId('project-settings-visibility-private'))
+      await user.click(screen.getByTestId('save-button'))
+
+      await waitFor(() => {
+        expect(updateMock).toHaveBeenCalledWith({
+          id: 1,
+          dto: { name: 'Test Project', description: 'A test project', visibility: 'private' },
+        })
       })
     })
   })

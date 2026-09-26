@@ -217,3 +217,12 @@
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.45);
 }
+
+/* ── WIKI4AI-100: visibility field label (toggle + .form-hint are shared) ── */
+
+.visibility-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}

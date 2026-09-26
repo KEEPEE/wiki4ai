@@ -2,6 +2,9 @@
  * TypeScript type definitions for Project entity.
  */
 
+/** WIKI4AI-99/100: project/document visibility ('public' = everyone, 'private' = owner + ADMIN). */
+export type Visibility = 'public' | 'private';
+
 export interface Project {
   id: number;
   name: string;
@@ -14,6 +17,10 @@ export interface Project {
   parentSlug?: string | null;
   /** Hierarchy depth: 1 = root, max 5 (WIKI4AI-29). */
   depth?: number;
+  /** Owner user id (WIKI4AI-99); null for legacy projects created before the feature. */
+  ownerId?: number | null;
+  /** WIKI4AI-99/100: visibility, defaults to 'public' on the backend. */
+  visibility?: Visibility;
 }
 
 export interface ProjectDTO {
@@ -24,6 +31,8 @@ export interface ProjectDTO {
   documentCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  /** WIKI4AI-99/100: optional visibility ('public' | 'private'); omitted = backend default 'public'. */
+  visibility?: Visibility;
   /**
    * Optional parent project id (WIKI4AI-29/30).
    * - omitted (undefined) on update: no move (backward compatible)

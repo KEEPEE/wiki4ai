@@ -9,10 +9,12 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
-import type { Project, ProjectDTO } from '../types/project';
+import type { Project, ProjectDTO, Visibility } from '../types/project';
 import { ToastContainer, type ToastItem } from '../components/Toast';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
-import { EditIcon, TrashIcon } from '../components/icons';
+import { EditIcon, TrashIcon, LockIcon } from '../components/icons';
+// WIKI4AI-100: shared Public/Private visibility toggle
+import VisibilityToggle from '../components/VisibilityToggle';
 import './Dashboard.css';
 
 /**
@@ -54,7 +56,15 @@ const SubprojectRow: React.FC<SubprojectRowProps> = ({ project, depth, childrenB
         data-testid={`subproject-item-${project.slug}`}
       >
         <span className="subproject-icon" aria-hidden="true">↳</span>
-        <span className="subproject-name">{project.name}</span>
+        <span className="subproject-name">
+          {project.name}
+          {/* WIKI4AI-100: lock badge on private subprojects */}
+          {project.visibility === 'private' && (
+            <span className="lock-badge" title={t('dashboard.privateBadge')} data-testid={`subproject-lock-${project.id}`}>
+              <LockIcon size={12} />
+            </span>
+          )}
+        </span>
         <span className="badge subproject-badge">{t('dashboard.docsCount', { count: project.documentCount })}</span>
         {hasChildren && (
           <button
@@ -239,6 +249,8 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
   const { t } = useTranslation();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  // WIKI4AI-100: default visibility for new projects is public (backend parity)
+  const [visibility, setVisibility] = useState<Visibility>('public');
   const [error, setError] = useState<string | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -266,7 +278,8 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
     }
     setError(null);
     try {
-      await onCreate({ name: name.trim(), description: description.trim() || undefined });
+      // WIKI4AI-100: include the chosen visibility in the create payload
+      await onCreate({ name: name.trim(), description: description.trim() || undefined, visibility });
     } catch (err) {
       setError(err instanceof Error ? err.message : t('dashboard.createFailed'));
     }
@@ -309,6 +322,19 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
             placeholder={t('dashboard.descriptionPlaceholder')}
             data-testid="create-description-input"
           />
+
+          {/* WIKI4AI-100: visibility toggle (default Public) with a short hint */}
+          <div className="visibility-field">
+            <span className="visibility-label">{t('dashboard.visibilityLabel')}</span>
+            <VisibilityToggle
+              value={visibility}
+              onChange={setVisibility}
+              testIdPrefix="create-project"
+            />
+            <p className="form-hint visibility-hint" data-testid="create-visibility-hint">
+              {t('dashboard.visibilityHint')}
+            </p>
+          </div>
 
           {error && <p className="error" data-testid="create-error">{error}</p>}
 
@@ -587,7 +613,16 @@ const Dashboard: React.FC = () => {
                 }}
               >
                 <div className="card-header">
-                  <h3>{project.name}</h3>
+                  <h3>
+                    {project.name}
+                    {/* WIKI4AI-100: lock badge on own private projects (other
+                        users' private projects never reach the UI — backend filter) */}
+                    {project.visibility === 'private' && (
+                      <span className="lock-badge" title={t('dashboard.privateBadge')} data-testid={`project-lock-${project.id}`}>
+                        <LockIcon size={13} />
+                      </span>
+                    )}
+                  </h3>
                   {/* WIKI4AI-88: in-flow actions cluster — reserved space between
                       title and badge, so hover actions never overlap the badge */}
                   <div className="card-actions">
