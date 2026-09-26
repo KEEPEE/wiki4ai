@@ -326,6 +326,23 @@ class CalendarEventServiceIntegrationTests {
         }
 
         @Test
+        @DisplayName("Foreign user gets 403 (AccessDeniedException) on update/delete of a PUBLIC event")
+        void shouldReturn403ForForeignPublicUpdateAndDelete() {
+            CalendarEventDTO alicePublic = calendarEventService.createEvent(
+                    eventDto("Alice public", YearMonth.now().atDay(15), "Agent task", null, null, "public"), ALICE);
+
+            assertThatThrownBy(() -> calendarEventService.updateEvent(alicePublic.getId(),
+                    CalendarEventUpdateDTO.builder().title("Hacked").build(), BOB))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+            assertThatThrownBy(() -> calendarEventService.deleteEvent(alicePublic.getId(), BOB))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+            // The event survives both attempts.
+            assertThat(calendarEventRepository.existsById(alicePublic.getId())).isTrue();
+        }
+
+        @Test
         @DisplayName("ADMIN can update and delete a foreign private event")
         void shouldAllowAdminToModifyForeignPrivate() {
             CalendarEventDTO alicePrivate = createAlicePrivate();

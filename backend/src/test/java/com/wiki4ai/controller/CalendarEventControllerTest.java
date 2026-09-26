@@ -258,6 +258,23 @@ class CalendarEventControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.error").value("Not Found"));
         }
+
+        @Test
+        @DisplayName("Returns 403 when a non-owner tries to update a foreign public event")
+        void shouldReturn403ForForeignPublicUpdate() throws Exception {
+            willThrow(new org.springframework.security.access.AccessDeniedException(
+                    "You can only update your own calendar events"))
+                    .given(calendarEventService).updateEvent(eq(1L), any(), anyString());
+
+            String body = objectMapper.writeValueAsString(CalendarEventUpdateDTO.builder()
+                    .title("Hacked").build());
+
+            mockMvc.perform(put("/api/v1/calendar/events/1")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(body))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.error").value("Forbidden"));
+        }
     }
 
     // ── DELETE /events/{id} ───────────────────────────────────────────────────
