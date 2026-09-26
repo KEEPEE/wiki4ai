@@ -81,7 +81,8 @@ describe('CalendarPage (WIKI4AI-97)', () => {
     mockFetchEventTypes.mockResolvedValue(TYPES)
     mockFetchEvents.mockImplementation(async (from: string, to: string) => {
       // Only the current month carries events in these tests.
-      if (toISO(new Date()).slice(0, 7) === from.slice(0, 7)) {
+      const current = toISO(new Date()).slice(0, 7)
+      if (current === from.slice(0, 7) && current === to.slice(0, 7)) {
         return [
           makeEvent({ id: 11, title: 'Team sync', eventDate: toISO(new Date()) }),
           makeEvent({
