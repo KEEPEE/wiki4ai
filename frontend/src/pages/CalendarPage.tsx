@@ -45,6 +45,13 @@ function safeColor(color: string | null): string {
   return color && /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#4f8cff';
 }
 
+/** Normalize backend "HH:mm:ss" times for display as "HH:mm". */
+function formatTime(t: string | null): string {
+  if (!t) return '';
+  const m = t.match(/^(\d{2}:\d{2})/);
+  return m ? m[1] : t;
+}
+
 // ── Inline SVG icons (no emoji — the container has no emoji font) ───────────
 
 function ChevronLeftIcon() {
@@ -317,7 +324,7 @@ const CalendarPage: React.FC = () => {
                         background: event.startTime ? `${color}2e` : `${color}cc`,
                         borderLeftColor: color,
                       }}
-                      title={event.startTime ? `${event.startTime} ${event.title}` : event.title}
+                      title={event.startTime ? `${formatTime(event.startTime)} ${event.title}` : event.title}
                       data-testid={`cal-event-pill-${event.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -329,7 +336,7 @@ const CalendarPage: React.FC = () => {
                           <LockIcon />
                         </span>
                       )}
-                      {event.startTime && <span className="cal-pill-time">{event.startTime}</span>}
+                      {event.startTime && <span className="cal-pill-time">{formatTime(event.startTime)}</span>}
                       <span className="cal-pill-title">{event.title}</span>
                     </button>
                   );
@@ -367,7 +374,7 @@ const CalendarPage: React.FC = () => {
                 <dt>{t('calendar.detail.time')}</dt>
                 <dd data-testid="cal-detail-time">
                   {detailEvent.startTime ? (
-                    `${detailEvent.startTime} – ${detailEvent.endTime ?? detailEvent.startTime}`
+                    `${formatTime(detailEvent.startTime)} – ${formatTime(detailEvent.endTime) || formatTime(detailEvent.startTime)}`
                   ) : (
                     t('calendar.allDay')
                   )}
