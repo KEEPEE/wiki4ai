@@ -174,14 +174,16 @@ public class CalendarEventService {
 
     /**
      * Update an existing calendar event (PATCH-like: null fields are not
-     * changed). Only the owner or an ADMIN may update; other users get 404.
+     * changed). Only the owner or an ADMIN may update; other users get 404 for
+     * a foreign private event (existence not revealed) and 403 for a foreign
+     * public event.
      */
     @Transactional
     public CalendarEventDTO updateEvent(Long id, CalendarEventUpdateDTO dto, String username) {
         User user = requireUser(username);
         CalendarEvent event = calendarEventRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Calendar event not found with id: " + id));
-        checkVisibility(event, user);
+        checkOwnership(event, user, "update");
 
         if (dto.getTitle() != null) {
             if (dto.getTitle().isBlank()) {
@@ -214,14 +216,15 @@ public class CalendarEventService {
 
     /**
      * Delete a calendar event. Only the owner or an ADMIN may delete; other
-     * users get 404 (existence is not revealed).
+     * users get 404 for a foreign private event (existence not revealed) and
+     * 403 for a foreign public event.
      */
     @Transactional
     public void deleteEvent(Long id, String username) {
         User user = requireUser(username);
         CalendarEvent event = calendarEventRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Calendar event not found with id: " + id));
-        checkVisibility(event, user);
+        checkOwnership(event, user, "delete");
         calendarEventRepository.delete(event);
     }
 
@@ -241,6 +244,26 @@ public class CalendarEventService {
         if (!isOwner && !isAdmin) {
             throw new EntityNotFoundException("Calendar event not found with id: " + event.getId());
         }
+    }
+
+    /**
+     * Enforce the ownership rule for update/delete. Only the event's creator
+     * or an ADMIN may modify the event. For anyone else: a foreign PRIVATE
+     * event is reported as 404 (existence not revealed), a foreign PUBLIC
+     * event as 403 Forbidden (the event exists and is visible, but this user
+     * has no right to modify it).
+     */
+    private void checkOwnership(CalendarEvent event, User user, String action) {
+        boolean isOwner = user.getId() != null && user.getId().equals(event.getCreator().getId());
+        boolean isAdmin = user.getRole() == Role.ADMIN;
+        if (isOwner || isAdmin) {
+            return;
+        }
+        if (CalendarEvent.VISIBILITY_PRIVATE.equals(event.getVisibility())) {
+            throw new EntityNotFoundException("Calendar event not found with id: " + event.getId());
+        }
+        throw new AccessDeniedException(
+                "You can only " + action + " your own calendar events");
     }
 
     // ── Event types ───────────────────────────────────────────────────────────

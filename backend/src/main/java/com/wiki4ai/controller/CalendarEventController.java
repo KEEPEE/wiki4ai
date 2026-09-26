@@ -95,9 +95,10 @@ public class CalendarEventController {
 
     @Operation(summary = "Aktualizácia udalosti", description =
             "Aktualizuje existujúcu udalosť. PATCH-like správanie: null polia = bez zmeny. " +
-            "Len owner alebo ADMIN (cudzí private event = 404).")
+            "Len owner alebo ADMIN (cudzí private event = 404, cudzí public event = 403).")
     @ApiResponse(responseCode = "200", description = "Udalosť úspešne aktualizovaná")
     @ApiResponse(responseCode = "400", description = "Neplatný vstup (napr. neexistujúci typ, prázdny title)")
+    @ApiResponse(responseCode = "403", description = "Cudzí public event — update len owner alebo ADMIN")
     @ApiResponse(responseCode = "404", description = "Udalosť neexistuje alebo je cudzí private event")
     @PutMapping("/events/{id}")
     public ResponseEntity<CalendarEventDTO> updateEvent(
@@ -107,8 +108,9 @@ public class CalendarEventController {
     }
 
     @Operation(summary = "Vymazanie udalosti", description =
-            "Vymaže udalosť. Len owner alebo ADMIN (cudzí private event = 404).")
+            "Vymaže udalosť. Len owner alebo ADMIN (cudzí private event = 404, cudzí public event = 403).")
     @ApiResponse(responseCode = "204", description = "Udalosť úspešne vymazaná")
+    @ApiResponse(responseCode = "403", description = "Cudzí public event — delete len owner alebo ADMIN")
     @ApiResponse(responseCode = "404", description = "Udalosť neexistuje alebo je cudzí private event")
     @DeleteMapping("/events/{id}")
     public ResponseEntity<Void> deleteEvent(
