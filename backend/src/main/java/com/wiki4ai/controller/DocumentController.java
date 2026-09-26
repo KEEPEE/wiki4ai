@@ -47,10 +47,12 @@ public class DocumentController {
     private final ProjectService projectService;
 
     /**
-     * Resolve projectId from projectSlug.
+     * Resolve projectId from projectSlug. Visibility-aware (WIKI4AI-99): a foreign
+     * private project resolves to 404, so every document endpoint nested under it
+     * is unreachable for non-owner/non-ADMIN callers.
      */
     private Long resolveProjectId(String projectSlug) {
-        return projectService.getProjectBySlug(projectSlug).getId();
+        return projectService.getProjectBySlug(projectSlug, getCurrentUsername()).getId();
     }
 
     /**

@@ -52,4 +52,11 @@ public class ProjectUpdateDTO {
         this.parentId = parentId;
         this.parentIdPresent = true;
     }
+
+    /**
+     * Optional visibility change: 'public' or 'private' (WIKI4AI-99).
+     * Null/absent = no change (backward compatible — the field keeps its value).
+     * Any other value is rejected with 400. The owner is never changed on update.
+     */
+    private String visibility;
 }

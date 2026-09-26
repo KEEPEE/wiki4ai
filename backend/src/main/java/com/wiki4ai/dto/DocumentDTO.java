@@ -31,6 +31,20 @@ public class DocumentDTO {
 
     private Long projectId;
 
+    /**
+     * Id of the user who created this document (WIKI4AI-99). Null for legacy
+     * documents created before the owner concept existed. Read-only: clients
+     * cannot set it — the backend always assigns the authenticated creator.
+     */
+    private Long ownerId;
+
+    /**
+     * 'public' or 'private' (WIKI4AI-99). A private document is visible only to
+     * its owner and ADMIN users, even inside a public project. Defaults to
+     * 'public' when omitted on create (backward compatible).
+     */
+    private String visibility;
+
     private List<Long> linkedDocuments;
 
     private java.time.LocalDateTime createdAt;

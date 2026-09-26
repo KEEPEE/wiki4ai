@@ -46,29 +46,29 @@ public class ProjectController {
         return "anonymous";
     }
 
-    @Operation(summary = "Zoznam všetkých projektov", description = "Vráti zoznam všetkých wiki projektov zoradených podľa dátumu vytvorenia.")
+    @Operation(summary = "Zoznam všetkých projektov", description = "Vráti zoznam wiki projektov zoradených podľa dátumu vytvorenia. Súkromné (private) projekty sú viditeľné len ich vlastníkovi a ADMINom — ostatným používateľom sa v zozname neobjavia.")
     @ApiResponse(responseCode = "200", description = "Zoznam projektov úspešne načítaný")
     @GetMapping
     public ResponseEntity<List<ProjectDTO>> getAllProjects() {
-        return ResponseEntity.ok(projectService.getAllProjects());
+        return ResponseEntity.ok(projectService.getAllProjects(getCurrentUsername()));
     }
 
-    @Operation(summary = "Detail projektu podľa slugu", description = "Vráti detail projektu na základe jeho URL-friendly slugu.")
+    @Operation(summary = "Detail projektu podľa slugu", description = "Vráti detail projektu na základe jeho URL-friendly slugu. Cudzí súkromný (private) projekt vráti 404 (neodhaľuje existenciu).")
     @ApiResponse(responseCode = "200", description = "Projekt úspešne načítaný")
-    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený (alebo je súkromný a volateľ nie je vlastník/ADMIN)")
     @GetMapping("/{slug}")
     public ResponseEntity<ProjectDTO> getProject(
             @Parameter(description = "Slug projektu") @PathVariable String slug) {
-        return ResponseEntity.ok(projectService.getProjectBySlug(slug));
+        return ResponseEntity.ok(projectService.getProjectBySlug(slug, getCurrentUsername()));
     }
 
-    @Operation(summary = "Strom podprojektov", description = "Vráti vnoorený strom podprojektov (všetky úrovne, max hĺbka 5) pre zadaný projekt. Každý uzol obsahuje id, name, slug, parentSlug, depth, hasChildren a documentCount.")
+    @Operation(summary = "Strom podprojektov", description = "Vráti vnoorený strom podprojektov (všetky úrovne, max hĺbka 5) pre zadaný projekt. Každý uzol obsahuje id, name, slug, parentSlug, depth, hasChildren a documentCount. Súkromné podprojekty sú v strome neviditeľné pre ne-vlastníkov.")
     @ApiResponse(responseCode = "200", description = "Strom projektov úspešne načítaný")
-    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený (alebo je súkromný a volateľ nie je vlastník/ADMIN)")
     @GetMapping("/{slug}/tree")
     public ResponseEntity<ProjectTreeNodeDTO> getProjectTree(
             @Parameter(description = "Slug koreňového projektu stromu") @PathVariable String slug) {
-        return ResponseEntity.ok(projectService.getProjectTree(slug));
+        return ResponseEntity.ok(projectService.getProjectTree(slug, getCurrentUsername()));
     }
 
     @Operation(summary = "Vytvorenie nového projektu", description = "Vytvorí nový wiki projekt. Vtvorca automaticky dostáva MANAGE oprávnenie. Voliteľné `parentId` v tele vytvorí subprojekt pod daným projektom (max hĺbka hierarchie 5).")
@@ -129,13 +129,13 @@ public class ProjectController {
 
     // ── ID-based endpoints (for frontend compatibility) ──────────────────────
 
-    @Operation(summary = "Detail projektu podľa ID", description = "Vráti detail projektu na základe jeho číselného ID.")
+    @Operation(summary = "Detail projektu podľa ID", description = "Vráti detail projektu na základe jeho číselného ID. Cudzí súkromný (private) projekt vráti 404 (neodhaľuje existenciu).")
     @ApiResponse(responseCode = "200", description = "Projekt úspešne načítaný")
-    @ApiResponse(responseCode = "404", description = "Projekt s daným ID nebol nájdený")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným ID nebol nájdený (alebo je súkromný a volateľ nie je vlastník/ADMIN)")
     @GetMapping("/by-id/{id}")
     public ResponseEntity<ProjectDTO> getProjectById(
             @Parameter(description = "ID projektu") @PathVariable Long id) {
-        return ResponseEntity.ok(projectService.getProjectById(id));
+        return ResponseEntity.ok(projectService.getProjectById(id, getCurrentUsername()));
     }
 
     @Operation(summary = "Aktualizácia projektu podľa ID", description = "Aktualizuje existujúci projekt podľa číselného ID. Vyžaduje MANAGE oprávnenie.")
