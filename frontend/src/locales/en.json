@@ -199,7 +199,8 @@
     "userMenuAria": "User menu",
     "logout": "Logout",
     "login": "Login",
-    "register": "Register"
+    "register": "Register",
+    "calendar": "Calendar"
   },
   "viewer": {
     "loadFailed": "Failed to load document",
@@ -466,5 +467,66 @@
     "tokenDeleted": "Token \"{{name}}\" deleted",
     "tokenAlreadyDeleted": "Token \"{{name}}\" already deleted",
     "logoutDesc": "Log out of your account on this device."
+  },
+  "calendar": {
+    "title": "Calendar",
+    "today": "Today",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "loading": "Loading calendar...",
+    "loadError": "Failed to load events",
+    "retry": "Retry",
+    "noEvents": "No events in this month. Click a day to create one.",
+    "allDay": "All day",
+    "moreEvents": "+{{count}} more",
+    "weekday": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "detail": {
+      "date": "Date",
+      "time": "Time",
+      "type": "Type",
+      "visibility": "Visibility",
+      "createdBy": "Created by",
+      "edit": "Edit",
+      "deleteConfirm": "Delete event \"{{title}}\"? This cannot be undone.",
+      "deleteFailed": "Failed to delete the event"
+    },
+    "form": {
+      "createTitle": "New event",
+      "editTitle": "Edit event",
+      "title": "Title",
+      "titlePlaceholder": "Event title",
+      "description": "Description",
+      "descriptionPlaceholder": "Optional description",
+      "type": "Type",
+      "typePlaceholder": "Select a type...",
+      "addNewType": "Add new type...",
+      "newTypeName": "Type name",
+      "newTypeNamePlaceholder": "e.g. Deployment",
+      "newTypeColor": "Type color",
+      "createType": "Create type",
+      "typeNameRequired": "Type name is required",
+      "typeCreateFailed": "Failed to create the type",
+      "visibility": "Visibility",
+      "public": "Public",
+      "private": "Private",
+      "date": "Date",
+      "allDay": "All day (no time)",
+      "startTime": "Start time",
+      "endTime": "End time",
+      "creating": "Saving...",
+      "titleRequired": "Title is required",
+      "typeRequired": "Type is required",
+      "dateRequired": "Date is required",
+      "startTimeRequired": "Start time is required for timed events",
+      "saveFailed": "Failed to save the event"
+    }
   }
 }

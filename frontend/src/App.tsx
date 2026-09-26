@@ -25,6 +25,8 @@ import VaultPage from './pages/VaultPage'
 const GraphViewPage = lazyWithRetry(() => import('./pages/GraphViewPage'))
 const DocumentViewer = lazyWithRetry(() => import('./pages/DocumentViewer'))
 const DocumentEditor = lazyWithRetry(() => import('./pages/DocumentEditor'))
+// WIKI4AI-97: calendar page (month view + event form)
+const CalendarPage = lazyWithRetry(() => import('./pages/CalendarPage'))
 
 function LazyRouteFallback({ label }: { label?: string }) {
   const { t } = useTranslation()
@@ -73,6 +75,15 @@ function App() {
                   <Route index element={<Dashboard />} />
                   {/* Global (cross-project) search — WIKI4AI-61 */}
                   <Route path="search" element={<SearchPage />} />
+                  {/* WIKI4AI-97: calendar — month view with events */}
+                  <Route
+                    path="calendar"
+                    element={
+                      <LazyRoute label={t('app.loading')}>
+                        <CalendarPage />
+                      </LazyRoute>
+                    }
+                  />
                   <Route path="vault" element={<VaultPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="admin/users" element={<AdminUsersPage />} />

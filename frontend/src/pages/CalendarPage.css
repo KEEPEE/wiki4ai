@@ -1,0 +1,398 @@
+/**
+ * WIKI4AI-97: Calendar page — month view, glassmorphism (Nexaverse tokens).
+ * All classes are `cal-*` scoped to avoid shared-bundle cascade leaks
+ * (WIKI4AI-81 lesson, see VaultPage.css comment).
+ */
+
+.calendar-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.cal-header h1 {
+  font-size: 2rem;
+  color: var(--text-primary);
+  margin: 0;
+  font-weight: 700;
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cal-month-label {
+  font-family: 'Syne', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  min-width: 190px;
+  text-align: center;
+  text-transform: capitalize;
+}
+
+.cal-nav-btn,
+.cal-today-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.cal-nav-btn {
+  width: 36px;
+}
+
+.cal-today-btn {
+  padding: 0 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.cal-nav-btn:hover,
+.cal-today-btn:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: var(--text-primary);
+}
+
+.cal-today-btn:hover {
+  box-shadow: 0 0 12px var(--glow-cyan);
+  border-color: rgba(0, 240, 255, 0.4);
+}
+
+/* ── Error / empty hints ────────────────────────────────── */
+
+.cal-error-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-border);
+  color: var(--color-error-text);
+  font-size: 0.9rem;
+}
+
+/* Retry button — scoped definitions (WIKI4AI-81 lesson: no cross-page reliance) */
+.calendar-page .btn-secondary {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  font-size: 0.825rem;
+  cursor: pointer;
+}
+
+.calendar-page .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.calendar-page .btn-sm {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.825rem;
+}
+
+.cal-no-events {
+  margin: -0.75rem 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Weekday header + grid ──────────────────────────────── */
+
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.cal-weekdays {
+  margin-bottom: 6px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.25rem 0;
+}
+
+.cal-grid {
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  padding: 6px;
+}
+
+.cal-cell {
+  position: relative;
+  min-height: 96px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  padding: 0.4rem;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.cal-cell:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.cal-cell:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring-shadow);
+}
+
+/* Days from the adjacent month — dimmed */
+.cal-cell-other {
+  opacity: 0.45;
+}
+
+/* Today — highlighted */
+.cal-cell-today {
+  border-color: rgba(0, 240, 255, 0.45);
+  background: rgba(0, 240, 255, 0.06);
+  box-shadow: inset 0 0 18px rgba(0, 240, 255, 0.08);
+}
+
+.cal-day-number {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1;
+}
+
+.cal-day-number-today {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--dark-1);
+  font-weight: 700;
+}
+
+.cal-cell-events {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+/* ── Event pills ────────────────────────────────────────── */
+
+.cal-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+
+.cal-pill:hover {
+  filter: brightness(1.25);
+  transform: translateY(-1px);
+}
+
+/* All-day: solid fill (opaque type color). Timed: translucent + time prefix —
+   the two modes are visually distinct by fill strength and time label. */
+.cal-pill-allday {
+  font-weight: 600;
+}
+
+.cal-pill-timed {
+  font-weight: 400;
+}
+
+.cal-pill-time {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+.cal-pill-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-pill-lock {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  opacity: 0.9;
+}
+
+.cal-more {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding-left: 0.2rem;
+}
+
+/* ── Detail modal ───────────────────────────────────────── */
+
+.cal-detail-modal {
+  max-width: 480px;
+}
+
+.cal-detail-lock {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-right: 0.4rem;
+  color: var(--primary);
+}
+
+.cal-detail-rows {
+  margin: 0 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cal-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.4rem;
+}
+
+.cal-detail-row dt {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.cal-detail-row dd {
+  margin: 0;
+  color: var(--text-primary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.cal-detail-color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  vertical-align: -1px;
+}
+
+.cal-detail-description {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.cal-detail-spacer {
+  flex: 1;
+}
+
+/* Detail modal buttons — scoped (WIKI4AI-81 lesson) */
+.cal-detail-modal .btn-primary,
+.cal-detail-modal .btn-secondary,
+.cal-detail-modal .btn-danger {
+  padding: 0.55rem 1.1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
+}
+
+.cal-detail-modal .btn-primary {
+  background: var(--primary);
+  color: var(--dark-1);
+}
+
+.cal-detail-modal .btn-primary:hover:not(:disabled) {
+  background: #00d4e6;
+  box-shadow: 0 0 12px var(--glow-cyan);
+}
+
+.cal-detail-modal .btn-secondary {
+  background: var(--glass-bg);
+  color: var(--text-secondary);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cal-detail-modal .btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.cal-detail-modal .btn-danger {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-border);
+}
+
+.cal-detail-modal .btn-danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.25);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
+.cal-detail-modal .btn-primary:disabled,
+.cal-detail-modal .btn-secondary:disabled,
+.cal-detail-modal .btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

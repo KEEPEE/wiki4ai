@@ -199,7 +199,8 @@
     "userMenuAria": "Používateľské menu",
     "logout": "Odhlásiť sa",
     "login": "Prihlásenie",
-    "register": "Registrácia"
+    "register": "Registrácia",
+    "calendar": "Káľendar"
   },
   "viewer": {
     "loadFailed": "Nepodarilo sa načítať dokument",
@@ -466,5 +467,66 @@
     "tokenDeleted": "Token \"{{name}}\" vymazaný",
     "tokenAlreadyDeleted": "Token \"{{name}}\" bol už vymazaný",
     "logoutDesc": "Odhláste sa od svojho účtu na tomto zariadení."
+  },
+  "calendar": {
+    "title": "Káľendar",
+    "today": "Dnes",
+    "prevMonth": "Predchádzajúci mesiac",
+    "nextMonth": "Nasledujúci mesiac",
+    "loading": "Načítavam káľendar...",
+    "loadError": "Nepodarilo sa načítať udalosti",
+    "retry": "Skúsiť znova",
+    "noEvents": "V tomto mesiaci nie sú žiadne udalosti. Klikni na deň a vytvor ju.",
+    "allDay": "Celý deň",
+    "moreEvents": "+{{count}} ďalšie",
+    "weekday": {
+      "mon": "Po",
+      "tue": "Ut",
+      "wed": "St",
+      "thu": "Št",
+      "fri": "Pi",
+      "sat": "So",
+      "sun": "Ne"
+    },
+    "detail": {
+      "date": "Dátum",
+      "time": "Čas",
+      "type": "Typ",
+      "visibility": "Viditeľnosť",
+      "createdBy": "Vytvoril",
+      "edit": "Upraviť",
+      "deleteConfirm": "Zmazať udalosť „{{title}}“? Túto akciu nie je možné vrátiť.",
+      "deleteFailed": "Nepodarilo sa zmazať udalosť"
+    },
+    "form": {
+      "createTitle": "Nová udalosť",
+      "editTitle": "Upraviť udalosť",
+      "title": "Názov",
+      "titlePlaceholder": "Názov udalosti",
+      "description": "Popis",
+      "descriptionPlaceholder": "Voliteľný popis",
+      "type": "Typ",
+      "typePlaceholder": "Vyber typ...",
+      "addNewType": "Pridať nový typ...",
+      "newTypeName": "Názov typu",
+      "newTypeNamePlaceholder": "napr. Nasadenie",
+      "newTypeColor": "Farba typu",
+      "createType": "Vytvoriť typ",
+      "typeNameRequired": "Názov typu je povinný",
+      "typeCreateFailed": "Nepodarilo sa vytvoriť typ",
+      "visibility": "Viditeľnosť",
+      "public": "Verejné",
+      "private": "Súkromné",
+      "date": "Dátum",
+      "allDay": "Len deň (bez času)",
+      "startTime": "Čas začiatku",
+      "endTime": "Čas konca",
+      "creating": "Ukladám...",
+      "titleRequired": "Názov je povinný",
+      "typeRequired": "Typ je povinný",
+      "dateRequired": "Dátum je povinný",
+      "startTimeRequired": "Čas začiatku je povinný pre udalosti s časom",
+      "saveFailed": "Nepodarilo sa uložiť udalosť"
+    }
   }
 }

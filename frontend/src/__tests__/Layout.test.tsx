@@ -323,7 +323,9 @@ describe('Layout', () => {
         expect(document.activeElement).toBe(screen.getByTestId('user-menu-profile'))
       })
 
-      // ArrowDown → Vault, Enter activates it.
+      // ArrowDown → Calendar (WIKI4AI-97), again → Vault, Enter activates it.
+      await user.keyboard('{ArrowDown}')
+      expect(document.activeElement).toBe(screen.getByTestId('user-menu-calendar'))
       await user.keyboard('{ArrowDown}')
       expect(document.activeElement).toBe(screen.getByTestId('user-menu-vault'))
       await user.keyboard('{Enter}')
