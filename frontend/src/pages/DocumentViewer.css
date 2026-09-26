@@ -306,3 +306,13 @@
     font-size: 1.5rem;
   }
 }
+
+/* ── WIKI4AI-100: lock badge in the document header (private docs) ── */
+
+.viewer-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  color: var(--text-secondary);
+}

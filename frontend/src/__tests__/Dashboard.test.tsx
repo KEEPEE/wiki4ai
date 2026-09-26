@@ -130,6 +130,51 @@ describe('Dashboard', () => {
       })
     })
 
+    // ── WIKI4AI-100: lock badges on private project cards ────────────────
+
+    it('should show a lock badge on private project cards and none on public ones', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Private One', slug: 'private-one', description: null, documentCount: 0, createdAt: '', updatedAt: '', visibility: 'private' },
+        { id: 2, name: 'Public One', slug: 'public-one', description: null, documentCount: 0, createdAt: '', updatedAt: '', visibility: 'public' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Private One')).toBeInTheDocument()
+        expect(screen.getByText('Public One')).toBeInTheDocument()
+      })
+
+      // Lock badge present for the private project...
+      expect(screen.getByTestId('project-lock-1')).toBeInTheDocument()
+      // ...and absent for the public one (legacy projects without the field too)
+      expect(screen.queryByTestId('project-lock-2')).not.toBeInTheDocument()
+    })
+
+    it('should not show a lock badge when the visibility field is missing (legacy project)', async () => {
+      const mockProjects = [
+        { id: 1, name: 'Legacy Project', slug: 'legacy-project', description: null, documentCount: 2, createdAt: '', updatedAt: '' },
+      ]
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      await waitFor(() => {
+        expect(screen.getByText('Legacy Project')).toBeInTheDocument()
+      })
+
+      expect(screen.queryByTestId('project-lock-1')).not.toBeInTheDocument()
+    })
+
     it('should navigate to project detail when card is clicked', async () => {
       const mockProjects = [
         { id: 1, name: 'Click Me', slug: 'click-me', description: null, documentCount: 0, createdAt: '', updatedAt: '' },
@@ -186,9 +231,11 @@ describe('Dashboard', () => {
       
       await user.click(screen.getByText('Create'))
 
+      // WIKI4AI-100: the create payload now carries the chosen visibility (default public)
       expect(mockCreateProject).toHaveBeenCalledWith({
         name: 'New Project',
         description: 'Test description',
+        visibility: 'public',
       })
     })
 
@@ -370,6 +417,53 @@ describe('Dashboard', () => {
       await user.click(screen.getByTestId('edit-save-button'))
 
       expect(screen.getByText('Project name is required.')).toBeInTheDocument()
+    })
+
+    // ── WIKI4AI-100: visibility toggle in the create modal ───────────────
+
+    it('should render a visibility toggle with Public default and a hint in the create modal', async () => {
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      // Toggle rendered with both options; Public active by default
+      expect(screen.getByTestId('create-project-visibility-public')).toBeInTheDocument()
+      expect(screen.getByTestId('create-project-visibility-private')).toBeInTheDocument()
+      expect(screen.getByTestId('create-project-visibility-public')).toHaveAttribute('aria-pressed', 'true')
+      expect(screen.getByTestId('create-project-visibility-private')).toHaveAttribute('aria-pressed', 'false')
+
+      // Short hint text below the toggle
+      expect(screen.getByTestId('create-visibility-hint')).toBeInTheDocument()
+    })
+
+    it('should call createProject with private visibility when the toggle is switched to Private', async () => {
+      const mockCreateProject = vi.fn().mockResolvedValue({ id: 1, name: 'Secret Project', slug: 'secret-project' })
+
+      const { useProjects } = await import('../hooks/useProjects')
+      vi.mocked(useProjects).mockReturnValue({
+        projects: [], isLoading: false, error: null, refetch: vi.fn(), createProject: mockCreateProject, updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any)
+
+      renderWithProviders(<Dashboard />)
+
+      const user = userEvent.setup()
+      await user.click(screen.getByText(/New Project/))
+
+      await user.type(screen.getByPlaceholderText('Project name'), 'Secret Project')
+      await user.click(screen.getByTestId('create-project-visibility-private'))
+      await user.click(screen.getByText('Create'))
+
+      expect(mockCreateProject).toHaveBeenCalledWith({
+        name: 'Secret Project',
+        description: undefined,
+        visibility: 'private',
+      })
     })
   })
 

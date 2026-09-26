@@ -17,7 +17,10 @@
     "back": "Back",
     "error": "Error",
     "close": "Close modal",
-    "image": "image"
+    "image": "image",
+    "public": "Public",
+    "private": "Private",
+    "visibility": "Visibility"
   },
   "auth": {
     "username": "Username",
@@ -128,7 +131,10 @@
     "createFirstProject": "Create your first project!",
     "noMatches": "No projects match your search",
     "ariaEdit": "Edit {{name}}",
-    "ariaDelete": "Delete {{name}}"
+    "ariaDelete": "Delete {{name}}",
+    "visibilityLabel": "Visibility",
+    "visibilityHint": "Who can see this project. Public projects are visible to every user; private ones only to you.",
+    "privateBadge": "Private project"
   },
   "project": {
     "subprojectCreateFailed": "Failed to create subproject",
@@ -187,7 +193,11 @@
     "dangerText": "Once you delete a project, there is no going back. Please be certain.",
     "deleteConfirmStart": "Are you sure you want to delete",
     "deleteConfirmEnd": "This action cannot be undone and all documents in this project will be permanently deleted.",
-    "confirmDelete": "Yes, Delete Project"
+    "confirmDelete": "Yes, Delete Project",
+    "visibilityLabel": "Visibility",
+    "visibilityHint": "Who can see this project. Public projects are visible to every user; private ones only to you.",
+    "docVisibilityHint": "Who can see this document. Public documents are visible to every user; private ones only to you.",
+    "privateDocBadge": "Private document"
   },
   "layout": {
     "searchPlaceholder": "Search the wiki...",
@@ -213,7 +223,9 @@
     "linksHeading": "Links ({{count}})",
     "linkedFromAria": "Linked from",
     "linkedFromHeading": "Linked from ({{count}})",
-    "noBacklinks": "No documents link to this page"
+    "noBacklinks": "No documents link to this page",
+    "privateBadge": "Private document",
+    "visibilitySaveFailed": "Failed to change visibility"
   },
   "editor": {
     "newDocFallback": "New Document",

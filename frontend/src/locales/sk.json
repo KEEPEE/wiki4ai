@@ -17,7 +17,10 @@
     "back": "Späť",
     "error": "Chyba",
     "close": "Zavrieť okno",
-    "image": "obrázok"
+    "image": "obrázok",
+    "public": "Verejné",
+    "private": "Privátne",
+    "visibility": "Viditeľnosť"
   },
   "auth": {
     "username": "Používateľské meno",
@@ -128,7 +131,10 @@
     "createFirstProject": "Vytvorte si prvý projekt!",
     "noMatches": "Žiadny projekt nevyhovuje vyhľadávaniu",
     "ariaEdit": "Upraviť {{name}}",
-    "ariaDelete": "Vymazať {{name}}"
+    "ariaDelete": "Vymazať {{name}}",
+    "visibilityLabel": "Viditeľnosť",
+    "visibilityHint": "Kto vidí tento projekt. Verejné projekty vidia všetci používatelia, privátne iba ty.",
+    "privateBadge": "Privátny projekt"
   },
   "project": {
     "subprojectCreateFailed": "Nepodarilo sa vytvoriť subprojekt",
@@ -187,7 +193,11 @@
     "dangerText": "Po vymazaní projektu sa už nedá vrátiť späť. Buďte si istí.",
     "deleteConfirmStart": "Naozaj chcete vymazať",
     "deleteConfirmEnd": "Túto akciu nemožno vrátiť a všetky dokumenty v tomto projekte budú trvalo vymazané.",
-    "confirmDelete": "Áno, vymazať projekt"
+    "confirmDelete": "Áno, vymazať projekt",
+    "visibilityLabel": "Viditeľnosť",
+    "visibilityHint": "Kto vidí tento projekt. Verejné projekty vidia všetci používatelia, privátne iba ty.",
+    "docVisibilityHint": "Kto vidí tento dokument. Verejné dokumenty vidia všetci používatelia, privátne iba ty.",
+    "privateDocBadge": "Privátny dokument"
   },
   "layout": {
     "searchPlaceholder": "Hľadať vo wiki...",
@@ -213,7 +223,9 @@
     "linksHeading": "Prepojenia ({{count}})",
     "linkedFromAria": "Odkazované z",
     "linkedFromHeading": "Odkazované z ({{count}})",
-    "noBacklinks": "Žiadny dokument neodkazuje na túto stránku"
+    "noBacklinks": "Žiadny dokument neodkazuje na túto stránku",
+    "privateBadge": "Privátny dokument",
+    "visibilitySaveFailed": "Zmena viditeľnosti zlyhala"
   },
   "editor": {
     "newDocFallback": "Nový dokument",

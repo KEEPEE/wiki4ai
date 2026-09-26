@@ -13,9 +13,11 @@ import { useDebounce } from '../hooks/useDebounce';
 import { projectApi } from '../services/projectApi';
 import { generateSlug } from '../utils/slugify';
 import type { CreateDocumentDto } from '../types/document';
-import type { Project } from '../types/project';
+import type { Project, Visibility } from '../types/project';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
-import { FolderIcon, DownloadIcon, ClockIcon, SettingsIcon } from '../components/icons';
+import { FolderIcon, DownloadIcon, ClockIcon, SettingsIcon, LockIcon } from '../components/icons';
+// WIKI4AI-100: shared Public/Private visibility toggle
+import VisibilityToggle from '../components/VisibilityToggle';
 import './ProjectDetail.css';
 
 type TabType = 'documents' | 'graph';
@@ -55,6 +57,8 @@ const ProjectDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('documents');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
+  // WIKI4AI-100: visibility for the document being created (default public)
+  const [newDocVisibility, setNewDocVisibility] = useState<Visibility>('public');
   const [createError, setCreateError] = useState<string | null>(null);
 
   // Upload state
@@ -113,9 +117,11 @@ const ProjectDetail: React.FC = () => {
 
     setCreateError(null);
     try {
-      const dto: CreateDocumentDto = { title: newTitle.trim(), content: '' };
+      // WIKI4AI-100: include the chosen visibility in the create payload
+      const dto: CreateDocumentDto = { title: newTitle.trim(), content: '', visibility: newDocVisibility };
       await createDocument(dto);
       setNewTitle('');
+      setNewDocVisibility('public'); // reset for the next document
       setShowCreateForm(false);
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : t('project.docCreateFailed'));
@@ -397,6 +403,12 @@ const ProjectDetail: React.FC = () => {
               <li key={sp.id} className="subproject-entry" data-testid={`subproject-entry-${sp.slug}`}>
                 <Link to={`/projects/${sp.slug}`} className="subproject-link">
                   ↳ {sp.name}
+                  {/* WIKI4AI-100: lock badge on private subprojects */}
+                  {sp.visibility === 'private' && (
+                    <span className="lock-badge" title={t('dashboard.privateBadge')} data-testid={`subproject-lock-${sp.id}`}>
+                      <LockIcon size={12} />
+                    </span>
+                  )}
                 </Link>
                 <span className="badge">{t('dashboard.docsCount', { count: sp.documentCount })}</span>
               </li>
@@ -457,6 +469,15 @@ const ProjectDetail: React.FC = () => {
               required
               autoFocus
             />
+            {/* WIKI4AI-100: visibility toggle for the new document (default Public) */}
+            <div className="doc-create-visibility">
+              <VisibilityToggle
+                value={newDocVisibility}
+                onChange={setNewDocVisibility}
+                testIdPrefix="doc-create"
+              />
+              <p className="form-hint">{t('project.docVisibilityHint')}</p>
+            </div>
             {createError && <p className="error">{createError}</p>}
             <div className="form-actions">
               <button type="submit" className="btn-primary" disabled={isCreating}>
@@ -526,7 +547,15 @@ const ProjectDetail: React.FC = () => {
                   return (
                     <li key={doc.id} className="document-item">
                       <div className="doc-info" onClick={() => handleViewDocument(slug)}>
-                        <span className="doc-title">{doc.title}</span>
+                        <span className="doc-title">
+                          {doc.title}
+                          {/* WIKI4AI-100: lock icon on private documents */}
+                          {doc.visibility === 'private' && (
+                            <span className="doc-lock-badge" title={t('project.privateDocBadge')} data-testid={`doc-lock-${doc.id}`}>
+                              <LockIcon size={12} />
+                            </span>
+                          )}
+                        </span>
                         <span className="doc-slug">@{slug}</span>
                         {hasSearched && doc.score != null && (
                           <span

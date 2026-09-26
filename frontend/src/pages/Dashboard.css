@@ -863,3 +863,31 @@
   color: #fff;
   background: rgba(255, 255, 255, 0.1);
 }
+
+/* ── WIKI4AI-100: visibility field (create modal) + lock badges ── */
+
+.visibility-field {
+  margin-top: 0.25rem;
+}
+
+.visibility-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.visibility-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Lock badge next to a private project's name (card + subproject rows) */
+.lock-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  color: var(--text-secondary);
+}

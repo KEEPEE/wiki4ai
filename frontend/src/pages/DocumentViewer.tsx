@@ -13,8 +13,11 @@ import Breadcrumb from '../components/Breadcrumb';
 import { useProjects } from '../hooks/useProjects';
 import { documentApi } from '../services/documentApi';
 import type { Document } from '../types/document';
+import type { Visibility } from '../types/project';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
-import { LinkIcon, PaperclipIcon } from '../components/icons';
+import { LinkIcon, PaperclipIcon, LockIcon } from '../components/icons';
+// WIKI4AI-100: shared Public/Private visibility toggle
+import VisibilityToggle from '../components/VisibilityToggle';
 import './DocumentViewer.css';
 
 interface DocumentViewerProps {
@@ -86,6 +89,9 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   const [backlinks, setBacklinks] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // WIKI4AI-100: document visibility (pre-filled on load; legacy = public)
+  const [visibility, setVisibility] = useState<Visibility>('public');
+  const [savingVisibility, setSavingVisibility] = useState(false);
 
   // Extract wiki links from raw content client-side
   const wikiLinks = useMemo(() => extractWikiLinks(content), [content]);
@@ -100,6 +106,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       const doc = await documentApi.get(projectSlug, docSlug);
       setTitle(doc.title || '');
       setContent(doc.content || '');
+      // WIKI4AI-100: pre-fill the visibility toggle (legacy docs default to public)
+      setVisibility(doc.visibility ?? 'public');
 
       // Fetch backlinks in parallel after content loads
       try {
@@ -136,6 +144,21 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
 
   const handleEdit = () => {
     navigate(`/projects/${projectSlug}/documents/${docSlug}/edit`);
+  };
+
+  // WIKI4AI-100: change the document's visibility with an immediate PUT
+  // (a visibility-only update is valid on the backend).
+  const handleVisibilityChange = async (value: Visibility) => {
+    if (value === visibility || savingVisibility) return;
+    setSavingVisibility(true);
+    try {
+      const updated = await documentApi.update(projectSlug, docSlug, { visibility: value });
+      setVisibility(updated.visibility ?? value);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : t('viewer.visibilitySaveFailed'));
+    } finally {
+      setSavingVisibility(false);
+    }
   };
 
   if (!projectSlug || !docSlug) {
@@ -175,8 +198,23 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       {/* Document Header — WIKI4AI-84: long titles ellipsis-truncate (see
           .document-header h1 in DocumentViewer.css); full text via tooltip. */}
       <header className="document-header">
-        <h1 title={title || docSlug}>{title || docSlug}</h1>
+        <h1 title={title || docSlug}>
+          {title || docSlug}
+          {/* WIKI4AI-100: lock icon on private documents */}
+          {visibility === 'private' && (
+            <span className="viewer-lock-badge" title={t('viewer.privateBadge')} data-testid="doc-viewer-lock">
+              <LockIcon size={16} />
+            </span>
+          )}
+        </h1>
         <div className="document-actions">
+          {/* WIKI4AI-100: visibility toggle (immediate PUT on change) */}
+          <VisibilityToggle
+            value={visibility}
+            onChange={handleVisibilityChange}
+            testIdPrefix="doc-viewer"
+            disabled={savingVisibility}
+          />
           <BackButton to={`/projects/${projectSlug}`} label={t('project.backToProject')} />
           <button onClick={handleEdit} className="btn-primary">
             {t('viewer.edit')}

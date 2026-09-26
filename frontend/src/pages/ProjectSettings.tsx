@@ -8,7 +8,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import BackButton from '../components/BackButton';
 import { useProjects } from '../hooks/useProjects';
-import type { ProjectDTO } from '../types/project';
+import type { ProjectDTO, Visibility } from '../types/project';
+// WIKI4AI-100: shared Public/Private visibility toggle
+import VisibilityToggle from '../components/VisibilityToggle';
 import './ProjectSettings.css';
 
 const ProjectSettings: React.FC = () => {
@@ -19,6 +21,8 @@ const ProjectSettings: React.FC = () => {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  // WIKI4AI-100: visibility toggle (pre-filled from the project; legacy = public)
+  const [visibility, setVisibility] = useState<Visibility>('public');
   const [parentSlug, setParentSlug] = useState<string | null>(null);
   const [parentInitialized, setParentInitialized] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -33,6 +37,8 @@ const ProjectSettings: React.FC = () => {
     if (project && !name) {
       setName(project.name);
       setDescription(project.description ?? '');
+      // WIKI4AI-100: pre-fill visibility (legacy projects default to public)
+      setVisibility(project.visibility ?? 'public');
     }
     if (project && !parentInitialized) {
       setParentSlug(project.parentSlug ?? null);
@@ -68,7 +74,8 @@ const ProjectSettings: React.FC = () => {
 
     setSaveError(null);
     try {
-      const dto: ProjectDTO = { name: name.trim(), description: description.trim() || undefined };
+      // WIKI4AI-100: include the chosen visibility in the update payload
+      const dto: ProjectDTO = { name: name.trim(), description: description.trim() || undefined, visibility };
       // Move semantics (WIKI4AI-30): only send parentId when it actually changed.
       // Absent key = no move; explicit null = move back to root.
       if (parentSlug !== originalParentSlug) {
@@ -162,6 +169,19 @@ const ProjectSettings: React.FC = () => {
             </select>
             <p className="form-hint">
               {t('project.parentHint')}
+            </p>
+          </div>
+
+          {/* WIKI4AI-100: visibility toggle for the existing project */}
+          <div className="form-group">
+            <span className="visibility-label">{t('project.visibilityLabel')}</span>
+            <VisibilityToggle
+              value={visibility}
+              onChange={setVisibility}
+              testIdPrefix="project-settings"
+            />
+            <p className="form-hint" data-testid="settings-visibility-hint">
+              {t('project.visibilityHint')}
             </p>
           </div>
 

@@ -2,6 +2,8 @@
  * TypeScript type definitions for Document entity.
  */
 
+import type { Visibility } from './project';
+
 export interface Document {
   id: number;
   title: string;
@@ -11,6 +13,10 @@ export interface Document {
   linkedDocuments?: number[];
   createdAt: string;
   updatedAt: string;
+  /** Owner user id (WIKI4AI-99); null for legacy documents created before the feature. */
+  ownerId?: number | null;
+  /** WIKI4AI-99/100: visibility, defaults to 'public' on the backend. */
+  visibility?: Visibility;
   /**
    * Hybrid-search relevance score (RRF, WIKI4AI-35). Present only on search
    * results — higher is more relevant.
@@ -52,11 +58,18 @@ export interface EmbeddingStatus {
 export interface CreateDocumentDto {
   title: string;
   content?: string;
+  /** WIKI4AI-99/100: optional visibility; omitted = backend default 'public'. */
+  visibility?: Visibility;
 }
 
 export interface UpdateDocumentDto {
   title?: string;
   content?: string;
+  /**
+   * WIKI4AI-99/100: optional visibility change. A visibility-only update is valid
+   * (the backend accepts a PUT with just this field).
+   */
+  visibility?: Visibility;
 }
 
 export interface LinkCreateDto {

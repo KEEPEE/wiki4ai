@@ -691,3 +691,33 @@
     opacity: 1;
   }
 }
+
+/* ── WIKI4AI-100: document visibility (create form + list lock icon) ── */
+
+.doc-create-visibility {
+  margin-top: 0.5rem;
+}
+
+.doc-create-visibility .form-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Lock icon next to a private document's title in the list */
+.doc-lock-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  color: var(--text-secondary);
+}
+
+/* Lock badge on subproject entries (private subprojects) */
+.lock-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+  color: var(--text-secondary);
+}

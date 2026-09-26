@@ -1,0 +1,44 @@
+/* WIKI4AI-100: shared Public/Private visibility segmented control.
+   Identical styling to the calendar event form (WIKI4AI-97) so the toggle
+   looks the same everywhere; kept in its own file so pages don't need to
+   import EventFormModal.css just for this control. */
+
+.visibility-toggle {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.visibility-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+.visibility-option + .visibility-option {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.visibility-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.visibility-option-active {
+  color: var(--text-primary);
+  background: rgba(0, 240, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
+}
+
+.visibility-option-active[aria-pressed='true'] {
+  color: var(--primary);
+}
