@@ -163,6 +163,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * WIKI4AI-96: handle malformed request parameter values (e.g. a date query
+     * parameter that is not ISO-formatted). Returns 400 Bad Request instead of
+     * falling through to the generic 500 handler.
+     */
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleTypeMismatch(
+            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("error", "Bad Request");
+        body.put("message", "Invalid value for parameter '" + ex.getName() + "'");
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
      * Handle content-edit failures (find not found, ambiguous find without
      * replaceAll). Returns 400 Bad Request with the edit index and the number
      * of occurrences so clients can recover without guessing.
