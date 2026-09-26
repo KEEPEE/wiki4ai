@@ -8,9 +8,12 @@ import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
+import com.wiki4ai.model.Role;
+import com.wiki4ai.model.User;
 import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
+import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -39,35 +42,115 @@ public class ProjectService {
     private final DocumentRepository documentRepository;
     private final PermissionService permissionService;
     private final ProjectPermissionRepository projectPermissionRepository;
+    private final UserRepository userRepository;
+
+    // ── Visibility (WIKI4AI-99) ───────────────────────────────────────────────
+    // PRIVATE projects are visible only to their owner and ADMIN users. For
+    // everyone else they are reported as 404 / absent from lists so that the
+    // existence of someone else's private project is not revealed. Public
+    // projects keep the exact pre-privacy behaviour (including the existing
+    // project_permissions sharing — it is untouched by this feature).
 
     /**
-     * Get all projects ordered by creation date (newest first).
-     * Public read - no authentication required.
+     * Resolve the requesting user from the authenticated username.
+     * Returns null for anonymous callers (public endpoints / test mode with
+     * security disabled) — they only ever see public projects.
      */
-    public List<ProjectDTO> getAllProjects() {
+    private User resolveUser(String username) {
+        if (username == null || username.isBlank()
+                || "anonymous".equals(username) || "anonymousUser".equals(username)) {
+            return null;
+        }
+        return userRepository.findByUsername(username).orElse(null);
+    }
+
+    /**
+     * Whether the given user may see a private project: its owner or an ADMIN.
+     */
+    private boolean canSeePrivate(Project project, User user) {
+        if (user == null) {
+            return false;
+        }
+        boolean isOwner = project.getOwner() != null
+                && user.getId() != null && user.getId().equals(project.getOwner().getId());
+        return isOwner || user.getRole() == Role.ADMIN;
+    }
+
+    /**
+     * Enforce the visibility rule for a single project. Public projects pass for
+     * everyone; private projects only for their owner or an ADMIN. Other callers
+     * receive EntityNotFoundException (404) so that the existence of someone
+     * else's private project is not revealed.
+     */
+    private void checkProjectVisible(Project project, User user) {
+        if (!Project.VISIBILITY_PRIVATE.equals(project.getVisibility())) {
+            return;
+        }
+        if (!canSeePrivate(project, user)) {
+            throw new EntityNotFoundException("Project not found with slug: " + project.getSlug());
+        }
+    }
+
+    /**
+     * Validate the visibility value (null/blank = keep default, otherwise it
+     * must be 'public' or 'private', case-insensitive).
+     */
+    private void validateVisibility(String visibility) {
+        if (visibility == null || visibility.isBlank()) {
+            return;
+        }
+        if (!Project.VISIBILITY_PUBLIC.equalsIgnoreCase(visibility.trim())
+                && !Project.VISIBILITY_PRIVATE.equalsIgnoreCase(visibility.trim())) {
+            throw new BadRequestException(
+                    "Invalid visibility '" + visibility + "'. Allowed values: 'public', 'private'");
+        }
+    }
+
+    /**
+     * Normalize the visibility value to lowercase; null/blank defaults to 'public'.
+     */
+    private String normalizeVisibility(String visibility) {
+        return (visibility == null || visibility.isBlank())
+                ? Project.VISIBILITY_PUBLIC
+                : visibility.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Get all projects ordered by creation date (newest first), applying the
+     * visibility filter (WIKI4AI-99): ADMIN sees everything; a regular user sees
+     * public projects plus their own private ones; anonymous callers see only
+     * public projects.
+     */
+    public List<ProjectDTO> getAllProjects(String username) {
+        User user = resolveUser(username);
         return projectRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
+                .filter(p -> !Project.VISIBILITY_PRIVATE.equals(p.getVisibility()) || canSeePrivate(p, user))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Get a project by ID.
-     * Public read - no authentication required.
+     * Get a project by ID. Visibility-aware (WIKI4AI-99): other users' private
+     * projects are reported as 404.
      */
-    public ProjectDTO getProjectById(Long id) {
+    public ProjectDTO getProjectById(Long id, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
+        checkProjectVisible(project, user);
         return convertToDTO(project);
     }
 
     /**
-     * Get a project by slug.
-     * Public read - no authentication required.
+     * Get a project by slug. Visibility-aware (WIKI4AI-99): other users' private
+     * projects are reported as 404 (existence is not revealed).
      */
-    public ProjectDTO getProjectBySlug(String slug) {
+    public ProjectDTO getProjectBySlug(String slug, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+        checkProjectVisible(project, user);
         return convertToDTO(project);
     }
 
@@ -96,11 +179,20 @@ public class ProjectService {
             }
         }
 
+        // WIKI4AI-99: visibility is optional (default 'public'); the owner is always
+        // the authenticated creator and never comes from the client.
+        validateVisibility(dto.getVisibility());
+        User creator = resolveUser(username);
+
         Project project = new Project();
         // Slug is generated from the name in Project.onCreate() (@PrePersist) on save;
         // setName() must NOT touch the slug (WIKI4AI-54: rename keeps the URL stable).
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
+        project.setVisibility(normalizeVisibility(dto.getVisibility()));
+        if (creator != null) {
+            project.setOwner(creator);
+        }
         if (parent != null) {
             parent.addChild(project);
         }
@@ -121,13 +213,19 @@ public class ProjectService {
      */
     @Transactional
     public ProjectDTO updateProject(Long id, ProjectDTO dto, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
+
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed);
+        // public projects keep the existing MANAGE check (403 without it).
+        checkProjectVisible(project, user);
 
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
         project.setName(dto.getName());
         project.setDescription(dto.getDescription());
+        applyVisibilityChange(project, dto.getVisibility());
 
         Project saved = projectRepository.save(project);
         return convertToDTO(saved);
@@ -139,13 +237,25 @@ public class ProjectService {
      */
     @Transactional
     public ProjectDTO updateProjectBySlug(String slug, ProjectUpdateDTO dto, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed);
+        // public projects keep the existing MANAGE check (403 without it).
+        checkProjectVisible(project, user);
+
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
-        project.setName(dto.getName());
-        project.setDescription(dto.getDescription());
+        // Partial update: null fields are left unchanged (WIKI4AI-99 makes a
+        // visibility-only payload valid — it must not wipe name/description).
+        if (dto.getName() != null) {
+            project.setName(dto.getName());
+        }
+        if (dto.getDescription() != null) {
+            project.setDescription(dto.getDescription());
+        }
+        applyVisibilityChange(project, dto.getVisibility());
 
         // Optional hierarchy move (WIKI4AI-30): only when the payload explicitly
         // contains a "parentId" key. Explicit null = back to root; absent = no move.
@@ -163,13 +273,25 @@ public class ProjectService {
      */
     @Transactional
     public ProjectDTO updateProjectById(Long id, ProjectUpdateDTO dto, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
 
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed);
+        // public projects keep the existing MANAGE check (403 without it).
+        checkProjectVisible(project, user);
+
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
-        project.setName(dto.getName());
-        project.setDescription(dto.getDescription());
+        // Partial update: null fields are left unchanged (WIKI4AI-99 makes a
+        // visibility-only payload valid — it must not wipe name/description).
+        if (dto.getName() != null) {
+            project.setName(dto.getName());
+        }
+        if (dto.getDescription() != null) {
+            project.setDescription(dto.getDescription());
+        }
+        applyVisibilityChange(project, dto.getVisibility());
 
         // Optional hierarchy move (WIKI4AI-30): only when the payload explicitly
         // contains a "parentId" key. Explicit null = back to root; absent = no move.
@@ -190,9 +312,11 @@ public class ProjectService {
      */
     @Transactional
     public ProjectDTO moveProjectBySlug(String slug, Long newParentId, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
+        checkProjectVisible(project, user);
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
         return doMove(project, newParentId);
@@ -207,9 +331,11 @@ public class ProjectService {
      */
     @Transactional
     public ProjectDTO moveProjectById(Long id, Long newParentId, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
 
+        checkProjectVisible(project, user);
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
         return doMove(project, newParentId);
@@ -336,9 +462,13 @@ public class ProjectService {
             return;
         }
         // For authenticated users, find project first to check permissions
+        User user = resolveUser(username);
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + id));
 
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed);
+        // public projects keep the existing MANAGE check (403 without it).
+        checkProjectVisible(project, user);
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
         // Delete all project permissions (project + subprojects) to avoid FK constraint violations
@@ -379,9 +509,13 @@ public class ProjectService {
             return;
         }
         // For authenticated users, find project first to check permissions
+        User user = resolveUser(username);
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
 
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed);
+        // public projects keep the existing MANAGE check (403 without it).
+        checkProjectVisible(project, user);
         permissionService.checkPermission(username, project.getId(), Permission.MANAGE);
 
         // Delete all project permissions (project + subprojects) to avoid FK constraint violations
@@ -394,9 +528,13 @@ public class ProjectService {
      * Public read — no authentication required (consistent with other GET endpoints).
      * Each node carries id, name, slug, parentSlug, depth, hasChildren and documentCount.
      */
-    public ProjectTreeNodeDTO getProjectTree(String slug) {
+    public ProjectTreeNodeDTO getProjectTree(String slug, String username) {
+        User user = resolveUser(username);
         Project root = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+
+        // WIKI4AI-99: a foreign private root is 404 (existence not revealed).
+        checkProjectVisible(root, user);
 
         // Load the whole hierarchy once and group children by parent id (avoids N+1 DFS queries).
         List<Project> all = projectRepository.findAll();
@@ -413,7 +551,7 @@ public class ProjectService {
             }
         }
 
-        return buildTreeNode(root, null, 1, byId, childrenByParent);
+        return buildTreeNode(root, null, 1, byId, childrenByParent, user);
     }
 
     /**
@@ -425,16 +563,22 @@ public class ProjectService {
             String parentSlug,
             int depth,
             java.util.Map<Long, Project> byId,
-            java.util.Map<Long, List<Project>> childrenByParent) {
+            java.util.Map<Long, List<Project>> childrenByParent,
+            User user) {
 
+        // WIKI4AI-99: private subprojects are invisible to non-owner/non-ADMIN
+        // callers — they simply do not appear in the tree (existence not revealed).
         List<Project> childProjects = (project.getId() != null)
                 ? childrenByParent.getOrDefault(project.getId(), List.of())
+                        .stream()
+                        .filter(c -> !Project.VISIBILITY_PRIVATE.equals(c.getVisibility()) || canSeePrivate(c, user))
+                        .collect(Collectors.toList())
                 : List.of();
 
         List<ProjectTreeNodeDTO> childNodes = new ArrayList<>();
         if (depth < Project.MAX_HIERARCHY_DEPTH) {
             for (Project child : childProjects) {
-                childNodes.add(buildTreeNode(child, project.getSlug(), depth + 1, byId, childrenByParent));
+                childNodes.add(buildTreeNode(child, project.getSlug(), depth + 1, byId, childrenByParent, user));
             }
         }
 
@@ -455,8 +599,12 @@ public class ProjectService {
      * Requires READ permission on the project.
      */
     public byte[] exportProjectAsZip(String slug, String username) {
+        User user = resolveUser(username);
         Project project = projectRepository.findBySlug(slug)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with slug: " + slug));
+
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed).
+        checkProjectVisible(project, user);
 
         permissionService.checkPermission(username, project.getId(), Permission.READ);
 
@@ -488,7 +636,22 @@ public class ProjectService {
     }
 
     /**
-     * Convert Project entity to DTO (includes parentSlug and depth, WIKI4AI-29).
+     * Apply a visibility change to the project (WIKI4AI-99). Null/blank means
+     * "no change" (backward compatible — updates that never send the field keep
+     * working). Non-null values are validated (400 on anything but public/private)
+     * and normalized to lowercase. The owner is never touched here.
+     */
+    private void applyVisibilityChange(Project project, String visibility) {
+        if (visibility == null || visibility.isBlank()) {
+            return;
+        }
+        validateVisibility(visibility);
+        project.setVisibility(normalizeVisibility(visibility));
+    }
+
+    /**
+     * Convert Project entity to DTO (includes parentSlug and depth, WIKI4AI-29;
+     * ownerId and visibility, WIKI4AI-99).
      */
     private ProjectDTO convertToDTO(Project project) {
         String parentSlug = null;
@@ -504,6 +667,8 @@ public class ProjectService {
                 .parentSlug(parentSlug)
                 .depth(project.getDepth())
                 .documentCount(project.getDocuments() != null ? project.getDocuments().size() : 0)
+                .ownerId(project.getOwner() != null ? project.getOwner().getId() : null)
+                .visibility(project.getVisibility() != null ? project.getVisibility() : Project.VISIBILITY_PUBLIC)
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())
                 .build();
@@ -580,5 +745,24 @@ public class ProjectService {
 
     public byte[] exportProjectAsZip(String slug) {
         return exportProjectAsZip(slug, null);
+    }
+
+    // ── Backward-compatible overloads (no username = anonymous caller,
+    // sees only public projects — WIKI4AI-99) ────────────────────────────────
+
+    public List<ProjectDTO> getAllProjects() {
+        return getAllProjects(null);
+    }
+
+    public ProjectDTO getProjectById(Long id) {
+        return getProjectById(id, null);
+    }
+
+    public ProjectDTO getProjectBySlug(String slug) {
+        return getProjectBySlug(slug, null);
+    }
+
+    public ProjectTreeNodeDTO getProjectTree(String slug) {
+        return getProjectTree(slug, null);
     }
 }

@@ -56,6 +56,26 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     Page<Document> findByProjectIdOrderByUpdatedAtDesc(Long projectId, Pageable pageable);
 
     /**
+     * Find paginated VISIBLE documents of a project for a given user (WIKI4AI-99),
+     * ordered by update date (newest first). A document is visible when it is
+     * public or owned by the given user; private documents of other users are
+     * excluded at the SQL level so pagination totals stay correct. ADMIN callers
+     * use {@link #findByProjectIdOrderByUpdatedAtDesc} instead (no filter).
+     *
+     * @param projectId the project ID
+     * @param ownerId   the requesting user's id (null for anonymous callers —
+     *                  only public documents match then)
+     * @param pageable  pagination parameters (page number, page size, sort)
+     * @return Page of visible documents with metadata
+     */
+    @Query("SELECT d FROM Document d WHERE d.project.id = :projectId "
+            + "AND (d.visibility = 'public' OR d.owner.id = :ownerId) "
+            + "ORDER BY d.updatedAt DESC")
+    Page<Document> findVisibleByProjectIdOrderByUpdatedAtDesc(@Param("projectId") Long projectId,
+                                                              @Param("ownerId") Long ownerId,
+                                                              Pageable pageable);
+
+    /**
      * Find a document by its title within a specific project.
      *
      * @param projectId the project ID

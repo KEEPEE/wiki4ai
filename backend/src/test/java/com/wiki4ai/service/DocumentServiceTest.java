@@ -16,6 +16,7 @@ import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
+import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +59,9 @@ class DocumentServiceTest {
     private ProjectRepository projectRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private PermissionService permissionService;
 
     @Mock
@@ -82,6 +86,13 @@ class DocumentServiceTest {
         // Default threshold (WIKI4AI-90); lenient because most non-search tests never
         // consult it. Search tests that need a different value re-stub in the test body.
         lenient().when(searchProperties.getSemanticMinSimilarity()).thenReturn(0.35);
+
+        // WIKI4AI-99: the visibility-filtered paginated query (used for non-ADMIN /
+        // anonymous callers) delegates to the plain paginated stub in these unit tests,
+        // where all fixture documents are legacy-public anyway.
+        lenient().when(documentRepository.findVisibleByProjectIdOrderByUpdatedAtDesc(anyLong(), any(), any(Pageable.class)))
+                .thenAnswer(inv -> documentRepository.findByProjectIdOrderByUpdatedAtDesc(
+                        inv.getArgument(0), inv.getArgument(2)));
 
         testProject = Project.builder()
                 .id(1L)
@@ -402,7 +413,7 @@ class DocumentServiceTest {
             // when & then
             assertThatThrownBy(() -> documentService.updateDocument(1L, updateDto))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("At least one of title, content or contentEdits must be provided");
+                    .hasMessage("At least one of title, content, contentEdits or visibility must be provided");
             verify(documentRepository, never()).save(any(Document.class));
         }
 
@@ -610,7 +621,7 @@ class DocumentServiceTest {
             // when & then
             assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("At least one of title, content or contentEdits must be provided");
+                    .hasMessage("At least one of title, content, contentEdits or visibility must be provided");
             verify(documentRepository, never()).save(any(Document.class));
         }
 
@@ -683,7 +694,7 @@ class DocumentServiceTest {
             // when & then
             assertThatThrownBy(() -> documentService.updateDocumentBySlug(1L, "source-document", updateDto))
                     .isInstanceOf(BadRequestException.class)
-                    .hasMessage("At least one of title, content or contentEdits must be provided");
+                    .hasMessage("At least one of title, content, contentEdits or visibility must be provided");
             verify(documentRepository, never()).save(any(Document.class));
         }
     }

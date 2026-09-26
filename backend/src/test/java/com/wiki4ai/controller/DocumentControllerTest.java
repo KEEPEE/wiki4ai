@@ -75,7 +75,7 @@ class DocumentControllerTest {
 
     // Helper to mock project resolution for any slug
     private void mockProjectResolution(String slug) {
-        given(projectService.getProjectBySlug(slug))
+        given(projectService.getProjectBySlug(eq(slug), any()))
                 .willReturn(ProjectDTO.builder().id(1L).slug(slug).name("Test Project").build());
     }
 
@@ -1160,7 +1160,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when project does not exist")
         void shouldReturnNotFoundWhenProjectNotExists() throws Exception {
             // given
-            given(projectService.getProjectBySlug("non-existent-project"))
+            given(projectService.getProjectBySlug(eq("non-existent-project"), any()))
                     .willThrow(new EntityNotFoundException("Project not found with slug 'non-existent-project'"));
 
             // when & then
@@ -1400,7 +1400,7 @@ class DocumentControllerTest {
                     "# New".getBytes()
             );
 
-            given(projectService.getProjectBySlug("non-existent-project"))
+            given(projectService.getProjectBySlug(eq("non-existent-project"), any()))
                     .willThrow(new EntityNotFoundException("Project not found with slug 'non-existent-project'"));
 
             // when & then
@@ -1591,7 +1591,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when source project not found")
         void shouldReturnNotFoundWhenSourceProjectNotExists() throws Exception {
             // given
-            given(projectService.getProjectBySlug("non-existent-project"))
+            given(projectService.getProjectBySlug(eq("non-existent-project"), any()))
                     .willThrow(new EntityNotFoundException(
                             "Project not found with slug 'non-existent-project'"));
             MoveRequestDTO moveDto = createMoveDto("target-project");
@@ -1750,7 +1750,7 @@ class DocumentControllerTest {
         @DisplayName("Should return 404 when source project not found")
         void shouldReturnNotFoundWhenSourceProjectNotExists() throws Exception {
             // given
-            given(projectService.getProjectBySlug("non-existent-project"))
+            given(projectService.getProjectBySlug(eq("non-existent-project"), any()))
                     .willThrow(new EntityNotFoundException(
                             "Project not found with slug 'non-existent-project'"));
             String requestBody = "{\"targetProjectSlug\": \"other-project\"}";

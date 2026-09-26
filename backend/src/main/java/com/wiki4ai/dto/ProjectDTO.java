@@ -41,6 +41,20 @@ public class ProjectDTO {
 
     private int documentCount;
 
+    /**
+     * Id of the user who created this project (WIKI4AI-99). Null for legacy
+     * projects created before the owner concept existed. Read-only: clients
+     * cannot set it — the backend always assigns the authenticated creator.
+     */
+    private Long ownerId;
+
+    /**
+     * 'public' or 'private' (WIKI4AI-99). Private projects are visible only to
+     * their owner and ADMIN users. Defaults to 'public' when omitted on create
+     * (backward compatible).
+     */
+    private String visibility;
+
     private java.time.LocalDateTime createdAt;
 
     private java.time.LocalDateTime updatedAt;

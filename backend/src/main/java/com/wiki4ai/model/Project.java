@@ -24,6 +24,12 @@ import java.util.Objects;
 @Builder
 public class Project {
 
+    /** Visibility value: visible to every user (legacy default). */
+    public static final String VISIBILITY_PUBLIC = "public";
+
+    /** Visibility value: visible only to the owner and ADMIN users. */
+    public static final String VISIBILITY_PRIVATE = "private";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -63,6 +69,24 @@ public class Project {
     @OneToMany(mappedBy = "parent", cascade = {CascadeType.PERSIST, CascadeType.MERGE, CascadeType.REMOVE})
     @Builder.Default
     private List<Project> children = new ArrayList<>();
+
+    /**
+     * The user who created this project (WIKI4AI-99). NULL for legacy rows —
+     * those predate the owner concept and are public by definition. Never set
+     * from client input: it is always the authenticated creator, assigned in
+     * the service layer, and never changed afterwards.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
+
+    /**
+     * 'public' or 'private' (DB CHECK constraint, V14). Legacy rows carry the
+     * column default 'public'; new projects default to 'public' when the
+     * create request omits the field (backward compatible).
+     */
+    @Column(nullable = false, length = 10)
+    private String visibility;
 
     /** Maximum allowed hierarchy depth (root project = level 1). */
     public static final int MAX_HIERARCHY_DEPTH = 5;
@@ -125,6 +149,23 @@ public class Project {
         this.parent = parent;
     }
 
+    /**
+     * Set the owner (WIKI4AI-99). Called only by the service layer at create
+     * time with the authenticated creator — never from client input, and never
+     * changed afterwards.
+     */
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+    /**
+     * Set the visibility ('public' or 'private', WIKI4AI-99). The value is
+     * validated and normalized by the service layer before it reaches here.
+     */
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -132,6 +173,10 @@ public class Project {
         // Auto-generate slug from name if not set
         if (slug == null || slug.isBlank()) {
             this.slug = generateSlug(this.name);
+        }
+        // Defensive default: the DB column has DEFAULT 'public', keep Java side consistent.
+        if (visibility == null || visibility.isBlank()) {
+            this.visibility = VISIBILITY_PUBLIC;
         }
     }
 

@@ -94,7 +94,7 @@ class ProjectControllerTest {
         void shouldReturnAllProjects() throws Exception {
             // given
             ProjectDTO project = createSampleProject();
-            given(projectService.getAllProjects()).willReturn(List.of(project));
+            given(projectService.getAllProjects(any())).willReturn(List.of(project));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects"))
@@ -108,7 +108,7 @@ class ProjectControllerTest {
         @DisplayName("Should return 200 with empty list when no projects exist")
         void shouldReturnEmptyList() throws Exception {
             // given
-            given(projectService.getAllProjects()).willReturn(List.of());
+            given(projectService.getAllProjects(any())).willReturn(List.of());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects"))
@@ -126,7 +126,7 @@ class ProjectControllerTest {
         void shouldReturnProjectWhenFound() throws Exception {
             // given
             ProjectDTO project = createSampleProject();
-            given(projectService.getProjectBySlug("test-project")).willReturn(project);
+            given(projectService.getProjectBySlug(eq("test-project"), any())).willReturn(project);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project"))
@@ -139,7 +139,7 @@ class ProjectControllerTest {
         @DisplayName("Should return 404 when project not found")
         void shouldReturnNotFoundWhenNotExists() throws Exception {
             // given
-            given(projectService.getProjectBySlug("non-existent"))
+            given(projectService.getProjectBySlug(eq("non-existent"), any()))
                     .willThrow(new EntityNotFoundException("Project not found with slug: non-existent"));
 
             // when & then
@@ -333,7 +333,7 @@ class ProjectControllerTest {
         void shouldReturnProjectWhenFoundById() throws Exception {
             // given
             ProjectDTO project = createSampleProject();
-            given(projectService.getProjectById(1L)).willReturn(project);
+            given(projectService.getProjectById(eq(1L), any())).willReturn(project);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/by-id/1"))
@@ -346,7 +346,7 @@ class ProjectControllerTest {
         @DisplayName("Should return 404 when project not found by ID")
         void shouldReturnNotFoundWhenNotExistsById() throws Exception {
             // given
-            given(projectService.getProjectById(999L))
+            given(projectService.getProjectById(eq(999L), any()))
                     .willThrow(new EntityNotFoundException("Project not found with id: 999"));
 
             // when & then
@@ -459,7 +459,7 @@ class ProjectControllerTest {
         void shouldHaveTagAnnotation() throws Exception {
             // The controller is annotated with @Tag(name = "Projects", ...)
             // This test verifies the controller class exists and has correct mapping
-            given(projectService.getAllProjects()).willReturn(List.of());
+            given(projectService.getAllProjects(any())).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk()); // Will fail if controller not registered
         }
@@ -469,7 +469,7 @@ class ProjectControllerTest {
         void shouldHaveOperationAnnotations() throws Exception {
             // Verify that the controller has proper OpenAPI documentation
             // by checking that all CRUD endpoints are properly mapped
-            given(projectService.getAllProjects()).willReturn(List.of());
+            given(projectService.getAllProjects(any())).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk());
 
@@ -652,7 +652,7 @@ class ProjectControllerTest {
         @DisplayName("GET /{slug}/tree should return the nested tree shape")
         void getTreeShouldReturnNestedShape() throws Exception {
             // given
-            given(projectService.getProjectTree("test-project")).willReturn(sampleTree());
+            given(projectService.getProjectTree(eq("test-project"), any())).willReturn(sampleTree());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/tree"))
@@ -673,7 +673,7 @@ class ProjectControllerTest {
         @DisplayName("GET /{slug}/tree should return 404 for unknown project")
         void getTreeUnknownProjectShouldReturn404() throws Exception {
             // given
-            given(projectService.getProjectTree("missing"))
+            given(projectService.getProjectTree(eq("missing"), any()))
                     .willThrow(new EntityNotFoundException("Project not found with slug: missing"));
 
             // when & then

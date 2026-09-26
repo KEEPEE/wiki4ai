@@ -14,8 +14,11 @@ import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
+import com.wiki4ai.model.Role;
+import com.wiki4ai.model.User;
 import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
+import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -56,16 +59,144 @@ public class DocumentService {
     private final PermissionService permissionService;
     private final EmbeddingService embeddingService;
     private final SearchProperties searchProperties;
+    private final UserRepository userRepository;
+
+    // ── Visibility (WIKI4AI-99) ───────────────────────────────────────────────
+    // PRIVATE documents are visible only to their owner and ADMIN users — even
+    // inside a public project. For everyone else they are reported as 404 /
+    // absent from lists and search so that existence is not revealed. A document
+    // inside a PRIVATE project is additionally gated by the project itself (the
+    // project check runs first). Public documents keep the exact pre-privacy
+    // behaviour, including the existing project_permissions sharing.
+
+    /**
+     * Resolve the requesting user from the authenticated username.
+     * Returns null for anonymous callers (public GET endpoints / test mode with
+     * security disabled) — they only ever see public records.
+     */
+    private User resolveUser(String username) {
+        if (username == null || username.isBlank()
+                || "anonymous".equals(username) || "anonymousUser".equals(username)) {
+            return null;
+        }
+        return userRepository.findByUsername(username).orElse(null);
+    }
+
+    /**
+     * Whether the given user may see a private record (project or document):
+     * its owner or an ADMIN.
+     */
+    private boolean canSeePrivate(Long ownerId, Role userRole, Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        boolean isOwner = ownerId != null && userId.equals(ownerId);
+        return isOwner || userRole == Role.ADMIN;
+    }
+
+    /**
+     * Enforce the visibility rule for a single document. Public documents pass
+     * for everyone; private documents only for their owner or an ADMIN. Other
+     * callers receive EntityNotFoundException (404) so that the existence of
+     * someone else's private document is not revealed.
+     */
+    private void checkDocumentVisible(Document document, User user) {
+        if (!Document.VISIBILITY_PRIVATE.equals(document.getVisibility())) {
+            return;
+        }
+        Long userId = user != null ? user.getId() : null;
+        Role role = user != null ? user.getRole() : null;
+        Long ownerId = document.getOwner() != null ? document.getOwner().getId() : null;
+        if (!canSeePrivate(ownerId, role, userId)) {
+            throw new EntityNotFoundException("Document not found with id: " + document.getId());
+        }
+    }
+
+    /**
+     * Enforce the project-level visibility gate for an operation addressed by
+     * project id (where the project entity is not loaded yet). Public projects
+     * pass for everyone; private projects only for their owner or an ADMIN (404
+     * otherwise — existence not revealed). When the project does not exist the
+     * check is a no-op: the surrounding code keeps its legacy behaviour for that
+     * case (e.g. empty list), and in the API flow the controller resolves the
+     * project first, so a missing id can never reach here from a client request.
+     */
+    private void checkProjectVisibleById(Long projectId, User user) {
+        projectRepository.findById(projectId)
+                .ifPresent(p -> checkProjectVisibleForCreate(p, user));
+    }
+
+    /**
+     * Enforce the project-level visibility gate for an already-loaded project.
+     * Public projects pass for everyone; private projects only for their owner
+     * or an ADMIN (404 otherwise — existence not revealed). A null project
+     * (unit-test fixtures without a parent) passes — it is treated like legacy
+     * public data.
+     */
+    private void checkProjectVisibleForCreate(Project project, User user) {
+        if (project == null || !Project.VISIBILITY_PRIVATE.equals(project.getVisibility())) {
+            return;
+        }
+        Long userId = user != null ? user.getId() : null;
+        Role role = user != null ? user.getRole() : null;
+        Long ownerId = project.getOwner() != null ? project.getOwner().getId() : null;
+        if (!canSeePrivate(ownerId, role, userId)) {
+            throw new EntityNotFoundException("Project not found with id: " + project.getId());
+        }
+    }
+
+    /**
+     * Validate the visibility value (null/blank = keep default, otherwise it
+     * must be 'public' or 'private', case-insensitive).
+     */
+    private void validateVisibility(String visibility) {
+        if (visibility == null || visibility.isBlank()) {
+            return;
+        }
+        if (!Document.VISIBILITY_PUBLIC.equalsIgnoreCase(visibility.trim())
+                && !Document.VISIBILITY_PRIVATE.equalsIgnoreCase(visibility.trim())) {
+            throw new BadRequestException(
+                    "Invalid visibility '" + visibility + "'. Allowed values: 'public', 'private'");
+        }
+    }
+
+    /**
+     * Normalize the visibility value to lowercase; null/blank defaults to 'public'.
+     */
+    private String normalizeVisibility(String visibility) {
+        return (visibility == null || visibility.isBlank())
+                ? Document.VISIBILITY_PUBLIC
+                : visibility.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /**
+     * Whether the given user may see this document in a list/search result:
+     * public documents always; private documents only for owner/ADMIN.
+     */
+    private boolean canSeeDocument(Document document, User user) {
+        if (!Document.VISIBILITY_PRIVATE.equals(document.getVisibility())) {
+            return true;
+        }
+        Long userId = user != null ? user.getId() : null;
+        Role role = user != null ? user.getRole() : null;
+        Long ownerId = document.getOwner() != null ? document.getOwner().getId() : null;
+        return canSeePrivate(ownerId, role, userId);
+    }
 
     // ==================== READ OPERATIONS (require READ permission) ====================
 
     /**
-     * Get all documents in a project.
+     * Get all documents in a project. Visibility-aware (WIKI4AI-99): a foreign
+     * private project is 404; inside a visible project, other users' private
+     * documents are absent from the list.
      */
     public List<DocumentDTO> getDocumentsByProject(Long projectId, String username) {
+        User user = resolveUser(username);
+        checkProjectVisibleById(projectId, user);
         permissionService.checkPermission(username, projectId, Permission.READ);
         return documentRepository.findByProjectId(projectId)
                 .stream()
+                .filter(d -> canSeeDocument(d, user))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -73,31 +204,49 @@ public class DocumentService {
     /**
      * Get paginated documents in a project, ordered by update date (newest first).
      * Returns DocumentSummaryDTO (without content field) to keep list responses lightweight.
+     * Visibility-aware (WIKI4AI-99): a foreign private project is 404; other users'
+     * private documents are absent from the page.
      */
     public Page<DocumentSummaryDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable, String username) {
+        User user = resolveUser(username);
+        checkProjectVisibleById(projectId, user);
         permissionService.checkPermission(username, projectId, Permission.READ);
-        return documentRepository.findByProjectIdOrderByUpdatedAtDesc(projectId, pageable)
-                .map(this::convertToSummaryDTO);
+        // ADMIN sees every document in the project; everyone else only public ones
+        // plus their own private ones (SQL-level filter keeps page totals correct).
+        boolean seesAll = user != null && user.getRole() == Role.ADMIN;
+        Page<Document> page = seesAll
+                ? documentRepository.findByProjectIdOrderByUpdatedAtDesc(projectId, pageable)
+                : documentRepository.findVisibleByProjectIdOrderByUpdatedAtDesc(
+                        projectId, user != null ? user.getId() : null, pageable);
+        return page.map(this::convertToSummaryDTO);
     }
 
     /**
-     * Get a single document by ID.
+     * Get a single document by ID. Visibility-aware (WIKI4AI-99): a foreign
+     * private project or a foreign private document is 404 (existence not revealed).
      */
     public DocumentDTO getDocumentById(Long id, String username) {
+        User user = resolveUser(username);
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
         permissionService.checkPermission(username, document.getProject().getId(), Permission.READ);
         return convertToDTO(document);
     }
 
     /**
-     * Get a single document by slug within a specific project.
+     * Get a single document by slug within a specific project. Visibility-aware
+     * (WIKI4AI-99): a foreign private project or a foreign private document is 404.
      */
     public DocumentDTO getDocument(Long projectId, String slug, String username) {
+        User user = resolveUser(username);
         permissionService.checkPermission(username, projectId, Permission.READ);
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
         return convertToDTO(document);
     }
 
@@ -108,11 +257,15 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO createDocument(Long projectId, DocumentCreateDTO dto, String username) {
-        permissionService.checkPermission(username, projectId, Permission.CREATE);
+        User user = resolveUser(username);
 
-        // Validate that the project exists
+        // Validate that the project exists and is visible to the caller (WIKI4AI-99:
+        // a foreign private project is 404 before anything else is revealed).
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
+        checkProjectVisibleForCreate(project, user);
+
+        permissionService.checkPermission(username, projectId, Permission.CREATE);
 
         // Validate title uniqueness within project
         if (documentRepository.findByProjectIdAndTitle(projectId, dto.getTitle()).isPresent()) {
@@ -120,11 +273,18 @@ public class DocumentService {
                     "A document with this title already exists in the project");
         }
 
-        Document document = Document.builder()
-                .title(dto.getTitle())
-                .content(dto.getContent())
-                .project(project)
-                .build();
+        // WIKI4AI-99: visibility is optional (default 'public'); the owner is always
+        // the authenticated creator and never comes from the client.
+        validateVisibility(dto.getVisibility());
+
+        Document document = new Document();
+        document.setTitle(dto.getTitle());
+        document.setContent(dto.getContent());
+        document.setProject(project);
+        document.setVisibility(normalizeVisibility(dto.getVisibility()));
+        if (user != null) {
+            document.setOwner(user);
+        }
 
         Document saved = documentRepository.save(document);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
@@ -136,14 +296,17 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO uploadDocument(Long projectId, String filename, String content, String username) {
+        User user = resolveUser(username);
+
+        // Validate that the project exists and is visible to the caller (WIKI4AI-99).
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
+        checkProjectVisibleForCreate(project, user);
+
         permissionService.checkPermission(username, projectId, Permission.CREATE);
 
         // Extract title from filename (remove .md or .markdown extension)
         String title = extractTitleFromFilename(filename);
-
-        // Validate that the project exists
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new EntityNotFoundException("Project not found with id: " + projectId));
 
         // Validate title uniqueness within project
         if (documentRepository.findByProjectIdAndTitle(projectId, title).isPresent()) {
@@ -151,11 +314,16 @@ public class DocumentService {
                     "A document with this title already exists in the project");
         }
 
-        Document document = Document.builder()
-                .title(title)
-                .content(content)
-                .project(project)
-                .build();
+        // WIKI4AI-99: uploads are public by default; the owner is always the
+        // authenticated uploader (never from client input).
+        Document document = new Document();
+        document.setTitle(title);
+        document.setContent(content);
+        document.setProject(project);
+        document.setVisibility(Document.VISIBILITY_PUBLIC);
+        if (user != null) {
+            document.setOwner(user);
+        }
 
         Document saved = documentRepository.save(document);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
@@ -176,8 +344,15 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO updateDocument(Long id, DocumentUpdateDTO dto, String username) {
+        User user = resolveUser(username);
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
+
+        // WIKI4AI-99: a foreign private project or a foreign private document is 404
+        // (existence not revealed); public records keep the existing UPDATE check.
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+
         permissionService.checkPermission(username, document.getProject().getId(), Permission.UPDATE);
 
         checkExpectedVersion(dto, document);
@@ -207,10 +382,19 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO updateDocumentBySlug(Long projectId, String slug, DocumentUpdateDTO dto, String username) {
-        permissionService.checkPermission(username, projectId, Permission.UPDATE);
+        User user = resolveUser(username);
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
+
+        // WIKI4AI-99: a foreign private project or a foreign private document is 404
+        // (existence not revealed) — the visibility gate runs BEFORE the permission
+        // check so that a 403 can never reveal the existence of someone else's
+        // private record. Public records keep the existing UPDATE check (403).
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+
+        permissionService.checkPermission(username, projectId, Permission.UPDATE);
 
         checkExpectedVersion(dto, document);
         int editsApplied = applyUpdate(dto, document);
@@ -252,18 +436,21 @@ public class DocumentService {
      * Fails fast (400) when no field is provided, when the title is blank, or
      * when both content and contentEdits are sent (mutual exclusivity).
      * Setting a non-null title regenerates the slug; null fields are left untouched.
+     * WIKI4AI-99: a non-null visibility ('public'/'private') changes the document's
+     * visibility; null leaves it unchanged (a visibility-only update is valid).
      *
      * @return the number of contentEdits applied (0 for title-only / content-only updates)
      */
     private int applyUpdate(DocumentUpdateDTO dto, Document document) {
         boolean hasEdits = dto.getContentEdits() != null && !dto.getContentEdits().isEmpty();
+        boolean hasVisibility = dto.getVisibility() != null && !dto.getVisibility().isBlank();
         if (dto.getContent() != null && hasEdits) {
             throw new BadRequestException(
                     "Cannot combine 'content' (full replace) with 'contentEdits' (incremental edits) in the same request");
         }
-        if (dto.getTitle() == null && dto.getContent() == null && !hasEdits) {
+        if (dto.getTitle() == null && dto.getContent() == null && !hasEdits && !hasVisibility) {
             throw new BadRequestException(
-                    "At least one of title, content or contentEdits must be provided");
+                    "At least one of title, content, contentEdits or visibility must be provided");
         }
         if (dto.getTitle() != null && dto.getTitle().isBlank()) {
             throw new BadRequestException("Title must not be blank");
@@ -279,6 +466,10 @@ public class DocumentService {
         }
         if (dto.getTitle() != null) {
             document.setTitle(dto.getTitle());
+        }
+        if (hasVisibility) {
+            validateVisibility(dto.getVisibility());
+            document.setVisibility(normalizeVisibility(dto.getVisibility()));
         }
         return editsApplied;
     }
@@ -371,18 +562,19 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocument(Long id, String username) {
-        // For backward compatibility with tests (username=null), use existsById check first
-        if (username == null || username.isBlank() || "anonymous".equals(username)) {
-            Document document = documentRepository.findById(id)
-                    .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
-            detachFromParentCollection(document);
-            documentRepository.delete(document);
-            return;
-        }
-        // For authenticated users, find document first to check project permissions
+        User user = resolveUser(username);
         Document document = documentRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
-        permissionService.checkPermission(username, document.getProject().getId(), Permission.DELETE);
+
+        // WIKI4AI-99: a foreign private project or a foreign private document is 404
+        // (existence not revealed). Anonymous callers (test mode) only reach public
+        // records here — the same visibility gate applies to them.
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+
+        if (user != null) {
+            permissionService.checkPermission(username, document.getProject().getId(), Permission.DELETE);
+        }
         detachFromParentCollection(document);
         documentRepository.delete(document);
     }
@@ -392,20 +584,20 @@ public class DocumentService {
      */
     @Transactional
     public void deleteDocumentBySlug(Long projectId, String slug, String username) {
-        // For backward compatibility with tests (username=null/anonymous), skip permission check
-        if (username == null || username.isBlank() || "anonymous".equals(username)) {
-            Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Document not found with slug '" + slug + "' in project " + projectId));
-            detachFromParentCollection(document);
-            documentRepository.delete(document);
-            documentRepository.flush(); // Ensure deletion is persisted immediately
-            return;
-        }
-        permissionService.checkPermission(username, projectId, Permission.DELETE);
+        User user = resolveUser(username);
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
+
+        // WIKI4AI-99: a foreign private project or a foreign private document is 404
+        // (existence not revealed) — before the permission check, so that a 403 can
+        // never reveal the existence of someone else's private record.
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+
+        if (user != null) {
+            permissionService.checkPermission(username, projectId, Permission.DELETE);
+        }
         detachFromParentCollection(document);
         documentRepository.delete(document);
         documentRepository.flush(); // Ensure deletion is persisted immediately
@@ -418,6 +610,8 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO addLink(Long sourceDocId, Long targetDocId, String username) {
+        User user = resolveUser(username);
+
         // Validate documents exist
         Document source = documentRepository.findById(sourceDocId)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -426,6 +620,12 @@ public class DocumentService {
         Document target = documentRepository.findById(targetDocId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Target document not found with id: " + targetDocId));
+
+        // WIKI4AI-99: a foreign private project/document is 404 (existence not revealed)
+        // — before the permission check, so that a 403 never reveals existence.
+        checkProjectVisibleForCreate(source.getProject(), user);
+        checkDocumentVisible(source, user);
+        checkDocumentVisible(target, user);
 
         // Check permission on the project
         permissionService.checkPermission(username, source.getProject().getId(), Permission.UPDATE);
@@ -459,6 +659,8 @@ public class DocumentService {
      */
     @Transactional
     public void removeLink(Long sourceDocId, Long targetDocId, String username) {
+        User user = resolveUser(username);
+
         Document source = documentRepository.findById(sourceDocId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Source document not found with id: " + sourceDocId));
@@ -466,6 +668,12 @@ public class DocumentService {
         Document target = documentRepository.findById(targetDocId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Target document not found with id: " + targetDocId));
+
+        // WIKI4AI-99: a foreign private project/document is 404 (existence not revealed)
+        // — before the permission check, so that a 403 never reveals existence.
+        checkProjectVisibleForCreate(source.getProject(), user);
+        checkDocumentVisible(source, user);
+        checkDocumentVisible(target, user);
 
         permissionService.checkPermission(username, source.getProject().getId(), Permission.UPDATE);
 
@@ -480,29 +688,41 @@ public class DocumentService {
     // ==================== LINK READ OPERATIONS (require READ permission) ====================
 
     /**
-     * Get all documents linked from a specific document.
+     * Get all documents linked from a specific document. Visibility-aware
+     * (WIKI4AI-99): the source must be visible; other users' private linked
+     * documents are absent from the result.
      */
     public List<DocumentDTO> getLinkedDocuments(Long docId, String username) {
+        User user = resolveUser(username);
         Document document = documentRepository.findById(docId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + docId));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
         permissionService.checkPermission(username, document.getProject().getId(), Permission.READ);
 
         return document.getLinkedDocuments()
                 .stream()
+                .filter(d -> canSeeDocument(d, user))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
 
     /**
      * Get all documents that link TO a specific document (backlinks/reverse links).
+     * Visibility-aware (WIKI4AI-99): the source must be visible; other users'
+     * private backlinkers are absent from the result.
      */
     public List<DocumentDTO> getBacklinks(Long docId, String username) {
+        User user = resolveUser(username);
         Document document = documentRepository.findById(docId)
                 .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + docId));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
         permissionService.checkPermission(username, document.getProject().getId(), Permission.READ);
 
         return documentRepository.findByLinkedDocumentsId(docId)
                 .stream()
+                .filter(d -> canSeeDocument(d, user))
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
     }
@@ -511,12 +731,17 @@ public class DocumentService {
 
     /**
      * Get document content with rendered HTML, extracted wiki links, and linked documents.
+     * Visibility-aware (WIKI4AI-99): a foreign private project or a foreign private
+     * document is 404 (existence not revealed).
      */
     public DocumentContentDTO getDocumentContent(Long projectId, String slug, String username) {
+        User user = resolveUser(username);
         permissionService.checkPermission(username, projectId, Permission.READ);
         Document document = documentRepository.findBySlugAndProjectId(slug, projectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + projectId));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
 
         // Extract wiki links from raw content
         List<String> wikiLinks = markdownService.extractWikiLinks(document.getContent());
@@ -566,6 +791,11 @@ public class DocumentService {
      * threshold degrades to text-only results.</p>
      */
     public List<DocumentDTO> searchDocuments(Long projectId, String keyword, String username) {
+        User user = resolveUser(username);
+
+        // WIKI4AI-99: a foreign private project is 404 (existence not revealed).
+        checkProjectVisibleById(projectId, user);
+
         permissionService.checkPermission(username, projectId, Permission.READ);
 
         // 1) Text path (existing behaviour, always runs).
@@ -608,6 +838,10 @@ public class DocumentService {
                     if (d == null) {
                         return null; // deleted between query and mapping — skip
                     }
+                    // WIKI4AI-99: other users' private documents are absent from results.
+                    if (!canSeeDocument(d, user)) {
+                        return null;
+                    }
                     DocumentDTO dto = convertToDTO(d);
                     dto.setScore(Math.round(e.getValue() * 1_000_000.0) / 1_000_000.0);
                     return dto;
@@ -639,11 +873,14 @@ public class DocumentService {
      * threshold degrades to text-only results, making the empty state reachable.</p>
      *
      * @param keyword  search keyword (already validated as non-blank by the controller)
-     * @param username authenticated user name (kept for API symmetry; wiki convention:
-     *                 every authenticated user can read all projects)
+     * @param username authenticated user name — WIKI4AI-99: used for the visibility
+     *                 filter (private documents and documents inside private projects
+     *                 are only visible to their owner and ADMIN users)
      * @param limit    maximum number of results to return (clamped by the controller)
      */
     public List<GlobalSearchResultDTO> searchDocumentsGlobal(String keyword, String username, int limit) {
+        User user = resolveUser(username);
+
         // 1) Text path (always runs), across all projects.
         List<Document> textResults = documentRepository.findByContentContaining(keyword);
 
@@ -696,6 +933,18 @@ public class DocumentService {
                         return null; // deleted between query and mapping — skip
                     }
                     Project project = projectsById.get(d.getProject().getId());
+                    // WIKI4AI-99: documents inside a private project are unreachable for
+                    // non-owner/non-ADMIN callers, and so are private documents themselves.
+                    if (project != null && Project.VISIBILITY_PRIVATE.equals(project.getVisibility())
+                            && !canSeePrivate(
+                                    project.getOwner() != null ? project.getOwner().getId() : null,
+                                    user != null ? user.getRole() : null,
+                                    user != null ? user.getId() : null)) {
+                        return null;
+                    }
+                    if (!canSeeDocument(d, user)) {
+                        return null;
+                    }
                     return GlobalSearchResultDTO.builder()
                             .id(d.getId())
                             .title(d.getTitle())
@@ -890,19 +1139,27 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO moveDocument(Long sourceProjectId, String slug, String targetProjectSlug, String username) {
-        // Check permissions: UPDATE + DELETE on source, READ on target (not CREATE)
-        permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
-        permissionService.checkPermission(username, sourceProjectId, Permission.DELETE);
+        User user = resolveUser(username);
 
-        // Find the document in the source project
+        // Find the document in the source project (legacy 404 when missing)
         Document document = documentRepository.findBySlugAndProjectId(slug, sourceProjectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + sourceProjectId));
 
-        // Find the target project by slug
+        // WIKI4AI-99: a foreign private source project or document is 404 — before the
+        // permission checks, so that a 403 never reveals existence.
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+
+        // Check permissions: UPDATE + DELETE on source, READ on target (not CREATE)
+        permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
+        permissionService.checkPermission(username, sourceProjectId, Permission.DELETE);
+
+        // Find the target project by slug (a foreign private target is 404 as well)
         Project targetProject = projectRepository.findBySlug(targetProjectSlug)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Target project not found with slug: " + targetProjectSlug));
+        checkProjectVisibleForCreate(targetProject, user);
 
         // Check READ permission on target project (not CREATE — we're moving, not creating)
         // Wiki convention: any authenticated user can read all projects
@@ -944,15 +1201,22 @@ public class DocumentService {
      */
     @Transactional
     public DocumentDTO copyDocument(Long sourceProjectId, String slug, String targetProjectSlug, String username) {
-        // Check permission on source project
-        permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
+        User user = resolveUser(username);
 
-        // Find the source document
+        // Find the source document (legacy 404 when missing)
         Document source = documentRepository.findBySlugAndProjectId(slug, sourceProjectId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Document not found with slug '" + slug + "' in project " + sourceProjectId));
 
-        // Determine target project
+        // WIKI4AI-99: a foreign private source project or document is 404 — before the
+        // permission check, so that a 403 never reveals existence.
+        checkProjectVisibleForCreate(source.getProject(), user);
+        checkDocumentVisible(source, user);
+
+        // Check permission on source project
+        permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
+
+        // Determine target project (a foreign private target is 404 as well)
         Project targetProject;
         if (targetProjectSlug == null || targetProjectSlug.isBlank()) {
             targetProject = source.getProject();
@@ -960,6 +1224,7 @@ public class DocumentService {
             targetProject = projectRepository.findBySlug(targetProjectSlug)
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Target project not found with slug: " + targetProjectSlug));
+            checkProjectVisibleForCreate(targetProject, user);
         }
 
         // Check CREATE permission on target project
@@ -968,12 +1233,17 @@ public class DocumentService {
         // Generate unique copy title: "{title} (copy)", "{title} (copy 2)", etc.
         String copyTitle = generateUniqueCopyTitle(source.getTitle(), targetProject.getId());
 
-        // Create new document — same content, no links
-        Document copy = Document.builder()
-                .title(copyTitle)
-                .content(source.getContent())
-                .project(targetProject)
-                .build();
+        // Create new document — same content, no links. WIKI4AI-99: the copy inherits
+        // the source's visibility (a private original must not leak into a public copy)
+        // and is owned by the copying user.
+        Document copy = new Document();
+        copy.setTitle(copyTitle);
+        copy.setContent(source.getContent());
+        copy.setProject(targetProject);
+        copy.setVisibility(source.getVisibility() != null ? source.getVisibility() : Document.VISIBILITY_PUBLIC);
+        if (user != null) {
+            copy.setOwner(user);
+        }
 
         Document saved = documentRepository.save(copy);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on copy (never throws)
@@ -1019,7 +1289,7 @@ public class DocumentService {
     }
 
     /**
-     * Convert Document entity to DTO.
+     * Convert Document entity to DTO (includes ownerId and visibility, WIKI4AI-99).
      */
     private DocumentDTO convertToDTO(Document document) {
         List<Long> linkedDocIds = document.getLinkedDocuments().stream()
@@ -1032,6 +1302,8 @@ public class DocumentService {
                 .slug(document.getSlug())
                 .content(document.getContent())
                 .projectId(document.getProject().getId())
+                .ownerId(document.getOwner() != null ? document.getOwner().getId() : null)
+                .visibility(document.getVisibility() != null ? document.getVisibility() : Document.VISIBILITY_PUBLIC)
                 .linkedDocuments(linkedDocIds)
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
@@ -1053,6 +1325,8 @@ public class DocumentService {
                 .title(document.getTitle())
                 .slug(document.getSlug())
                 .projectId(document.getProject().getId())
+                .ownerId(document.getOwner() != null ? document.getOwner().getId() : null)
+                .visibility(document.getVisibility() != null ? document.getVisibility() : Document.VISIBILITY_PUBLIC)
                 .linkedDocuments(linkedDocIds)
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())

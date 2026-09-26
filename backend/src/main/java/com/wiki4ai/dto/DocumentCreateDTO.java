@@ -19,4 +19,12 @@ public class DocumentCreateDTO {
     private String title;
 
     private String content;
+
+    /**
+     * Optional visibility: 'public' or 'private' (WIKI4AI-99). Null/absent =
+     * 'public' (backward compatible — clients that never send it keep working).
+     * Any other value is rejected with 400. The owner is always the authenticated
+     * creator and cannot be set from the client.
+     */
+    private String visibility;
 }

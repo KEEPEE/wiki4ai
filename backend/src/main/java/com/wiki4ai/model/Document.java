@@ -26,6 +26,12 @@ import java.util.Objects;
 @Builder
 public class Document {
 
+    /** Visibility value: visible to every user (legacy default). */
+    public static final String VISIBILITY_PUBLIC = "public";
+
+    /** Visibility value: visible only to the owner and ADMIN users. */
+    public static final String VISIBILITY_PRIVATE = "private";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -69,6 +75,24 @@ public class Document {
     @Version
     @Column(name = "version")
     private Long version;
+
+    /**
+     * The user who created this document (WIKI4AI-99). NULL for legacy rows —
+     * those predate the owner concept and are public by definition. Never set
+     * from client input: it is always the authenticated creator, assigned in
+     * the service layer, and never changed afterwards.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
+
+    /**
+     * 'public' or 'private' (DB CHECK constraint, V14). A private document is
+     * visible only to its owner and ADMIN users — even when it lives in a
+     * public project. Legacy rows carry the column default 'public'.
+     */
+    @Column(nullable = false, length = 10)
+    private String visibility;
 
     /**
      * Generate a URL-friendly slug from the document title.
@@ -139,6 +163,23 @@ public class Document {
         this.project = project;
     }
 
+    /**
+     * Set the owner (WIKI4AI-99). Called only by the service layer at create
+     * time with the authenticated creator — never from client input, and never
+     * changed afterwards.
+     */
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+    /**
+     * Set the visibility ('public' or 'private', WIKI4AI-99). The value is
+     * validated and normalized by the service layer before it reaches here.
+     */
+    public void setVisibility(String visibility) {
+        this.visibility = visibility;
+    }
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
@@ -146,6 +187,10 @@ public class Document {
         // Auto-generate slug from title if not set
         if (slug == null || slug.isBlank()) {
             this.slug = generateSlug(this.title);
+        }
+        // Defensive default: the DB column has DEFAULT 'public', keep Java side consistent.
+        if (visibility == null || visibility.isBlank()) {
+            this.visibility = VISIBILITY_PUBLIC;
         }
     }
 

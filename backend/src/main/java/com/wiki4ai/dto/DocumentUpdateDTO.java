@@ -52,4 +52,9 @@ public class DocumentUpdateDTO {
             + "with 409 Conflict (the document was modified by another writer). "
             + "Omit to keep the legacy behavior.")
     private Long expectedVersion;
+
+    @Schema(description = "Optional visibility change: 'public' or 'private' (WIKI4AI-99). "
+            + "When provided and different from the current value, the document's visibility is "
+            + "changed. Omit to keep the current visibility (backward compatible).")
+    private String visibility;
 }
