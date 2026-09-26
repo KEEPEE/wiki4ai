@@ -421,6 +421,18 @@ def health_check() -> dict:
     return _api_request("GET", "/health")
 
 
+# ─── Visibility Helpers (WIKI4AI-101) ────────────────────────────────────────
+
+def _validate_visibility(value: str) -> str:
+    """Normalize a project/document visibility value to lowercase; raise MCPToolError if invalid."""
+    v = (value or "").strip().lower()
+    if v not in ("public", "private"):
+        raise MCPToolError(
+            f"Invalid visibility '{value}': must be 'public' or 'private'."
+        )
+    return v
+
+
 # ─── Project Tools ────────────────────────────────────────────────────────────
 
 def list_projects() -> list[dict]:
@@ -428,6 +440,10 @@ def list_projects() -> list[dict]:
 
     Use this to discover available projects before working with documents.
     Each project has a unique `slug` that you use in other tools (e.g., list_documents, create_document).
+
+    Visibility: the backend filters by the caller's identity — projects created by
+    other users with visibility 'private' are NOT included in the result (ADMIN users
+    see all projects). Projects without an explicit visibility are public.
 
     Returns:
         List of project objects. Each contains:
@@ -453,6 +469,10 @@ def get_project(slug: str) -> dict:
 
     Use this to verify a project exists and see its metadata (document count, description).
 
+    Visibility: a project created by another user with visibility 'private' is not
+    accessible — the backend returns 404 (as if it did not exist), unless the caller
+    is ADMIN. Projects without an explicit visibility are public.
+
     Args:
         slug: The URL-friendly slug of the project (e.g., 'python', 'machine-learning').
             Get slugs from list_projects() or from URLs.
@@ -467,7 +487,7 @@ def get_project(slug: str) -> dict:
     return _api_request("GET", f"/v1/projects/{slug}")
 
 
-def create_project(name: str, description: Optional[str] = None, parent_id: Optional[int] = None) -> dict:
+def create_project(name: str, description: Optional[str] = None, parent_id: Optional[int] = None, visibility: str = "public") -> dict:
     """Create a new wiki project for organizing documents.
 
     The slug is auto-generated from the name (lowercase, spaces replaced with hyphens).
@@ -477,24 +497,32 @@ def create_project(name: str, description: Optional[str] = None, parent_id: Opti
     project. The hierarchy is limited to 5 levels deep and parents that would create a
     cycle are rejected by the backend with a clear error.
 
+    Visibility: 'public' (default) projects are visible to every user; 'private'
+    projects are visible only to their creator and ADMIN users (enforced by the
+    backend API — other users get 404 / no listing entry). The project's owner is
+    always the current user (identity from the client's JWT).
+
     Args:
         name: The name of the project (required, max 255 chars). A unique slug is auto-generated from this.
         description: An optional description of the project purpose (max 1000 chars).
         parent_id: Optional ID of an existing project to nest this one under (subproject).
             Omit it (or pass null) to create a root-level project. Max hierarchy depth is 5;
             cycles are rejected by the backend. Get numeric IDs from list_projects().
+        visibility: 'public' (default) or 'private'.
 
     Returns:
         Created project object with id, name, slug, description, parentSlug (null for root),
-        depth (1 for root, 2 when created as a subproject), documentCount (0), createdAt, updatedAt.
+        depth (1 for root, 2 when created as a subproject), documentCount (0), visibility,
+        createdAt, updatedAt.
 
     Example:
         create_project("My Documentation", description="Technical docs for my project")
         # Returns: {"id": 5, "name": "My Documentation", "slug": "my-documentation", ...}
         parent = list_projects()[0]
         create_project("API Notes", parent_id=parent["id"])  # subproject under 'parent'
+        create_project("Private Scratchpad", visibility="private")  # only visible to me + ADMIN
     """
-    body = {"name": name}
+    body = {"name": name, "visibility": _validate_visibility(visibility)}
     if description:
         body["description"] = description
     if parent_id is not None:
@@ -508,6 +536,7 @@ def update_project(
     description: Optional[str] = None,
     parent_id: Optional[int] = None,
     move_to_root: bool = False,
+    visibility: Optional[str] = None,
 ) -> dict:
     """Update an existing project by its slug. Partial update - only provided fields change.
 
@@ -525,8 +554,12 @@ def update_project(
 
     Note: the backend requires a non-blank `name` in every update payload (there is no true
     partial update). When you omit `name`, this tool fetches the project first and re-sends
-    its current name unchanged, so description-only and hierarchy-only updates work as
-    documented.
+    its current name unchanged, so description-only, hierarchy-only and visibility-only
+    updates work as documented.
+
+    Visibility: pass 'public' or 'private' to change who can see the project ('private'
+    = creator + ADMIN users only). Omit it (or pass null) to keep the current visibility
+    unchanged (backward compatible).
 
     Args:
         slug: The URL-friendly slug of the project to update (required).
@@ -537,21 +570,27 @@ def update_project(
             Omit it (or pass null) to leave the hierarchy unchanged. Max depth 5; cycles rejected.
         move_to_root: Set True to move the project back to the root level (parentless).
             Only used when parent_id is not given; combining both parameters raises an error.
+        visibility: New visibility for the project (optional): 'public' or 'private'.
+            Omit it (or pass null) to leave the current visibility unchanged.
 
     Returns:
         Updated project object with id, name, slug, description, parentSlug (null for root),
-        depth (1 for root, 2 for subprojects, ... max 5), documentCount, createdAt, updatedAt.
+        depth (1 for root, 2 for subprojects, ... max 5), documentCount, visibility,
+        createdAt, updatedAt.
 
     Example:
         update_project("my-wiki", description="Updated description")  # Only updates description
         update_project("my-wiki", parent_id=7)      # Move under project with id 7
         update_project("my-wiki", move_to_root=True)  # Move back to the root level
+        update_project("my-wiki", visibility="private")  # Hide from other users (owner + ADMIN only)
     """
     if parent_id is not None and move_to_root:
         raise MCPToolError(
             "Contradictory hierarchy parameters: pass either parent_id (move under a project) "
             "or move_to_root=True (move back to root), not both."
         )
+    # Validate up front so an invalid visibility fails before any HTTP request.
+    normalized_visibility = _validate_visibility(visibility) if visibility is not None else None
     body = {}
     if name is not None:
         body["name"] = name
@@ -562,6 +601,8 @@ def update_project(
         body["name"] = current.get("name")
     if description is not None:
         body["description"] = description
+    if normalized_visibility is not None:
+        body["visibility"] = normalized_visibility
     if move_to_root:
         # Explicit null in the JSON body → backend moves the project back to the root.
         body["parentId"] = None
@@ -594,7 +635,11 @@ def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dic
     """List documents in a project (paginated). Does NOT include document content.
 
     Use this FIRST to discover all documents in a project before reading them.
-    
+
+    Visibility: the backend filters by the caller's identity — documents created by
+    other users with visibility 'private' are NOT included in the result (ADMIN users
+    see all documents). Documents without an explicit visibility are public.
+
     WORKFLOW — How to read ALL documents in a project:
         1. Call list_documents("servers") → returns list of document metadata (titles, slugs, IDs)
         2. For each document, call get_document(project_slug, doc['slug']) to read raw markdown content
@@ -643,47 +688,63 @@ def list_documents(project_slug: str, page: int = 0, size: int = 50) -> list[dic
     return [{k: v for k, v in doc.items() if k != "content"} for doc in documents]
 
 
-def create_document(project_slug: str, title: str, content: Optional[str] = None) -> dict:
+def create_document(project_slug: str, title: str, content: Optional[str] = None, visibility: str = "public") -> dict:
     """Create a new wiki document within a project.
 
     The slug is auto-generated from the title (lowercase, spaces to hyphens, diacritics transliterated).
     Supports standard Markdown and Mermaid diagrams in ` ```mermaid ` code blocks.
 
+    Visibility: 'public' (default) documents are visible to every user; 'private'
+    documents are visible only to their creator and ADMIN users (enforced by the
+    backend API — other users get 404 / no listing entry). The document's owner is
+    always the current user (identity from the client's JWT).
+
     Args:
         project_slug: The URL-friendly slug of the target project (required). Get from list_projects().
         title: The title of the document (required). A unique slug is auto-generated from this.
         content: Markdown content for the document (optional). Supports Mermaid diagrams in ` ```mermaid ` blocks.
+        visibility: 'public' (default) or 'private'.
 
     Returns:
-        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt.
+        Created DocumentDTO with id, title, slug, projectId, visibility, createdAt, updatedAt.
 
     Example:
         create_document("my-project", "Getting Started", "# Welcome\n\nThis is the intro doc.")
         # Returns: {"id": 10, "title": "Getting Started", "slug": "getting-started", ...}
+        create_document("my-project", "Private Notes", visibility="private")  # only visible to me + ADMIN
 
     For Mermaid diagrams, call get_mermaid_guide() first for syntax reference.
     """
-    body = {"title": title}
+    body = {"title": title, "visibility": _validate_visibility(visibility)}
     if content is not None:
         body["content"] = content
     return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
 
 
-def batch_create_documents(project_slug: str, documents: list[dict]) -> list[dict]:
+def batch_create_documents(project_slug: str, documents: list[dict], visibility: str = "public") -> list[dict]:
     """Create multiple wiki documents within a project in a single call.
 
     More efficient than calling create_document() repeatedly when creating many documents.
     Each document dict must have at minimum a 'title' key.
+
+    Visibility: the `visibility` parameter (default 'public') is applied to every
+    document that does not specify its own. A document dict may override it with an
+    individual 'visibility' key ('public' or 'private'). 'private' documents are
+    visible only to their creator and ADMIN users (enforced by the backend API).
 
     Args:
         project_slug: The URL-friendly slug of the target project (required).
         documents: List of document dicts. Each MUST have:
             - title (str, required): The title of the document
             - content (str, optional): Markdown content for the document
+            - visibility (str, optional): 'public' or 'private'; overrides the `visibility`
+              parameter for this document only. Omit to inherit it (default 'public').
+        visibility: Default visibility applied to documents without their own 'visibility'
+            key: 'public' (default) or 'private'.
 
     Returns:
         List of created DocumentDTO objects, one per input document.
-        Each contains id, title, slug, projectId, createdAt, updatedAt.
+        Each contains id, title, slug, projectId, visibility, createdAt, updatedAt.
 
     Example:
         batch_create_documents("my-project", [
@@ -691,12 +752,22 @@ def batch_create_documents(project_slug: str, documents: list[dict]) -> list[dic
             {"title": "Chapter 2", "content": "# Chapter 2\nMore content..."},
             {"title": "Appendix"}  # content is optional
         ])
+        # All private, except one public chapter:
+        batch_create_documents("my-project", [
+            {"title": "Secret Plan", "content": "..."},
+            {"title": "Public Summary", "visibility": "public"},
+        ], visibility="private")
     """
+    default_visibility = _validate_visibility(visibility)
     results = []
     for doc in documents:
         body = {"title": doc["title"]}
         if "content" in doc and doc["content"] is not None:
             body["content"] = doc["content"]
+        if "visibility" in doc and doc["visibility"] is not None:
+            body["visibility"] = _validate_visibility(doc["visibility"])
+        else:
+            body["visibility"] = default_visibility
         created = _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
         results.append(created)
     return results
@@ -707,6 +778,10 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
 
     Use this when you need to read the complete document including its raw markdown content.
     For rendered HTML with wiki links resolved, use get_document_content() instead.
+
+    Visibility: a document created by another user with visibility 'private' is not
+    accessible — the backend returns 404 (as if it did not exist), unless the caller
+    is ADMIN. Documents without an explicit visibility are public.
 
     WORKFLOW — Reading all documents in a project:
         1. list_documents("servers") → returns [{"slug": "overview", "title": "Overview", ...}]
@@ -737,10 +812,10 @@ def get_document(project_slug: str, doc_slug: str) -> dict:
     return _api_request("GET", f"/v1/projects/{project_slug}/documents/{doc_slug}")
 
 
-def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None, edits: Optional[List[Dict]] = None, expected_version: Optional[int] = None) -> dict:
+def update_document(project_slug: str, doc_slug: str, title: Optional[str] = None, content: Optional[str] = None, edits: Optional[List[Dict]] = None, expected_version: Optional[int] = None, visibility: Optional[str] = None) -> dict:
     """Update an existing document by its slug within a project.
 
-    PARTIAL UPDATE: `title`, `content` and `edits` are independently optional —
+    PARTIAL UPDATE: `title`, `content`, `edits` and `visibility` are independently optional —
     only the provided fields are updated, omitted fields remain unchanged.
     At least ONE of them MUST be provided; calling with none of them raises an
     error (400-like) before any HTTP request is made.
@@ -760,8 +835,13 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
         - When `find` is not found, the server returns 400 with `editIndex`
           (the failing edit, 0-based) and `occurrences: 0`.
     - `content` + `edits` in the same call are MUTUALLY EXCLUSIVE -> 400.
-    - Allowed combinations: title-only, content-only, edits-only,
-      title+content, title+edits.
+    - Allowed combinations: title-only, content-only, edits-only, visibility-only,
+      title+content, title+edits (any of these may additionally carry `visibility`).
+
+    Visibility: pass 'public' or 'private' to change who can see the document
+    ('private' = creator + ADMIN users only). Omit it (or pass null) to keep the
+    current visibility unchanged (backward compatible). A visibility-only update is
+    a valid call on its own.
 
     Optimistic locking (WIKI4AI-72): pass `expected_version` — the version you
     last read from get_document() (sent as `expectedVersion` in the API body) —
@@ -814,6 +894,8 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
         expected_version: Optional document version you last read (from the `version`
             field of get_document()). When provided and stale, the update fails with a
             409 conflict error instead of overwriting another writer's changes.
+        visibility: New visibility for the document (optional): 'public' or 'private'.
+            Omit it (or pass null) to leave the current visibility unchanged.
 
     Returns:
         Updated DocumentDTO with id, title, slug (the new one if the title changed),
@@ -827,9 +909,9 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
             message tells you the current version; re-read and retry.
     """
     has_edits = edits is not None and len(edits) > 0
-    if title is None and content is None and not has_edits:
+    if title is None and content is None and not has_edits and visibility is None:
         raise MCPToolError(
-            "At least one of title, content or edits must be provided", status_code=400)
+            "At least one of title, content, edits or visibility must be provided", status_code=400)
     if content is not None and has_edits:
         raise MCPToolError(
             "Cannot combine content (full replace) with edits (partial edits) in the same request",
@@ -843,6 +925,8 @@ def update_document(project_slug: str, doc_slug: str, title: Optional[str] = Non
         body["contentEdits"] = edits
     if expected_version is not None:
         body["expectedVersion"] = int(expected_version)
+    if visibility is not None:
+        body["visibility"] = _validate_visibility(visibility)
     try:
         return _api_request("PUT", f"/v1/projects/{project_slug}/documents/{doc_slug}", body)
     except MCPToolError as e:
@@ -1041,6 +1125,10 @@ def search_documents(project_slug: str, keyword: str) -> list[dict]:
     Use this when you know the project slug but not the exact document slug.
     The keyword must be at least 2 characters long.
 
+    Visibility: the backend filters by the caller's identity — documents created by
+    other users with visibility 'private' never appear in the results (ADMIN users
+    see all documents). Documents without an explicit visibility are public.
+
     Args:
         project_slug: The URL-friendly slug of the project (required). Get from list_projects().
         keyword: Search term matched against document content, literally and semantically (min 2 chars). Whitespace is trimmed.
@@ -1078,6 +1166,10 @@ def search_documents_global(keyword: str, limit: int = 20) -> list[dict]:
     Use search_documents_global when you don't know which project a document lives in;
     use search_documents when you already know the project slug. The keyword must be at
     least 2 characters long.
+
+    Visibility: the backend filters by the caller's identity — documents created by
+    other users with visibility 'private' never appear in the results (ADMIN users
+    see all documents). Documents without an explicit visibility are public.
 
     Args:
         keyword: Search term matched against document content, literally and semantically (min 2 chars). Whitespace is trimmed.
@@ -1570,7 +1662,7 @@ For more examples and advanced features, visit: https://plantuml.com/
 
 # ─── Import Tools ─────────────────────────────────────────────────────────────
 
-def import_document(project_slug: str, title: str, content: str) -> dict:
+def import_document(project_slug: str, title: str, content: str, visibility: str = "public") -> dict:
     """Import a document from raw markdown content string directly into a project.
 
     Use this when you have complete markdown content in memory and want to create a document
@@ -1579,18 +1671,25 @@ def import_document(project_slug: str, title: str, content: str) -> dict:
     Difference from create_document(): import_document requires content parameter, while
     create_document allows content to be optional (creates empty document if omitted).
 
+    Visibility: 'public' (default) documents are visible to every user; 'private'
+    documents are visible only to their creator and ADMIN users (enforced by the
+    backend API — other users get 404 / no listing entry). The document's owner is
+    always the current user (identity from the client's JWT).
+
     Args:
         project_slug: The URL-friendly slug of the target project (required). Get from list_projects().
         title: The title of the document to create (required). A unique slug is auto-generated.
         content: The raw markdown content for the document (REQUIRED). Supports Mermaid diagrams in ` ```mermaid ` blocks.
+        visibility: 'public' (default) or 'private'.
 
     Returns:
-        Created DocumentDTO with id, title, slug, projectId, createdAt, updatedAt.
+        Created DocumentDTO with id, title, slug, projectId, visibility, createdAt, updatedAt.
 
     Example:
         import_document("my-project", "API Guide", "# API Reference\n\n## Endpoints\n...")
+        import_document("my-project", "Internal Notes", "...", visibility="private")
     """
-    body = {"title": title, "content": content}
+    body = {"title": title, "content": content, "visibility": _validate_visibility(visibility)}
     return _api_request("POST", f"/v1/projects/{project_slug}/documents", body)
 
 
