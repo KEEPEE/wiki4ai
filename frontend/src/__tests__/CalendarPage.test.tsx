@@ -85,12 +85,13 @@ describe('CalendarPage (WIKI4AI-97)', () => {
       if (current === from.slice(0, 7) && current === to.slice(0, 7)) {
         return [
           makeEvent({ id: 11, title: 'Team sync', eventDate: toISO(new Date()) }),
+          // Backend returns times as "HH:mm:ss" — the UI must normalize to "HH:mm".
           makeEvent({
             id: 12,
             title: 'Deploy window',
             eventDate: toISO(new Date()),
-            startTime: '14:00',
-            endTime: '15:00',
+            startTime: '14:00:00',
+            endTime: '15:00:00',
             eventTypeId: 2,
             eventType: 'Pripomienka',
             eventColor: '#f59e0b',

@@ -75,8 +75,9 @@ export default function EventFormModal({
   const [visibility, setVisibility] = useState<'public' | 'private'>(event?.visibility ?? 'public');
   const [date, setDate] = useState(event?.eventDate ?? initialDate ?? '');
   const [allDay, setAllDay] = useState(!event || event.startTime === null);
-  const [startTime, setStartTime] = useState(event?.startTime ?? '09:00');
-  const [endTime, setEndTime] = useState(event?.endTime ?? '');
+  // The backend returns times as "HH:mm:ss"; <input type="time"> needs "HH:mm".
+  const [startTime, setStartTime] = useState(event?.startTime ? event.startTime.slice(0, 5) : '09:00');
+  const [endTime, setEndTime] = useState(event?.endTime ? event.endTime.slice(0, 5) : '');
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
