@@ -485,10 +485,18 @@
     "today": "Today",
     "prevMonth": "Previous month",
     "nextMonth": "Next month",
+    "view": {
+      "label": "View",
+      "month": "Month",
+      "week": "Week"
+    },
+    "prevWeek": "Previous week",
+    "nextWeek": "Next week",
     "loading": "Loading calendar...",
     "loadError": "Failed to load events",
     "retry": "Retry",
     "noEvents": "No events in this month. Click a day to create one.",
+    "noEventsWeek": "No events this week. Click a slot to create one.",
     "allDay": "All day",
     "moreEvents": "+{{count}} more",
     "weekday": {
