@@ -83,6 +83,275 @@
   border-color: rgba(0, 240, 255, 0.4);
 }
 
+/* ── View toggle (Mesiac | Týždeň) — WIKI4AI-110 ───────── */
+
+.cal-view-toggle {
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cal-view-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-base), color var(--transition-base);
+}
+
+.cal-view-option + .cal-view-option {
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cal-view-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cal-view-option-active {
+  color: var(--primary);
+  background: rgba(0, 240, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
+}
+
+/* ── Week view (hourly grid) — WIKI4AI-110 ─────────────── */
+
+.cal-week {
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+
+/* Horizontal scroll wrapper — on narrow screens the day columns keep their
+   min width and the whole grid scrolls sideways instead of collapsing
+   (WIKI4AI-109 lesson: the grid must never break). */
+.cal-week-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cal-week-inner {
+  min-width: 860px; /* gutter 56 + 7 × 112 day-column minimums */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Day header, all-day strip and the time grid share one column template so
+   they stay aligned during horizontal scrolling. */
+.cal-week-head,
+.cal-week-allday,
+.cal-week-grid {
+  display: grid;
+  grid-template-columns: 56px repeat(7, minmax(112px, 1fr));
+}
+
+.cal-week-head {
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.cal-week-gutter-spacer {
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 0.4rem;
+}
+
+.cal-week-dayhead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.5rem 0.25rem;
+  min-width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.cal-week-dayhead-dow {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cal-week-dayhead-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.cal-week-dayhead-today .cal-week-dayhead-num {
+  background: var(--primary);
+  color: var(--dark-1);
+  font-weight: 700;
+}
+
+/* All-day strip (events without a time) */
+
+.cal-week-allday {
+  min-height: 42px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.cal-week-allday-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cal-week-allday-cell {
+  min-width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 3px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.cal-week-allday-cell:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cal-week-allday-cell:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+}
+
+/* Hourly time grid (vertical scroll; default position ≈ 08:00) */
+
+.cal-week-time-scroll {
+  overflow-y: auto;
+  max-height: calc(100vh - 340px);
+  min-height: 420px;
+}
+
+.cal-week-grid {
+  position: relative;
+}
+
+.cal-time-gutter {
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.cal-hour-label {
+  position: relative;
+}
+
+/* Label sits on the hour line (top edge of the row). */
+.cal-hour-label span {
+  position: absolute;
+  top: -0.55em;
+  right: 8px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-day-col {
+  position: relative;
+  min-width: 0;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.cal-day-col-today {
+  background: rgba(0, 240, 255, 0.04);
+}
+
+.cal-hour-cell {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.cal-hour-cell:hover {
+  background: rgba(0, 240, 255, 0.07);
+}
+
+.cal-hour-cell:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring-shadow);
+}
+
+/* Timed event blocks — absolutely positioned by time (top/height) and by
+   overlap column (left/width). Truncation follows the WIKI4AI-109 lesson:
+   min-width: 0 + max-width: 100% + ellipsis, native title as tooltip. */
+
+.cal-event-block {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  max-width: 100%;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  padding: 2px 5px;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: filter var(--transition-fast), z-index 0s;
+}
+
+.cal-event-block:hover {
+  filter: brightness(1.3);
+  z-index: 2;
+}
+
+.cal-event-block:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+  z-index: 2;
+}
+
+.cal-event-block-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.cal-event-block-title {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 /* ── Error / empty hints ────────────────────────────────── */
 
 .cal-error-box {

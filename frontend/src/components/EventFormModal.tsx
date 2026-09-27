@@ -46,6 +46,14 @@ export interface EventFormModalProps {
   mode: 'create' | 'edit';
   /** Pre-filled date (YYYY-MM-DD) for create mode. */
   initialDate?: string;
+  /**
+   * WIKI4AI-110: pre-filled start time (HH:mm) for create mode — set when the
+   * form was opened by clicking an hour slot in the week view. Implies a
+   * timed event (the "all day" checkbox starts unchecked).
+   */
+  initialStartTime?: string | null;
+  /** WIKI4AI-110: pre-filled end time (HH:mm) for create mode. */
+  initialEndTime?: string | null;
   /** Existing event, required in edit mode. */
   event?: CalendarEvent | null;
   /** Current type list (for the select). */
@@ -60,6 +68,8 @@ export interface EventFormModalProps {
 export default function EventFormModal({
   mode,
   initialDate,
+  initialStartTime,
+  initialEndTime,
   event,
   types,
   onTypesChanged,
@@ -74,10 +84,18 @@ export default function EventFormModal({
   const [typeId, setTypeId] = useState<string>(event ? String(event.eventTypeId) : '');
   const [visibility, setVisibility] = useState<'public' | 'private'>(event?.visibility ?? 'public');
   const [date, setDate] = useState(event?.eventDate ?? initialDate ?? '');
-  const [allDay, setAllDay] = useState(!event || event.startTime === null);
+  // WIKI4AI-110: opening the form from a week-view hour slot means a timed
+  // event — the "all day" checkbox starts unchecked and the slot's time is
+  // pre-filled. Plain create (month view) keeps the all-day default.
+  const [allDay, setAllDay] = useState(() => {
+    if (event) return event.startTime === null;
+    return !initialStartTime;
+  });
   // The backend returns times as "HH:mm:ss"; <input type="time"> needs "HH:mm".
-  const [startTime, setStartTime] = useState(event?.startTime ? event.startTime.slice(0, 5) : '09:00');
-  const [endTime, setEndTime] = useState(event?.endTime ? event.endTime.slice(0, 5) : '');
+  const [startTime, setStartTime] = useState(
+    event?.startTime ? event.startTime.slice(0, 5) : (initialStartTime ?? '09:00'),
+  );
+  const [endTime, setEndTime] = useState(event?.endTime ? event.endTime.slice(0, 5) : (initialEndTime ?? ''));
 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

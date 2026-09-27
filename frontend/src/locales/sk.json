@@ -485,10 +485,18 @@
     "today": "Dnes",
     "prevMonth": "Predchádzajúci mesiac",
     "nextMonth": "Nasledujúci mesiac",
+    "view": {
+      "label": "Zobrazenie",
+      "month": "Mesiac",
+      "week": "Týždeň"
+    },
+    "prevWeek": "Predchádzajúci týždeň",
+    "nextWeek": "Nasledujúci týždeň",
     "loading": "Načítavam káľendar...",
     "loadError": "Nepodarilo sa načítať udalosti",
     "retry": "Skúsiť znova",
     "noEvents": "V tomto mesiaci nie sú žiadne udalosti. Klikni na deň a vytvor ju.",
+    "noEventsWeek": "V tomto týždni nie sú žiadne udalosti. Klikni na slot a vytvor ju.",
     "allDay": "Celý deň",
     "moreEvents": "+{{count}} ďalšie",
     "weekday": {
