@@ -18,7 +18,7 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 |---|---|
 | **Projects & subprojects** | Organize content into projects; nest them as a hierarchy up to 5 levels deep |
 | **Public/Private visibility** | Mark any project or document public (everyone) or private (owner + admins only); private items are hidden from lists, search and detail views for other users |
-| **Calendar** | Shared month-view calendar with all-day and timed events, custom event types with colors, and per-event public/private visibility — in the WebUI and via MCP |
+| **Calendar** | Shared month/week-view calendar with all-day and timed events (hourly grid, overlapping events side by side), custom event types with colors, and per-event public/private visibility — in the WebUI and via MCP |
 | **Markdown editor with autosave** | Split-view source + live preview, debounced autosave (per-user interval), save-state indicator |
 | **Optimistic concurrency control** | Concurrent edits are detected per document version — conflicting saves fail with a clear 409 instead of silently overwriting |
 | **Mermaid diagrams** | ` ```mermaid ` blocks render as SVG entirely in the browser — nothing leaves your machine |
@@ -38,9 +38,13 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 
 ## Calendar
 
-Plan events in a shared month view: **all-day** or **timed** entries, custom **event types** with their own colors, and per-event visibility. Private events carry a lock badge and are visible only to their creator (admins see everything). The calendar is global — it belongs to the instance, not to a single project — and is fully manageable through the MCP server as well (six tools for events and event types).
+Plan events in a shared **month** or **week** view: **all-day** or **timed** entries, custom **event types** with their own colors, and per-event visibility. Switch between the two with the Month/Week toggle — the choice is kept in the URL (`?view=week`), so links share the exact view. The week view renders an hourly grid (Mon–Sun × 24 h): timed events are positioned by their start time, overlapping events sit side by side, and all-day entries get a strip above the grid. Clicking an empty slot opens the create form pre-filled with that date and hour; clicking an event opens it for editing. Private events carry a lock badge and are visible only to their creator (admins see everything). The calendar is global — it belongs to the instance, not to a single project — and is fully manageable through the MCP server as well (six tools for events and event types).
 
-![Calendar month view with timed, all-day and private events](docs/screenshots/calendar-month.png)
+![Calendar month view with timed and all-day events of different types](docs/screenshots/calendar-month.png)
+
+![Calendar week view — hourly grid with overlapping timed events and an all-day strip](docs/screenshots/calendar-week.png)
+
+![Month view on a mobile viewport — long titles truncate inside the day cell](docs/screenshots/calendar-month-mobile.png)
 
 ![New event form — title, description, type, visibility, date and time](docs/screenshots/calendar-create-form.png)
 
