@@ -6,7 +6,7 @@
 
 ## What is Wiki4AI
 
-Wiki4AI is a self-hosted wiki platform where humans and AI agents share one workspace. Your team writes projects, documents and diagrams in a modern web UI; your AI agents (Claude Desktop, DeepSeek Harness, OpenCode, or any MCP client) connect over the [Model Context Protocol](https://modelcontextprotocol.io) and operate on exactly the same content with exactly the same permissions — through a built-in MCP server exposing **32 tools**.
+Wiki4AI is a self-hosted wiki platform where humans and AI agents share one workspace. Your team writes projects, documents and diagrams in a modern web UI; your AI agents (Claude Desktop, DeepSeek Harness, OpenCode, or any MCP client) connect over the [Model Context Protocol](https://modelcontextprotocol.io) and operate on exactly the same content with exactly the same permissions — through a built-in MCP server exposing **38 tools**.
 
 Documents are Markdown with first-class diagram support: **Mermaid** renders client-side in your browser, and **PlantUML** renders through an optional self-hosted [kroki](https://kroki.io) sidecar. Search is **hybrid** — literal text matching fused with semantic (vector) similarity via a local embedding model, so results stay meaningful even when you don't use the exact words.
 
@@ -17,6 +17,8 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 | Feature | Details |
 |---|---|
 | **Projects & subprojects** | Organize content into projects; nest them as a hierarchy up to 5 levels deep |
+| **Public/Private visibility** | Mark any project or document public (everyone) or private (owner + admins only); private items are hidden from lists, search and detail views for other users |
+| **Calendar** | Shared month-view calendar with all-day and timed events, custom event types with colors, and per-event public/private visibility — in the WebUI and via MCP |
 | **Markdown editor with autosave** | Split-view source + live preview, debounced autosave (per-user interval), save-state indicator |
 | **Optimistic concurrency control** | Concurrent edits are detected per document version — conflicting saves fail with a clear 409 instead of silently overwriting |
 | **Mermaid diagrams** | ` ```mermaid ` blocks render as SVG entirely in the browser — nothing leaves your machine |
@@ -27,12 +29,32 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 | **User management** | Two roles — `USER` and `ADMIN` — with admin user creation, role changes and deletion |
 | **First-run setup flow** | A fresh instance shows a setup form instead of login: the first account becomes the admin, and public registration closes automatically afterwards |
 | **i18n** | English (default) and Slovak, switchable per user in the profile |
-| **MCP server for AI agents** | 32 tools over stdio or SSE — projects, documents, search, wiki links, images, and a per-user encrypted vault |
+| **MCP server for AI agents** | 38 tools over stdio or SSE — projects, documents, search, wiki links, images, calendar, and a per-user encrypted vault |
 | **Graceful degradation** | Without the embedding sidecar you get text-only search (with a visible banner); without kroki you get PlantUML error cards; without the MCP server the WebUI is unaffected. Nothing is a hard failure |
 
 ![Split-view Markdown editor](docs/screenshots/editor.png)
 
 ![Mermaid diagram rendered in the editor](docs/screenshots/editor-diagram.png)
+
+## Calendar
+
+Plan events in a shared month view: **all-day** or **timed** entries, custom **event types** with their own colors, and per-event visibility. Private events carry a lock badge and are visible only to their creator (admins see everything). The calendar is global — it belongs to the instance, not to a single project — and is fully manageable through the MCP server as well (six tools for events and event types).
+
+![Calendar month view with timed, all-day and private events](docs/screenshots/calendar-month.png)
+
+![New event form — title, description, type, visibility, date and time](docs/screenshots/calendar-create-form.png)
+
+## Public/Private Projects & Documents
+
+Every project and every document has a **visibility toggle**: **Public** (visible to every user) or **Private** (visible only to its owner and admins). Private projects disappear from other users' dashboards, project lists and search results — the API answers 404 for them, so their existence is never revealed. Lock badges mark private items wherever they appear: on dashboard cards, in project settings, in document lists and in the document viewer header (where you can flip visibility with one click).
+
+![Create-project dialog with the visibility toggle set to Private](docs/screenshots/privacy-create-modal.png)
+
+![Dashboard card of a private project with its lock badge](docs/screenshots/privacy-dashboard-lock.png)
+
+![Project settings — the visibility toggle pre-filled from the project](docs/screenshots/privacy-project-settings.png)
+
+![Document viewer — private-document lock badge and header visibility toggle](docs/screenshots/privacy-document-viewer.png)
 
 ## Quick start
 
@@ -71,7 +93,7 @@ flowchart LR
         DB[("PostgreSQL 16 + pgvector<br/>Flyway migrations")]
         EMBED["embedding sidecar<br/>Qwen3-0.6B int8 ONNX (optional)"]
         KROKI["kroki: PlantUML renderer<br/>(optional, no host port)"]
-        MCP["MCP server: FastMCP<br/>SSE endpoint, 32 tools (optional)"]
+        MCP["MCP server: FastMCP<br/>SSE endpoint, 38 tools (optional)"]
     end
 
     AGENT["AI agent (MCP client)"]
@@ -85,11 +107,11 @@ flowchart LR
     MCP -->|"REST /api/v1 with user JWT"| BACKEND
 ```
 
-The frontend container (nginx) is the only public entry point for the WebUI: it serves the SPA and reverse-proxies `/api/v1` to the backend and `/plantuml/` to kroki. The backend owns all business logic — JWT auth, projects, documents, wiki links, hybrid search, images, vault and admin — and talks to a single PostgreSQL 16 database with pgvector (an HNSW index over a 1024-dim embedding column powers the semantic path). The optional sidecars are probed at runtime; when one is absent the affected feature degrades gracefully instead of failing.
+The frontend container (nginx) is the only public entry point for the WebUI: it serves the SPA and reverse-proxies `/api/v1` to the backend and `/plantuml/` to kroki. The backend owns all business logic — JWT auth, projects, documents, wiki links, hybrid search, calendar, visibility rules, images, vault and admin — and talks to a single PostgreSQL 16 database with pgvector (an HNSW index over a 1024-dim embedding column powers the semantic path). The optional sidecars are probed at runtime; when one is absent the affected feature degrades gracefully instead of failing.
 
 ## Documentation for AI agents (MCP)
 
-The MCP server (`mcp-server/`, Python + FastMCP) exposes the whole platform as **32 tools** — projects, documents, hybrid search, wiki links, image uploads and a per-user encrypted vault — over **stdio** or an **SSE endpoint** (container port `8095`, path `/sse`). It is a thin stateless adapter: every tool call becomes ordinary REST calls to the backend *as an authenticated user*, so agents inherit exactly the permissions of the Wiki4AI account they act as, and the same optimistic-locking rules apply.
+The MCP server (`mcp-server/`, Python + FastMCP) exposes the whole platform as **38 tools** — projects, documents, hybrid search, wiki links, image uploads, calendar events and a per-user encrypted vault — over **stdio** or an **SSE endpoint** (container port `8095`, path `/sse`). It is a thin stateless adapter: every tool call becomes ordinary REST calls to the backend *as an authenticated user*, so agents inherit exactly the permissions of the Wiki4AI account they act as, and the same optimistic-locking rules apply.
 
 The SSE endpoint can be gated with a shared Bearer token (`MCP_JWT_TOKEN`); the agent's identity is passed separately (preferred: `X-Wiki4AI-JWT` header). For clients without native SSE support (most stdio-only MCP clients), bridge with `mcp-remote`:
 
@@ -149,7 +171,7 @@ wiki4ai/
 ├── backend/     # Spring Boot 3 (Java 17+) — REST API at /api/v1, Flyway, OpenAPI/Swagger UI
 │   └── src/main/resources/seed/   # first-run documentation seed (9 docs + images)
 ├── frontend/    # React 18 + TypeScript + Vite SPA (Monaco editor, Tailwind)
-├── mcp-server/  # Python 3.12 + FastMCP — 32 tools, stdio or SSE transport
+├── mcp-server/  # Python 3.12 + FastMCP — 38 tools, stdio or SSE transport
 ├── embedding/   # Qwen3-Embedding-0.6B int8 ONNX sidecar (port 8030)
 ├── docker-compose.yml          # local stack: all six services, builds from source where needed
 ├── docs/                     # API reference + README screenshots
