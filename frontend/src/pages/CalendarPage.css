@@ -161,6 +161,10 @@
 .cal-cell {
   position: relative;
   min-height: 96px;
+  /* WIKI4AI-109: grid items default to min-width:auto, so a nowrap pill's
+     min-content width balloons the 1fr track and breaks the 7-column grid.
+     min-width:0 lets the cell shrink to its track size no matter the title. */
+  min-width: 0;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid transparent;
@@ -227,6 +231,10 @@
   align-items: center;
   gap: 0.3rem;
   width: 100%;
+  /* WIKI4AI-109: hard cap — the pill may never leave its day cell, whatever
+     the title length or viewport width (ellipsis via .cal-pill-title). */
+  max-width: 100%;
+  min-width: 0;
   border: none;
   border-left: 3px solid transparent;
   border-radius: 6px;
