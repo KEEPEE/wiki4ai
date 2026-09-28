@@ -350,6 +350,18 @@ describe('CalendarPage week view (WIKI4AI-110)', () => {
     expect(screen.getByTestId('cal-view-toggle-week')).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('scrolls the time grid to the 08:00 line on entry (first label unclipped, WIKI4AI-115)', async () => {
+    const user = userEvent.setup()
+    await enterWeekView(user)
+
+    // The scroll container starts with the INITIAL_SCROLL_HOUR (08:00) hour line
+    // near the top of the visible area — combined with the .cal-week-grid
+    // padding-top clearance this keeps the first on-line label fully readable.
+    const scroller = document.querySelector('.cal-week-time-scroll') as HTMLElement
+    expect(scroller).not.toBeNull()
+    expect(scroller.scrollTop).toBe(8 * HOUR_HEIGHT_PX)
+  })
+
   it('shows the week range in the header (e.g. "27. Sep – 3. Oct" style)', async () => {
     const user = userEvent.setup()
     await enterWeekView(user)
