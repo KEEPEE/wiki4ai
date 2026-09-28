@@ -32,9 +32,9 @@ import java.util.Map;
  *
  * <p>Makes "clone the repo → run" a first-class onboarding experience: on a
  * <b>completely fresh instance</b> (users table empty AND projects table empty)
- * the backend seeds the bundled {@code wiki4ai} documentation project — 9 English
- * documents plus the 11 screenshots referenced by the WebUI Guide — so every new
- * installation ships with full product documentation out of the box.</p>
+ * the backend seeds the bundled {@code wiki4ai} documentation project — 10 English
+ * documents plus the 15 screenshots referenced by the guide and calendar docs — so
+ * every new installation ships with full product documentation out of the box.</p>
  *
  * <p><b>Non-invasive by construction:</b> the freshness condition (both tables
  * empty) can only ever be true before any user or project exists. After the seed
@@ -93,7 +93,8 @@ public class FirstRunDocSeeder {
             Map.entry("06-search-embeddings.md", "Search & Embeddings"),
             Map.entry("07-webui-guide.md", "WebUI Guide"),
             Map.entry("08-mcp-server.md", "MCP Server"),
-            Map.entry("09-deployment-operations.md", "Deployment & Operations")
+            Map.entry("09-deployment-operations.md", "Deployment & Operations"),
+            Map.entry("10-calendar.md", "Calendar")
     );
 
     private final UserRepository userRepository;
@@ -208,7 +209,7 @@ public class FirstRunDocSeeder {
                     .toList();
             if (images.isEmpty()) {
                 throw new IllegalStateException("No seed images found on the classpath (seed/images/) — "
-                        + "the WebUI Guide references 11 screenshots and would render broken");
+                        + "the seed documents reference 15 screenshots and would render broken");
             }
             return images;
         } catch (IOException e) {

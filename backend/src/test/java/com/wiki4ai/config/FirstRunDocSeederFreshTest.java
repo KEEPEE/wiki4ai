@@ -33,9 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration test for the first-run documentation seed (WIKI4AI-74), fresh-instance path.
  *
  * <p>Starts the full Spring context on a dedicated empty H2 database: the seeder must
- * create the "wiki4ai" project with all 9 bundled documents (exact titles, slugs and
- * content) in order and copy all 11 screenshots into the image storage under their
- * exact UUID names. A manual re-run afterwards must be a no-op.</p>
+ * create the "wiki4ai" project with all 10 bundled documents (exact titles, slugs and
+ * content) in order and copy all 15 screenshots into the image storage under their
+ * exact names. A manual re-run afterwards must be a no-op.</p>
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -90,9 +90,9 @@ class FirstRunDocSeederFreshTest {
 
     @Test
     @Order(2)
-    @DisplayName("Fresh instance: all 9 documents exist with exact titles in creation order")
-    void seedsAllNineDocumentsInOrder() {
-        assertThat(documentRepository.count()).as("exactly 9 seeded documents").isEqualTo(9);
+    @DisplayName("Fresh instance: all 10 documents exist with exact titles in creation order (incl. Calendar)")
+    void seedsAllTenDocumentsInOrder() {
+        assertThat(documentRepository.count()).as("exactly 10 seeded documents").isEqualTo(10);
 
         List<Document> docs = documentRepository.findAll().stream()
                 .sorted(Comparator.comparing(Document::getId))
@@ -109,6 +109,7 @@ class FirstRunDocSeederFreshTest {
         assertThat(slugs).doesNotHaveDuplicates();
         assertThat(slugs.get(0)).isEqualTo("home");
         assertThat(slugs.get(6)).isEqualTo("webui-guide");
+        assertThat(slugs.get(9)).isEqualTo("calendar");
     }
 
     @Test
@@ -129,14 +130,14 @@ class FirstRunDocSeederFreshTest {
 
     @Test
     @Order(4)
-    @DisplayName("Fresh instance: all 11 screenshots are in image storage with exact UUID names and content")
+    @DisplayName("Fresh instance: all 15 screenshots are in image storage with exact names and content")
     void seedsAllImagesWithExactNames() throws IOException {
         PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
         Resource[] bundled = resolver.getResources("classpath*:seed/images/*.png");
         List<Resource> images = Arrays.stream(bundled)
                 .sorted(Comparator.comparing(Resource::getFilename))
                 .toList();
-        assertThat(images).as("11 bundled screenshots").hasSize(11);
+        assertThat(images).as("15 bundled screenshots").hasSize(15);
 
         Path projectDir = uploadDir.resolve("wiki4ai");
         for (Resource image : images) {
@@ -149,7 +150,7 @@ class FirstRunDocSeederFreshTest {
 
         // No other files in the project storage directory.
         List<String> storedNames = Files.list(projectDir).map(p -> p.getFileName().toString()).sorted().toList();
-        assertThat(storedNames).hasSize(11);
+        assertThat(storedNames).hasSize(15);
     }
 
     @Test

@@ -8,10 +8,10 @@ This document describes how wiki4ai is put together: the components, how request
 |---|---|---|
 | **Frontend** | nginx + React (TypeScript, Vite) SPA | Serves the single-page app; reverse-proxies `/api/v1`, `/plantuml/`, Swagger and actuator paths to their backends. Stateless — all state lives in the backend/database. |
 | **Backend** | Java 17+, Spring Boot 3.x (REST API at `/api/v1`) | All business logic: auth (JWT), projects, documents, wiki links, hybrid search, image storage, vault, admin. Spring Data JPA + Flyway migrations; SpringDoc OpenAPI (Swagger UI) is served from the same process. |
-| **Database** | PostgreSQL 16 with the **pgvector** extension | Single source of truth: projects, documents (Markdown content + a `vector(1024)` embedding column), links, users, tokens, vault entries. HNSW index on the embedding column for fast cosine similarity. Schema managed by Flyway (V1–V11). |
+| **Database** | PostgreSQL 16 with the **pgvector** extension | Single source of truth: projects, documents (Markdown content + a `vector(1024)` embedding column), links, users, tokens, vault entries, calendar events. HNSW index on the embedding column for fast cosine similarity. Schema managed by Flyway (V1–V14). |
 | **Embedding sidecar** *(optional)* | Python, Qwen3-Embedding-0.6B int8 ONNX (port 8030 in-network) | Turns document text and search queries into 1024-dim vectors. Without it, search degrades to text-only — nothing else is affected. |
 | **kroki** *(optional)* | Self-hosted kroki image (port 8000 in-network) | Renders PlantUML sources to SVG. Reached only through the nginx `/plantuml/` proxy; no host port exposed. Without it, PlantUML blocks show a graceful error state. |
-| **MCP server** | Python, FastMCP (stdio or SSE transport) | Exposes the platform as 32 MCP tools for AI agents. It is a thin client of the backend REST API — all logic stays in the Spring Boot backend. The SSE endpoint can be gated with a Bearer token (`MCP_JWT_TOKEN`). |
+| **MCP server** | Python, FastMCP (stdio or SSE transport) | Exposes the platform as 38 MCP tools for AI agents. It is a thin client of the backend REST API — all logic stays in the Spring Boot backend. The SSE endpoint can be gated with a Bearer token (`MCP_JWT_TOKEN`). |
 
 ```mermaid
 flowchart LR
@@ -22,10 +22,10 @@ flowchart LR
     subgraph Stack["Docker Compose stack"]
         NG["nginx — frontend container<br/>static files + reverse proxy"]
         BE["Spring Boot backend :8080<br/>REST API /api/v1"]
-        DB[("PostgreSQL 16 + pgvector<br/>Flyway V1–V11")]
+        DB[("PostgreSQL 16 + pgvector<br/>Flyway V1–V14")]
         EMB["Embedding sidecar :8030<br/>Qwen3-0.6B int8 ONNX<br/>(optional)"]
         KR["kroki :8000<br/>PlantUML renderer<br/>(optional)"]
-        MCPS["MCP server (Python, FastMCP)<br/>SSE :8095 — 32 tools"]
+        MCPS["MCP server (Python, FastMCP)<br/>SSE :8095 — 38 tools"]
     end
 
     AGENT["AI agent (MCP client)"]
@@ -134,7 +134,7 @@ Details:
 3. **Optional sidecars = graceful degradation.** The embedding sidecar and kroki are probed per request, not at boot. Losing either one degrades one feature (semantic search / PlantUML rendering) with a visible UI hint while every other operation keeps working; the stack never returns 500 because an optional component is down.
 4. **Single Docker Compose stack.** One network, one file: frontend, backend, database, MCP server, and the two optional sidecars. nginx uses Docker's built-in DNS resolver with per-request re-resolution (variable-based `proxy_pass`), so a sidecar that restarts with a new IP self-heals without an nginx reload.
 5. **One backend for humans and agents.** The MCP server is a thin REST client, not a parallel implementation — permissions, concurrency control, and search behavior are identical from both interfaces by construction.
-6. **Versioned schema in code.** Flyway migrations (V1–V11) run automatically at startup; the database never drifts from what the image expects, which is what makes commit-SHA-tagged images safe to roll back to.
+6. **Versioned schema in code.** Flyway migrations (V1–V14) run automatically at startup; the database never drifts from what the image expects, which is what makes commit-SHA-tagged images safe to roll back to.
 
 ## Further reading
 

@@ -9,7 +9,7 @@ wiki4ai is a self-hosted knowledge base where documents are written in **Markdow
 It is designed around two first-class interfaces:
 
 - **A modern web UI** for humans — project dashboard, split-view Markdown editor with live preview and autosave, rendered diagrams, hybrid search, user administration.
-- **An MCP (Model Context Protocol) server** exposing the entire platform as **32 tools**, so AI agents can read, write, link, search, and manage the wiki exactly like a human would — through the same backend REST API.
+- **An MCP (Model Context Protocol) server** exposing the entire platform as **38 tools**, so AI agents can read, write, link, search, and manage the wiki exactly like a human would — through the same backend REST API.
 
 The whole stack runs from a single Docker Compose file: an nginx + React frontend, a Spring Boot REST backend, PostgreSQL 16 with the pgvector extension, an optional local embedding sidecar for semantic search, and an optional kroki service for PlantUML rendering. Optional components are genuinely optional — wiki4ai degrades gracefully when they are absent (see [[Architecture Overview]]).
 
@@ -25,10 +25,12 @@ The whole stack runs from a single Docker Compose file: an nginx + React fronten
 | Hybrid search | **Global** (cross-project) and **per-project** document search combining literal text matching with semantic vector similarity (pgvector cosine, HNSW index), fused with Reciprocal Rank Fusion. Works cross-lingually; degrades to text-only when the embedding sidecar is unavailable. |
 | Accounts & roles | First-run setup flow creates the initial ADMIN account on an empty instance; public registration is closed afterwards by default (opt-in via `auth.registration.open`). Admins manage users and assign **USER** or **ADMIN** roles. Per-project permission grants (READ/CREATE/UPDATE/DELETE/MANAGE) let admins share projects selectively. |
 | Optimistic concurrency control | Documents carry a version number; updates can declare an `expectedVersion`. Stale writes fail with **HTTP 409** instead of silently overwriting another writer — enforced for both the web UI and MCP agents. |
-| MCP server | Python (FastMCP) server exposing 32 tools over stdio or SSE, including full document CRUD, links, search, image upload, subproject management, and an end-to-end-encrypted secret vault. Optional Bearer-token gating of the SSE endpoint. |
+| Public/private visibility | Projects, documents and calendar events each carry a `public`/`private` flag (V14 for projects/documents): public records are visible to every user exactly as before; private ones only to their owner and ADMIN users. |
+| Calendar | Global (not project-scoped) event calendar with extensible colored event types, **month + week views** in the WebUI, all-day and timed events, per-event public/private visibility — REST API under `/api/v1/calendar` plus six MCP tools. See [[Calendar]]. |
+| MCP server | Python (FastMCP) server exposing 38 tools over stdio or SSE, including full document CRUD, links, search, image upload, subproject management, calendar events, and an end-to-end-encrypted secret vault. Optional Bearer-token gating of the SSE endpoint. |
 | Encrypted secret vault | Per-user vault entries (passwords, tokens) encrypted client-side with a user-chosen master password; the backend never sees plaintext. Accessible from the web UI and via MCP tools. |
 | Diagram linking & graph view | `[[WikiLink]]` references are extracted server-side into explicit link relations, powering backlinks, document link lists, and an interactive force-directed graph of a project's documents. |
-| Docker deployment | One compose file for the full stack; images tagged by commit SHA for trivial rollbacks; Flyway-managed database migrations (schema V1–V11). |
+| Docker deployment | One compose file for the full stack; images tagged by commit SHA for trivial rollbacks; Flyway-managed database migrations (schema V1–V14). |
 | Graceful degradation | The embedding sidecar and kroki are optional: without them, search becomes text-only (with a visible banner) and PlantUML blocks show an error state — everything else keeps working. |
 
 ## Documentation map
@@ -41,11 +43,12 @@ This project contains the full documentation set. Each document below is linked 
 | 2 | [[Getting Started]] | Prerequisites, first-run setup flow (first admin account), basic usage walkthrough, and the accounts & roles reference table. |
 | 3 | [[Architecture Overview]] | System components with diagrams, request flow, search and save data flows, and key design decisions. |
 | 4 | [[Backend API Reference]] | Complete REST API reference: authentication, projects, documents, search, images, vault, admin endpoints — with request/response examples. |
-| 5 | [[Data Model]] | Database schema (Flyway migrations V1–V11), entities and relations, the pgvector embedding column, and link storage. |
+| 5 | [[Data Model]] | Database schema (Flyway migrations V1–V14), entities and relations, the pgvector embedding column, link storage, calendar tables, and visibility columns. |
 | 6 | [[Search & Embeddings]] | How hybrid search works in depth: text path, vector path, RRF fusion, the embedding sidecar, backfill, and degradation behavior. |
 | 7 | [[WebUI Guide]] | Page-by-page guide to the web interface: dashboard, projects, editor/viewer, graph view, search, admin screens, vault. |
-| 8 | [[MCP Server]] | The MCP server for AI agents: transport options, authentication, all 32 tools with usage notes and examples. |
+| 8 | [[MCP Server]] | The MCP server for AI agents: transport options, authentication, all 38 tools with usage notes and examples. |
 | 9 | [[Deployment & Operations]] | Docker Compose deployment, configuration via environment variables, upgrades and rollbacks (commit-SHA image tags), backups, health checks, and operations runbooks. |
+| 10 | [[Calendar]] | The global event calendar: month + week views, extensible colored event types, all-day vs timed events, public/private visibility, the REST API and the six MCP tools. |
 
 ## Where to look next
 

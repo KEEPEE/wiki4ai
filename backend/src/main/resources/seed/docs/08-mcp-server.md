@@ -6,7 +6,7 @@ The Wiki4AI MCP server is a [Model Context Protocol](https://modelcontextprotoco
 
 - **Purpose:** let any MCP-capable AI agent (DeepSeek Harness, Claude Desktop, OpenCode, custom agents) read from and write to a Wiki4AI instance without speaking HTTP/JSON directly.
 - **Implementation:** single-file Python service (`mcp_server.py`, FastMCP ≥ 2.12 on Python 3.12), no external HTTP dependencies beyond the standard library — it calls the backend REST API with `urllib`.
-- **Tool surface:** 32 tools covering projects, documents, search, wiki links, images and the vault (full reference below). The server also exposes two MCP *resources* for clients that support them:
+- **Tool surface:** 38 tools covering projects, documents, search, wiki links, images, calendar events and the vault (full reference below). The server also exposes two MCP *resources* for clients that support them:
   - `wiki://{project_slug}/{doc_slug}` — raw Markdown content of a document
   - `wiki://{project_slug}/{doc_slug}/html` — rendered HTML version
 - **Identity model:** the server holds no user account of its own. Every backend call is made with *your* Wiki4AI JWT (see [Security model](#security-model)), so agents inherit exactly the permissions of the user they act as.
@@ -74,7 +74,7 @@ A Wiki4AI user JWT, selected per request by `select_jwt_token()` in this priorit
 
 ## Tool reference
 
-**32 tools** (verified via `tools/list`, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
+**38 tools** (verified via `tools/list`, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
 
 ### Meta (3)
 
@@ -142,6 +142,19 @@ A Wiki4AI user JWT, selected per request by `select_jwt_token()` in this priorit
 | `vault_create_entry` | Add a new entry — encrypted client-side before anything is sent | `title`, `password`, `master_password`, `username`?, `notes`?, `url`?, `group_path`? |
 | `vault_update_entry` | Edit an entry; only the provided fields change (fetch → decrypt → merge → re-encrypt → submit) | `entry_id`, `master_password`, plus any of `title`/`username`/`password`/`notes`/`url`/`group_path` |
 | `vault_delete_entry` | Permanently delete an entry (no master password required — deletion needs no decryption) | `entry_id` |
+
+### Calendar (6)
+
+The calendar is a **global** module (not project-scoped): events belong to the user whose identity JWT is used, and the backend enforces public/private visibility exactly as for the REST API. See [[Calendar]] for the full module guide.
+
+| Tool | Description | Key parameters |
+|---|---|---|
+| `calendar_create_event` | Create an event — all-day when no times given, precise-time otherwise; type defaults to the first available one; visibility defaults to `public` | `title`, `date` (required), `start_time`?, `end_time`?, `description`?, `event_type`? (name, case-insensitive), `visibility`? |
+| `calendar_list_events` | List events in a date range (default: current month) — public events plus the caller's own private ones (ADMIN sees all); optional type filter and `mine=true`; all-day events first | `from_date`?, `to_date`?, `event_type`?, `mine`? |
+| `calendar_update_event` | Partial update — only provided fields change; owner or ADMIN only; the explicit `clear_time=True` flag is the only way to revert a timed event to all-day (omitted fields mean "no change") | `event_id` (required), any of `title`/`description`/`date`/`start_time`/`end_time`/`event_type`/`visibility`, `clear_time`? |
+| `calendar_delete_event` | Delete an event permanently; owner or ADMIN only (foreign private → 404, foreign public → 403) | `event_id` (required) |
+| `calendar_list_event_types` | List all event types with id, name and color, ordered by id (seed types first) — call before creating events to discover valid type names | — |
+| `calendar_create_event_type` | Create a new event type with an optional hex color; duplicate names (case-insensitive) are rejected with 409 | `name` (required), `color`? |
 
 ### Subprojects and project hierarchy
 

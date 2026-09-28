@@ -246,6 +246,30 @@ Grants per-user permission sets on a project. Permission levels: `READ`, `CREATE
 | PUT | `/{username}` | JWT, MANAGE | replace that user's permission set |
 | DELETE | `/{username}` | JWT, MANAGE | revoke all permissions for the user |
 
+## Calendar API (`/api/v1/calendar`)
+
+Global (not project-scoped) event calendar. All endpoints **require a JWT**. Visibility: `public` events are visible to every authenticated user; `private` events only to their creator and ADMIN users — for anyone else, detail/update/delete return **404** (existence is deliberately not revealed) and list endpoints omit them. Update/delete are owner-or-ADMIN only (foreign public event → 403).
+
+| Method | Path | Access | Success | Errors |
+|---|---|---|---|---|
+| GET | `/events?from=&to=&type=&mine=` | JWT | 200 `List<CalendarEventDTO>` | 400 invalid date or `from` > `to` |
+| GET | `/events/{id}` | JWT, visibility-checked | 200 `CalendarEventDTO` | 404 not found / foreign private event |
+| POST | `/events` | JWT | 201 `CalendarEventDTO` — creator = authenticated user | 400 missing title/date, unknown type (error lists available types), invalid visibility |
+| PUT | `/events/{id}` | JWT, owner or ADMIN | 200 `CalendarEventDTO` — PATCH-like: omitted fields unchanged; `clearTime: true` reverts a timed event to all-day | 403 foreign public event; 404 foreign private event; 400 validation |
+| DELETE | `/events/{id}` | JWT, owner or ADMIN | 204 | 403 foreign public event; 404 foreign private event |
+| GET | `/event-types` | JWT | 200 `List<EventTypeDTO>` ordered by id (seed types first) | — |
+| POST | `/event-types` | JWT | 201 `EventTypeDTO` | 400 missing name; **409 duplicate name** (case-insensitive) |
+| DELETE | `/event-types/{id}` | JWT | 204 | 404 unknown type; **409 type still used by N events** |
+
+**List semantics (`GET /events`).** `from`/`to` are inclusive `YYYY-MM-DD` dates; when omitted the **current month** is the default range. `type` filters by event-type name (case-insensitive exact match — unknown names yield an empty list). `mine=true` returns only the caller's own events in both visibilities. Without `mine`: an ADMIN sees everything, a regular user sees public events plus their own private ones. Results are ordered by date, then time — **all-day events first** on each day, timed events afterwards by start time.
+
+**DTOs:**
+
+- `CalendarEventDTO`: `{id, title, description, eventTypeId, eventType (name, denormalized), eventColor (hex, nullable), eventDate, startTime (null = all-day), endTime, visibility, createdBy (username), createdAt, updatedAt}`
+- `EventTypeDTO`: `{id, name, color (nullable hex), createdAt}`
+
+`POST /events` body: `title` and `eventDate` required; `eventType` accepts **either the numeric id or the type name** (case-insensitive); `visibility` defaults to `public`; `startTime`/`endTime` optional (`TIME`, `HH:mm:ss`). Two types are seeded by migration V13: `Agent task` (#4f8cff) and `Pripomienka` (#f59e0b). Full module guide (WebUI views, all-day vs timed, MCP tools): [[Calendar]].
+
 ## Admin API (`/api/v1/admin`) — ADMIN role required (403 otherwise)
 
 | Method | Path | Success | Errors | Notes |
