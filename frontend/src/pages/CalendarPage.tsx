@@ -94,7 +94,15 @@ function formatTime(t: string | null): string {
 const HOUR_HEIGHT_PX = 48;
 /** Minimum rendered height of an event block (px) — short events stay clickable. */
 const MIN_BLOCK_HEIGHT_PX = 20;
-/** Default scroll position when entering the week view: ~08:00 near the top. */
+/**
+ * Default scroll position when entering the week view: the 08:00 hour line sits
+ * near the top of the visible grid. WIKI4AI-115: previously this was
+ * (INITIAL_SCROLL_HOUR - 1) × HOUR_HEIGHT_PX, which put the 07:00 row exactly at
+ * the scroll area's top edge and half-clipped its on-line time label ("U:00").
+ * .cal-week-grid now carries a 12px padding-top clearance (see CalendarPage.css),
+ * so scrolling to INITIAL_SCROLL_HOUR × HOUR_HEIGHT_PX leaves the first visible
+ * label (08:00) fully readable — and "00:00" stays unclipped at scrollTop = 0.
+ */
 const INITIAL_SCROLL_HOUR = 8;
 
 const WEEKDAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
@@ -270,7 +278,9 @@ const CalendarPage: React.FC = () => {
   useEffect(() => {
     if (viewMode !== 'week') return;
     const el = weekTimeScrollRef.current;
-    if (el) el.scrollTop = (INITIAL_SCROLL_HOUR - 1) * HOUR_HEIGHT_PX;
+    // The .cal-week-grid padding-top clearance keeps the on-line label of the
+    // INITIAL_SCROLL_HOUR row fully visible at this position (see above).
+    if (el) el.scrollTop = INITIAL_SCROLL_HOUR * HOUR_HEIGHT_PX;
   }, [viewMode]);
 
   // ── Navigation (month steps / week steps depending on the active view) ────
