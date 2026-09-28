@@ -121,63 +121,6 @@
   box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
 }
 
-/* ── Mobile (≤640px): two-row header — WIKI4AI-115 ─────────
-   The single-line .cal-nav (toggle + ‹ + label min-width:190px + › + Today)
-   overflows a 390px viewport and forces page-level horizontal scrolling.
-   Mobile layout: row 1 = view toggle + Today, row 2 = ‹ full-width range
-   label › — the month/week label stays fully visible (no min-width,
-   left-aligned). Implemented as an explicit grid so the rows are guaranteed
-   regardless of item widths. */
-
-@media (max-width: 640px) {
-  .cal-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-
-  .cal-nav {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-areas:
-      'toggle toggle today'
-      'prev label next';
-    column-gap: 0.5rem;
-    row-gap: 0.6rem;
-    align-items: center;
-  }
-
-  .cal-view-toggle {
-    grid-area: toggle;
-    justify-self: start;
-  }
-
-  .cal-today-btn {
-    grid-area: today;
-    justify-self: end;
-  }
-
-  .cal-nav [data-testid='cal-prev-month'] {
-    grid-area: prev;
-  }
-
-  .cal-nav [data-testid='cal-next-month'] {
-    grid-area: next;
-  }
-
-  .cal-month-label {
-    grid-area: label;
-    min-width: 0;
-    text-align: left;
-    font-size: 1.05rem;
-    white-space: nowrap;
-    overflow: hidden;
-    /* Safety net for <340px screens — never triggers at the audited 390px,
-       where even the longest label ("28. sep – 4. okt 2026") fits fully. */
-    text-overflow: ellipsis;
-  }
-}
-
 /* ── Week view (hourly grid) — WIKI4AI-110 ─────────────── */
 
 .cal-week {
@@ -466,6 +409,13 @@
   gap: 6px;
 }
 
+.cal-grid {
+  /* WIKI4AI-115: size container for the compact-mode cell padding below.
+     (A container query can never match the container element itself, so the
+     cell padding must be driven from an ancestor container — the grid.) */
+  container-type: inline-size;
+}
+
 .cal-weekdays {
   margin-bottom: 6px;
 }
@@ -619,11 +569,24 @@
    available via the native title tooltip and the detail modal. The pill stays
    fully clickable. */
 
+/* Grid-level compact mode: day columns ≈ 60px or narrower (grid ≤ ~440px),
+   i.e. the same range where the cell-level pill rules below engage.
+   Driven from the grid because a container query cannot match the container
+   element itself — .cal-cell is the inner size container for the pill rules. */
+@container (max-width: 440px) {
+  /* Reclaim the cell's own padding — at ~45px columns it would otherwise eat
+     most of the pill width and leave only a single character of title. */
+  .cal-cell {
+    padding: 0.25rem;
+  }
+}
+
 @container (max-width: 60px) {
   .cal-pill {
     font-size: 0.625rem; /* 10px */
-    padding: 0.15rem 0.3rem;
+    padding: 0.15rem 0.2rem;
     gap: 0.2rem;
+    border-left-width: 2px;
   }
 
   .cal-pill-time,
@@ -766,4 +729,71 @@
 .cal-detail-modal .btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .cal-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+
+  .cal-nav {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      'toggle toggle today'
+      'prev label next';
+    column-gap: 0.5rem;
+    row-gap: 0.6rem;
+    align-items: center;
+  }
+
+  .cal-view-toggle {
+    grid-area: toggle;
+    justify-self: start;
+  }
+
+  .cal-today-btn {
+    grid-area: today;
+    justify-self: end;
+  }
+
+  .cal-nav [data-testid='cal-prev-month'] {
+    grid-area: prev;
+  }
+
+  .cal-nav [data-testid='cal-next-month'] {
+    grid-area: next;
+  }
+
+  .cal-month-label {
+    grid-area: label;
+    min-width: 0;
+    text-align: left;
+    font-size: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    /* Safety net for <340px screens — never triggers at the audited 390px,
+       where even the longest label ("28. sep – 4. okt 2026") fits fully. */
+    text-overflow: ellipsis;
+  }
+
+  /* WIKI4AI-115: tighter month grid on phones — every reclaimed pixel goes to
+     the day columns so compact pills can show a readable title snippet.
+     Weekday header and grid share the gap so their tracks stay aligned. */
+  .cal-weekdays,
+  .cal-grid {
+    gap: 2px;
+  }
+
+  .cal-grid {
+    padding: 4px;
+  }
+
+  /* Half the desktop page padding on phones — ~4.5 more px per day column,
+     which is the difference between a 3- and a 4-character title snippet. */
+  .calendar-page {
+    padding: 1rem;
+  }
 }
