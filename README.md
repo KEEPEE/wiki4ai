@@ -212,6 +212,15 @@ Wiki4AI is built and maintained by Michal in his spare time. If it saves you tim
   <img src="docs/screenshots/revolut-qr.png" alt="Revolut payment QR code (https://revolut.me/michal4zvc)" width="180" />
 </p>
 
+## Related projects
+
+<!-- keepee-family -->
+Wiki4AI is part of the [keepee](https://github.com/KEEPEE) self-hosted family:
+
+- [python-docs-mcp](https://github.com/KEEPEE/python-docs-mcp) · [java-spring-mcp](https://github.com/KEEPEE/java-spring-mcp) · [js-ts-mcp](https://github.com/KEEPEE/js-ts-mcp) · [flutter-mcp](https://github.com/KEEPEE/flutter-mcp) — MCP servers that hand coding agents live, current documentation; the same machine-readable surface Wiki4AI exposes to agents.
+- [OpenCode Client](https://github.com/KEEPEE/Opencode-client) — Flutter mobile client for the OpenCode AI assistant.
+- [All keepee projects](https://github.com/KEEPEE)
+
 ## License
 
 Wiki4AI is licensed under the [MIT License](LICENSE) — Copyright (c) 2026 Michal Gaspierik.
