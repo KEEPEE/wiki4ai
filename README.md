@@ -1,5 +1,11 @@
 # Wiki4AI
 
+[![Release](https://img.shields.io/github/v/release/KEEPEE/wiki4ai?label=release&color=blue)](https://github.com/KEEPEE/wiki4ai/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker Compose](https://img.shields.io/badge/docker%20compose-one%20command-2496ED?logo=docker&logoColor=white)](#quick-start)
+[![MCP](https://img.shields.io/badge/MCP-server-6b46c1?logo=modelcontextprotocol&logoColor=white)](#documentation-for-ai-agents-mcp)
+[![Spring%20Boot](https://img.shields.io/badge/Spring%20Boot-PostgreSQL%20%2B%20pgvector-6db33f)](#architecture)
+
 **A self-hosted collaborative wiki for teams *and* AI agents.** Write in Markdown, draw diagrams, search semantically — and let your agents read from and write to the same knowledge base.
 
 ![Wiki4AI dashboard](docs/screenshots/dashboard.png)
