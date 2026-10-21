@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The same test commands the GitLab pipeline runs. Every suite is self-contained:
+# the backend tests use H2 (no PostgreSQL), the frontend runs Vitest in jsdom, and
+# the Python suites mock their HTTP and model calls - no services are needed.
+jobs:
+  backend:
+    name: backend (mvn test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Run tests
+        run: mvn -B -q test
+
+  frontend:
+    name: frontend (vitest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Run tests
+        run: npm run test:run
+
+  python:
+    name: ${{ matrix.component }} (pytest)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [mcp-server, embedding]
+    defaults:
+      run:
+        working-directory: ${{ matrix.component }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ matrix.component }}/requirements.txt
+      # httpx: FastAPI's TestClient (embedding) needs it; mcp-server already pulls it in.
+      - run: pip install -r requirements.txt pytest httpx
+      - name: Run tests
+        run: python -m pytest tests/ -q
