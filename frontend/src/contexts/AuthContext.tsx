@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { login as apiLogin, register as apiRegister, getAuthStatus, getMe, type UserInfo } from '../services/authApi';
 import { applyUserLanguage, DEFAULT_LANGUAGE } from '../i18n';
+import { clearStoredTokenSecrets } from '../utils/tokenStorage';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'wiki4ai_access_token';
@@ -177,6 +178,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_INFO_KEY);
     localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    // WIKI4AI-168: logging out must not leave an API-token trace behind — the
+    // named-token menu and the plaintext the deprecated quick-generate flow used
+    // to persist are both dropped here (logout, expired token, failed refresh).
+    clearStoredTokenSecrets();
     setUser(null);
     setAccessToken(null);
     setRefreshToken(null);

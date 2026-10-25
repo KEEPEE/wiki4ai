@@ -57,6 +57,11 @@ export default function AdminUsersPage() {
 
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  // WIKI4AI-179: the ref held the timer, but nothing ever pruned it on unmount.
+  // The 3 s timer survived teardown and called `setToast(null)` on a component
+  // that no longer existed — that is the CI flake (pipeline 2100, job 6052:
+  // `ReferenceError: window is not defined` from `dispatchSetState`, with all
+  // 804 tests passing). The ref is now paired with the unmount cleanup below.
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Delete confirmation dialog state
@@ -73,6 +78,18 @@ export default function AdminUsersPage() {
       setToast(null);
       toastTimerRef.current = null;
     }, 3000);
+  }, []);
+
+  // WIKI4AI-179: no timer of this page may outlive the page. Unmounting while
+  // the toast timer is armed cancels it, so `setToast(null)` can never run on
+  // an unmounted component. Regression test: src/__tests__/TimersNoEscapeUnmount.test.tsx
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
+    };
   }, []);
 
   // Load users on mount (only if admin)

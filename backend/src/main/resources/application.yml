@@ -129,6 +129,50 @@ wiki4ai:
   # relevant-hit floor ~0.37 (see WIKI4AI-90 evidence). Set 0 to disable filtering.
   search:
     semantic-min-similarity: ${WIKI4AI_SEARCH_SEMANTIC_MIN_SIMILARITY:0.35}
+  # Per-token rate limit (WIKI4AI-139). Sliding window, keyed by the token's SHA-256
+  # hash — NOT by IP — so one noisy token cannot freeze its owner's other tokens.
+  # Applies to hashed (w4a_) tokens only; the legacy clear-text JWT path stays
+  # unthrottled on purpose (regression protection for existing clients and tests).
+  # Over the limit → 429 with Retry-After. Own implementation, no new dependency,
+  # no scheduler: windows are maintained lazily on write.
+  rate-limit:
+    requests-per-second: ${WIKI4AI_RATE_LIMIT_RPS:30}
+    window-millis: ${WIKI4AI_RATE_LIMIT_WINDOW_MILLIS:1000}
+  # Work items (WIKI4AI-140 az 144).
+  #   lease-minutes      - how long a claim is held. AC of WIKI4AI-142: default 45.
+  #                        An agent that is still working renews it with
+  #                        POST /api/v1/work-items/{id}/lease.
+  #   lease-sweep-millis - period of the lease reaper, the first @Scheduled task of
+  #                        this project. fixedDelay: the next sweep starts one
+  #                        period after the previous one FINISHED, so a slow sweep
+  #                        cannot stack on itself.
+  #   scheduling-enabled - the switch of @EnableScheduling (config/SchedulingConfig).
+  #                        Default true: an instance that says nothing schedules.
+  #                        The test profile sets it to false so that no background
+  #                        thread can move a row in the shared test database between
+  #                        assertions; the reaper's operation itself stays available
+  #                        and is called directly by the tests that need it.
+  work-items:
+    lease-minutes: ${WIKI4AI_WORK_ITEMS_LEASE_MINUTES:45}
+    lease-sweep-millis: ${WIKI4AI_WORK_ITEMS_LEASE_SWEEP_MILLIS:60000}
+    scheduling-enabled: ${WIKI4AI_WORK_ITEMS_SCHEDULING:true}
+  # Resources + reservations (WIKI4AI-155 az 157).
+  #   reservation-ttl-minutes - how long a reservation holds capacity unless it is released
+  #                             by hand. AC of WIKI4AI-157: an expired holding frees its
+  #                             slots on its own.
+  #   reaper-interval-ms      - period of the reservation TTL reaper (ReservationReaper).
+  #                             fixedDelay, same as the lease sweep: a slow sweep cannot
+  #                             stack on itself.
+  #   scheduling-enabled      - the switch of @EnableScheduling for THIS reaper
+  #                             (config/ReservationSchedulingConfig). Separate from
+  #                             wiki4ai.work-items.scheduling-enabled on purpose: pausing one
+  #                             reaper must not silently pause the other. Default true; the
+  #                             test profile sets it false so no background thread can move a
+  #                             row in the shared test database between assertions.
+  resources:
+    reservation-ttl-minutes: ${WIKI4AI_RESOURCES_RESERVATION_TTL_MINUTES:60}
+    reaper-interval-ms: ${WIKI4AI_RESOURCES_REAPER_INTERVAL_MS:60000}
+    scheduling-enabled: ${WIKI4AI_RESOURCES_SCHEDULING:true}
 
 # Embedding sidecar (WIKI4AI-35, epic WIKI4AI-26).
 # In the docker stack the service name is 'embedding' on port 8030.

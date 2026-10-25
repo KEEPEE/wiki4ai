@@ -3,6 +3,7 @@ package com.wiki4ai.controller;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,6 +35,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * filter chain (security.enabled=true) — no mocks on the auth path.
  * <p>
  * Named *Test (not *IT) so surefire runs it in CI ({@code mvn test}).
+ * <p>
+ * <b>WIKI4AI-169 — this class owns its database, and it has to.</b> Every other Spring
+ * test context in this suite points at the shared named H2 {@code jdbc:h2:mem:testdb}, and
+ * contexts are cached for the life of the JVM. Everything asserted here — setup is open only
+ * while no account exists, registration closes after the first one, a rejected setup leaves
+ * zero accounts — is a claim about the <em>whole</em> users table.
+ * <p>
+ * Deleting the predecessors' accounts is not a fix, and commit 85bef6d proved it by being
+ * incomplete: {@code Project.owner} and {@code Document.owner} are {@code @ManyToOne}
+ * associations, so the schema Hibernate generates from the entities has real foreign keys on
+ * {@code owner_id}. A user that owns a project or a document cannot be deleted, the delete
+ * throws, the cleanup below swallows it, and the table is still non-empty. That is exactly
+ * the CI signature of this story — {@code Status expected: 201 but was: 403} and
+ * {@code expected: 0L but was: 1L} across three {@code @Nested} classes at once — and
+ * whether it happens is a {@code runOrder} question, and {@code runOrder} defaults to
+ * {@code filesystem}.
+ * <p>
+ * A private named database makes "the users table is empty" a fact about this class alone.
+ * Same pattern as the {@code FirstRunDocSeeder*Test} classes. Not {@code @DirtiesContext}:
+ * closing a cached context drops the schema the other contexts are still using.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -42,6 +65,13 @@ class AuthFirstRunFlowTest {
     private static final String SETUP_PAYLOAD = "{\"username\":\"firstadmin\",\"password\":\"secret123\"}";
     private static final String REGISTER_PAYLOAD =
             "{\"username\":\"newuser\",\"email\":\"newuser@example.com\",\"password\":\"secret123\"}";
+
+    @DynamicPropertySource
+    static void overrideProperties(DynamicPropertyRegistry registry) {
+        // WIKI4AI-169: this class's own H2. See the class javadoc.
+        registry.add("spring.datasource.url",
+                () -> "jdbc:h2:mem:w4ai169-firstrunflow;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false");
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,6 +88,18 @@ class AuthFirstRunFlowTest {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    /**
+     * WIKI4AI-169 (SPEC rule 5b): the same cleanup also runs after every test, so this
+     * class leaves its database as it found it. Its own tests create accounts through
+     * {@code POST /auth/setup} and {@code POST /auth/register}, and the next test in the
+     * same class needs the table empty again — which is why the cleanup is per-test and not
+     * per-class.
+     */
+    @AfterEach
+    void cleanUsersAfterEach() {
+        cleanUsers();
     }
 
     @Nested

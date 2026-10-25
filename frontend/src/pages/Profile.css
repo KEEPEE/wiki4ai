@@ -309,6 +309,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  /* WIKI4AI-138: the deprecation banner wraps onto its own full-width row. */
+  flex-wrap: wrap;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
@@ -402,6 +404,143 @@
 .btn-delete-token:hover:not(:disabled) {
   background-color: rgba(239, 68, 68, 0.1);
   border-color: #fca5a5;
+}
+
+/* ── WIKI4AI-138: legacy token deprecation ───────────────────────── */
+
+/* Scopes of a new token — sent to the API as an array. */
+.token-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.scope-option {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* Legacy card: amber frame, clearly different from a normal (hashed) card. */
+.token-card.legacy {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, var(--glass-bg) 60%);
+}
+
+.token-card.legacy:hover {
+  border-color: rgba(245, 158, 11, 0.7);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.12);
+}
+
+/* Full-width row under the card header + actions. */
+.token-legacy-banner {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.5);
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #fcd34d; /* warning text */
+  font-size: 12.5px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.token-legacy-banner-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.token-legacy-banner-text strong {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
+/* Revoked (soft-deleted) token — kept for audit, no longer usable. */
+.token-card.revoked {
+  opacity: 0.6;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+.token-card-meta .revoked-text {
+  color: #fbbf24;
+}
+
+/* Rotate — same shape as copy/delete, distinct (cyan) accent. */
+.btn-rotate-token {
+  padding: 4px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  background-color: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-rotate-token:hover:not(:disabled) {
+  background-color: rgba(0, 240, 255, 0.1);
+  border-color: var(--primary);
+}
+
+.btn-rotate-token:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Plaintext of a rotated token, shown once. */
+.rotated-token-display {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background-color: rgba(16, 185, 129, 0.08);
+}
+
+.rotated-token-warning {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  color: #6ee7b7; /* success text */
+}
+
+/* ── WIKI4AI-168: one-time plaintext panel (created or rotated token) ───── */
+/* The only place a token secret is ever rendered. It exists for this mount only. */
+.one-time-token-display {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background-color: rgba(245, 158, 11, 0.08);
+}
+
+.one-time-token-warning {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #fcd34d;
+}
+
+/* A hashed token whose secret is no longer available anywhere in the browser. */
+.token-card-preview-muted {
+  font-style: italic;
+  opacity: 0.75;
+}
+
+/* Warning under the legacy quick-generate flow. */
+.legacy-flow-note {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background-color: rgba(245, 158, 11, 0.1);
+  color: #fcd34d;
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 /* ── Token display — glassmorphism field (legacy) ──────────────── */

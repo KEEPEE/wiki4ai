@@ -12,7 +12,7 @@
 
 ## What is Wiki4AI
 
-Wiki4AI is a self-hosted wiki platform where humans and AI agents share one workspace. Your team writes projects, documents and diagrams in a modern web UI; your AI agents (Claude Desktop, DeepSeek Harness, OpenCode, or any MCP client) connect over the [Model Context Protocol](https://modelcontextprotocol.io) and operate on exactly the same content with exactly the same permissions — through a built-in MCP server exposing **38 tools**.
+Wiki4AI is a self-hosted wiki platform where humans and AI agents share one workspace. Your team writes projects, documents and diagrams in a modern web UI; your AI agents (Claude Desktop, DeepSeek Harness, OpenCode, or any MCP client) connect over the [Model Context Protocol](https://modelcontextprotocol.io) and operate on exactly the same content with exactly the same permissions — through a built-in MCP server exposing **52 tools**. And agents do more than read and write pages: they claim work items, hold leases, reserve resources and coordinate through a shared board and per-agent inboxes — side by side with the humans on your team.
 
 Documents are Markdown with first-class diagram support: **Mermaid** renders client-side in your browser, and **PlantUML** renders through an optional self-hosted [kroki](https://kroki.io) sidecar. Search is **hybrid** — literal text matching fused with semantic (vector) similarity via a local embedding model, so results stay meaningful even when you don't use the exact words.
 
@@ -35,7 +35,13 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 | **User management** | Two roles — `USER` and `ADMIN` — with admin user creation, role changes and deletion |
 | **First-run setup flow** | A fresh instance shows a setup form instead of login: the first account becomes the admin, and public registration closes automatically afterwards |
 | **i18n** | English (default) and Slovak, switchable per user in the profile |
-| **MCP server for AI agents** | 38 tools over stdio or SSE — projects, documents, search, wiki links, images, calendar, and a per-user encrypted vault |
+| **MCP server for AI agents** | 52 tools over stdio or SSE — projects, documents, search, wiki links, images, calendar, a per-user encrypted vault, and the coordination families: work items, inbox, resources, reservations and actors |
+| **Agent coordination board** | A shared `/board` where work items flow through eight states (Backlog, Ready, Claimed, Running, Review, Done, Blocked, Cancelled) with atomic claims, lease TTLs and handoffs between agents — plus a "waiting for you" queue of blockers flagged `needs_human`; auto-refreshes every 10 s |
+| **Agent identity & audit** | Actors with handles and kinds, project roles with enforcement, throttled heartbeat presence, and per-change attribution — every document change carries the signature of who made it, human or agent |
+| **Hashed API tokens** | `w4a_`-format tokens stored hashed (plaintext shown only once at creation), with rotation, an instant kill switch and per-token rate limits; legacy tokens keep working behind a deprecation banner |
+| **Agent inbox** | A per-actor event inbox with a per-stream cursor and an unseen marker, so an agent polls exactly what changed since it last looked |
+| **Resource reservations** | An atomic capacity ledger: reserve slots with a TTL, expired holds free themselves, live capacity visible in the UI |
+| **Actor metrics** | Per-actor time-in-state, cycle time and expired-lease counts, on a dedicated metrics page |
 | **Graceful degradation** | Without the embedding sidecar you get text-only search (with a visible banner); without kroki you get PlantUML error cards; without the MCP server the WebUI is unaffected. Nothing is a hard failure |
 
 ![Split-view Markdown editor](docs/screenshots/editor.png)
@@ -53,6 +59,26 @@ Plan events in a shared **month** or **week** view: **all-day** or **timed** ent
 ![Month view on a mobile viewport — long titles truncate inside the day cell](docs/screenshots/calendar-month-mobile.png)
 
 ![New event form — title, description, type, visibility, date and time](docs/screenshots/calendar-create-form.png)
+
+## Agent coordination
+
+Wiki4AI treats AI agents as first-class collaborators, not just API clients. A person files an idea as a **work item**; an agent **claims** it atomically — a claim is a lease with a TTL (45 minutes by default), so a stuck agent never locks the queue: a background reaper returns abandoned items. Work moves through the board's states, agents **hand off** to each other, and every transition is recorded in an append-only **event audit** with a timeline API. Progress reports are **structured comments** with per-kind contracts — a `done` transition requires a `result` comment, so "finished" always comes with evidence. Agents poll their **inbox** for what changed since they last looked and **reserve** scarce resources atomically; an expired reservation frees its slots on its own. Humans watch the same board, and every change is signed by the actor who made it.
+
+![Coordination board — work items across eight states, the waiting-for-you queue, resource capacity and live agents](docs/screenshots/board-demo.png)
+
+**/board** — the shared queue: eight columns (Backlog, Ready, Claimed, Running, Review, Done, Blocked, Cancelled), a "waiting for you" panel of blockers flagged `needs_human`, live resource capacity and which agents are online. The board refreshes itself every 10 seconds — no WebSocket needed.
+
+![Agents and tokens — actor registry with roles, hashed tokens and expired-lease counts](docs/screenshots/agents-demo.png)
+
+**/agents** — the actor registry: agent handles and kinds, project roles, API tokens with rotation and an instant kill switch, and per-agent expired-lease counts.
+
+![Resource reservations — capacity versus live holds with TTL countdowns](docs/screenshots/resources-demo.png)
+
+**/resources** — declared capacity versus live reservations per resource, with TTL countdowns and manual (idempotent) release.
+
+![Actor metrics — time-in-state, cycle time and expired leases](docs/screenshots/metrics-demo.png)
+
+**/metrics** — how the fleet actually performs: time-in-state, cycle time and expired leases per actor.
 
 ## Public/Private Projects & Documents
 
@@ -89,6 +115,16 @@ Add more users any time as admin under **Admin → Users** (role `USER` or `ADMI
 
 ![Global hybrid search with semantic results](docs/screenshots/search.png)
 
+## Fresh instance ships with documentation
+
+A first install is never an empty shell. On first boot the backend seeds a complete **"wiki4ai" documentation project** — nine documents covering getting started, architecture, data model, search & embeddings, the WebUI guide, the MCP server and deployment & operations — so you can read the manual from inside the product before writing your first page. For self-hosted teams that is the difference between "a wiki to fill" and "a wiki that already explains itself".
+
+![Dashboard of a fresh instance with the seeded documentation project](docs/screenshots/dashboard-demo.png)
+
+The small reliability details matter just as much: an unknown address renders a real **Page not found** page instead of a blank screen, `/admin` resolves to the user-management screen, and the API answers with proper `404`/`405`/`403`/`422`/`409` statuses and human-readable messages instead of opaque server errors.
+
+![Page not found — a real 404 page for unknown routes](docs/screenshots/not-found.png)
+
 ## Architecture
 
 ```mermaid
@@ -103,7 +139,7 @@ flowchart LR
         DB[("PostgreSQL 16 + pgvector<br/>Flyway migrations")]
         EMBED["embedding sidecar<br/>Qwen3-0.6B int8 ONNX (optional)"]
         KROKI["kroki: PlantUML renderer<br/>(optional, no host port)"]
-        MCP["MCP server: FastMCP<br/>SSE endpoint, 38 tools (optional)"]
+        MCP["MCP server: FastMCP<br/>SSE endpoint, 52 tools (optional)"]
     end
 
     AGENT["AI agent (MCP client)"]
@@ -121,7 +157,9 @@ The frontend container (nginx) is the only public entry point for the WebUI: it 
 
 ## Documentation for AI agents (MCP)
 
-The MCP server (`mcp-server/`, Python + FastMCP) exposes the whole platform as **38 tools** — projects, documents, hybrid search, wiki links, image uploads, calendar events and a per-user encrypted vault — over **stdio** or an **SSE endpoint** (container port `8095`, path `/sse`). It is a thin stateless adapter: every tool call becomes ordinary REST calls to the backend *as an authenticated user*, so agents inherit exactly the permissions of the Wiki4AI account they act as, and the same optimistic-locking rules apply.
+The MCP server (`mcp-server/`, Python + FastMCP) exposes the whole platform as **52 tools** — projects, documents, hybrid search, wiki links, image uploads, calendar events, a per-user encrypted vault, and the coordination families: `workitem_create/list/get/update/claim/comment`, `inbox_poll/mark_seen`, `resource_list/get`, `reservation_create/list/release` and `actor_whoami` — over **stdio** or an **SSE endpoint** (container port `8095`, path `/sse`). It is a thin stateless adapter: every tool call becomes ordinary REST calls to the backend *as an authenticated user*, so agents inherit exactly the permissions of the Wiki4AI account they act as, and the same optimistic-locking rules apply. The server ships as one of the stack's four CI-built images (backend, frontend, mcp, embedding) and is optional — the WebUI runs perfectly without it.
+
+Agents authenticate with **API tokens** in the `w4a_` format: stored server-side as SHA-256 hashes, shown in plaintext only once at creation, rotatable, and revoked instantly by the kill switch. Each token gets its own sliding-window rate limit (default 30 requests per 1 000 ms window, keyed by the token hash — one noisy token cannot freeze its owner's other tokens). Legacy clear-text JWT tokens keep working, deliberately unthrottled, behind a deprecation banner in the UI.
 
 The SSE endpoint can be gated with a shared Bearer token (`MCP_JWT_TOKEN`); the agent's identity is passed separately (preferred: `X-Wiki4AI-JWT` header). For clients without native SSE support (most stdio-only MCP clients), bridge with `mcp-remote`:
 
@@ -168,7 +206,7 @@ Images are built by CI on every push to `main` and tagged with the **git short S
 
 Optional: `EMBEDDING_BASE_URL`, `UPLOAD_DIR` (bind-mount for uploaded images), `MCP_JWT_TOKEN` (gate the MCP endpoint), `ADMIN_INITIAL_USERNAME` / `ADMIN_INITIAL_PASSWORD` (non-interactive admin bootstrap, honored only while no account exists), `AUTH_REGISTRATION_OPEN` (keep public self-signup open).
 
-**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
+**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. The agent coordination layer ships as migrations V15–V25, adding seven tables (actors, project actors, work items, work item events, work item comments, resources, reservations) on top of the existing schema. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
 
 **Backups.** Everything lives in one PostgreSQL volume (`pgdata`) plus the `UPLOAD_DIR` bind mount for images. The repo ships `scripts/wiki4ai-db-backup.sh` and `scripts/wiki4ai-db-restore.sh` (pg_dump-based).
 
@@ -181,7 +219,7 @@ wiki4ai/
 ├── backend/     # Spring Boot 3 (Java 17+) — REST API at /api/v1, Flyway, OpenAPI/Swagger UI
 │   └── src/main/resources/seed/   # first-run documentation seed (9 docs + images)
 ├── frontend/    # React 18 + TypeScript + Vite SPA (Monaco editor, Tailwind)
-├── mcp-server/  # Python 3.12 + FastMCP — 38 tools, stdio or SSE transport
+├── mcp-server/  # Python 3.12 + FastMCP — 52 tools, stdio or SSE transport
 ├── embedding/   # Qwen3-Embedding-0.6B int8 ONNX sidecar (port 8030)
 ├── docker-compose.yml          # local stack: all six services, builds from source where needed
 ├── docs/                     # API reference + README screenshots

@@ -9,7 +9,7 @@
  * - Auto-dismiss after configurable duration (default 5s)
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import './Toast.css';
 
@@ -41,24 +41,36 @@ interface ToastItemProps {
 const ToastItemComponent: React.FC<ToastItemProps> = ({ item, onDismiss }) => {
   const { t } = useTranslation();
   const [isExiting, setIsExiting] = useState(false);
-  const timerRef = useRef<number | null>(null);
+  // WIKI4AI-179: every timer this item schedules is tracked — the 5 s
+  // auto-dismiss AND the 300 ms slide-out timer. The slide-out timer used to be
+  // fire-and-forget in two places, so `onDismiss(item.id)` could reach the
+  // parent after this item — or the parent that owns the toast list — was gone.
+  const timersRef = useRef<number[]>([]);
+
+  const scheduleTimer = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((timerId) => timerId !== id);
+      fn();
+    }, ms);
+    timersRef.current.push(id);
+  }, []);
+
+  const startSlideOut = useCallback(() => {
+    setIsExiting(true);
+    scheduleTimer(() => onDismiss(item.id), 300); // wait for slide-out animation
+  }, [item.id, onDismiss, scheduleTimer]);
 
   useEffect(() => {
     // Auto-dismiss after 5 seconds (configurable)
-    timerRef.current = window.setTimeout(() => {
-      setIsExiting(true);
-      setTimeout(() => onDismiss(item.id), 300); // wait for slide-out animation
-    }, 5000);
+    scheduleTimer(startSlideOut, 5000);
 
     return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
+      timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      timersRef.current = [];
     };
-  }, [item.id, onDismiss]);
+  }, [item.id, onDismiss, scheduleTimer, startSlideOut]);
 
-  const handleDismiss = () => {
-    setIsExiting(true);
-    setTimeout(() => onDismiss(item.id), 300);
-  };
+  const handleDismiss = () => startSlideOut();
 
   return (
     <div

@@ -3,7 +3,7 @@
  * Displays a list of documents within a project with the option to create new ones.
  */
 
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProjects } from '../hooks/useProjects';
@@ -23,6 +23,14 @@ import './ProjectDetail.css';
 type TabType = 'documents' | 'graph';
 
 const ALLOWED_EXTENSIONS = ['.md', '.markdown'];
+
+// WIKI4AI-179: simulated upload progress ramp. The cadence and the ramp are
+// unchanged from the old `setInterval` version (200 ms per tick, +10 % per
+// tick, capped at 90 % until the upload resolves) — only the mechanism is
+// different: a chain of one-shot `setTimeout`s instead of an interval.
+const PROGRESS_TICK_MS = 200;
+const PROGRESS_STEP = 10;
+const PROGRESS_CEILING = 90;
 
 const ProjectDetail: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -65,6 +73,35 @@ const ProjectDetail: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // WIKI4AI-179: every timer this page schedules is tracked, and none of them
+  // may outlive the page. The progress `setInterval` was cleared only inside
+  // the try/catch *after* the await, so unmounting during an upload left it
+  // running — each later tick called `setUploadProgress` on an unmounted
+  // component. One-shot chained `setTimeout` + this cleanup closes that hole.
+  const timersRef = useRef<number[]>([]);
+  const isMountedRef = useRef(true);
+
+  const scheduleTimer = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((timerId) => timerId !== id);
+      fn();
+    }, ms);
+    timersRef.current.push(id);
+  }, []);
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    timersRef.current = [];
+  }, []);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      clearTimers();
+    };
+  }, [clearTimers]);
 
   // Export state
   const [isExporting, setIsExporting] = useState(false);
@@ -152,19 +189,33 @@ const ProjectDetail: React.FC = () => {
     setUploadError(null);
     setUploadProgress(0);
 
-    // Simulate progress since fetch doesn't support upload progress natively
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => Math.min(prev + 10, 90));
-    }, 200);
+    // Simulate progress since fetch doesn't support upload progress natively.
+    // WIKI4AI-179: a one-shot `setTimeout` chain, not an interval — the next
+    // tick is scheduled only while the previous one actually ran, so the chain
+    // is cancellable by `clearTimers()` (upload finished) or by the unmount
+    // cleanup (page gone). Timing is identical to the old interval: first tick
+    // at 200 ms, +10 % per tick, held at 90 % until the upload resolves.
+    let simulated = 0;
+    const tick = () => {
+      simulated = Math.min(simulated + PROGRESS_STEP, PROGRESS_CEILING);
+      setUploadProgress(simulated);
+      if (simulated < PROGRESS_CEILING) {
+        scheduleTimer(tick, PROGRESS_TICK_MS);
+      }
+    };
+    scheduleTimer(tick, PROGRESS_TICK_MS);
 
     try {
       await uploadDocument(file);
-      clearInterval(progressInterval);
+      // WIKI4AI-179: the upload may resolve after this page is gone.
+      if (!isMountedRef.current) return;
+      clearTimers();
       setUploadProgress(100);
       // Reset progress after a short delay
-      setTimeout(() => setUploadProgress(0), 1500);
+      scheduleTimer(() => setUploadProgress(0), 1500);
     } catch (err) {
-      clearInterval(progressInterval);
+      if (!isMountedRef.current) return;
+      clearTimers();
       setUploadProgress(0);
       setUploadError(err instanceof Error ? err.message : t('project.uploadFailed'));
     }

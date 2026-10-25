@@ -1,8 +1,10 @@
 package com.wiki4ai.controller;
 
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.exception.CommentContractException;
 import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.exception.DocumentVersionConflictException;
+import com.wiki4ai.exception.RateLimitExceededException;
 import com.wiki4ai.exception.RegistrationDisabledException;
 import com.wiki4ai.exception.SetupAlreadyCompletedException;
 import com.wiki4ai.model.Document;
@@ -19,9 +21,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -384,6 +388,109 @@ public class GlobalExceptionHandler {
         body.put("message", "Invalid file upload request: " + ex.getMessage());
 
         return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * WIKI4AI-139: handle a per-token rate limit breach. Returns 429 Too Many
+     * Requests with a {@code Retry-After} header so a well-behaved client knows how
+     * long to back off instead of retrying immediately.
+     * <p>
+     * This is an addition, not a re-mapping: every handler above keeps its own
+     * status. It also guarantees the throttle can never escape as a 500 — a rate
+     * limit is a normal outcome of normal traffic, not a server fault.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(
+            RateLimitExceededException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.TOO_MANY_REQUESTS.value());
+        body.put("error", "Too Many Requests");
+        body.put("message", ex.getMessage());
+        body.put("retryAfterSeconds", ex.getRetryAfterSeconds());
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(body);
+    }
+
+    /**
+     * WIKI4AI-149: handle a work item comment whose payload breaks the contract of
+     * its kind. Returns 422 Unprocessable Entity with the kind and every field that
+     * broke it.
+     * <p>
+     * <b>This is an addition, not a re-mapping.</b> Every handler above keeps its own
+     * status and its own body — in particular {@code IllegalArgumentException → 409}
+     * and {@code MethodArgumentNotValidException → 400} are untouched, which is what
+     * keeps the work_items tests green. Nothing here widens an existing mapping
+     * either: {@link CommentContractException} extends {@link RuntimeException}
+     * directly, so no exception that used to reach one of the existing handlers can
+     * now reach this one. 422 is reachable from exactly one class.
+     * <p>
+     * Why 422 and not 400: 400 is the answer to a malformed request — a required
+     * field of the request is missing ({@code body}), or the request names something
+     * the API does not have ({@code kind}). 422 is the answer to a request that was
+     * fully understood, where the payload simply does not satisfy the contract its
+     * kind has to satisfy. The two need different fixes, so they need different
+     * statuses; {@code WorkItemCommentService} is where the line between them is
+     * drawn.
+     */
+    @ExceptionHandler(CommentContractException.class)
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ResponseEntity<Map<String, Object>> handleCommentContract(
+            CommentContractException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.UNPROCESSABLE_ENTITY.value());
+        body.put("error", "Unprocessable Entity");
+        body.put("message", ex.getMessage());
+        body.put("kind", ex.getKind());
+        body.put("violations", ex.getViolations());
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    /**
+     * WIKI4AI-171: handle a request whose path no controller maps.
+     * <p>
+     * Spring 6.1 answers an unmapped path through the default resource handler: the
+     * {@code /**} registration matches, finds no resource, and throws
+     * {@link NoResourceFoundException} — the message the client used to see was
+     * {@code "No static resource api/v1/auth/whoami."} carried in a <b>500</b>, because
+     * this advice had no handler for that class and the exception fell through to the
+     * catch-all below. A URL that does not exist is not a server fault: the answer is
+     * 404, and 500 stays what it always was — the answer to a real internal error.
+     * <p>
+     * <b>This is an addition, not a re-mapping.</b> Every handler above keeps its own
+     * exception class, its own status and its own body. The handler is routed by the
+     * concrete class {@code NoResourceFoundException} and by nothing else, so no
+     * exception that used to reach an existing handler can reach this one:
+     * {@code NoResourceFoundException} extends {@link jakarta.servlet.ServletException},
+     * which is not a superclass of anything the other handlers answer. Specificity, not
+     * order, decides the outcome — {@link Exception} is the least specific handler
+     * Spring can pick, so it stays the last resort.
+     * <p>
+     * The alternative fix — {@code spring.web.resources.add-mappings=false}, which stops
+     * the resource handler from being registered at all — was measured and rejected:
+     * this backend serves springdoc's swagger-ui through Spring's resource handling, and
+     * turning the mappings off removes it. {@code HttpStatusFallbackTest} asserts
+     * {@code /swagger-ui.html}, {@code /v3/api-docs} and {@code /actuator/health} still
+     * answer, which is what proves the mappings were left on.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResourceFound(
+            NoResourceFoundException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("error", "Not Found");
+        body.put("message", "No endpoint " + ex.getHttpMethod() + " " + ex.getResourcePath());
+        body.put("path", ex.getResourcePath());
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     /**

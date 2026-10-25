@@ -2455,6 +2455,870 @@ async def get_document_html_resource(project_slug: str, doc_slug: str) -> str:
     return result.get("htmlContent", "")
 
 
+# ─── Coordination Layer: actors, work items, inbox (WIKI4AI-158) ─────────────
+#
+# The coordination layer is what an agent talks to when it *works*: work items and
+# their comments, the actor inbox, and the capacity ledger. The rules of that layer
+# (who may claim, what a cursor means, what a comment kind must carry, how much
+# capacity is left) live in the backend services — SPEC rule 7 — with exactly ONE
+# deliberate exception, enforced here as well:
+#
+#     status="claimed" never leaves this server through an update.
+#
+# Why here and not only there: the backend answers that attempt with a 409 whose
+# reason the agent has to guess ("invalid transition"? "already claimed"?). The MCP
+# layer refuses it before the request is sent and names the call to make instead.
+# See _reject_claimed_status and test_workitem_tools.py.
+
+WORK_ITEM_STATUSES = (
+    "backlog", "ready", "claimed", "running", "review", "done", "blocked", "cancelled",
+)
+WORK_ITEM_COMMENT_KINDS = ("status", "blocker", "result", "handoff", "note", "decision")
+INBOX_LIMIT_MIN = 1
+INBOX_LIMIT_MAX = 50
+
+# Payload contract of each comment kind (WIKI4AI-149). A payload that does not
+# satisfy it is answered 422 by the backend — never 400, never a silent success.
+_COMMENT_CONTRACTS = {
+    "result": "payload needs 'where', 'next' and 'artifacts' (a list)",
+    "blocker": "payload needs 'blocking' and 'needs_human' (true/false)",
+    "handoff": "payload needs 'to_handle' (handle of an existing active actor) and 'context'",
+    "decision": "payload needs 'what', 'why' and 'applies_to'",
+    "status": "payload is optional",
+    "note": "payload is optional",
+}
+
+# The sentence an agent needs when a coordination write is refused because the
+# credential names a user but no actor. The backend says it in one line; an agent
+# that only sees "403 Forbidden" cannot act on it, so the MCP layer repeats it
+# together with the fix (WIKI4AI-159: the error must tell the agent what to do).
+ACTOR_CREDENTIAL_HINT = (
+    "The credential this MCP server sends is not bound to an agent actor. "
+    "Fix it in this order: (1) use an agent token — prefix 'w4a_', created with an actorId "
+    "via POST /api/v1/tokens or in the web UI under Profile -> API tokens; (2) if no such actor "
+    "exists yet, create one first (POST /api/v1/actors with a unique handle) and bind it to the "
+    "token. A legacy web JWT authenticates a user only: it can read work items, comments and "
+    "inboxes, but it cannot hold a claim, a lease or a reservation."
+)
+
+# Backend messages that mean "this credential names no actor", as opposed to a 403
+# that means "you have no write role on this project". Kept as data so the two
+# answers are never merged into one sentence.
+_ACTOR_LESS_MARKERS = (
+    "names no actor",
+    "does not name one",
+    "no actor identity",
+    "actor no longer exists",
+    "is archived",
+    "must be attributed to an actor",
+)
+
+
+def _is_actor_less_error(err: MCPToolError) -> bool:
+    """True when a backend 403 means 'this credential names no actor'."""
+    message = (err.message or "").lower()
+    return any(marker in message for marker in _ACTOR_LESS_MARKERS)
+
+
+def _raise_actor_required(action: str, err: MCPToolError) -> None:
+    """Re-raise a backend 403 as an instruction, keeping the status code and the original text."""
+    raise MCPToolError(
+        f"403 — {action} must be done AS AN ACTOR, and this credential names none. {ACTOR_CREDENTIAL_HINT} "
+        f"Backend said: {err.message}",
+        status_code=403,
+        details=err.details,
+    )
+
+
+def _reject_claimed_status(value: Optional[str], *, tool: str) -> None:
+    """Refuse status='claimed' before the request leaves this server (WIKI4AI-158).
+
+    'claimed' is the product of a claim, never of a write: the claim is one atomic
+    conditional UPDATE that also writes the assignee, the claim token and the lease
+    expiry. An update that could set it would let an agent take an item with no lease.
+    """
+    if value is None or str(value).strip().lower() != "claimed":
+        return
+    raise MCPToolError(
+        "Rejected by the MCP server before any HTTP request was sent: status 'claimed' is not "
+        "writable. 'claimed' is reachable only by claiming — workitem_claim "
+        "(POST /api/v1/work-items/{id}/claim) — which assigns a lease and a claim token. "
+        f"{tool} cannot create a claim. Route to 'claimed': workitem_update(work_item_id, "
+        "status='ready') when the item is in 'backlog', then workitem_claim(work_item_id). "
+        "Why the refusal happens here: the backend answers the same attempt with a 409 whose reason "
+        "you would have to guess; this message names the call to make.",
+        status_code=400,
+    )
+
+
+def _normalize_work_item_status(value: Optional[str], *, field: str = "status") -> Optional[str]:
+    """Lowercase a work item state and refuse an unknown one before any HTTP request."""
+    if value is None:
+        return None
+    normalized = str(value).strip().lower()
+    if normalized not in WORK_ITEM_STATUSES:
+        raise MCPToolError(
+            f"Invalid {field} '{value}': allowed values are {', '.join(WORK_ITEM_STATUSES)}. "
+            "Rejected by the MCP server before any HTTP request was sent.",
+            status_code=400,
+        )
+    return normalized
+
+
+def _validate_inbox_limit(limit: Optional[int]) -> int:
+    """Refuse an inbox page size outside 1..50 before any HTTP request (WIKI4AI-158).
+
+    The backend answers the same value with a 400 naming 'limit'. Refusing it here
+    costs the agent nothing and saves a round trip that would teach it nothing.
+    """
+    if limit is None:
+        return INBOX_LIMIT_MAX
+    try:
+        limit_int = int(limit)
+    except (TypeError, ValueError):
+        raise MCPToolError(
+            f"limit must be an integer (got {limit!r}). Rejected by the MCP server before any "
+            f"HTTP request was sent; the range is {INBOX_LIMIT_MIN}..{INBOX_LIMIT_MAX}.",
+            status_code=400,
+        )
+    if limit_int < INBOX_LIMIT_MIN or limit_int > INBOX_LIMIT_MAX:
+        raise MCPToolError(
+            f"limit must be between {INBOX_LIMIT_MIN} and {INBOX_LIMIT_MAX} (got {limit_int}). "
+            "A page is per stream and the backend caps it at 50. Rejected by the MCP server "
+            "before any HTTP request was sent.",
+            status_code=400,
+        )
+    return limit_int
+
+
+def _validate_positive_id(value: Optional[int], *, field: str) -> Optional[int]:
+    """Refuse a non-positive or non-numeric id before any HTTP request."""
+    if value is None:
+        return None
+    try:
+        value_int = int(value)
+    except (TypeError, ValueError):
+        raise MCPToolError(
+            f"{field} must be an integer (got {value!r}). Rejected by the MCP server before any "
+            "HTTP request was sent.",
+            status_code=400,
+        )
+    if value_int <= 0:
+        raise MCPToolError(
+            f"{field} must be a positive integer (got {value_int}). Rejected by the MCP server "
+            "before any HTTP request was sent.",
+            status_code=400,
+        )
+    return value_int
+
+
+def _query_string(params: dict) -> str:
+    """Build '?a=b&c=d' from a dict, dropping None values. An empty dict means no query."""
+    pairs = {k: v for k, v in params.items() if v is not None}
+    return f"?{_urlencode(pairs)}" if pairs else ""
+
+
+def _path_segment(value) -> str:
+    """URL-encode one path segment (a resource key, a handle) so it cannot forge a path."""
+    from urllib.parse import quote as _quote_path
+
+    return _quote_path(str(value), safe="")
+
+
+def _comment_body(kind: str, payload: Optional[dict]) -> str:
+    """Text the backend requires next to the payload.
+
+    The backend refuses a comment with no body (400 — 'Comment body is required'),
+    while this tool's input is the payload. A payload key 'body' (or 'summary',
+    'text', 'note') is used verbatim; otherwise a placeholder is written so the
+    comment is never lost to a 400 the agent did not cause.
+    """
+    if payload:
+        for key in ("body", "summary", "text", "note"):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return f"[{kind}] comment written by the MCP tool workitem_comment"
+
+
+# ─── Actor tools (WIKI4AI-158) ───────────────────────────────────────────────
+
+def actor_whoami() -> dict:
+    """Return who this MCP credential is: the user, the actor it acts as, and the token scopes.
+
+    Calls GET /api/v1/actors/whoami. Nothing is taken from the request — the identity
+    is what the verified credential says, so this is the tool to call FIRST to learn
+    whether you can act as an actor at all.
+
+    Error codes this tool can return:
+    401 — no credential, or an expired/revoked one. Re-authenticate; do not retry.
+    No other code is expected, and a legacy web JWT is NOT one of them: it is a valid
+    answer and this tool returns it as actorId null with scopes []. With actorId null you
+    can still read the coordination layer, but workitem_claim, workitem_comment and
+    reservation_create will be refused with 403 until the credential names an actor.
+
+    Returns:
+        Dict with:
+        - userId (int or null): authenticated user, null when it cannot be resolved
+        - username (str): authenticated principal name
+        - actorId (int or null): the actor the token names, null when it names none
+        - handle (str or null): that actor's handle, null when there is no actor
+        - kind (str or null): 'agent' | 'human' | 'service'
+        - scopes (list): token scopes; empty for a legacy web JWT
+
+    Example:
+        actor_whoami()  ->  {"username": "example-user", "actorId": 7, "handle": "ci-runner",
+                             "kind": "agent", "scopes": ["workitems", "resources"]}
+    """
+    return _api_request("GET", "/v1/actors/whoami")
+
+
+# ─── Work item tools (WIKI4AI-158) ───────────────────────────────────────────
+
+def workitem_list(project_id: Optional[int] = None, status: Optional[str] = None,
+                  label: Optional[str] = None, priority: Optional[str] = None,
+                  page: int = 0, size: int = 20) -> dict:
+    """List work items, optionally filtered by project, status, label and priority.
+
+    Calls GET /api/v1/work-items with projectId / status / label. That endpoint is
+    unpaged and has no priority filter, so `priority`, `page` and `size` are applied
+    by the MCP layer on the list it returns — the envelope below says what was applied.
+
+    Error codes this tool can return:
+    400 — an unknown status value, a page below 0, or a size outside 1..200. Refused by
+    the MCP server before any HTTP request is sent; the message names the parameter.
+    403 — the project is public but the caller has no role in it.
+    404 — the project does not exist, or it is private to somebody else. A private
+    project of another user is 404 and not 403: its existence is not revealed.
+
+    Args:
+        project_id: filter by project. Without it, items of private projects the
+            caller cannot see are dropped by the backend.
+        status: 'backlog' | 'ready' | 'claimed' | 'running' | 'review' | 'done' |
+            'blocked' | 'cancelled'. Validated here before any request.
+        label: matched as a whole token, not as a substring.
+        priority: 'low' | 'medium' | 'high' (applied by the MCP layer).
+        page: 0-indexed page (MCP layer), validated before any request is sent.
+        size: page size, 1..200 (MCP layer), validated before any request is sent.
+
+    Returns:
+        {"items": [...], "page": int, "size": int, "total": int, "returned": int}
+        Each item: id, projectId, title, body, status, priority, labels, parentId,
+        externalRef, assigneeActorId, claimToken?, leaseExpiresAt?, createdByUserId,
+        createdByActorId?, updatedByActorId?, createdAt, updatedAt, version.
+    """
+    normalized_status = _normalize_work_item_status(status)
+    try:
+        page_int = int(page)
+        size_int = int(size)
+    except (TypeError, ValueError):
+        raise MCPToolError(
+            f"page and size must be integers (got page={page!r}, size={size!r}). Rejected by the "
+            "MCP server before any HTTP request was sent.",
+            status_code=400,
+        )
+    if page_int < 0:
+        raise MCPToolError(
+            f"page must be 0 or greater (got {page_int}). Rejected by the MCP server before any "
+            "HTTP request was sent.",
+            status_code=400,
+        )
+    if size_int < 1 or size_int > 200:
+        raise MCPToolError(
+            f"size must be between 1 and 200 (got {size_int}). Rejected by the MCP server before "
+            "any HTTP request was sent.",
+            status_code=400,
+        )
+
+    query = _query_string({"projectId": project_id, "status": normalized_status, "label": label})
+    items = _api_request("GET", f"/v1/work-items{query}") or []
+
+    if priority:
+        wanted = str(priority).strip().lower()
+        items = [item for item in items
+                 if str(item.get("priority") or "").lower() == wanted]
+
+    total = len(items)
+    start = page_int * size_int
+    window = items[start:start + size_int]
+    return {
+        "items": window,
+        "page": page_int,
+        "size": size_int,
+        "total": total,
+        "returned": len(window),
+    }
+
+
+def workitem_get(work_item_id: int) -> dict:
+    """Read one work item: its state, its assignee and its lease.
+
+    Calls GET /api/v1/work-items/{id}. Read this before workitem_claim: a claim only
+    works on an item whose status is exactly 'ready'.
+
+    Error codes this tool can return:
+    404 — the item does not exist, or it lives in a private project the caller cannot
+    see; existence is not revealed.
+    401 — no credential.
+    400 — work_item_id is not a positive integer. Refused by the MCP server before any
+    HTTP request is sent.
+
+    Args:
+        work_item_id: numeric id of the work item.
+
+    Returns:
+        WorkItemDTO — see workitem_list for the fields. claimToken and leaseExpiresAt
+        are present only while a lease exists.
+    """
+    work_item_id = _validate_positive_id(work_item_id, field="work_item_id")
+    return _api_request("GET", f"/v1/work-items/{work_item_id}")
+
+
+def workitem_create(project_id: int, title: str, description: Optional[str] = None,
+                    status: Optional[str] = None, priority: Optional[str] = None,
+                    labels: Optional[list] = None, external_ref: Optional[str] = None,
+                    parent_id: Optional[int] = None) -> dict:
+    """Create a work item. It starts in 'backlog' — reaching 'claimed' takes TWO calls.
+
+    Calls POST /api/v1/work-items. The most common agent mistake this documents: a
+    created item is NOT claimable until it is 'ready'. So the route to a claim is
+    workitem_create(...) -> workitem_update(work_item_id, status='ready') ->
+    workitem_claim(work_item_id). There is no shortcut and none is offered.
+
+    Error codes this tool can return:
+    400 — missing project_id or a blank title (refused by the MCP server before any HTTP
+    request is sent), an unknown status or priority value, a parent in another project,
+    or a self-parent.
+    403 — the project is public but the caller has no write role in it.
+    404 — the project does not exist or is private to somebody else.
+    409 — external_ref is already taken (it is unique across the whole system), or
+    status 'done' was requested: that body starts with the token
+    RESULT_COMMENT_REQUIRED, because 'done' requires a 'result' comment and a comment
+    needs an item that already exists.
+    422 — never produced by this tool: 422 belongs to workitem_comment payloads.
+    Remember the route: this tool lands in 'backlog', so a claim takes
+    workitem_update(status='ready') and then workitem_claim — two calls.
+
+    Args:
+        project_id: required. The project the item belongs to.
+        title: required, at most 255 characters.
+        description: sent as the backend field `body` (the API calls it body).
+        status: initial state. Default 'backlog'. 'claimed' is refused here (see
+            _reject_claimed_status) and 'done' is refused by the backend with 409
+            RESULT_COMMENT_REQUIRED, because 'done' requires a 'result' comment and a
+            comment needs an item that already exists.
+        priority: 'low' | 'medium' | 'high'.
+        labels: list of label tokens.
+        external_ref: optional unique external reference (e.g. a Jira key). Unique
+            across the whole system — a duplicate is 409.
+        parent_id: optional parent work item; it must be in the same project.
+
+    Returns:
+        The created WorkItemDTO (201), including its id and version.
+    """
+    if project_id is None:
+        raise MCPToolError(
+            "project_id is required. Call list_projects() to find the id.", status_code=400)
+    if title is None or not str(title).strip():
+        raise MCPToolError("title is required and must not be blank.", status_code=400)
+    project_id = _validate_positive_id(project_id, field="project_id")
+    parent_id = _validate_positive_id(parent_id, field="parent_id")
+    _reject_claimed_status(status, tool="workitem_create")
+    normalized_status = _normalize_work_item_status(status)
+
+    body = {
+        "projectId": project_id,
+        "title": str(title).strip(),
+        "body": description,
+        "status": normalized_status,
+        "priority": str(priority).strip().lower() if priority else None,
+        "labels": labels,
+        "externalRef": external_ref,
+        "parentId": parent_id,
+    }
+    return _api_request("POST", "/v1/work-items", {k: v for k, v in body.items() if v is not None})
+
+
+def workitem_claim(work_item_id: int) -> dict:
+    """Claim a 'ready' work item for the actor of this credential. The only way to get 'claimed'.
+
+    Calls POST /api/v1/work-items/{id}/claim. The claim is one atomic conditional
+    UPDATE guarded by the state, so two agents racing for the same item cannot both
+    win: one gets 200, the other 409.
+
+    Error codes this tool can return:
+    403 — this credential names no actor. The message then names the fix instead of
+    leaving you with "403 Forbidden": issue an agent token 'w4a_' bound to an actorId, or
+    create an actor first. Also 403 when the caller has no write role on the item's
+    project.
+    404 — the item does not exist, or it is in a private project the caller cannot see.
+    409 — the item is not 'ready': somebody else claimed it first, it is already being
+    worked on, or it is finished or cancelled. Re-read it with workitem_get; if it is
+    'backlog', move it to 'ready' with workitem_update and claim again.
+    400 — work_item_id is not a positive integer. Refused by the MCP server before any
+    HTTP request is sent.
+
+    Args:
+        work_item_id: id of an item whose status is exactly 'ready'.
+
+    Returns:
+        {"id", "status": "claimed", "assigneeActorId", "claimToken", "leaseExpiresAt",
+         "version", "updatedAt"} — the claim triple. claimToken is returned here and
+        nowhere else; keep it, workitem_lease-style proof needs it.
+    """
+    work_item_id = _validate_positive_id(work_item_id, field="work_item_id")
+    try:
+        return _api_request("POST", f"/v1/work-items/{work_item_id}/claim")
+    except MCPToolError as err:
+        if err.status_code == 403 and _is_actor_less_error(err):
+            _raise_actor_required("Claiming a work item", err)
+        if err.status_code == 409:
+            raise MCPToolError(
+                f"409 — work item {work_item_id} could not be claimed. {err.message} "
+                "A claim only succeeds on status 'ready'. Read the item with workitem_get; "
+                "if it is 'backlog', move it to 'ready' with workitem_update first.",
+                status_code=409,
+                details=err.details,
+            ) from None
+        raise
+
+
+def workitem_update(work_item_id: int, title: Optional[str] = None,
+                    description: Optional[str] = None, status: Optional[str] = None,
+                    priority: Optional[str] = None, labels: Optional[list] = None) -> dict:
+    """Change a work item. PATCH semantics: a field you omit is left as it is.
+
+    Calls PUT /api/v1/work-items/{id}.
+
+    Hard rule enforced in the MCP layer (WIKI4AI-158): status='claimed' is refused
+    HERE, before any HTTP request is sent. 'claimed' is reachable only through
+    workitem_claim, because a claim is what writes the assignee, the claim token and
+    the lease; an update that could set it would produce a held item nobody holds.
+
+    Error codes this tool can return:
+    400 — refused by the MCP server before any HTTP request is sent: status 'claimed'
+    (see the MCPToolError line below), an unknown status value, a blank title, or a
+    work_item_id that is not a positive integer.
+    403 — the item is in a public project the caller has no write role in.
+    404 — the item does not exist, or it is in a private project the caller cannot see.
+    409 — an illegal status transition (the message lists the legal ones), a duplicate
+    external_ref, or 'review' -> 'done' without a 'result' comment: that body starts
+    with the token RESULT_COMMENT_REQUIRED, so write
+    workitem_comment(work_item_id, 'result', ...) and retry.
+    MCPToolError — status 'claimed'. This never reaches the backend: the MCP layer
+    refuses it locally, because only workitem_claim writes the assignee, the claim token
+    and the lease that 'claimed' is supposed to describe.
+
+    Args:
+        work_item_id: id of the item to change.
+        title: new title (at most 255 characters).
+        description: sent as the backend field `body`.
+        status: target state. It must be a legal transition from the current state
+            ('backlog' -> 'ready', 'ready' -> 'claimed' is NOT one of them here,
+            'running' -> 'review', 'review' -> 'done', ...). Keeping the same state
+            is allowed. 'claimed' -> MCPToolError, no request sent.
+        priority: 'low' | 'medium' | 'high'.
+        labels: null/omitted = keep labels; [] = remove all labels.
+
+    Returns:
+        The updated WorkItemDTO with its new `version`.
+    """
+    work_item_id = _validate_positive_id(work_item_id, field="work_item_id")
+    _reject_claimed_status(status, tool="workitem_update")
+    normalized_status = _normalize_work_item_status(status)
+
+    body = {
+        "title": str(title).strip() if title is not None else None,
+        "body": description,
+        "status": normalized_status,
+        "priority": str(priority).strip().lower() if priority else None,
+        "labels": labels,
+    }
+    return _api_request("PUT", f"/v1/work-items/{work_item_id}",
+                        {k: v for k, v in body.items() if v is not None})
+
+
+def workitem_comment(work_item_id: int, kind: str, payload: Optional[dict] = None) -> dict:
+    """Append a comment to a work item. The payload contract of the kind is enforced by the backend.
+
+    Calls POST /api/v1/work-items/{id}/comments. The author is the actor of this
+    credential — the API has no author field, so a comment cannot be attributed to
+    somebody else.
+
+    Error codes this tool can return:
+    422 — the payload breaks the contract of its kind: kind='handoff' without 'to_handle'
+    or 'context', kind='result' without 'where' / 'next' / 'artifacts', and so on. This
+    is NOT a JSON syntax error and not a malformed request: the request was parsed and
+    understood, and its payload does not satisfy the contract of the kind. The message
+    names the kind and the keys it expected, so fix the payload rather than the JSON.
+    400 — refused by the MCP server for an unknown kind, or a payload that is not an
+    object; no request is sent. From the backend it means a required field of the
+    request is absent, e.g. no body at all. 400 and 422 are different failures: 400 means
+    the request was malformed, 422 means it was understood.
+    403 — the item's project is public and the caller has no role there, or this
+    credential names no actor: a comment must be attributed to an actor, so the message
+    names the fix (an agent token 'w4a_' bound to an actorId).
+    404 — the item does not exist or is in a private project the caller cannot see.
+    409 — the 'done' invariant: an item may enter 'done' only when it has a 'result'
+    comment; the body starts with the token RESULT_COMMENT_REQUIRED.
+
+    Args:
+        work_item_id: id of the item.
+        kind: 'status' | 'blocker' | 'result' | 'handoff' | 'note' | 'decision'.
+            Validated here before any request.
+        payload: structured details. Contract per kind (422 when broken):
+            result   -> 'where', 'next', 'artifacts' (a list)
+            blocker  -> 'blocking', 'needs_human' (true/false)
+            handoff  -> 'to_handle' (handle of an existing ACTIVE actor), 'context'
+            decision -> 'what', 'why', 'applies_to'
+            status/note -> payload optional
+        The backend also requires a non-empty text body. Put it in payload['body']
+        (also accepted: 'summary', 'text', 'note'); when it is absent the MCP layer
+        writes a placeholder so the comment is not lost to a 400 the agent did not cause.
+
+    Returns:
+        The created WorkItemCommentDTO: id, workItemId, authorActorId, kind, body,
+        payload, createdAt.
+    """
+    work_item_id = _validate_positive_id(work_item_id, field="work_item_id")
+    normalized_kind = (kind or "").strip().lower()
+    if normalized_kind not in WORK_ITEM_COMMENT_KINDS:
+        raise MCPToolError(
+            f"Invalid kind '{kind}': allowed values are {', '.join(WORK_ITEM_COMMENT_KINDS)}. "
+            "Rejected by the MCP server before any HTTP request was sent.",
+            status_code=400,
+        )
+    if payload is not None and not isinstance(payload, dict):
+        raise MCPToolError(
+            "payload must be an object (a JSON object), not a list or a scalar.",
+            status_code=400,
+        )
+
+    body = {
+        "kind": normalized_kind,
+        "body": _comment_body(normalized_kind, payload),
+        "payload": payload,
+    }
+    try:
+        return _api_request("POST", f"/v1/work-items/{work_item_id}/comments",
+                            {k: v for k, v in body.items() if v is not None})
+    except MCPToolError as err:
+        if err.status_code == 403 and _is_actor_less_error(err):
+            _raise_actor_required("Writing a work item comment", err)
+        if err.status_code == 422:
+            raise MCPToolError(
+                f"422 — the payload of kind '{normalized_kind}' breaks its contract: "
+                f"{_COMMENT_CONTRACTS[normalized_kind]}. This is not a JSON syntax error — the "
+                f"request was understood. Backend said: {err.message}",
+                status_code=422,
+                details=err.details,
+            ) from None
+        raise
+
+
+# ─── Inbox tools (WIKI4AI-158) ───────────────────────────────────────────────
+
+def inbox_poll(actor_id: int, cursor: Optional[str] = None, limit: int = 50) -> dict:
+    """Read an actor's inbox. This is the ONLY tool that reads it, and it never writes.
+
+    Calls GET /api/v1/actors/{id}/inbox. A GET never moves the seen-marker — that is
+    a property of the backend and the MCP layer does not work around it. To record
+    that you have read something, call inbox_mark_seen; that separation is deliberate.
+
+    Four streams are returned in one chronological list: (1) items assigned to this
+    actor, (2) comments on items this actor created or holds, (3) mentions — 'handoff'
+    comments whose payload 'to_handle' is this actor's handle, (4) items that slipped
+    away (lease_expired / stale_claim_cleared events).
+
+    Error codes this tool can return:
+    400 — `limit` is not an integer, or is outside 1..50: refused by the MCP server
+    before any HTTP request is sent, and the message names `limit`. From the backend it
+    means an unreadable cursor or a non-numeric limit; both name the parameter. An
+    actor_id that is not a positive integer is refused here too, with no request sent.
+    A cursor of null or "" is the FIRST page and is never an error.
+    403 — the inbox belongs to another actor, or the credential names an actor that is
+    not this one.
+    404 — the actor does not exist.
+
+    Args:
+        actor_id: whose inbox to read. The backend refuses another actor's inbox (403)
+            unless the caller may see it.
+        cursor: the opaque string from the previous page's nextCursor. None or "" is
+            the FIRST page and is not an error — never invent a cursor, store the one
+            you were given and send it back.
+        limit: page size PER STREAM, 1..50, default 50. Validated here: a value
+            outside the range is refused before any request is sent.
+
+    Returns:
+        {"items": [{"stream", "id", "workItemId", "kind", "title", "body", "payload",
+        "createdAt"}], "nextCursor": str|null, "limit": int, "totalElements": int}
+        nextCursor is null when a page is the last one for every stream.
+    """
+    actor_id = _validate_positive_id(actor_id, field="actor_id")
+    limit_int = _validate_inbox_limit(limit)
+    query = _query_string({"cursor": cursor if cursor else None, "limit": limit_int})
+    try:
+        return _api_request("GET", f"/v1/actors/{actor_id}/inbox{query}")
+    except MCPToolError as err:
+        if err.status_code == 403 and _is_actor_less_error(err):
+            _raise_actor_required("Reading an actor inbox", err)
+        raise
+
+
+def inbox_mark_seen(actor_id: int, event_id: Optional[int] = None) -> dict:
+    """Move the actor's seen-marker. The write half of the inbox, kept apart from inbox_poll.
+
+    Calls POST /api/v1/actors/{id}/inbox/mark-seen. Idempotent: calling it again with
+    nothing new changes nothing and is not an error. The server, not the client,
+    decides the value: an event_id is clipped to the highest event id that actually
+    exists in this actor's stream, and the marker never moves backwards.
+
+    Error codes this tool can return:
+    400 — event_id is not a positive integer: refused by the MCP server before any HTTP
+    request is sent. From the backend it means 'eventId' is not a number or is negative.
+    403 — the inbox belongs to another actor.
+    404 — the actor does not exist.
+    The marker is clamped by the server, not by you: an event_id above the highest event
+    that actually exists in this actor's stream is lowered to that id, so you are never
+    given a marker for events that do not exist yet, and the marker never moves
+    backwards. Calling this again with nothing new is not an error.
+
+    Args:
+        actor_id: whose marker to move.
+        event_id: optional. Mark everything up to this event as read. Omit it to mark
+            everything that exists right now.
+
+    Returns:
+        {} on success (the backend answers 204 No Content). To see what is still
+        unseen, GET /api/v1/actors/{id}/inbox/unseen (no MCP tool for it in this story).
+    """
+    actor_id = _validate_positive_id(actor_id, field="actor_id")
+    event_id = _validate_positive_id(event_id, field="event_id")
+    body = {"eventId": event_id} if event_id is not None else None
+    try:
+        return _api_request("POST", f"/v1/actors/{actor_id}/inbox/mark-seen", body)
+    except MCPToolError as err:
+        if err.status_code == 403 and _is_actor_less_error(err):
+            _raise_actor_required("Marking an actor inbox as seen", err)
+        raise
+
+
+# ─── Resource and reservation tools (WIKI4AI-159) ────────────────────────────
+
+def resource_list() -> list:
+    """List every capacity resource with its live slot count. Read this before reserving.
+
+    Calls GET /api/v1/resources. Reading the ledger is unrestricted for any
+    authenticated caller; holding capacity is not (see reservation_create).
+
+    Error codes this tool can return:
+    401 — no credential. Reading the ledger is open to any authenticated caller; holding
+    capacity is not (see reservation_create).
+    500 — not expected.
+    Related rule, because it surprises agents: a resource with active reservations cannot
+    be deleted — DELETE /api/v1/resources/{key} answers 409 — and deleting a resource
+    does NOT release the slots its reservations hold. Release them with
+    reservation_release.
+
+    Returns:
+        List of {"id", "key", "name", "kind", "capacity", "activeSlots", "enabled",
+        "metadata", "availableSlots", "createdAt"}. `key` is what every other tool
+        takes — the numeric id is informational. availableSlots = capacity - activeSlots.
+    """
+    return _api_request("GET", "/v1/resources")
+
+
+def resource_get(key: str) -> dict:
+    """Read one resource by its key, including how many slots are free right now.
+
+    Calls GET /api/v1/resources/{key}. Call it immediately before
+    reservation_create when you need `availableSlots`: the reservation is atomic, so
+    a value you read is a hint, not a guarantee — the reserve call is the authority.
+
+    Error codes this tool can return:
+    404 — no resource has this key. resource_list() shows the keys that do.
+    401 — no credential.
+    400 — key is missing or blank. Refused by the MCP server before any HTTP request is
+    sent.
+
+    Args:
+        key: the resource key (at most 64 characters), not its numeric id.
+
+    Returns:
+        ResourceDTO — see resource_list.
+    """
+    if key is None or not str(key).strip():
+        raise MCPToolError("key is required. Call resource_list() to see the keys.", status_code=400)
+    return _api_request("GET", f"/v1/resources/{_path_segment(key)}")
+
+
+def reservation_list(key: str) -> list:
+    """List a resource's reservations — live and released, newest first.
+
+    Calls GET /api/v1/resources/{key}/reservations. Use it to find the id you need
+    for reservation_release, and to see which of your own holdings are still open.
+
+    Error codes this tool can return:
+    404 — no resource has this key. resource_list() shows the keys that do.
+    401 — no credential.
+    400 — key is missing or blank. Refused by the MCP server before any HTTP request is
+    sent.
+
+    Args:
+        key: the resource key.
+
+    Returns:
+        List of {"id", "resourceId", "resourceKey", "actorId", "workItemId", "slots",
+        "reason", "expiresAt", "releasedAt", "createdAt"}.
+        releasedAt == null means the slot is held. expiresAt is when the TTL reaper
+        releases it without anyone asking.
+    """
+    if key is None or not str(key).strip():
+        raise MCPToolError("key is required. Call resource_list() to see the keys.", status_code=400)
+    return _api_request("GET", f"/v1/resources/{_path_segment(key)}/reservations")
+
+
+def reservation_create(key: str, slots: int = 1, reason: Optional[str] = None,
+                       work_item_id: Optional[int] = None) -> dict:
+    """Reserve capacity on a resource. Atomic: two agents cannot both win the last slot.
+
+    Calls POST /api/v1/resources/{key}/reserve. The precondition (enabled and enough
+    room) is part of one conditional UPDATE in the backend, so the answer is never a
+    guess and never a lost update.
+
+    This tool acts AS AN ACTOR. A credential that names no actor — a legacy web JWT,
+    or a token with no actorId — is refused with 403, and the message says what to do
+    about it instead of leaving the agent to read "403 Forbidden".
+
+    Error codes this tool can return:
+    403 — this credential is not bound to an agent actor: a legacy web JWT, or a token
+    with no actorId, is refused. The message then names the fix instead of leaving you
+    with "403 Forbidden": issue an agent token 'w4a_' bound to an actorId, or create an
+    actor first. A different 403 means work_item_id belongs to a project your actor does
+    not have at least the 'worker' role in; that message does not ask for a token.
+    400 — slots is not a positive integer (refused by the MCP server before any HTTP
+    request is sent), or reason is longer than 255 characters.
+    404 — no resource has this key. resource_list() shows the keys that do.
+    409 — TWO DIFFERENT ANSWERS, never merged into one message:
+    (a) the resource is disabled (enabled=false) — nothing is full, the resource is
+    switched off; ask for it to be re-enabled or pick another key.
+    (b) insufficient capacity — the resource is on but the remaining slots do not fit
+    `slots`; the message states requested versus available. Wait for a TTL (expiresAt),
+    release one of your own reservations, or pick a resource with room.
+
+    Args:
+        key: resource key (see resource_list / resource_get).
+        slots: positive integer, default 1. Validated here before any request.
+        reason: optional free text, at most 255 characters.
+        work_item_id: optional; ties the reservation to a work item, which then needs
+            write access to that item's project.
+
+    Returns:
+        The created ReservationDTO (201): id, resourceId, resourceKey, actorId,
+        workItemId, slots, reason, expiresAt, releasedAt (null), createdAt.
+        Keep `id` — reservation_release takes it.
+    """
+    if key is None or not str(key).strip():
+        raise MCPToolError("key is required. Call resource_list() to see the keys.", status_code=400)
+    try:
+        slots_int = int(slots)
+    except (TypeError, ValueError):
+        raise MCPToolError(
+            f"slots must be a positive integer (got {slots!r}). Rejected by the MCP server before "
+            "any HTTP request was sent.",
+            status_code=400,
+        )
+    if slots_int <= 0:
+        raise MCPToolError(
+            f"slots must be a positive integer (got {slots_int}). Rejected by the MCP server before "
+            "any HTTP request was sent.",
+            status_code=400,
+        )
+    work_item_id = _validate_positive_id(work_item_id, field="work_item_id")
+
+    body = {
+        # The backend DTO carries slots as a String on purpose (a non-numeric value is
+        # then a 400 naming 'slots' instead of a 500 from a failed Integer binding).
+        "slots": str(slots_int),
+        "reason": reason,
+        "workItemId": work_item_id,
+    }
+    try:
+        return _api_request("POST", f"/v1/resources/{_path_segment(key)}/reserve",
+                            {k: v for k, v in body.items() if v is not None})
+    except MCPToolError as err:
+        message = (err.message or "")
+        lowered = message.lower()
+        if err.status_code == 403 and _is_actor_less_error(err):
+            _raise_actor_required("Reserving capacity", err)
+        if err.status_code == 409 and "disabled" in lowered:
+            raise MCPToolError(
+                f"409 — resource '{key}' is disabled. This is NOT a capacity problem: no slot is "
+                "taken, the resource is switched off (enabled=false) and refuses reservations while "
+                f"it is. {message} Ask an operator to re-enable it, or reserve a different resource "
+                "(resource_list()).",
+                status_code=409,
+                details=err.details,
+            ) from None
+        if err.status_code == 409 and "capacity" in lowered:
+            raise MCPToolError(
+                f"409 — insufficient capacity on resource '{key}': the resource is enabled but the "
+                f"free slots do not fit {slots_int}. {message} Options: wait for a lease to expire "
+                "(reservation_list() shows expiresAt), release one of your own reservations with "
+                "reservation_release, or pick a resource with availableSlots >= "
+                f"{slots_int} (resource_list()).",
+                status_code=409,
+                details=err.details,
+            ) from None
+        if err.status_code == 404:
+            raise MCPToolError(
+                f"404 — no resource has the key '{key}'. {message} resource_list() returns the keys "
+                "that exist.",
+                status_code=404,
+                details=err.details,
+            ) from None
+        raise
+
+
+def reservation_release(reservation_id: int) -> dict:
+    """Release a reservation you hold. Idempotent, but only for a reservation that exists.
+
+    Calls POST /api/v1/reservations/{id}/release. Releasing an already-released
+    reservation is 204 again and active_slots drops exactly once — a second call is
+    not an error. An id that does not exist is 404, not a silent success.
+
+    Error codes this tool can return:
+    404 — no reservation has this id. reservation_list(key) lists the ids that do; a
+    typo'd id is 404 and releases nothing.
+    403 — the reservation belongs to another actor. An ADMIN user, or a token with the
+    'admin' scope, may release any.
+    400 — reservation_id is not a positive integer. Refused by the MCP server before any
+    HTTP request is sent.
+    Idempotent, and that is what makes 404 and 204 different: releasing a reservation that
+    exists and was already released answers 204 again and active_slots drops exactly once,
+    so a second call never lowers the counter twice.
+
+    Args:
+        reservation_id: the id returned by reservation_create (or reservation_list).
+
+    Returns:
+        {} on success (204 No Content).
+    """
+    reservation_id = _validate_positive_id(reservation_id, field="reservation_id")
+    try:
+        return _api_request("POST", f"/v1/reservations/{reservation_id}/release")
+    except MCPToolError as err:
+        if err.status_code == 404:
+            raise MCPToolError(
+                f"404 — no reservation with id {reservation_id}. {err.message} Releasing is "
+                "idempotent for a reservation that exists and was already released; an unknown id is "
+                "404 and releases nothing. reservation_list(key) lists the ids that exist.",
+                status_code=404,
+                details=err.details,
+            ) from None
+        raise
+
+
 # ─── MCP Server Setup ──────────────────────────────────────────────────────
 
 def create_mcp_server() -> FastMCP:
@@ -2505,6 +3369,23 @@ def create_mcp_server() -> FastMCP:
     mcp.add_tool(vault_create_entry)
     mcp.add_tool(vault_update_entry)
     mcp.add_tool(vault_delete_entry)
+
+    # Coordination layer (WIKI4AI-158, WIKI4AI-159): actors, work items, inbox,
+    # capacity ledger. Registered here so they appear in the MCP tools list.
+    mcp.add_tool(actor_whoami)
+    mcp.add_tool(workitem_list)
+    mcp.add_tool(workitem_get)
+    mcp.add_tool(workitem_create)
+    mcp.add_tool(workitem_claim)
+    mcp.add_tool(workitem_update)
+    mcp.add_tool(workitem_comment)
+    mcp.add_tool(inbox_poll)
+    mcp.add_tool(inbox_mark_seen)
+    mcp.add_tool(resource_list)
+    mcp.add_tool(resource_get)
+    mcp.add_tool(reservation_list)
+    mcp.add_tool(reservation_create)
+    mcp.add_tool(reservation_release)
 
     # MCP Resources are auto-registered by FastMCP via @mcp.resource decorators above.
     # No need for explicit add_resource() calls — the decorated functions are already registered.

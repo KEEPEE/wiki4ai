@@ -1,0 +1,229 @@
+/**
+ * WIKI4AI-164: metrics page. `metrics-*` scoped (WIKI4AI-81 lesson). A bar is a div
+ * whose width is `statusSeconds / totalStatusSeconds` — the ratio the API made
+ * possible, no chart library.
+ */
+
+.metrics-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.metrics-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.metrics-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.metrics-title-icon {
+  color: var(--primary);
+  display: inline-flex;
+}
+
+.metrics-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.metrics-window-form {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.metrics-window-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.metrics-window {
+  margin: 0 0 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.metrics-error {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(255, 71, 87, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 71, 87, 0.08);
+  color: #ff8a94;
+  font-size: 0.85rem;
+}
+
+.metrics-loading,
+.metrics-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── Summary cards: one card per field of `summary` ───────────────── */
+
+.metrics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.metric-card {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  background: var(--glass-bg);
+}
+
+.metric-card-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.metric-card-value {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metrics-backfilled {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ── Time in state ────────────────────────────────────────────────── */
+
+.metrics-section-title {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.metrics-status-share,
+.metrics-actor-share {
+  margin-bottom: 1.25rem;
+}
+
+.metrics-share-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 150px;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.metrics-share-label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.metrics-share-bar {
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.metrics-share-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, #7ad7ff 100%);
+}
+
+.metrics-share-value {
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+/* ── Per-actor rows ───────────────────────────────────────────────── */
+
+.metrics-actors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.metrics-actor {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-bg);
+}
+
+.metrics-actor-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.metrics-actor-id {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.metrics-actor-lease,
+.metrics-actor-cycle {
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.metrics-actor-lease {
+  border-color: rgba(255, 71, 87, 0.35);
+  color: #ff8a94;
+}
+
+.metrics-actor-counts {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.metrics-no-status {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.metrics-footnote {
+  margin-top: 1.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}

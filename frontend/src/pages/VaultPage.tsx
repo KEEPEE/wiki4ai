@@ -197,12 +197,33 @@ const VaultPage: React.FC = () => {
 
   const allGroups = useMemo(() => Object.keys(groupedEntries).sort(), [groupedEntries]);
 
+  // WIKI4AI-179: the "copied" feedback timer is tracked so it cannot outlive
+  // the page. Both copy paths used to schedule a bare `setTimeout` that nobody
+  // pruned — after unmount it called `setCopiedId(null)` on a component that no
+  // longer existed, which is the class of unhandled error that fails CI.
+  const timersRef = useRef<number[]>([]);
+
+  const scheduleTimer = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(() => {
+      timersRef.current = timersRef.current.filter((timerId) => timerId !== id);
+      fn();
+    }, ms);
+    timersRef.current.push(id);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      timersRef.current = [];
+    };
+  }, []);
+
   // Copy password to clipboard
   const copyPassword = useCallback(async (entry: VaultEntry) => {
     try {
       await navigator.clipboard.writeText(entry.data.password);
       setCopiedId(entry.id);
-      setTimeout(() => setCopiedId(null), 2000);
+      scheduleTimer(() => setCopiedId(null), 2000);
     } catch {
       // Fallback for older browsers
       const textarea = document.createElement('textarea');
@@ -212,9 +233,9 @@ const VaultPage: React.FC = () => {
       document.execCommand('copy');
       document.body.removeChild(textarea);
       setCopiedId(entry.id);
-      setTimeout(() => setCopiedId(null), 2000);
+      scheduleTimer(() => setCopiedId(null), 2000);
     }
-  }, []);
+  }, [scheduleTimer]);
 
   // Show setup screen if no master password set yet OR vault needs re-initialization (new browser/device)
   if (!vault.isLoading && (vault.hasMasterPasswordSet === false || vault.needsReinit)) {

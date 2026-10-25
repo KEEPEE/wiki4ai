@@ -219,6 +219,13 @@ export function apiPost<T>(url: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   }).then((res) => {
     if (!res.ok) return rejectWithDetail(res);
+    // A POST that reports success with 204 has no body to parse. Coordination
+    // endpoints do exactly this — `POST /reservations/{id}/release` and
+    // `POST /actors/{id}/inbox/mark-seen` answer `ResponseEntity<Void>` — and parsing
+    // an empty body would throw on a request the server just accepted, which in the UI
+    // reads as "the release failed" when it succeeded. 204 is the one status that is
+    // defined to carry no body, so only that status is special-cased.
+    if (res.status === 204) return {} as T;
     return res.json();
   });
 }

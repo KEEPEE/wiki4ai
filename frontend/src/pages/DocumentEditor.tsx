@@ -4,7 +4,7 @@
  * Supports both creating new documents and editing existing ones.
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import MarkdownEditor from '../components/MarkdownEditor';
@@ -26,6 +26,9 @@ interface DocumentEditorProps {
 }
 
 const AUTO_SAVE_DELAY_DEFAULT = 2000; // Default auto-save every 2 seconds
+
+/** How long the "saved" pill stays up before the status falls back to idle. */
+const SAVE_IDLE_DELAY_MS = 2000;
 
 /**
  * Calculate the number of words in a text string.
@@ -101,6 +104,36 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
   // empty editor with only the tiny "Error" status pill.
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // WIKI4AI-175: the "saved" pill is cleared by a timer, and that timer used to be
+  // fire-and-forget. It outlived the component: after an unmount (in the app a fast
+  // navigation, in the suite a test teardown) the DOM was already gone when the callback
+  // fired and called a state setter on a dead tree — Vitest surfaced that as an unhandled
+  // `ReferenceError: window is not defined` on the test file that rendered the editor.
+  // The timer is therefore owned by a ref: a pending one is cancelled before a new one is
+  // scheduled, and the cleanup below guarantees none is left running after unmount.
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSaveStatusIdle = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current);
+    }
+    idleTimerRef.current = setTimeout(() => {
+      setSaveStatus('idle');
+      idleTimerRef.current = null;
+    }, SAVE_IDLE_DELAY_MS);
+  }, []);
+
+  // The guarantee that survives a fast unmount: nothing may still be scheduled here once
+  // this component is gone.
+  useEffect(() => {
+    return () => {
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+        idleTimerRef.current = null;
+      }
+    };
+  }, []);
+
   // React Query hooks for document management
   const { updateDocument, createDocument } = useDocuments(projectSlug || '');
 
@@ -173,7 +206,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       setLastSavedContent(debouncedContent);
       setSaveStatus('saved');
       setConflictActive(false);
-      setTimeout(() => setSaveStatus('idle'), 2000);
+      scheduleSaveStatusIdle();
     } catch (err) {
       console.error('Auto-save failed:', err);
       if (err instanceof Error && err.message.startsWith('409')) {
@@ -183,7 +216,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
     } finally {
       setSaving(false);
     }
-  }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate, conflictActive, lastSavedTitle, lastSavedContent]);
+  }, [projectSlug, debouncedTitle, debouncedContent, isEditing, docSlug, updateDocument, createDocument, navigate, conflictActive, lastSavedTitle, lastSavedContent, scheduleSaveStatusIdle]);
 
   // Trigger auto-save when debounced values change (and autosave is enabled)
   useEffect(() => {
@@ -208,7 +241,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
       setLastSavedContent(content);
       setSaveStatus('saved');
       setConflictActive(false);
-      setTimeout(() => setSaveStatus('idle'), 2000);
+      scheduleSaveStatusIdle();
 
       // Call external onSave callback if provided
       if (onSave) {

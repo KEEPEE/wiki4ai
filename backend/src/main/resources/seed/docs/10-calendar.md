@@ -95,7 +95,7 @@ All endpoints require a **JWT** (they are not under the public read matcher). Ve
 
 ## MCP tools
 
-Six of the MCP server's 38 tools cover the calendar (see [[MCP Server]] for transports and identity model):
+Six of the MCP server's 52 tools cover the calendar (see [[MCP Server]] for transports and identity model):
 
 | Tool | What it does |
 |---|---|
@@ -122,5 +122,5 @@ Full column reference in [[Data Model]]; the REST/MCP surface is summarized abov
 - [[Home]] — project overview
 - [[WebUI Guide]] — the rest of the web interface, screen by screen
 - [[Backend API Reference]] — complete REST endpoint reference
-- [[MCP Server]] — all 38 MCP tools, transports and security model
+- [[MCP Server]] — all 52 MCP tools, transports and security model
 - [[Data Model]] — tables, columns and migrations

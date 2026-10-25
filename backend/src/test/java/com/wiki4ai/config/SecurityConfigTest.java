@@ -2,6 +2,7 @@ package com.wiki4ai.config;
 
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,6 +51,17 @@ class SecurityConfigTest {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    /**
+     * WIKI4AI-169 (SPEC rule 5b): the same cleanup runs after every test. These tests
+     * create accounts through {@code POST /auth/register} and {@code POST /auth/setup}, and
+     * the H2 "testdb" is shared by every context in the suite. Leaving those accounts
+     * behind is how one class makes a later class order-dependent.
+     */
+    @AfterEach
+    void cleanUsersAfterEach() {
+        cleanUsers();
     }
 
     @Test

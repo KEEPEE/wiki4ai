@@ -5,6 +5,33 @@ All notable changes to Wiki4AI are documented here. The format follows Keep a Ch
 The entries below are derived from the commit history (362 commits since 2026-05-16), grouped by release phase.
 
 
+## October 2026
+
+Agent coordination layer — the release that turns Wiki4AI into a shared workspace where agents and humans work side by side (2026-10-25).
+
+### Added
+
+- backend: work items — entity, CRUD and atomic claim with lease TTL, state machine guards and a scheduled reaper (`94cf57f`, `a08e801`)
+- backend: structured work item comments with per-kind contracts; done requires a result comment (`3c20b51`, `b97ec4d`)
+- backend: append-only work item event audit, timeline API and actor metrics (`dcd51ad`)
+- backend: agent actors with project roles, audit attribution and whoami (`7183688`, `b5b817b`)
+- backend: hashed w4a_ API tokens with rotation, actor kill switch and per-token rate limits (`ac75744`)
+- backend: per-actor inbox with per-stream cursors and unseen-event indexes (`cc0bab9`)
+- backend: resources and atomic capacity reservations with TTL release (`f758d89`)
+- mcp: work item, inbox and resource tools — 52 tools in total, error codes in tool descriptions (`5fb7520`, `047418a`)
+- frontend: coordination board and work item detail with timeline, handoff card and lease countdown (`2745d2c`)
+- frontend: agents, resources and metrics pages with token rotation and unseen-events marker (`f09a74d`)
+- docs: README rewritten around the coordination layer, 6 new screenshots (`270f34d`)
+- docs: seed documentation extended with an agent coordination guide — fresh installs ship it (`0abc738`)
+
+### Fixed
+
+- security: agent token plaintext no longer persisted or rendered in the UI (`16c3ddd`)
+- api: unmapped path answers 404 and wrong method 405 instead of 500; append-only repositories refuse bulk mutations (`82097c6`)
+- api: readable 403 message, 404 for unknown metrics project, claimToken no longer leaks through GET paths (`8f2f711`)
+- frontend: catch-all route renders a real Not Found page, /admin no longer renders blank (`0daebd9`)
+- tests: suite no longer depends on class order; timers no longer survive unmount (`0188a3e`, `83e0eb3`)
+
 ## September 2026
 
 ### Added

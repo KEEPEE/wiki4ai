@@ -61,6 +61,13 @@ public class DocumentService {
     private final SearchProperties searchProperties;
     private final UserRepository userRepository;
 
+    /**
+     * WIKI4AI-134: the only source of the audit actor columns. It reads the
+     * authenticated request context — never the request body, a query parameter
+     * or a header — so a client cannot name the actor a write is attributed to.
+     */
+    private final RequestActorResolver requestActorResolver;
+
     // ── Visibility (WIKI4AI-99) ───────────────────────────────────────────────
     // PRIVATE documents are visible only to their owner and ADMIN users — even
     // inside a public project. For everyone else they are reported as 404 /
@@ -285,6 +292,10 @@ public class DocumentService {
         if (user != null) {
             document.setOwner(user);
         }
+        // WIKI4AI-134: attribution is additive — owner_id stays the ownership
+        // column, the actor columns only record who actually performed the
+        // write. Null (a caller carrying no actor) is the normal case.
+        document.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
         Document saved = documentRepository.save(document);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
@@ -324,6 +335,8 @@ public class DocumentService {
         if (user != null) {
             document.setOwner(user);
         }
+        // WIKI4AI-134: an upload is a create — attributed to the uploading actor.
+        document.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
         Document saved = documentRepository.save(document);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
@@ -357,6 +370,11 @@ public class DocumentService {
 
         checkExpectedVersion(dto, document);
         int editsApplied = applyUpdate(dto, document);
+
+        // WIKI4AI-134: the update is stamped with the actor of THIS request, read
+        // off the verified credential. A value sent in the body is not consulted
+        // at all, so an agent cannot attribute its write to another actor.
+        document.setUpdatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
         Document saved = documentRepository.save(document);
         // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
@@ -398,6 +416,11 @@ public class DocumentService {
 
         checkExpectedVersion(dto, document);
         int editsApplied = applyUpdate(dto, document);
+
+        // WIKI4AI-134: the update is stamped with the actor of THIS request, read
+        // off the verified credential. A value sent in the body is not consulted
+        // at all, so an agent cannot attribute its write to another actor.
+        document.setUpdatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
         Document saved = documentRepository.save(document);
         // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
@@ -650,6 +673,8 @@ public class DocumentService {
         }
 
         source.addLinkedDocument(target);
+        // WIKI4AI-134: linking changes the source document — attributed to this caller.
+        source.setUpdatedByActorId(requestActorResolver.currentAttributionActorId(username));
         Document saved = documentRepository.save(source);
         return convertToDTO(saved);
     }
@@ -682,6 +707,8 @@ public class DocumentService {
         }
 
         source.removeLinkedDocument(target);
+        // WIKI4AI-134: removing a link changes the source document too.
+        source.setUpdatedByActorId(requestActorResolver.currentAttributionActorId(username));
         documentRepository.save(source);
     }
 
@@ -1191,6 +1218,8 @@ public class DocumentService {
 
         // Assign to target project
         document.setProject(targetProject);
+        // WIKI4AI-134: a move rewrites the document's project — it is an update.
+        document.setUpdatedByActorId(requestActorResolver.currentAttributionActorId(username));
         Document saved = documentRepository.save(document);
         return convertToDTO(saved);
     }
@@ -1244,6 +1273,8 @@ public class DocumentService {
         if (user != null) {
             copy.setOwner(user);
         }
+        // WIKI4AI-134: a copy is a new document — its creating actor is the caller.
+        copy.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
         Document saved = documentRepository.save(copy);
         embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on copy (never throws)
@@ -1308,6 +1339,8 @@ public class DocumentService {
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
                 .version(document.getVersion() != null ? document.getVersion() : 0L)
+                .createdByActorId(document.getCreatedByActorId())
+                .updatedByActorId(document.getUpdatedByActorId())
                 .build();
     }
 

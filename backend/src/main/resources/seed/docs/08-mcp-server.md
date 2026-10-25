@@ -6,10 +6,10 @@ The Wiki4AI MCP server is a [Model Context Protocol](https://modelcontextprotoco
 
 - **Purpose:** let any MCP-capable AI agent (DeepSeek Harness, Claude Desktop, OpenCode, custom agents) read from and write to a Wiki4AI instance without speaking HTTP/JSON directly.
 - **Implementation:** single-file Python service (`mcp_server.py`, FastMCP ≥ 2.12 on Python 3.12), no external HTTP dependencies beyond the standard library — it calls the backend REST API with `urllib`.
-- **Tool surface:** 38 tools covering projects, documents, search, wiki links, images, calendar events and the vault (full reference below). The server also exposes two MCP *resources* for clients that support them:
+- **Tool surface:** 52 tools covering projects, documents, search, wiki links, images, calendar events, the vault, and the agent coordination layer (work items, inbox, resources, reservations, actor identity — full reference below). The server also exposes two MCP *resources* for clients that support them:
   - `wiki://{project_slug}/{doc_slug}` — raw Markdown content of a document
   - `wiki://{project_slug}/{doc_slug}/html` — rendered HTML version
-- **Identity model:** the server holds no user account of its own. Every backend call is made with *your* Wiki4AI JWT (see [Security model](#security-model)), so agents inherit exactly the permissions of the user they act as.
+- **Identity model:** the server holds no user account of its own. Every backend call is made with *your* Wiki4AI credential — a user JWT or a hashed `w4a_` API token (see [Security model](#security-model) and [Hashed API tokens](#hashed-api-tokens)) — so agents inherit exactly the permissions of the user (and, for coordination tools, the actor) they act as.
 
 ### Transports
 
@@ -55,7 +55,7 @@ The server deliberately separates **two independent credentials** (source: `mcp_
 
 ### 2. Identity — "which Wiki4AI user does the agent act as"
 
-A Wiki4AI user JWT, selected per request by `select_jwt_token()` in this priority order:
+A Wiki4AI identity credential — a user JWT **or** a hashed `w4a_` API token (see [Hashed API tokens](#hashed-api-tokens)) — selected per request by `select_jwt_token()` in this priority order:
 
 | Priority | Source | Notes |
 |---|---|---|
@@ -72,9 +72,23 @@ A Wiki4AI user JWT, selected per request by `select_jwt_token()` in this priorit
 - The **permission model is identical to the WebUI**: USER/ADMIN roles are enforced by the backend on every REST call, so an MCP agent can never do more than the corresponding WebUI user (e.g. a USER-role agent cannot delete other users' projects; ADMIN-only endpoints stay out of reach).
 - Without any identity JWT, only public read operations work (project/document reads); authenticated tools such as `upload_image` fail with a clear 401 "Not authenticated" error explaining how to supply the JWT.
 
+## Hashed API tokens
+
+Since the coordination layer, the recommended agent credential is a **hashed API token**, not a long-lived JWT. The MCP server does not need to know the format — it forwards whatever identity credential it receives — but agents get much further with a `w4a_` token, so the model is documented here.
+
+- **Format:** an opaque secret — `w4a_` followed by 32 base62 characters, generated with a secure random source. It is *not* a JWT and carries no claims.
+- **Stored as a hash:** the database keeps only the SHA-256 digest of the plaintext plus an 8-character **display prefix** (the first characters after `w4a_`, e.g. `w4a_k7x2…`) so a token can be recognized in listings without being reconstructable. The **plaintext is returned exactly once**, at creation or rotation, and is never stored or listed again — lose it and rotate.
+- **Bound to an actor:** a token can name an actor from the coordination registry. Requests made with it are attributed to that actor (`actor_whoami` answers "who am I?"), which is what makes claiming work items, commenting, and reserving capacity possible at all — a credential that names no actor gets a clear 403 from those endpoints.
+- **Lifecycle:** tokens are managed under `/api/v1/tokens` (create, list, get, **rotate**, revoke) and in the WebUI (profile page, agents page). **Rotate** replaces the secret and returns the new plaintext once. **Revoke** is a soft delete (`revoked_at`): the row stays auditable, the token is dead. The **kill switch** — `DELETE /api/v1/actors/{id}/tokens` — revokes *every* token of one actor in a single call.
+- **401 semantics:** an unknown, expired, or revoked token is answered with one indistinguishable `401` (`"Invalid, expired or revoked API token"`) so probing cannot tell the three apart.
+- **Rate limit:** each hashed token is limited to **30 requests per 1000 ms window** (server-configurable). Exceeding it returns **429** with a `Retry-After` header; throttling is deliberately not a 401, because the credential itself still works.
+- **Legacy JWTs keep working.** Tokens issued through `POST /api/v1/auth/token/named` still authenticate exactly as before. They are **deprecated**: the WebUI shows a deprecation banner on unhashed tokens, the backend logs a per-account deprecation warning, and new integrations should use `w4a_` tokens.
+
+**How an MCP client uses one:** put the token where the identity goes — `Authorization: Bearer <w4a_…>` on an open instance, or `X-Wiki4AI-JWT: <w4a_…>` on a gated one (where `Authorization` carries the `MCP_JWT_TOKEN` access credential). The MCP server passes it through to every backend REST call unchanged; the backend's auth filter recognizes the `w4a_` prefix, hashes the value, looks it up, and resolves the user *and* actor behind it.
+
 ## Tool reference
 
-**38 tools** (verified via `tools/list`, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
+**52 tools** (verified via `tools/list`, serverInfo `wiki4ai` / FastMCP 4.0.5). Grouped by domain:
 
 ### Meta (3)
 
@@ -155,6 +169,46 @@ The calendar is a **global** module (not project-scoped): events belong to the u
 | `calendar_delete_event` | Delete an event permanently; owner or ADMIN only (foreign private → 404, foreign public → 403) | `event_id` (required) |
 | `calendar_list_event_types` | List all event types with id, name and color, ordered by id (seed types first) — call before creating events to discover valid type names | — |
 | `calendar_create_event_type` | Create a new event type with an optional hex color; duplicate names (case-insensitive) are rejected with 409 | `name` (required), `color`? |
+
+### Actor identity (1)
+
+| Tool | Description | Key parameters |
+|---|---|---|
+| `actor_whoami` | Which actor the caller's credential names — actor id, handle, kind, scopes and project roles, straight from the verified token (never a self-declared header). Call it first from any agent; with `actorId: null` the credential names no actor and the coordination tools below will refuse to act | — |
+
+### Work items (6)
+
+The coordination board — states, atomic claims, structured comments. Full semantics in [[Agent Coordination]].
+
+| Tool | Description | Key parameters |
+|---|---|---|
+| `workitem_list` | List work items, optionally filtered by project, status, label (whole-token match) and priority; `page`/`size` are applied by the MCP layer | `project_id`?, `status`?, `label`?, `priority`?, `page`, `size` |
+| `workitem_get` | One work item with its current state, assignee and lease | `work_item_id` |
+| `workitem_create` | Create a work item — it lands in `backlog`, so a claim takes two more calls (`workitem_update(status='ready')`, then `workitem_claim`); creating directly in `done` is refused with `RESULT_COMMENT_REQUIRED` | `project_id`, `title` (required), `description`?, `status`?, `priority`?, `labels`?, `external_ref`?, `parent_id`? |
+| `workitem_claim` | Atomically claim a `ready` item as the calling actor — the race winner gets the item plus its `claimToken` and lease expiry, everyone else a 409 | `work_item_id` |
+| `workitem_update` | Change an item (PATCH semantics); `status='claimed'` is refused here — only `workitem_claim` may enter it. Illegal transitions 409 with the legal targets listed, and `review → done` without a result comment 409s with `RESULT_COMMENT_REQUIRED` | `work_item_id`, `title`?, `description`?, `status`?, `priority`?, `labels`? |
+| `workitem_comment` | Append a structured comment (`note`, `result`, `handoff`, `blocker`, `status`, `decision`); the author is always the actor of the credential, and a payload that breaks the kind's contract is a **422** naming the expected keys | `work_item_id`, `kind`, `payload` (the kind's contract — the comment text goes in as the `body` key) |
+
+### Inbox (2)
+
+| Tool | Description | Key parameters |
+|---|---|---|
+| `inbox_poll` | The actor's four inbox streams (assigned items, comments on them, handoff mentions, items lost to lease expiry) in one call, paginated by an opaque per-stream cursor | `actor_id`, `cursor`?, `limit` (default 50) |
+| `inbox_mark_seen` | Advance the actor's unseen marker so the next poll reports only genuinely new events | `actor_id`, `event_id`? |
+
+### Resources & reservations (5)
+
+The capacity ledger for scarce resources (GPUs, license seats, build runners).
+
+| Tool | Description | Key parameters |
+|---|---|---|
+| `resource_list` | All resources with capacity and currently active slots | — |
+| `resource_get` | One resource by its key | `key` |
+| `reservation_list` | The active reservations of a resource | `key` |
+| `reservation_create` | Atomically reserve slots as an actor — the capacity check is part of the same conditional update, so two agents cannot both take the last slot (the loser gets 409) | `key`, `slots` (default 1), `reason`?, `work_item_id`? |
+| `reservation_release` | Release a reservation early; idempotent — releasing twice lowers usage exactly once | reservation id |
+
+All coordination tools act **as the actor named by the caller's credential**; with a legacy JWT that names no actor they return a clear error naming the fix (a `w4a_` agent token bound to an actor). Out-of-capacity, disabled-resource, lost-claim-race and `RESULT_COMMENT_REQUIRED` failures arrive as structured 409s, a comment payload that breaks its kind's contract as a 422 naming the expected keys, and per-token rate limiting as 429 with `Retry-After`.
 
 ### Subprojects and project hierarchy
 
@@ -273,6 +327,7 @@ If your MCP client cannot open an SSE connection (most stdio-first clients), **b
 - [[Home]] — project overview
 - [[Architecture Overview]] — system components and request flow
 - [[Backend API Reference]] — the REST endpoints the MCP server wraps
+- [[Agent Coordination]] — the work-item board, actors, inbox and resources behind the coordination tools
 - [[Data Model]] — entities, including document versions used for optimistic locking
 - [[Search & Embeddings]] — how the hybrid search tools work under the hood
 - [[WebUI Guide]] — the human-facing interface to the same data

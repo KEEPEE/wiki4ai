@@ -32,7 +32,7 @@ import java.util.Map;
  *
  * <p>Makes "clone the repo → run" a first-class onboarding experience: on a
  * <b>completely fresh instance</b> (users table empty AND projects table empty)
- * the backend seeds the bundled {@code wiki4ai} documentation project — 10 English
+ * the backend seeds the bundled {@code wiki4ai} documentation project — 11 English
  * documents plus the 15 screenshots referenced by the guide and calendar docs — so
  * every new installation ships with full product documentation out of the box.</p>
  *
@@ -94,7 +94,8 @@ public class FirstRunDocSeeder {
             Map.entry("07-webui-guide.md", "WebUI Guide"),
             Map.entry("08-mcp-server.md", "MCP Server"),
             Map.entry("09-deployment-operations.md", "Deployment & Operations"),
-            Map.entry("10-calendar.md", "Calendar")
+            Map.entry("10-calendar.md", "Calendar"),
+            Map.entry("11-agent-coordination.md", "Agent Coordination")
     );
 
     private final UserRepository userRepository;
