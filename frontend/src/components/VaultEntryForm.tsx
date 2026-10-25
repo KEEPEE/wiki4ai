@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { VaultEntry } from '../types/vault';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
@@ -54,6 +54,33 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof VaultEntryFormData, string>>>({});
   const [showGroupSuggestions, setShowGroupSuggestions] = useState(false);
+
+  // WIKI4AI-179: closing the group-suggestion dropdown on blur is delayed 150 ms
+  // so a click on a suggestion still lands. That timer is tracked and cancelled
+  // on unmount — an untracked one called `setShowGroupSuggestions(false)` after
+  // the form was already gone.
+  const blurTimerRef = useRef<number | null>(null);
+
+  const scheduleGroupSuggestionClose = useCallback(() => {
+    // Re-arming the blur slot cancels the previous pending close, so a stale
+    // timer can never undo a focus that happened after an earlier blur.
+    if (blurTimerRef.current !== null) {
+      window.clearTimeout(blurTimerRef.current);
+    }
+    blurTimerRef.current = window.setTimeout(() => {
+      blurTimerRef.current = null;
+      setShowGroupSuggestions(false);
+    }, 150);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (blurTimerRef.current !== null) {
+        window.clearTimeout(blurTimerRef.current);
+        blurTimerRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (entry) {
@@ -168,7 +195,7 @@ const VaultEntryForm: React.FC<VaultEntryFormProps> = ({
             value={formData.groupPath}
             onChange={(e) => handleChange('groupPath', e.target.value)}
             onFocus={() => setShowGroupSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowGroupSuggestions(false), 150)}
+            onBlur={scheduleGroupSuggestionClose}
             data-testid="vault-form-group-path-input"
           />
           {showGroupSuggestions && filteredGroups.length > 0 && (

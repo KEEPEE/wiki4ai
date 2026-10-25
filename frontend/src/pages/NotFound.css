@@ -1,0 +1,89 @@
+/**
+ * WIKI4AI-108: Not Found page — same glassmorphism shell as the auth pages
+ * (it is a standalone route like /login), but its own classes so it does not
+ * depend on another page's stylesheet. All colors come from theme variables.
+ */
+
+.not-found-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+  background-color: var(--dark-1);
+}
+
+.not-found-card {
+  width: 100%;
+  max-width: 520px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 48px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.not-found-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.not-found-body {
+  text-align: center;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  margin-bottom: 1.25rem;
+}
+
+/* The address the router was actually asked for. Monospace so a mistyped path is
+   readable, and breakable so a long path cannot widen the card. */
+.not-found-path {
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 1.75rem;
+}
+
+.not-found-path code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--primary);
+  overflow-wrap: anywhere;
+}
+
+.not-found-actions {
+  display: flex;
+  justify-content: center;
+}
+
+.not-found-home {
+  display: inline-block;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--dark-1);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  transition: opacity var(--transition-base), transform var(--transition-base);
+}
+
+.not-found-home:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.not-found-home:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+}

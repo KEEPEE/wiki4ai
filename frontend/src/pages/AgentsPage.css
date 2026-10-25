@@ -1,0 +1,265 @@
+/**
+ * WIKI4AI-163: agents page. All classes are `agents-*` / `agent-*` scoped so a lazy
+ * route cannot leak into the shared bundle cascade (WIKI4AI-81 lesson, see
+ * VaultPage.css). Colors come from theme variables only — no inline colors.
+ */
+
+.agents-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.agents-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.agents-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.agents-title-icon {
+  color: var(--primary);
+  display: inline-flex;
+}
+
+.agents-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.agents-project {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.agents-project input {
+  min-width: 140px;
+}
+
+.agents-error {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(255, 71, 87, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 71, 87, 0.08);
+  color: #ff8a94;
+  font-size: 0.85rem;
+}
+
+.agents-loading,
+.agents-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ── One-time plaintext panel (WIKI4AI-168) ───────────────────────── */
+
+.one-time-token {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  background: var(--glass-bg);
+}
+
+.one-time-token-warning {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.one-time-token code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.95rem;
+  color: var(--primary);
+  word-break: break-all;
+}
+
+/* ── Agent cards ──────────────────────────────────────────────────── */
+
+.agents-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.agent-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-bg);
+}
+
+.agent-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.agent-handle {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.agent-display {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.agent-kind,
+.agent-status {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.agent-status[data-presence='active'] {
+  border-color: rgba(0, 240, 255, 0.4);
+  color: var(--primary);
+}
+
+.agent-status[data-presence='paused'] {
+  border-color: rgba(255, 200, 0, 0.35);
+  color: #ffcc4d;
+}
+
+.agent-status[data-presence='archived'] {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+}
+
+.agent-facts {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin: 0.8rem 0 0;
+}
+
+.agent-facts dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.agent-facts dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+/* ── Tokens ───────────────────────────────────────────────────────── */
+
+.agent-tokens {
+  margin-top: 1rem;
+  border-top: 1px solid var(--glass-border);
+  padding-top: 0.8rem;
+}
+
+.agent-tokens-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.agent-tokens-icon {
+  color: var(--primary);
+  display: inline-flex;
+}
+
+.agent-tokens-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.agent-token-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.agent-token {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.agent-token-name {
+  color: var(--text-primary);
+  font-size: 0.88rem;
+}
+
+/* The prefix is a display handle: 8 characters and an ellipsis. There is no
+   styling anywhere on this page that could render a full token. */
+.agent-token-prefix {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.agent-token-revoked {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ff8a94;
+}
+
+.agent-token-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.btn-danger {
+  border-color: rgba(255, 71, 87, 0.4);
+  color: #ff8a94;
+}
+
+.agent-revoke-all {
+  margin-top: 0.25rem;
+}

@@ -63,6 +63,26 @@ public class DocumentDTO {
             + "Only non-null when the update used contentEdits; null on reads and full-replace updates.")
     private Integer editsApplied;
 
+    /**
+     * WIKI4AI-134: id of the actor (agent / human / service) that created this
+     * document, or null when the creating caller carried no actor. Read-only —
+     * the backend takes it from the verified credential, never from the client.
+     * Omitted from the JSON when null, so existing responses are unchanged.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "WIKI4AI-134: actor that created the document. Null/omitted when the "
+            + "caller carried no actor. Read-only: a value sent by the client is ignored.")
+    private Long createdByActorId;
+
+    /**
+     * WIKI4AI-134: id of the actor that performed the last update, or null.
+     * Read-only for the same reason as {@code createdByActorId}.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "WIKI4AI-134: actor that last updated the document. Null/omitted when "
+            + "the caller carried no actor. Read-only: a value sent by the client is ignored.")
+    private Long updatedByActorId;
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     @Schema(description = "Relevance score from hybrid search (Reciprocal Rank Fusion over text + vector "
             + "rankings; higher is better). Only present on /search results; omitted otherwise.")

@@ -1,0 +1,44 @@
+-- WIKI4AI-154: the indexes the inbox reads need (Flyway V24).
+--
+-- NOTE ON THE NUMBER: V23 is the actor inbox marker (WIKI4AI-153) and V25 belongs to the
+-- resources + reservations stories (WIKI4AI-155..157). V1..V22 are occupied and are never
+-- rewritten.
+--
+-- Why these three and only these three:
+--
+--   Every stream of the inbox is paginated by keyset, not by OFFSET:
+--       WHERE <scope> = ? AND id > ? ORDER BY id LIMIT ?
+--   A keyset read is cheap only when an index provides exactly the pair
+--   (scope column, id). A primary key on id alone does not help: PostgreSQL would walk
+--   the whole id index and filter the scope column row by row, which is the seq scan this
+--   story exists to remove.
+--
+--   idx_wic_item_id   - comments of one work item, in id order. Serves the inbox stream
+--                       "comments on my items" (work_item_id IN (...) AND id > ?) and the
+--                       per-item comment reads.
+--   idx_wie_item_id   - events of one work item, in id order. Serves the same shape over
+--                       the audit trail.
+--   idx_wie_actor_id  - events attributed to one actor, in id order. Serves the stream
+--                       "items that slipped away from me" (the reaper's lease_expired and
+--                       the heal sweep's stale_claim_cleared, both of which carry the id of
+--                       the actor that LOST the item) and the unseen-event count of
+--                       WIKI4AI-153, which is exactly
+--                       WHERE actor_id = ? AND id > ? ORDER BY id.
+--
+-- DELIBERATELY NOT ADDED HERE: idx_work_items_assignee ON work_items (assignee_actor_id,
+-- status). The AC of WIKI4AI-154 names it, but it already exists - it is created by
+-- V20__create_work_items.sql (line 69), shipped with WIKI4AI-140. Adding it again would
+-- either fail or create a duplicate index that costs a write on every work item and buys
+-- nothing. InboxMigrationTest asserts that this file does NOT create it.
+--
+-- IF NOT EXISTS: the statements are idempotent, so a re-run cannot fail. Every other
+-- migration in this project creates its indexes plainly; IF NOT EXISTS is used here
+-- because these three are pure performance and carry no semantics that a duplicate could
+-- disambiguate.
+--
+-- Tests run on H2 with Flyway disabled (the schema is created by Hibernate from the
+-- entities), so this file is exercised by the pipeline on dev, not locally.
+
+CREATE INDEX IF NOT EXISTS idx_wic_item_id  ON work_item_comments (work_item_id, id);
+CREATE INDEX IF NOT EXISTS idx_wie_item_id  ON work_item_events   (work_item_id, id);
+CREATE INDEX IF NOT EXISTS idx_wie_actor_id ON work_item_events   (actor_id, id);

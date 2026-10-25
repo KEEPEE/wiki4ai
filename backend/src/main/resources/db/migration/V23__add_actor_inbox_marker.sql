@@ -1,0 +1,37 @@
+-- WIKI4AI-153: the inbox "what is new" marker (Flyway V23).
+--
+-- NOTE ON THE NUMBER: the allocation is fixed by SPEC and by the manager: V1..V22 are
+-- occupied and must never be rewritten, V23 is the actor inbox marker, V24 is the inbox
+-- indexes and V25 belongs to the resources + reservations stories (WIKI4AI-155..157).
+-- Reusing an occupied version would break Flyway validation and the backend on dev .219
+-- would not start (the postgres profile runs with spring.jpa.hibernate.ddl-auto=validate).
+--
+-- Semantics:
+--   last_seen_event_id - the highest work_item_events.id this ACTOR has been shown to
+--                        have acknowledged. NULL means "this actor has never read its
+--                        inbox", which is a different state from 0: 0 would be a claim
+--                        that the actor has seen event 0, and no such event exists.
+--                        The first read therefore advances the marker to the highest
+--                        real id, never to 0.
+--
+-- WHY ON actors AND NOT ON users, although the AC of WIKI4AI-153 says "per user":
+--   * the inbox is GET /api/v1/actors/{id}/inbox - it is read by an actor, not by a user;
+--   * the marker has to be comparable with the cursor the same actor sends back;
+--   * a user with several agents gets a marker per agent, which is correct: every agent
+--     has its own work stream and its own polling rhythm;
+--   * this repository has no user-preferences mechanism at all (no user_prefs table, no
+--     preferences column, no UserPreference class), so putting it on users would mean
+--     inventing a preference system, which is not what WIKI4AI-153 is.
+--
+-- NO DEFAULT: a column default would silently turn "never read" into a number.
+-- NO CHECK constraint: the value is validated in the service (ActorInboxService.markSeen),
+-- like every other business rule of this project (SPEC rule 7).
+-- NO timestamp column here: this is a position in an id sequence, not a moment.
+-- NO index here: the reads this column serves are keyed by actors.id, which is the PK.
+--
+-- Tests run on H2 with Flyway disabled (the schema is created by Hibernate from the
+-- entities), so this file is exercised by the pipeline on dev, not locally. The column
+-- is mapped by Actor.lastSeenEventId as a plain nullable Long, so the entity and this
+-- ALTER agree.
+
+ALTER TABLE actors ADD COLUMN last_seen_event_id BIGINT;

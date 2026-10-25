@@ -1,0 +1,183 @@
+/**
+ * WIKI4AI-164: capacity page. `resources-*` / `resource-*` / `reservation-*` scoped
+ * (WIKI4AI-81 lesson). The capacity bar is a plain div whose width is the API's
+   `activeSlots / capacity` ratio — no chart library, no inline colors beyond the
+ * theme variables.
+ */
+
+.resources-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.resources-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.resources-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.resources-title-icon {
+  color: var(--primary);
+  display: inline-flex;
+}
+
+.resources-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.resources-error {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid rgba(255, 71, 87, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 71, 87, 0.08);
+  color: #ff8a94;
+  font-size: 0.85rem;
+}
+
+.resources-loading,
+.resources-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.resources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.resource-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: var(--glass-bg);
+}
+
+.resource-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.resource-name {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.resource-key,
+.resource-kind {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.resource-disabled {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid rgba(255, 200, 0, 0.35);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #ffcc4d;
+}
+
+/* ── Capacity bar: width === activeSlots / capacity ───────────────── */
+
+.resource-capacity {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.resource-capacity-text {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.resource-bar {
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.resource-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary) 0%, #7ad7ff 60%, #ff00d4 100%);
+}
+
+/* ── Reservation ledger ───────────────────────────────────────────── */
+
+.resource-table {
+  width: 100%;
+  margin-top: 0.8rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.resource-table th {
+  text-align: left;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.resource-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.reservation-released td {
+  color: var(--text-muted);
+}
+
+.reservation-ttl-expired {
+  color: #ff8a94;
+}
+
+.reservation-released-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.resource-empty-ledger,
+.resource-created {
+  margin: 0.6rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}

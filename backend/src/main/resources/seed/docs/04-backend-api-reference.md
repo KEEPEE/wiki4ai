@@ -16,7 +16,7 @@ The security filter chain (`SecurityConfig`) applies these rules:
 | `GET /api/v1/projects/**` (projects, documents, links, search under project paths) | **Public** — read endpoints do not require a JWT; unauthenticated callers are treated as `"anonymous"` and the permission check is skipped by design (wiki convention: reads are open, writes are protected) |
 | `/api/health`, `/actuator/**`, `/h2-console/**` | Public |
 | `OPTIONS *` (CORS preflight) | Public |
-| Everything else — all mutating operations, `GET /api/v1/search/**`, `/api/v1/images/**`, `/api/v1/vault/**`, `/api/v1/admin/**`, Swagger | **Valid JWT required** (401 otherwise) |
+| Everything else — all mutating operations, `GET /api/v1/search/**`, `/api/v1/images/**`, `/api/v1/vault/**`, `/api/v1/admin/**`, the coordination endpoints (`/api/v1/actors/**`, `/api/v1/tokens/**`, `/api/v1/work-items/**`, `/api/v1/resources/**`, `/api/v1/reservations/**`, `/api/v1/metrics/**`), Swagger | **Valid credential required** — user JWT or hashed `w4a_` API token (401 otherwise) |
 
 Role checks (USER vs ADMIN) and per-project permissions (READ/CREATE/UPDATE/DELETE/MANAGE) are enforced in the service layer, not by Spring Security matchers. The ADMIN role bypasses all project-level permission checks; any authenticated USER has implicit READ on every project; CREATE/UPDATE/DELETE require an explicit grant (or MANAGE).
 
@@ -33,7 +33,7 @@ Role checks (USER vs ADMIN) and per-project permissions (READ/CREATE/UPDATE/DELE
 
 - `POST /api/v1/auth/login` and `POST /api/v1/auth/token` both return a fresh `{accessToken, refreshToken}` pair.
 - The refresh token is persisted in the `refresh_tokens` table — **one per user** (unique `user_id`). Every login/token call deletes the previous row and inserts the new one (serialized by striped locks to avoid unique-constraint races). A refresh token with `expiresAt = null` never expires.
-- Named API tokens (`POST /api/v1/auth/token/named`) are separate JWT access tokens stored in `api_tokens`, manageable per user, optionally infinite-lived.
+- Named API tokens (`POST /api/v1/auth/token/named`) are separate JWT access tokens stored in `api_tokens`, manageable per user, optionally infinite-lived. They are **deprecated** in favor of hashed `w4a_` tokens (`/api/v1/tokens`, see [API tokens](#api-tokens-apiv1tokens--hashed-w4a_-tokens)); legacy rows keep authenticating unchanged.
 
 **Registration policy** (`auth.registration.open`, env `AUTH_REGISTRATION_OPEN`, tri-state):
 
@@ -270,6 +270,82 @@ Global (not project-scoped) event calendar. All endpoints **require a JWT**. Vis
 
 `POST /events` body: `title` and `eventDate` required; `eventType` accepts **either the numeric id or the type name** (case-insensitive); `visibility` defaults to `public`; `startTime`/`endTime` optional (`TIME`, `HH:mm:ss`). Two types are seeded by migration V13: `Agent task` (#4f8cff) and `Pripomienka` (#f59e0b). Full module guide (WebUI views, all-day vs timed, MCP tools): [[Calendar]].
 
+## Agent coordination API
+
+The coordination layer (module guide in [[Agent Coordination]]) adds six endpoint groups. All require a valid credential; endpoints that act *as an actor* (claim, comment, reserve) additionally require a credential that **names an actor** — typically a `w4a_` token bound to one — and answer **403** (with the fix in the message) for a legacy JWT that names none.
+
+### Actors API (`/api/v1/actors`)
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| GET | `/` | 200 `List<ActorDTO>` | 401 |
+| POST | `/` | 201 `ActorDTO` — `handle` normalized to lowercase, globally unique | 409 duplicate handle; 400 validation |
+| GET | `/whoami` | 200 `ActorWhoamiDTO` — the actor named by the **verified credential** (null actor + empty scopes for a credential that names none) | 401 |
+| GET | `/{id}` · PUT `/{id}` · DELETE `/{id}` | 200 / 200 / 204 | 404 unknown actor |
+| POST | `/{id}/heartbeat` | 204 — updates `last_seen_at` and presence (`idle` \| `working` \| `busy` + optional note); writes are throttled server-side | 404 |
+| DELETE | `/{id}/tokens` | 204 — **kill switch**: revokes every token bound to this actor at once | 404 |
+
+Project-scoped roles live under `/api/v1/projects/{projectId}/actors`: `GET` (list assignments), `POST` (assign — 409 if already assigned), `PUT /{actorId}` (change role), `DELETE /{actorId}` (remove). Roles: `viewer` \| `worker` \| `planner` \| `admin` (admin manages the project's actors; enforced in the service layer).
+
+### Actor inbox (`/api/v1/actors/{id}/inbox`)
+
+| Method | Path | Success | Notes |
+|---|---|---|---|
+| GET | `?cursor=&limit=` | 200 `InboxResponseDTO` — four streams (assigned items; comments on items the actor created or holds; handoff mentions addressed to the actor's handle; items lost to `lease_expired` / `stale_claim_cleared`) | `cursor` is an **opaque per-stream string** the client stores and returns verbatim; `limit` outside 1..50 or non-numeric → 400 naming the parameter |
+| GET | `/unseen` | 200 `UnseenEventsDTO` — unseen count; a null marker means "never read", distinct from any id | |
+| POST | `/mark-seen` | 204 — advances the marker (body `{"eventId": 123}` optional; omitted = advance to the highest event) | |
+
+### API tokens (`/api/v1/tokens`) — hashed `w4a_` tokens
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| POST | `/` | 201 `ApiTokenCreatedDTO` — plaintext (`w4a_` + 32 base62 chars) returned **once**; the DB keeps only the SHA-256 hash + 8-char display prefix. Optional `expiresAt` (null = infinite), `scopes` (default `read write`), `actorId` (the actor the token acts as) | 400 missing name / unknown scope / invalid actorId / expiry in the past / `admin` scope on an agent-bound token; 401 |
+| GET | `/` | 200 `List<ApiTokenDTO>` — metadata + prefix only, never a secret | 401 |
+| GET | `/{id}` | 200 `ApiTokenDTO` | 404 |
+| POST | `/{id}/rotate` | 200 `ApiTokenCreatedDTO` — new plaintext, shown once | 404 |
+| DELETE | `/{id}` | 204 — soft revoke (`revoked_at`); the row stays auditable, the token is dead → 401 on use | 404 |
+
+A request carrying an unknown, expired, or revoked `w4a_` token gets one indistinguishable **401** (`"Invalid, expired or revoked API token"`). Each hashed token is rate-limited to **30 requests per 1000 ms window** (server-configurable); exceeding it returns **429** with a `Retry-After` header. Legacy JWT tokens (`/auth/token/named`) keep working but are deprecated.
+
+### Work items API (`/api/v1/work-items`)
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| GET | `?projectId=&status=&label=&assignee=` | 200 `List<WorkItemDTO>` (unpaged; filters combine with AND; label matched as a whole token) | 400 unknown status; 403 public project without role; 404 unknown/foreign-private project |
+| GET | `/{id}` | 200 `WorkItemDTO` | 404 (foreign private project → 404, existence not revealed) |
+| POST | `/` | 201 `WorkItemDTO` — starts in `backlog` unless another legal start state is given | 400 validation or `status: "claimed"` (only the claim endpoint produces it); 403; 404; 409 duplicate `external_ref` (globally unique) or create straight into `done` (`RESULT_COMMENT_REQUIRED`) |
+| PUT | `/{id}` | 200 `WorkItemDTO` — PATCH-like partial update; `claimed` is **not** a legal update target | **409 illegal transition** (message lists the legal targets) / `RESULT_COMMENT_REQUIRED` on `review → done` without a result comment; 403; 404 |
+| DELETE | `/{id}` | 204 | 403; 404 |
+| POST | `/{id}/claim` | 200 `WorkItemClaimDTO {claimToken, leaseExpiresAt, assigneeActorId}` — **atomic**: a single conditional update on `status = 'ready'`; first writer wins | **409** item no longer `ready`; 403 credential names no actor; 404 |
+| POST | `/{id}/lease` | 200 `WorkItemClaimDTO` — extends the lease of the item you hold (optional body `{"claimToken": "…"}` must match when sent); TTL is a server setting (`wiki4ai.work-items.lease-minutes`, default 45) | 403 not the holder / token mismatch; 409 no lease to extend; 404 |
+
+Comments and events hang off the item:
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| POST | `/{id}/comments` | 201 `WorkItemCommentDTO` — `kind` (`note` \| `status` \| `blocker` \| `result` \| `handoff` \| `decision`) + `body` + optional `payload`; author comes from the credential, never the body | 400 missing body/kind; **422** payload breaks the kind's contract (message names the expected keys); 403 no actor; 404 |
+| GET | `/{id}/comments` | 200 `Page<WorkItemCommentDTO>` (oldest first) | 403; 404 |
+| GET | `/{id}/events` | 200 `Page<WorkItemEventDTO>` — the append-only timeline (`created`, `status_changed`, `claimed`, `claim_released`, `lease_extended`, `lease_expired`, `stale_claim_cleared`, `deleted`) | 403; 404 |
+
+Comments and events are **append-only**: the API exposes no update or delete, and a database trigger refuses `UPDATE` outright.
+
+### Resources & reservations API
+
+| Method | Path | Success | Errors |
+|---|---|---|---|
+| GET | `/api/v1/resources` | 200 `List<ResourceDTO>` (capacity + active slots) | 401 |
+| POST | `/api/v1/resources` | 201 `ResourceDTO` | 409 duplicate key |
+| GET · PUT · DELETE | `/api/v1/resources/{key}` | 200 / 200 / 204 | 404 unknown key |
+| GET | `/api/v1/resources/{key}/reservations` | 200 `List<ReservationDTO>` (unreleased) | 404 |
+| POST | `/api/v1/resources/{key}/reserve` | **201** `ReservationDTO` — body `{slots?, reason?, workItemId?}`; the capacity check is part of one conditional UPDATE, so concurrent claims of the last slot cannot both win | **409** resource disabled or out of capacity (message says which); 400 `slots` not a positive integer; 403 no actor; 404 unknown key |
+| POST | `/api/v1/reservations/{id}/release` | 204 — **idempotent**: a second release is still 204 and lowers usage exactly once | 403 owned by another actor; 404 |
+
+Expired reservations stop holding capacity on their own — a scheduled reaper releases them (same pattern as the work-item lease reaper).
+
+### Actor metrics (`/api/v1/metrics/actors`)
+
+`GET /api/v1/metrics/actors?from=&to=&scope=&projectId=` → 200 `ActorMetricsResponseDTO`: time-in-state per actor, cycle time (created → done), completed/blocked counts, and expired-lease counts — all derived **exclusively from `work_item_events`**. `from`/`to` accept `2026-10-01` or `2026-10-01T08:00:00` (a bare `to` means end of that day); `scope` is `all` \| `self` \| `project` (`project` requires `projectId`). Your own metrics are open to any authenticated caller; someone else's require ADMIN. Errors: 400 bad `from`/`to`/`scope`/`projectId` format (naming the parameter), 403 credential without actor and non-ADMIN, 404 unknown or foreign-private `projectId`.
+
 ## Admin API (`/api/v1/admin`) — ADMIN role required (403 otherwise)
 
 | Method | Path | Success | Errors | Notes |
@@ -310,11 +386,15 @@ All errors are JSON with at least `timestamp`, `status`, `error`. Mapping of exc
 | 400 | Malformed multipart request (`MultipartException`) | `message: "Invalid file upload request: ..."` |
 | 401 | Missing/absent JWT on a protected endpoint (security entry point) | `{"message":"Authentication required"}` |
 | 401 | Invalid or expired JWT (auth filter, not the advice) | `{"error":"Invalid or expired JWT token"}` |
+| 401 | Unknown, expired, or **revoked** hashed `w4a_` API token — one indistinguishable answer for all three (auth filter) | `{"error":"Invalid, expired or revoked API token"}` |
 | 403 | `AccessDeniedException` — missing project permission; also `RegistrationDisabledException` and `SetupAlreadyCompletedException` (generic messages by design — they must not leak instance state) | `message` |
-| 404 | `EntityNotFoundException` (unknown project/document/user/token/image) | `message` |
+| 404 | `EntityNotFoundException` (unknown project/document/user/token/image/actor/work item/resource) | `message` |
 | 405 | Unsupported HTTP method on a known path | `allow: "GET, POST, ..."` + `Allow` response header |
 | 409 | `DocumentVersionConflictException` (explicit `expectedVersion` mismatch) | `currentVersion`, `expectedVersion`, `message` |
 | 409 | JPA optimistic-locking failures (`StaleObjectStateException`, `ObjectOptimisticLockingFailureException`, `OptimisticLockException`) — the safety-net path | `currentVersion` (re-read from DB), `message` |
+| 409 | Coordination conflicts: work item no longer `ready` (lost the claim race), illegal state transition (legal targets listed), `RESULT_COMMENT_REQUIRED` on entering `done`, duplicate actor handle / `external_ref` / resource key, resource disabled or out of capacity | `message` (the `RESULT_COMMENT_REQUIRED` and capacity messages start with a machine-readable token) |
+| 422 | `CommentContractException` — a work-item comment payload understood but violating its kind's contract | `message` naming the kind and the expected keys |
+| 429 | Per-token rate limit exceeded (`RateLimitExceededException`) — the credential itself still works | `message`, `retryAfterSeconds` + **`Retry-After` response header** |
 | 413 | Upload exceeds multipart limit (`MaxUploadSizeExceededException`) or image > 10 MB | `message` |
 | 500 | Any unhandled exception (logged server-side) | `message` |
 

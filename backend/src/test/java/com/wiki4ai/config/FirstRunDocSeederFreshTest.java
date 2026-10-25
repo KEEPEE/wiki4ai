@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration test for the first-run documentation seed (WIKI4AI-74), fresh-instance path.
  *
  * <p>Starts the full Spring context on a dedicated empty H2 database: the seeder must
- * create the "wiki4ai" project with all 10 bundled documents (exact titles, slugs and
+ * create the "wiki4ai" project with all 11 bundled documents (exact titles, slugs and
  * content) in order and copy all 15 screenshots into the image storage under their
  * exact names. A manual re-run afterwards must be a no-op.</p>
  */
@@ -90,9 +90,9 @@ class FirstRunDocSeederFreshTest {
 
     @Test
     @Order(2)
-    @DisplayName("Fresh instance: all 10 documents exist with exact titles in creation order (incl. Calendar)")
+    @DisplayName("Fresh instance: all 11 documents exist with exact titles in creation order (incl. Calendar and Agent Coordination)")
     void seedsAllTenDocumentsInOrder() {
-        assertThat(documentRepository.count()).as("exactly 10 seeded documents").isEqualTo(10);
+        assertThat(documentRepository.count()).as("exactly 11 seeded documents").isEqualTo(11);
 
         List<Document> docs = documentRepository.findAll().stream()
                 .sorted(Comparator.comparing(Document::getId))
@@ -110,6 +110,7 @@ class FirstRunDocSeederFreshTest {
         assertThat(slugs.get(0)).isEqualTo("home");
         assertThat(slugs.get(6)).isEqualTo("webui-guide");
         assertThat(slugs.get(9)).isEqualTo("calendar");
+        assertThat(slugs.get(10)).isEqualTo("agent-coordination");
     }
 
     @Test

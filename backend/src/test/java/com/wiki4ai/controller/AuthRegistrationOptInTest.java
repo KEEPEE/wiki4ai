@@ -3,6 +3,7 @@ package com.wiki4ai.controller;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,12 +32,28 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * property set) from {@link AuthFirstRunFlowTest}, which covers the default policy.
  * <p>
  * Named *Test (not *IT) so surefire runs it in CI ({@code mvn test}).
+ * <p>
+ * <b>WIKI4AI-169 — this class owns its database.</b> It asserts
+ * {@code userRepository.count() == 2} after registering two accounts, and it depends on
+ * {@code POST /auth/register} being open, which the service decides from the users table.
+ * Both are claims about the whole table. On the shared {@code jdbc:h2:mem:testdb} the
+ * cleanup below cannot always succeed — {@code Project.owner} and {@code Document.owner}
+ * are {@code @ManyToOne}, so a predecessor's account that owns a project or a document
+ * cannot be deleted and the swallowed exception leaves it in place. A private named H2
+ * makes the count a fact about this class alone. Not {@code @DirtiesContext}.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @TestPropertySource(properties = {"security.enabled=true", "auth.registration.open=true"})
 class AuthRegistrationOptInTest {
+
+    @DynamicPropertySource
+    static void overrideProperties(DynamicPropertyRegistry registry) {
+        // WIKI4AI-169: this class's own H2. See the class javadoc.
+        registry.add("spring.datasource.url",
+                () -> "jdbc:h2:mem:w4ai169-regoptin;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false");
+    }
 
     @Autowired
     private MockMvc mockMvc;
@@ -51,6 +70,16 @@ class AuthRegistrationOptInTest {
             } catch (Exception ignored) {
             }
         }
+    }
+
+    /**
+     * WIKI4AI-169 (SPEC rule 5b): cleanup runs after every test too, so the class leaves
+     * its own database as it found it instead of handing the next test a table that already
+     * looks "initialized".
+     */
+    @AfterEach
+    void cleanUsersAfterEach() {
+        cleanUsers();
     }
 
     @Test

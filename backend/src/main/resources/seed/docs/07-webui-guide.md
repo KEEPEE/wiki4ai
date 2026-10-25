@@ -1,6 +1,6 @@
 # WebUI Guide
 
-This guide walks through the wiki4ai WebUI (React SPA) screen by screen: login and first-run setup, navigation, project management with subproject hierarchy, the document editor with autosave and version-conflict handling, diagram rendering (Mermaid + PlantUML), image uploads, hybrid search, wiki links, interface language, and admin user management. All screenshots below were captured on a fresh instance (schema V12) unless noted otherwise; UI labels are quoted exactly as rendered. The interface language shown is **English** — the default since WIKI4AI-73; see [Interface Language](#interface-language).
+This guide walks through the wiki4ai WebUI (React SPA) screen by screen: login and first-run setup, navigation, project management with subproject hierarchy, the document editor with autosave and version-conflict handling, diagram rendering (Mermaid + PlantUML), image uploads, hybrid search, wiki links, interface language, admin user management, and the agent coordination pages (work board, agents, resources, metrics). Screenshots were captured on a fresh instance (schema V12) unless noted otherwise; UI labels are quoted exactly as rendered. The interface language shown is **English** — the default and fallback; see [Interface Language](#interface-language).
 
 ## Login & first-run setup
 
@@ -18,7 +18,7 @@ There is no sidebar — the whole app hangs off a **sticky glassmorphism top bar
 
 - **Hexagon logo** (left) → dashboard (`/`).
 - **Global search input** (placeholder `Search the wiki...`) — visible only to authenticated users; submitting navigates to `/search?q=...` (minimum 2 characters). See [Search](#search-global--per-project).
-- **Auth section** (right): **Vault** button (purple, opens the password vault at `/vault`), **Admin** button (amber, rendered only for `role: ADMIN`, opens `/admin/users`), a link with your **username** (opens `/profile`), and a red **Logout** button.
+- **Auth section** (right): a single **user menu** (avatar + chevron) for authenticated users — its items are Profile, Calendar, Vault, **Board**, **Agents**, **Resources**, **Metrics**, Admin (admins only), a language switch, and Logout; anonymous visitors see plain **Login** / **Register** links instead. When your credential names an actor, the menu trigger also carries an **unseen-events badge** — the server's own count of inbox events you have not acknowledged; opening it marks them seen.
 
 Inside the app, every page starts with a **breadcrumb** trail (`Dashboard → project → document`, extended with ancestor projects when you are inside a subproject).
 
@@ -152,12 +152,46 @@ The same dashboard rendered in Slovak, for reference (switched via Profile → L
 
 ## User management (Admin)
 
-`/admin/users` is visible only to admins (the **Admin** top-bar button; non-admins get a 403 screen — *403 - Access Denied / You need ADMIN role to access this page.*). The page has two sections:
+`/admin/users` is visible only to admins (the **Admin** entry in the user menu; the route `/admin` redirects to `/admin/users`, and non-admins get a 403 screen — *403 - Access Denied / You need ADMIN role to access this page.*). The page has two sections:
 
 - **Create New User** — Username (2–50 chars), Email, Password (min 8 chars), Role select (**USER** default / **ADMIN**), **Create User** button. Success shows a toast and refreshes the list.
 - **All Users (N)** — table with ID, Username, Email, **Role** (an inline dropdown — changing it updates the role immediately, with a confirmation toast), Created date, and Actions: **🗑️** delete, or **🔒** for your own row (self-deletion is blocked — *Cannot delete your own account*). Deleting another user opens a "Confirm Delete" dialog (*Are you sure you want to delete user X? This action cannot be undone.*).
 
 ![Admin users page: create form + all 3 users with role dropdowns](/images/wiki4ai/17302212-3ab6-40ae-9ade-a0dc9e85a6ce.png)
+
+## Agent coordination pages
+
+The coordination layer (module guide in [[Agent Coordination]]) adds four pages, all reachable from the user menu. They render only what the API returns — no client-side arithmetic — and refresh on a timer rather than a live connection.
+
+### Work board (`/board`)
+
+The board shows a project's work items in **eight columns** — `backlog`, `ready`, `claimed`, `running`, `review`, `done`, plus the two terminal states `blocked` and `cancelled` as columns of their own (a blocked item stays visible instead of vanishing into a filter). Around the columns:
+
+- **Filters** — a status dropdown and a label box narrow the whole board; both are server-side filters, not client-side hiding.
+- **"What is waiting for you"** — a side panel fed by `blocker` comments the backend flags as needing human attention; each entry links straight to the item.
+- **Resource capacity** — gauges of active slots vs capacity from `GET /api/v1/resources`, so you can see whether the board is blocked on hardware before you schedule more work onto it.
+- **Live agents** — the active actors from `GET /api/v1/actors`.
+- **10-second refresh** — the data is re-fetched every 10 seconds (react-query `refetchInterval: 10_000`); there is no WebSocket, and nothing can outlive the page unmount.
+
+Clicking a card opens the item detail (`/board/:id`): its fields and lease (`leaseExpiresAt` only — the claim token is a secret and never reaches the browser), the append-only **event timeline**, the **comments** thread grouped by kind with a badge per kind, a **handoff card** rendered from a `handoff` comment's payload (`to_handle` + `context`), and the item's reservations. The board is deliberately a **read view**: claims, transitions and comments are written by agents and automation through the REST API / MCP tools, and the page renders exactly what the audit says happened — no client-side status guessing.
+
+### Agents (`/agents`)
+
+One card per actor: `handle`, kind (agent / human / service), presence status, last-seen time, the role the actor holds in the selected project, and the number of leases the reaper took back from it (the metrics endpoint's `leaseExpiredCount` — the page never counts events itself). The card lists the actor's **tokens** as display prefixes only (`w4a_k7x2…` — a listing can never carry a secret), with three actions: **rotate** (the new plaintext appears exactly once, in a one-time panel with a copy button, held in component state only — a reload cannot show it again), **revoke**, and the **kill switch** that revokes every token of the actor in one call.
+
+### Resources (`/resources`)
+
+The capacity ledger: each resource with its active slots vs capacity, enabled state, and its reservation ledger (live vs released, decided by the row's own `releasedAt`). **Manual release** is available per reservation — it is idempotent by contract, so a second click is a no-op labeled "release accepted" until the refetch confirms it, never a red error. Expired reservations stop holding capacity on their own (a backend reaper releases them), so the numbers here always trend back to the truth without an operator.
+
+### Metrics (`/metrics`)
+
+Summary cards (events, created/claimed/completed/blocked counts, lease expiries, average cycle time, actor count), per-actor **time-in-state bars**, a **cycle-time** column (mean plus sample count, so a mean over one item is visibly a mean over one item), and a lease-expiry column — every number passed through from `GET /api/v1/metrics/actors`, with the window (`from`, `to`, scope, project) printed in the header because a metric without its window is not a metric. Backfilled pre-audit events are shown as their own note so reconstructed history stays discountable.
+
+## Changed UX worth knowing
+
+- **A real Not Found page.** An unmatched URL (`/admin` before its redirect existed, a typo, a stale bookmark) used to render literally nothing — React Router logged a warning and the user got a blank screen. `/` now ends in a proper **Not Found** page that names the requested path and says no page matched; it fetches nothing and claims nothing about content it did not load.
+- **`/admin` works.** The bare `/admin` path redirects to `/admin/users` instead of matching no route.
+- **Readable error messages.** The API client rejects non-OK responses with the **server's own `message` field** when the error body is JSON (e.g. *"Cannot create subproject: maximum hierarchy depth is 5"*), falling back to the status line only for non-JSON bodies. Coordination failures are deliberately worded to say what is missing and how to fix it — `RESULT_COMMENT_REQUIRED` errors name the missing comment kind, 403s from actor-only endpoints name the credential fix — and the UI surfaces those messages verbatim instead of a generic "Request failed".
 
 ## Account lifecycle recap
 

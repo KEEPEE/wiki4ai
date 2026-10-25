@@ -1,0 +1,434 @@
+/**
+ * WIKI4AI-161: coordination board — glassmorphism (Nexaverse tokens).
+ * All classes are `board-*` scoped to avoid shared-bundle cascade leaks
+ * (WIKI4AI-81 lesson, see VaultPage.css comment). The `.presence-*` and
+ * `.board-kind-badge` rules are duplicated in WorkItemDetailPage.css on purpose:
+ * both pages are lazy routes, so neither may depend on the other's stylesheet.
+ */
+
+.board-page {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+/* ── Header ─────────────────────────────────────────────── */
+
+.board-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.board-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.board-title-icon {
+  color: var(--primary);
+  display: inline-flex;
+}
+
+.board-subtitle {
+  margin: 0.35rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.board-updated {
+  margin: 0 0 1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ── Filters ────────────────────────────────────────────── */
+
+.board-filters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.board-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.board-filter-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.board-filter-select,
+.board-filter-input {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  min-width: 150px;
+}
+
+.board-filter-select:focus-visible,
+.board-filter-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-shadow);
+  border-color: var(--focus-ring-color);
+}
+
+/* ── Layout: columns + sidebar ──────────────────────────── */
+
+.board-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .board-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.board-columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 260px;
+  gap: 0.75rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+.board-column {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  min-height: 220px;
+}
+
+.board-column-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.board-column-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.board-column-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--surface-overlay);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.board-column-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.board-column-blocked {
+  border-color: var(--color-warning-border);
+}
+
+.board-column-cancelled {
+  border-color: var(--color-error-border);
+  opacity: 0.75;
+}
+
+.board-column-done {
+  border-color: var(--color-success-border);
+}
+
+/* ── Card ───────────────────────────────────────────────── */
+
+.board-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  margin-bottom: 0.6rem;
+}
+
+.board-card-lease-expired {
+  border-color: var(--color-warning-border);
+}
+
+.board-card-title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  margin-bottom: 0.45rem;
+}
+
+.board-card-title:hover {
+  color: var(--primary);
+}
+
+.board-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.board-card-unassigned,
+.board-card-unknown-actor {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.board-card-lease {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--text-secondary);
+}
+
+.board-card-lease-expired {
+  color: var(--color-warning-text);
+  font-weight: 600;
+}
+
+.board-card-labels {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.board-label-chip {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  background: var(--surface-overlay);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+/* ── Presence dot (from ActorDTO.status) ────────────────── */
+
+.presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.35rem;
+  background: var(--text-muted);
+}
+
+.presence-active {
+  background: #34d399;
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
+}
+
+.presence-paused {
+  background: #fbbf24;
+}
+
+.presence-archived {
+  background: #6b7280;
+}
+
+/* ── Sidebar ────────────────────────────────────────────── */
+
+.board-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.board-side-block {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 0.9rem;
+}
+
+.board-side-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.board-side-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--surface-overlay);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.board-side-empty {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin: 0;
+}
+
+.board-waiting-list,
+.board-capacity-list,
+.board-agents-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.board-waiting-item {
+  background: var(--surface-raised);
+  border: 1px solid var(--color-warning-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+}
+
+.board-waiting-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.board-waiting-link {
+  color: var(--primary);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+
+.board-waiting-body {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.board-capacity-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.board-capacity-disabled {
+  margin-left: 0.4rem;
+  color: var(--color-error-text);
+  font-size: 0.7rem;
+}
+
+.board-capacity-slots {
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.board-agent {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.board-agent-handle {
+  color: var(--text-primary);
+}
+
+.board-agent-status {
+  margin-left: auto;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.board-agent-status-active {
+  color: var(--color-success-text);
+}
+
+.board-agent-status-paused {
+  color: var(--color-warning-text);
+}
+
+/* ── Kind badge (shared vocabulary with the detail page) ── */
+
+.board-kind-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+}
+
+.board-kind-blocker {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.board-kind-handoff {
+  background: var(--color-info-bg);
+  border-color: var(--color-info-border);
+  color: var(--color-info-text);
+}
+
+.board-kind-result {
+  background: var(--color-success-bg);
+  border-color: var(--color-success-border);
+  color: var(--color-success-text);
+}
+
+.board-kind-decision {
+  background: rgba(157, 78, 221, 0.12);
+  border-color: rgba(157, 78, 221, 0.4);
+  color: #d8b4fe;
+}
+
+/* ── States ─────────────────────────────────────────────── */
+
+.board-loading,
+.board-error {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.board-error {
+  color: var(--color-error-text);
+}

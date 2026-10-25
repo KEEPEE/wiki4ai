@@ -87,6 +87,30 @@ public class Document {
     private User owner;
 
     /**
+     * The actor (V15 registry) that created this document (WIKI4AI-134). NULL for
+     * every document written by a caller that carries no actor — legacy JWT
+     * requests, and every document created before this column existed.
+     * <p>
+     * Plain id, not a JPA association: the audit reference must stay readable
+     * after the actor is removed from the registry (the DB column is
+     * {@code ON DELETE SET NULL}), and the value is never taken from client
+     * input — it is resolved from the authenticated request in the service layer.
+     * <p>
+     * ADDITIVE: {@code owner_id} (the user, WIKI4AI-99) is unchanged and remains
+     * the ownership column. Attribution supplements it, it does not replace it.
+     */
+    @Column(name = "created_by_actor_id")
+    private Long createdByActorId;
+
+    /**
+     * The actor (V15 registry) that performed the last update of this document
+     * (WIKI4AI-134). Overwritten on every update; NULL when the updater carried
+     * no actor. Same rules as {@code createdByActorId}.
+     */
+    @Column(name = "updated_by_actor_id")
+    private Long updatedByActorId;
+
+    /**
      * 'public' or 'private' (DB CHECK constraint, V14). A private document is
      * visible only to its owner and ADMIN users — even when it lives in a
      * public project. Legacy rows carry the column default 'public'.
@@ -178,6 +202,23 @@ public class Document {
      */
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    /**
+     * Set the creating actor id (WIKI4AI-134). Called only by the service layer,
+     * only from the authenticated request context — never from a request body,
+     * query parameter or header. Null means "this caller carries no actor".
+     */
+    public void setCreatedByActorId(Long createdByActorId) {
+        this.createdByActorId = createdByActorId;
+    }
+
+    /**
+     * Set the last-updating actor id (WIKI4AI-134). Same rule as
+     * {@link #setCreatedByActorId}: service layer only, authenticated context only.
+     */
+    public void setUpdatedByActorId(Long updatedByActorId) {
+        this.updatedByActorId = updatedByActorId;
     }
 
     @PrePersist

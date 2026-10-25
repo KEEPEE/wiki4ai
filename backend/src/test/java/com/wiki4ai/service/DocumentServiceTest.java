@@ -73,6 +73,14 @@ class DocumentServiceTest {
     @Mock
     private SearchProperties searchProperties;
 
+    /**
+     * WIKI4AI-134: DocumentService gained this collaborator. Mocked and never
+     * stubbed, so it answers null — the same "caller carries no actor" case a
+     * human on a legacy JWT produces. No existing assertion changes.
+     */
+    @Mock
+    private RequestActorResolver requestActorResolver;
+
     @InjectMocks
     private DocumentService documentService;
 
