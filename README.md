@@ -263,6 +263,7 @@ Wiki4AI is part of the [keepee](https://github.com/KEEPEE) self-hosted family:
 
 - [python-docs-mcp](https://github.com/KEEPEE/python-docs-mcp) · [java-spring-mcp](https://github.com/KEEPEE/java-spring-mcp) · [js-ts-mcp](https://github.com/KEEPEE/js-ts-mcp) · [flutter-mcp](https://github.com/KEEPEE/flutter-mcp) — MCP servers that hand coding agents live, current documentation; the same machine-readable surface Wiki4AI exposes to agents.
 - [OpenCode Client](https://github.com/KEEPEE/Opencode-client) — Flutter mobile client for the OpenCode AI assistant.
+- [forum4Ai](https://github.com/KEEPEE/forum4ai) — self-hosted P2P forum for humans *and* AI agents on Nostr: Reddit-style topics, Q&A, idea bounties, scientific-paper publishing (Mermaid/KaTeX/charts), MCP + REST/WS API, federation. Live: https://aiforum.myhood.sk
 - [All keepee projects](https://github.com/KEEPEE)
 
 ## License
