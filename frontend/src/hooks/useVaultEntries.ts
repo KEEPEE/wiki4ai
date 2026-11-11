@@ -1,137 +1,113 @@
 /**
  * Custom React hook for managing vault entries using TanStack Query.
- * Handles encryption/decryption of sensitive fields client-side before API calls.
+ * Encrypts and decrypts client-side before and after the API calls.
+ *
+ * WIKI4AI-197 (D2): reads whichever format a row is in and writes only v2. The v1
+ * encryption path is gone from this file — not "unused for now", gone — so there is
+ * no code path left that can put a v1 row into a vault whose owner reads v2.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { VaultEntry, CreateVaultEntryDto, UpdateVaultEntryDto, BackendVaultEntry, VaultEntryData, EncryptedField } from '../types/vault';
+import type {
+  VaultEntry,
+  CreateVaultEntryDto,
+  UpdateVaultEntryDto,
+  BackendVaultEntry,
+  VaultEntryData,
+} from '../types/vault';
 import { vaultApi } from '../services/vaultApi';
-import { deriveKey, encrypt, decrypt, bytesToBase64, base64ToBytes } from '../services/encryptionService';
+import { decodeEntry, encodeEntryV2, generateEntryUuid } from '../services/vaultEntryCodec';
+import type { VaultKeys } from '../contexts/VaultContext';
 
 const VAULT_ENTRIES_QUERY_KEY = ['vault', 'entries'] as const;
 const SEARCH_VAULT_ENTRIES_QUERY_KEY = (query: string, groupPath?: string) => ['vault', 'search', query, groupPath] as const;
 
-export interface VaultEncryptionConfig {
-  masterPassword: string;
-  salt: Uint8Array;
-}
-
-interface EncryptedFields {
-  usernameEncrypted?: EncryptedField;
-  passwordEncrypted: EncryptedField;
-  notesEncrypted?: EncryptedField;
-}
-
-// The backend persists a single IV per vault entry (see VaultEntry.iv), shared across
-// username/password/notes, so all three fields must be encrypted with the same IV.
-async function encryptEntryData(data: VaultEntryData, keyBytes: Uint8Array): Promise<EncryptedFields> {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-
-  const passwordResult = await encrypt(JSON.stringify(data.password), keyBytes, iv);
-  const passwordEncrypted: EncryptedField = { ciphertext: bytesToBase64(passwordResult.ciphertext), iv: bytesToBase64(iv) };
-
-  let usernameEncrypted: EncryptedField | undefined;
-  if (data.username) {
-    const result = await encrypt(JSON.stringify(data.username), keyBytes, iv);
-    usernameEncrypted = { ciphertext: bytesToBase64(result.ciphertext), iv: bytesToBase64(iv) };
-  }
-
-  let notesEncrypted: EncryptedField | undefined;
-  if (data.notes) {
-    const result = await encrypt(JSON.stringify(data.notes), keyBytes, iv);
-    notesEncrypted = { ciphertext: bytesToBase64(result.ciphertext), iv: bytesToBase64(iv) };
-  }
-
-  return { usernameEncrypted, passwordEncrypted, notesEncrypted };
-}
-
-async function decryptField(field: EncryptedField | null | undefined, keyBytes: Uint8Array): Promise<string | null> {
-  if (!field?.ciphertext || !field.iv) return null;
-  return decrypt(base64ToBytes(field.ciphertext), base64ToBytes(field.iv), keyBytes);
-}
-
-async function decryptEntryData(backendEntry: BackendVaultEntry, keyBytes: Uint8Array): Promise<VaultEntryData> {
-  const passwordDecrypted = await decryptField(backendEntry.passwordEncrypted, keyBytes);
-  const usernameDecrypted = await decryptField(backendEntry.usernameEncrypted, keyBytes);
-
-  let notesDecrypted: string | null;
-  try {
-    notesDecrypted = await decryptField(backendEntry.notesEncrypted, keyBytes);
-  } catch {
-    notesDecrypted = null;
-  }
-
-  return {
-    username: usernameDecrypted ? JSON.parse(usernameDecrypted) : undefined,
-    password: passwordDecrypted ? JSON.parse(passwordDecrypted) : '[decryption failed]',
-    notes: notesDecrypted ? JSON.parse(notesDecrypted) : undefined,
-  };
-}
-
-function backendToVaultEntry(backendEntry: BackendVaultEntry, data: VaultEntryData): VaultEntry {
+function backendToVaultEntry(backendEntry: BackendVaultEntry, data: VaultEntryData, isReadable: boolean): VaultEntry {
   return {
     id: backendEntry.id,
     title: backendEntry.title,
     url: backendEntry.url,
     groupPath: backendEntry.groupPath,
+    entryUuid: backendEntry.entryUuid ?? undefined,
     data,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    isReadable,
   };
 }
 
-export function useVaultEntries(config: VaultEncryptionConfig | null) {
+/**
+ * A row whose secrets would not open. `isReadable: false` rather than a sentinel in
+ * the password field, because the form prefilled the sentinel and saving wrote it out
+ * as the user's new password.
+ */
+function unreadableEntry(backendEntry: BackendVaultEntry): VaultEntry {
+  return backendToVaultEntry(backendEntry, { password: '' }, false);
+}
+
+export function useVaultEntries(keys: VaultKeys | null) {
   const queryClient = useQueryClient();
 
-  // Disable all queries/mutations when config is not available (vault locked/not set up)
-  const isEnabled = !!config;
+  // Disable all queries/mutations when keys is not available (vault locked/not set up)
+  const isEnabled = !!keys;
 
-  const deriveKeyFn = async () => {
-    if (!config) throw new Error('Vault encryption config not available');
-    return deriveKey(config.masterPassword, config.salt);
+  const requireKeys = (): VaultKeys => {
+    if (!keys) throw new Error('Vault is locked');
+    return keys;
   };
 
-  // Fetch all vault entries and decrypt them (disabled when no config)
+  // Fetch all vault entries and decrypt them (disabled when locked)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: VAULT_ENTRIES_QUERY_KEY,
     enabled: isEnabled,
     queryFn: async () => {
+      const unlocked = requireKeys();
       const backendEntries = await vaultApi.getAll();
-      const key = await deriveKeyFn();
 
       return Promise.all(
         backendEntries.map(async (entry) => {
           try {
-            const decryptedData = await decryptEntryData(entry, key);
-            return backendToVaultEntry(entry, decryptedData);
+            const decoded = await decodeEntry(entry, unlocked);
+            return backendToVaultEntry(entry, decoded.data, decoded.isReadable);
           } catch {
-            return {
-              id: entry.id,
-              title: entry.title,
-              url: entry.url,
-              groupPath: entry.groupPath,
-              data: { password: '[decryption failed]' },
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
+            return unreadableEntry(entry);
           }
         }),
       );
     },
   });
 
-  // Create vault entry mutation with optimistic update (disabled when no config)
+  /**
+   * The row identity a v2 write has to seal against.
+   *
+   * `entry_uuid` is not updatable: the server keeps the one the row was created with,
+   * and the AAD is checked against that value on every read. Encrypting with a fresh
+   * uuid would therefore store a blob the row cannot open — the entry would come back
+   * unreadable, and the old value would already be gone. So an unknown identity stops
+   * the write instead of guessing.
+   */
+  const entryUuidFor = (id: number): string => {
+    const cached = queryClient
+      .getQueryData<VaultEntry[]>(VAULT_ENTRIES_QUERY_KEY)
+      ?.find((entry) => entry.id === id);
+    if (cached?.entryUuid) return cached.entryUuid;
+    throw new Error('Vault entry identity is unknown; reload the vault and try again.');
+  };
+
+  // Create vault entry mutation with optimistic update (disabled when locked)
   const createMutation = useMutation({
     mutationFn: async (entry: { title: string; url?: string; groupPath?: string; data: VaultEntryData }) => {
-      if (!config) throw new Error('Vault encryption config not available');
-      const key = await deriveKeyFn();
-      const encryptedFields = await encryptEntryData(entry.data, key);
+      const unlocked = requireKeys();
+      // The row has no id before the INSERT, and the AAD is built from the row's
+      // identity, so the client generates the identity and sends it along.
+      const entryUuid = generateEntryUuid();
+      const v2Fields = await encodeEntryV2(entry.data, unlocked, entryUuid);
 
       const dto: CreateVaultEntryDto = {
         title: entry.title,
         url: entry.url,
         groupPath: entry.groupPath,
-        ...encryptedFields,
+        ...v2Fields,
       };
 
       return vaultApi.create(dto);
@@ -148,6 +124,7 @@ export function useVaultEntries(config: VaultEncryptionConfig | null) {
         data: entry.data,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        isReadable: true,
       };
 
       queryClient.setQueryData(VAULT_ENTRIES_QUERY_KEY, [...previousEntries, optimisticEntry]);
@@ -164,29 +141,34 @@ export function useVaultEntries(config: VaultEncryptionConfig | null) {
     },
   });
 
-  // Update vault entry mutation with optimistic update (disabled when no config)
+  // Update vault entry mutation with optimistic update (disabled when locked)
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: number; updates: Partial<{ title: string; url: string; groupPath: string }> & { data?: VaultEntryData } }) => {
-      if (!config) throw new Error('Vault encryption config not available');
-      const key = await deriveKeyFn();
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: number;
+      updates: Partial<{ title: string; url: string; groupPath: string }> & { data?: VaultEntryData };
+    }) => {
+      const unlocked = requireKeys();
 
       if (updates.data) {
-        const encryptedFields = await encryptEntryData(updates.data, key);
+        const v2Fields = await encodeEntryV2(updates.data, unlocked, entryUuidFor(id));
         const dto: UpdateVaultEntryDto = {
           title: updates.title,
           url: updates.url,
           groupPath: updates.groupPath,
-          ...encryptedFields,
+          ...v2Fields,
         };
         return vaultApi.update(id, dto);
       }
 
-      const dto: UpdateVaultEntryDto = {
-        title: updates.title,
-        url: updates.url,
-        groupPath: updates.groupPath,
-      };
-      return vaultApi.update(id, dto);
+      // A metadata-only update is refused rather than sent. The v1 semantics were
+      // "an omitted field is cleared", so a title-only PUT wrote NULL over the
+      // password ciphertext; the backend now rejects that, and a v2 client has the
+      // decrypted value in hand anyway, so there is nothing to gain from a partial
+      // write that would have to re-encrypt the whole row regardless.
+      throw new Error('Vault updates must carry the entry data; reload the vault and try again.');
     },
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey: VAULT_ENTRIES_QUERY_KEY });
@@ -221,20 +203,20 @@ export function useVaultEntries(config: VaultEncryptionConfig | null) {
     },
   });
 
-  // Delete vault entry mutation with optimistic update (disabled when no config)
+  // Delete vault entry mutation with optimistic update (disabled when locked)
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      if (!config) throw new Error('Vault encryption config not available');
+      requireKeys();
       return vaultApi.delete(id);
     },
     onMutate: async (id) => {
       await queryClient.cancelQueries({ queryKey: VAULT_ENTRIES_QUERY_KEY });
       const previousEntries = queryClient.getQueryData<VaultEntry[]>(VAULT_ENTRIES_QUERY_KEY) ?? [];
 
-      queryClient.setQueryData(VAULT_ENTRIES_QUERY_KEY, (old: VaultEntry[] | undefined) => {
-        if (!old) return old;
-        return old.filter((entry) => entry.id !== id);
-      });
+      queryClient.setQueryData(
+        VAULT_ENTRIES_QUERY_KEY,
+        (old: VaultEntry[] | undefined) => old?.filter((entry) => entry.id !== id) ?? []
+      );
 
       return { previousEntries };
     },
@@ -248,61 +230,61 @@ export function useVaultEntries(config: VaultEncryptionConfig | null) {
     },
   });
 
+  const createEntry = async (entry: { title: string; url?: string; groupPath?: string; data: VaultEntryData }) =>
+    createMutation.mutateAsync(entry);
+
+  const updateEntry = async (args: {
+    id: number;
+    updates: Partial<{ title: string; url: string; groupPath: string }> & { data?: VaultEntryData };
+  }) => updateMutation.mutateAsync(args);
+
+  const deleteEntry = async (id: number) => deleteMutation.mutateAsync(id);
+
   return {
     entries: data ?? [],
     isLoading,
     error,
     refetch,
-    createEntry: createMutation.mutateAsync,
-    updateEntry: updateMutation.mutateAsync,
-    deleteEntry: deleteMutation.mutateAsync,
+    createEntry,
+    updateEntry,
+    deleteEntry,
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
     isDeleting: deleteMutation.isPending,
   };
 }
 
-/**
- * Custom React hook for searching vault entries.
- */
-export function useSearchVaultEntries(config: VaultEncryptionConfig | null, query: string, groupPath?: string) {
+export function useSearchVaultEntries(
+  query: string,
+  groupPath?: string,
+  keys: VaultKeys | null = null
+) {
   const trimmedQuery = query.trim();
-
-  // Disable search when no config or no query
-  const isEnabled = !!config && !!trimmedQuery;
-
-  const deriveKeyFn = async () => {
-    if (!config) throw new Error('Vault encryption config not available');
-    return deriveKey(config.masterPassword, config.salt);
-  };
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: SEARCH_VAULT_ENTRIES_QUERY_KEY(trimmedQuery, groupPath),
-    enabled: isEnabled,
+    enabled: !!keys && trimmedQuery.length > 0,
     queryFn: async () => {
+      const unlocked = requireKeys();
       const backendEntries = await vaultApi.search(trimmedQuery, groupPath);
-      const key = await deriveKeyFn();
 
       return Promise.all(
         backendEntries.map(async (entry) => {
           try {
-            const decryptedData = await decryptEntryData(entry, key);
-            return backendToVaultEntry(entry, decryptedData);
+            const decoded = await decodeEntry(entry, unlocked);
+            return backendToVaultEntry(entry, decoded.data, decoded.isReadable);
           } catch {
-            return {
-              id: entry.id,
-              title: entry.title,
-              url: entry.url,
-              groupPath: entry.groupPath,
-              data: { password: '[decryption failed]' },
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
+            return unreadableEntry(entry);
           }
         }),
       );
     },
   });
+
+  function requireKeys(): VaultKeys {
+    if (!keys) throw new Error('Vault is locked');
+    return keys;
+  }
 
   return {
     searchResults: data ?? [],

@@ -7,6 +7,7 @@ import com.wiki4ai.dto.RegisterRequestDTO;
 import com.wiki4ai.dto.SetupRequestDTO;
 import com.wiki4ai.dto.TokenGenerationRequestDTO;
 import com.wiki4ai.dto.TokenResponseDTO;
+import com.wiki4ai.config.JwtAuthenticationFilter;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +19,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -142,6 +144,62 @@ public class AuthController {
     }
 
     /**
+     * The body {@code POST /api/v1/auth/refresh} accepts. Declared here rather than in
+     * the dto package because it exists only for this endpoint, and the controller
+     * already carries a local request record for {@code /token/named}.
+     *
+     * @param refreshToken the value the client stored at login. Not validated with
+     *                     {@code @NotBlank}: a missing value is a 401 like every other
+     *                     unusable credential, and bean validation would answer 400
+     *                     with a field-error body the frontend cannot read.
+     */
+    public record RefreshRequest(String refreshToken) {}
+
+    /**
+     * Exchange a refresh token for a new access token.
+     * <p>
+     * WIKI4AI-197 (plan commit 2b). The frontend has called this path since it was
+     * written ({@code apiClient.ts:43}, {@code AuthContext.tsx:240}) while the mapping
+     * did not exist, so the call has been a 404 the whole time. It worked by accident:
+     * a refresh token used to pass the access-token check, so sessions rode a 7-day
+     * token. Now that an access token must say {@code type=ACCESS}, the session would
+     * die at 24 hours unless this endpoint answers — hence 2 and 2b ship together.
+     * <p>
+     * Public (no bearer header required) because the credential being exchanged IS the
+     * authentication. {@code /api/v1/auth/**} is already {@code permitAll}, and the
+     * filter leaves a request with no {@code Authorization} header alone, so nothing in
+     * the security configuration changes.
+     * <p>
+     * Every failure is one 401 with one message: malformed, wrong type, expired,
+     * unknown or rotated-away row, account mismatch. Distinguishing them would let
+     * anyone probe which refresh tokens a deployment knows about.
+     */
+    @PostMapping("/refresh")
+    @Operation(summary = "Refresh the access token",
+            description = "Exchanges a valid REFRESH token (JWT plus its refresh_tokens row) for a new access token")
+    @ApiResponse(responseCode = "200", description = "New access token issued")
+    @ApiResponse(responseCode = "401", description = "The refresh token is missing, malformed, expired or unknown")
+    public ResponseEntity<?> refresh(@RequestBody(required = false) RefreshRequest request) {
+        AuthResponseDTO response;
+        try {
+            response = authService.refreshAccessToken(request == null ? null : request.refreshToken());
+        } catch (DataAccessException e) {
+            // Same reasoning as login: a database problem is not information an
+            // unauthenticated caller should receive, and it must not become a 500.
+            log.error("Refresh failed due to a database error", e);
+            response = null;
+        }
+
+        if (response == null) {
+            Map<String, String> error = new LinkedHashMap<>();
+            error.put("error", "Invalid or expired refresh token");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Get the profile of the currently authenticated user.
      * Extracts username from SecurityContext (set by JwtAuthenticationFilter) and returns user info.
      */
@@ -176,6 +234,20 @@ public class AuthController {
      * Update the profile of the currently authenticated user.
      * Allows updating username, email, and/or password.
      * All fields in the request body are optional — only provided fields are updated.
+     * <p>
+     * <b>WIKI4AI-202 — {@code @Valid} was missing here.</b> {@link ProfileUpdateRequestDTO}
+     * declares {@code @Email} on {@code email}, {@code @Size(min = 3)} on
+     * {@code newPassword} and {@code @Size(min = 2, max = 5)} on {@code language}, and the
+     * contract below already advertises 400 for "validation failed" — but bean validation
+     * only runs when the parameter is annotated, and this was the only request body in
+     * this controller without it ({@code /setup}, {@code /register}, {@code /login} and
+     * {@code /token/named} all have it). The constraints were therefore dead code:
+     * {@code PUT /api/v1/auth/me {"email":"not-an-email"}} answered 200 and wrote the
+     * malformed value to the account, and a one-character {@code newPassword} was accepted
+     * as well. Found by {@code AuthControllerUpdateProfileIT}, a test class that had never
+     * been executed (see its javadoc). Absent and empty values still pass — both
+     * {@code @Email} and {@code @Size} treat them as valid — so the "all fields optional"
+     * contract and the frontend's language-only {@code PUT} are unaffected.
      */
     @PutMapping("/me")
     @Operation(summary = "Update current user profile", description = "Updates the profile of the currently authenticated user. Optional fields: username, email, currentPassword (required for password change), newPassword")
@@ -183,7 +255,7 @@ public class AuthController {
     @ApiResponse(responseCode = "400", description = "Current password is incorrect or validation failed")
     @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
     @ApiResponse(responseCode = "409", description = "Username or email already taken by another user")
-    public ResponseEntity<?> updateCurrentUserProfile(@RequestBody ProfileUpdateRequestDTO request) {
+    public ResponseEntity<?> updateCurrentUserProfile(@Valid @RequestBody ProfileUpdateRequestDTO request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
         // If no authentication is set, the user is not authenticated
@@ -235,6 +307,12 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
         }
 
+        // WIKI4AI-197 (REV-2 P0 #6): a caller that arrived with a hashed API token must
+        // not be able to mint a JWT. The minted token is self-contained — no row behind
+        // it — so revoking the API token would leave the freshly minted credential
+        // working. A revocable credential was being used to create an irrevocable one.
+        rejectApiTokenMinting(authentication, "mint a JWT session token");
+
         String username = authentication.getName();
         AuthResponseDTO response = authService.generateNewTokenForUser(username, request);
 
@@ -245,6 +323,37 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 403 when the request authenticated with a hashed {@code w4a_} token rather than a
+     * JWT session (WIKI4AI-197, REV-2 P0 #6).
+     * <p>
+     * The two kinds of credential are not interchangeable for the purpose of minting. A
+     * JWT is a session: it exists because a human signed in, and the endpoints below are
+     * how that session hands out long-lived credentials. A {@code w4a_} token is already
+     * such a credential — a row in {@code api_tokens} with scopes, an expiry and a revoke
+     * button. Letting it mint more means the thing that is supposed to be revocable
+     * decides what survives its own revocation: an agent holding a read/write token could
+     * hand itself an unbounded supply of credentials, and the operator pressing "revoke"
+     * would see the agent keep working.
+     * <p>
+     * 403 rather than 401 because the caller <i>is</i> authenticated — the credential is
+     * valid, it is simply not the kind that may do this. The MCP server mints nothing (it
+     * is configured with one token and calls no token endpoint), so this costs no
+     * existing integration.
+     *
+     * @param what the operation, phrased for the message the operator will read
+     * @throws AccessDeniedException always, when the caller holds an API token
+     */
+    private void rejectApiTokenMinting(Authentication authentication, String what) {
+        JwtAuthenticationFilter.ApiTokenAuthenticationDetails.from(authentication)
+                .ifPresent(details -> {
+                    throw new AccessDeniedException("An API token cannot " + what
+                            + ": it would create a credential that outlives the token row it was made from, "
+                            + "which is the row that makes the caller revocable. Use the API token itself, or "
+                            + "sign in to obtain a session token.");
+                });
     }
 
     /**
@@ -277,6 +386,12 @@ public class AuthController {
             error.put("error", "Token name is required");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         }
+
+        // WIKI4AI-197 (REV-2 P0 #6): same rule, worse shape — with no expiresAt the
+        // named token carries no exp at all, so one API token could permanently clone
+        // itself. The frontend moved to POST /api/v1/tokens (ProfilePage.tsx), so this
+        // only costs an agent that was minting tokens for itself.
+        rejectApiTokenMinting(authentication, "mint a named API token");
 
         String username = authentication.getName();
         TokenResponseDTO response = authService.generateNamedApiToken(username, request.name, request.expiresAt);

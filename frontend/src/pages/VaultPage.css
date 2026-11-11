@@ -24,7 +24,7 @@
   color: var(--text-primary);
   margin: 0;
   font-weight: 700;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -60,28 +60,27 @@
   width: 100%;
   /* WIKI4AI-81: 44px left padding = consistent 10px gap after the icon (x 16–34) */
   padding: 12px 40px 12px 44px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 50px;
   font-size: 0.95rem;
   box-sizing: border-box;
   transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
 }
 
 .vault-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .vault-search-input:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+  background: var(--glass-strong);
 }
 
 .vault-search-input:focus {
-  outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 20px var(--glow-cyan);
 }
 
 .vault-search-clear {
@@ -110,8 +109,13 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  background: var(--primary);
-  color: var(--dark-1);
+  /* WIKI4AI-206: `--dark-1` nie je ink — je to tmava skalu identity,
+     ktora je v glass-light takmer biela (#e2e8db) a na `--primary`
+     #047857 davala 4.39:1, tesne pod 4.5. Spravny token je
+     `--text-inverse` (5.25:1). Gradient + ink = MIN 4.64:1. */
+  background-color: var(--primary);
+  background-image: var(--action-gradient);
+  color: var(--text-inverse);
   border: none;
   border-radius: 8px;
   font-size: 0.9rem;
@@ -122,8 +126,9 @@
 }
 
 .btn-create-new:hover {
-  background: #00d4e6;
-  box-shadow: 0 0 12px var(--glow-cyan);
+  background-color: var(--primary-strong);
+  background-image: var(--action-gradient-hover);
+  box-shadow: var(--action-glow);
   transform: translateY(-1px);
 }
 
@@ -139,7 +144,7 @@
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  animation: slideDown 0.2s ease-out;
+  animation: slideDown var(--dur-med) var(--ease-soft);
 }
 
 @keyframes slideDown {
@@ -159,7 +164,7 @@
   font-weight: 600;
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -169,26 +174,25 @@
 .create-form textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   margin-bottom: 1rem;
   font-size: 0.95rem;
   box-sizing: border-box;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--glass-strong);
+  color: var(--text-secondary);
 }
 
 .create-form input:focus,
 .create-form textarea:focus {
-  outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 20px var(--glow-cyan);
 }
 
 .create-form input::placeholder,
 .create-form textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .form-actions {
@@ -237,12 +241,12 @@
 }
 
 .group-item:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-strong);
   color: var(--text-primary);
 }
 
 .group-item.active {
-  background: rgba(0, 240, 255, 0.1);
+  background: var(--glow-cyan);
   color: var(--primary);
   font-weight: 500;
 }
@@ -280,8 +284,8 @@
 }
 
 .entry-card:hover {
-  background-color: rgba(0, 240, 255, 0.06);
-  border-color: rgba(0, 240, 255, 0.3);
+  background-color: var(--glow-cyan);
+  border-color: var(--glow-cyan);
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3), 0 0 15px rgba(0, 200, 220, 0.15);
   transform: translateY(-2px);
 }
@@ -317,8 +321,8 @@
 .vault-entry-edit-button,
 .vault-entry-copy-button,
 .vault-entry-delete-button {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(0, 240, 255, 0.15);
+  background: var(--glass-strong);
+  border: 1px solid var(--glow-cyan);
   border-radius: 6px;
   font-size: 1.1rem;
   cursor: pointer;
@@ -335,14 +339,14 @@
 
 .vault-entry-edit-button:hover,
 .vault-entry-copy-button:hover {
-  background: rgba(0, 240, 255, 0.12);
+  background: var(--glow-cyan);
   transform: scale(1.15);
 }
 
 .vault-entry-delete-button:hover:not(:disabled) {
   background: rgba(239, 68, 68, 0.12);
   border-color: rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  color: var(--color-error-text);
   transform: scale(1.15);
 }
 
@@ -366,24 +370,13 @@
 }
 
 .entry-url:hover {
-  color: #00d4e6;
+  color: var(--primary);
   text-decoration: underline;
 }
 
 .entry-username {
   font-size: 0.85rem;
   color: var(--text-muted);
-}
-
-/* ── Empty State ──────────────────────────────────────── */
-
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
 }
 
 .empty-text {
@@ -403,7 +396,7 @@
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--border-default);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -421,57 +414,6 @@
 .error-state {
   text-align: center;
   padding: 2rem;
-}
-
-.error {
-  color: var(--color-error-text);
-  background: var(--color-error-bg);
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.95rem;
-}
-
-/* ── Buttons ──────────────────────────────────────────── */
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.625rem 1.25rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: background-color var(--transition-base), transform var(--transition-fast);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
-  color: var(--dark-1);
-}
-
-.btn-primary:hover:not(:disabled) {
-  box-shadow: 0 0 20px var(--glow-cyan);
-  transform: translateY(-1px);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
 }
 
 /* ── Responsive ───────────────────────────────────────── */
@@ -552,7 +494,7 @@
   font-weight: 700;
   color: var(--text-primary);
   margin-bottom: 0.75rem;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -596,26 +538,25 @@
 .vault-input {
   width: 100%;
   padding: 0.875rem 3rem 0.875rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 10px;
   font-size: 0.95rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: var(--text-primary);
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .vault-input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
 }
 
 .vault-input:focus {
-  outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 15px var(--glow-cyan);
 }
 
 .vault-input-error {
-  border-color: #ff4757 !important;
+  border-color: var(--danger) !important;
 }
 
 .vault-toggle-visibility {
@@ -630,12 +571,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   transition: color var(--transition-fast);
 }
 
 .vault-toggle-visibility:hover {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 
 /* ── Password Requirements ───────────────────────────── */
@@ -655,23 +596,28 @@
    an unfilled form (both requirements always visible, stable layout). Red is
    reserved for a real failure once the relevant field(s) are touched. */
 .vault-requirement-pending {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 .vault-requirement-fail {
-  color: #ff4757;
+  color: var(--color-error-text);
 }
 
 .vault-requirement-pass {
-  color: #2ed573;
+  color: var(--color-success-text);
 }
 
 /* ── Buttons ─────────────────────────────────────────── */
 
 .vault-primary-button {
   padding: 0.875rem 1.5rem;
-  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
-  color: var(--dark-1);
+  /* WIKI4AI-206: gradient `--primary -> --accent` + `--dark-1` bol
+     3.33:1 v glass-light (stop #c2603f), 4.29:1 v nexaverse (stop #9d4edd)
+     a 4.39:1 uz na prvom stop-e. `--secondary` + `--text-inverse` drzi
+     MIN 4.64:1 / 7.47:1 / 5.56:1. */
+  background-color: var(--primary);
+  background-image: var(--action-gradient);
+  color: var(--text-inverse);
   border: none;
   border-radius: 10px;
   font-size: 1rem;
@@ -681,7 +627,7 @@
 }
 
 .vault-primary-button:hover:not(:disabled) {
-  box-shadow: 0 0 25px rgba(0, 240, 255, 0.4);
+  box-shadow: var(--action-glow);
   transform: translateY(-1px);
 }
 
@@ -708,7 +654,7 @@
 .vault-error-message {
   background: rgba(255, 71, 87, 0.1);
   border: 1px solid rgba(255, 71, 87, 0.3);
-  color: #ff4757;
+  color: var(--color-error-text);
   padding: 0.75rem 1rem;
   border-radius: 8px;
   font-size: 0.9rem;
@@ -749,9 +695,9 @@
 
 .btn-import {
   padding: 0.625rem 1.25rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -759,10 +705,12 @@
   transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
 }
 
+/* `.btn-import` nie je variant `.btn` systému — je to stránková Import
+   pilulka s vlastným box modelom, preto si zachováva vlastný hover. */
 .btn-import:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-strong);
   color: var(--text-primary);
-  border-color: rgba(0, 240, 255, 0.3);
+  border-color: var(--glow-cyan);
 }
 
 /* ── Export dropdown — themed (WIKI4AI-89, audit V-D9) ───────────
@@ -799,7 +747,7 @@
 }
 
 .export-dropdown button:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-strong);
 }
 
 .export-dropdown button:disabled {
@@ -809,16 +757,11 @@
 
 /* ── Import Modal ───────────────────────────────────── */
 
-.import-modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
+/* .import-modal-overlay nemá vlastný blok: element je <dialog> a shell
+ * .modal-backdrop[open] v styles/components.css mu dáva fixed/inset/centrovanie
+ * a ::backdrop stmavenie z --scrim. Vlastné background by scrim maloval
+ * DVAKRÁT (element + ::backdrop) a rgba(0,0,0,.7) tu bola aj tak tvrdá farba
+ * mimo tokens.css. */
 
 .import-modal {
   background: var(--glass-bg);
@@ -833,7 +776,7 @@
   font-size: 1.5rem;
   color: var(--text-primary);
   margin: 0 0 0.5rem 0;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -861,26 +804,25 @@
 
 .import-field input[type='file'] {
   padding: 0.625rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   font-size: 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: var(--text-primary);
 }
 
 .import-field input[type='password'] {
   padding: 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   font-size: 0.9rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   color: var(--text-primary);
 }
 
 .import-field input[type='password']:focus {
-  outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 15px var(--glow-cyan);
 }
 
 .file-name {
@@ -891,7 +833,7 @@
 .import-error {
   background: rgba(255, 71, 87, 0.1);
   border: 1px solid rgba(255, 71, 87, 0.3);
-  color: #ff4757;
+  color: var(--color-error-text);
   padding: 0.75rem 1rem;
   border-radius: 8px;
   font-size: 0.9rem;

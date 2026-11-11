@@ -185,6 +185,35 @@ class SecurityConfigTest {
     }
 
     @Test
+    void h2ConsoleEndpoint_anonymousShouldReturn401() throws Exception {
+        // WIKI4AI-197 (REV-2 P0 #9): /h2-console/** used to be permitAll, which put the H2
+        // web console outside JWT auth in the deployed stack. The console is a login form
+        // that connects to whatever JDBC URL the visitor types — with the deployment's own
+        // host and the placeholder credentials that is the whole database, and with an H2
+        // URL plus CREATE ALIAS ... AS $$java$$ it is code execution in the JVM.
+        //
+        // 401 rather than 404 is the point: it proves the security chain is what refuses
+        // the request, so the rule holds even in a profile where the console servlet IS
+        // registered (the base config enables it, and this context runs on the base
+        // config). A 404 here could mean "no such endpoint" and would not constrain
+        // anyone from re-adding permitAll.
+        mockMvc.perform(get("/h2-console"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/h2-console/login.jsp"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void actuatorHealth_staysPermitAllAfterRemovingH2Console() throws Exception {
+        // The matcher that carried /h2-console also carried /api/health and /actuator/**.
+        // Asserted so the fix cannot be "narrow the whole line" — a monitoring probe that
+        // suddenly needs a token is an outage discovered by an alert that cannot fire.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void globalSearchEndpoint_anonymousShouldReturn401() throws Exception {
         // WIKI4AI-61 (P1 policy): /api/v1/search/** must NOT fall into the
         // GET /api/v1/projects/** permitAll matcher — anonymous requests require a JWT → 401.

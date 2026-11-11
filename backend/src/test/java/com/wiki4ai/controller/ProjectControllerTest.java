@@ -5,6 +5,7 @@ import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.dto.ProjectTreeNodeDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
+import com.wiki4ai.dto.ReorderRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,6 +27,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -94,7 +96,7 @@ class ProjectControllerTest {
         void shouldReturnAllProjects() throws Exception {
             // given
             ProjectDTO project = createSampleProject();
-            given(projectService.getAllProjects(any())).willReturn(List.of(project));
+            given(projectService.getAllProjects(any(), any(), any(), any())).willReturn(List.of(project));
 
             // when & then
             mockMvc.perform(get("/api/v1/projects"))
@@ -108,7 +110,7 @@ class ProjectControllerTest {
         @DisplayName("Should return 200 with empty list when no projects exist")
         void shouldReturnEmptyList() throws Exception {
             // given
-            given(projectService.getAllProjects(any())).willReturn(List.of());
+            given(projectService.getAllProjects(any(), any(), any(), any())).willReturn(List.of());
 
             // when & then
             mockMvc.perform(get("/api/v1/projects"))
@@ -459,7 +461,7 @@ class ProjectControllerTest {
         void shouldHaveTagAnnotation() throws Exception {
             // The controller is annotated with @Tag(name = "Projects", ...)
             // This test verifies the controller class exists and has correct mapping
-            given(projectService.getAllProjects(any())).willReturn(List.of());
+            given(projectService.getAllProjects(any(), any(), any(), any())).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk()); // Will fail if controller not registered
         }
@@ -469,7 +471,7 @@ class ProjectControllerTest {
         void shouldHaveOperationAnnotations() throws Exception {
             // Verify that the controller has proper OpenAPI documentation
             // by checking that all CRUD endpoints are properly mapped
-            given(projectService.getAllProjects(any())).willReturn(List.of());
+            given(projectService.getAllProjects(any(), any(), any(), any())).willReturn(List.of());
             mockMvc.perform(get("/api/v1/projects"))
                     .andExpect(status().isOk());
 
@@ -741,6 +743,198 @@ class ProjectControllerTest {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value(
                             "Cannot move a project under its own subproject (would create a cycle)"));
+        }
+    }
+
+    // ── WIKI4AI-184: pin to top, manual order, sort/q/visibility ──────────────
+    //
+    // The service is mocked, so these tests cover the HTTP contract only: which query
+    // parameter reaches which service argument, how the reorder body is deserialized,
+    // and what status an exception maps to. The ordering itself is covered by
+    // PinningReorderIntegrationTests against a real database.
+
+    @Nested
+    @DisplayName("GET /api/v1/projects - sort, q, visibility (WIKI4AI-184)")
+    class GetAllProjectsSortAndFilterTests {
+
+        private ProjectDTO pinnedProject() {
+            return ProjectDTO.builder()
+                    .id(1L)
+                    .name("Pinned Project")
+                    .slug("pinned-project")
+                    .depth(1)
+                    .visibility("public")
+                    .pinned(true)
+                    .sortOrder(-1)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("sort, q and visibility are passed through to the service")
+        void shouldForwardSortQAndVisibility() throws Exception {
+            given(projectService.getAllProjects(
+                    eq("manual"), eq("rocket"), eq("public"), any(String.class)))
+                    .willReturn(List.of(pinnedProject()));
+
+            mockMvc.perform(get("/api/v1/projects")
+                            .param("sort", "manual")
+                            .param("q", "rocket")
+                            .param("visibility", "public"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].slug").value("pinned-project"))
+                    .andExpect(jsonPath("$[0].pinned").value(true))
+                    .andExpect(jsonPath("$[0].sortOrder").value(-1));
+
+            verify(projectService).getAllProjects(
+                    eq("manual"), eq("rocket"), eq("public"), any(String.class));
+        }
+
+        @Test
+        @DisplayName("no parameters: the service is called with three nulls (backward compatible)")
+        void shouldCallServiceWithNullsWhenNoParametersSent() throws Exception {
+            given(projectService.getAllProjects(
+                    isNull(), isNull(), isNull(), any(String.class)))
+                    .willReturn(List.of());
+
+            mockMvc.perform(get("/api/v1/projects"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(0));
+
+            verify(projectService).getAllProjects(
+                    isNull(), isNull(), isNull(), any(String.class));
+        }
+
+        @Test
+        @DisplayName("unknown sort key should return 400 with the allowed values")
+        void unknownSortShouldReturn400() throws Exception {
+            given(projectService.getAllProjects(
+                    eq("sideways"), isNull(), isNull(), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Unknown sort 'sideways'. Allowed values: manual, name_asc, name_desc, "
+                                    + "created_asc, created_desc, updated_desc"));
+
+            mockMvc.perform(get("/api/v1/projects").param("sort", "sideways"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("manual")));
+        }
+    }
+
+    @Nested
+    @DisplayName("POST /api/v1/projects/{slug}/pin|unpin|reorder (WIKI4AI-184)")
+    class PinningAndReorderTests {
+
+        private ProjectDTO project(boolean pinned, int sortOrder) {
+            return ProjectDTO.builder()
+                    .id(1L)
+                    .name("Test Project")
+                    .slug("test-project")
+                    .depth(1)
+                    .visibility("public")
+                    .pinned(pinned)
+                    .sortOrder(sortOrder)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/pin should return the project with pinned=true")
+        void pinShouldReturnPinnedProject() throws Exception {
+            given(projectService.pinProject(eq("test-project"), any(String.class)))
+                    .willReturn(project(true, -1));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/pin"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.pinned").value(true))
+                    .andExpect(jsonPath("$.sortOrder").value(-1));
+
+            verify(projectService).pinProject(eq("test-project"), any(String.class));
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/unpin should return the project with pinned=false")
+        void unpinShouldReturnUnpinnedProject() throws Exception {
+            given(projectService.unpinProject(eq("test-project"), any(String.class)))
+                    .willReturn(project(false, 3));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/unpin"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.pinned").value(false))
+                    .andExpect(jsonPath("$.sortOrder").value(3));
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/reorder should deserialize position")
+        void reorderShouldDeserializePosition() throws Exception {
+            given(projectService.reorderProject(
+                    eq("test-project"), any(ReorderRequestDTO.class), any(String.class)))
+                    .willReturn(project(false, 0));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"position\": 2}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.sortOrder").value(0));
+
+            verify(projectService).reorderProject(
+                    eq("test-project"),
+                    eq(ReorderRequestDTO.builder().position(2).build()),
+                    any(String.class));
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/reorder should deserialize beforeSlug and afterSlug")
+        void reorderShouldDeserializeAnchorSlugs() throws Exception {
+            given(projectService.reorderProject(
+                    eq("test-project"), any(ReorderRequestDTO.class), any(String.class)))
+                    .willReturn(project(false, 1));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"beforeSlug\": \"other\"}"))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(post("/api/v1/projects/test-project/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"afterSlug\": \"third\"}"))
+                    .andExpect(status().isOk());
+
+            verify(projectService).reorderProject(
+                    eq("test-project"),
+                    eq(ReorderRequestDTO.builder().beforeSlug("other").build()),
+                    any(String.class));
+            verify(projectService).reorderProject(
+                    eq("test-project"),
+                    eq(ReorderRequestDTO.builder().afterSlug("third").build()),
+                    any(String.class));
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/reorder with two selectors should return 400")
+        void reorderWithTwoSelectorsShouldReturn400() throws Exception {
+            given(projectService.reorderProject(
+                    eq("test-project"), any(ReorderRequestDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Reorder requires exactly one of: beforeSlug, afterSlug, position (got 2)"));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"position\": 0, \"afterSlug\": \"other\"}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("exactly one")));
+        }
+
+        @Test
+        @DisplayName("POST /{slug}/pin of an unknown project should return 404")
+        void pinOfUnknownProjectShouldReturn404() throws Exception {
+            given(projectService.pinProject(eq("ghost"), any(String.class)))
+                    .willThrow(new EntityNotFoundException("Project not found with slug: ghost"));
+
+            mockMvc.perform(post("/api/v1/projects/ghost/pin"))
+                    .andExpect(status().isNotFound());
         }
     }
 }

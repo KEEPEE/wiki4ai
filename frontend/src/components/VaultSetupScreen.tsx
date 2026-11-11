@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
-import { cryptoApi } from '../services/cryptoApi';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
 import { EyeIcon, EyeOffIcon, LockIcon } from './icons';
 
@@ -19,14 +18,11 @@ const VaultSetupScreen: React.FC<{ isReinit?: boolean }> = ({ isReinit = false }
     if (password !== confirmPassword) return;
     if (password.length < 8) return;
 
-    const encoder = new TextEncoder();
-    const passwordBuffer = encoder.encode(password);
-
-    const hashBuffer = await cryptoApi.sha256(passwordBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const masterPasswordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    await setupVault(masterPasswordHash);
+    // Raw password, same reason as the unlock screen: setting up a vault in D2 means
+    // initialising v2, and v2 never hands the server the password or its hash. The
+    // v1 `/master-password/set` call this replaced is what stored a value the server
+    // could brute-force offline.
+    await setupVault(password);
   };
 
   const isStrongEnough = password.length >= 8;

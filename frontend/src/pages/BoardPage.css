@@ -31,7 +31,7 @@
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -86,7 +86,6 @@
 
 .board-filter-select:focus-visible,
 .board-filter-input:focus-visible {
-  outline: none;
   box-shadow: var(--focus-ring-shadow);
   border-color: var(--focus-ring-color);
 }
@@ -251,16 +250,16 @@
 }
 
 .presence-active {
-  background: #34d399;
+  background: var(--success);
   box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
 }
 
 .presence-paused {
-  background: #fbbf24;
+  background: var(--warning);
 }
 
 .presence-archived {
-  background: #6b7280;
+  background: var(--text-muted);
 }
 
 /* ── Sidebar ────────────────────────────────────────────── */
@@ -418,7 +417,7 @@
 .board-kind-decision {
   background: rgba(157, 78, 221, 0.12);
   border-color: rgba(157, 78, 221, 0.4);
-  color: #d8b4fe;
+  color: var(--accent);
 }
 
 /* ── States ─────────────────────────────────────────────── */

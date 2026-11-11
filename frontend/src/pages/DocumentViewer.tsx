@@ -18,6 +18,10 @@ import type { Visibility } from '../types/project';
 import { LinkIcon, PaperclipIcon, LockIcon } from '../components/icons';
 // WIKI4AI-100: shared Public/Private visibility toggle
 import VisibilityToggle from '../components/VisibilityToggle';
+// WIKI4AI-186: pin the document to the top of its project + Toast feedback
+import PinButton from '../components/PinButton';
+import { ToastContainer, type ToastItem } from '../components/Toast';
+import { isForbiddenError } from '../hooks/usePinToggle';
 import './DocumentViewer.css';
 
 interface DocumentViewerProps {
@@ -92,6 +96,17 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   // WIKI4AI-100: document visibility (pre-filled on load; legacy = public)
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [savingVisibility, setSavingVisibility] = useState(false);
+  // WIKI4AI-186: pin state of this document (per-project list order).
+  const [pinned, setPinned] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  const addToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToasts((prev) => [...prev, { id: Date.now() + Math.random(), message, type }]);
+  }, []);
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
+  }, []);
 
   // Extract wiki links from raw content client-side
   const wikiLinks = useMemo(() => extractWikiLinks(content), [content]);
@@ -108,6 +123,8 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
       setContent(doc.content || '');
       // WIKI4AI-100: pre-fill the visibility toggle (legacy docs default to public)
       setVisibility(doc.visibility ?? 'public');
+      // WIKI4AI-186: pre-fill the pin toggle
+      setPinned(!!doc.pinned);
 
       // Fetch backlinks in parallel after content loads
       try {
@@ -161,6 +178,35 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
     }
   };
 
+  // WIKI4AI-186: pin/unpin this document. The flip is optimistic; the pin
+  // response is the truth (it does NOT bump `version`, so an editor open in
+  // another tab is not pushed into a 409). On failure — 403 when the user
+  // lacks UPDATE in the project — the state rolls back and only a Toast shows.
+  const handleTogglePin = async () => {
+    if (savingPin) return;
+    const wasPinned = pinned;
+    const next = !wasPinned;
+    setSavingPin(true);
+    setPinned(next);
+    try {
+      const updated = next
+        ? await documentApi.pinDocument(projectSlug, docSlug)
+        : await documentApi.unpinDocument(projectSlug, docSlug);
+      setPinned(!!updated.pinned);
+      addToast(t(next ? 'pin.pinnedDocument' : 'pin.unpinnedDocument', { name: title || docSlug }), 'success');
+    } catch (err) {
+      setPinned(wasPinned);
+      addToast(
+        isForbiddenError(err)
+          ? t('pin.forbiddenDocument')
+          : t('pin.failed', { message: err instanceof Error ? err.message : String(err) }),
+        'error',
+      );
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
   if (!projectSlug || !docSlug) {
     return (
       <div className="document-viewer">
@@ -180,7 +226,7 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
   if (error) {
     return (
       <div className="document-viewer">
-        <div className="error-message">
+        <div className="state-error">
           <p>{t('viewer.errorLabel')}: {error}</p>
           <button onClick={() => navigate(`/projects/${projectSlug}`)} className="btn-secondary">
             {t('project.backToProject')}
@@ -192,12 +238,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
 
   return (
     <div className="document-viewer">
+      {/* WIKI4AI-186: pin/unpin feedback */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Breadcrumb Navigation */}
       <Breadcrumb projectSlug={projectSlug} documentTitle={title || docSlug} ancestors={ancestors} />
 
       {/* Document Header — WIKI4AI-84: long titles ellipsis-truncate (see
           .document-header h1 in DocumentViewer.css); full text via tooltip. */}
-      <header className="document-header">
+      <header className={`document-header${pinned ? ' document-header-pinned' : ''}`}>
         <h1 title={title || docSlug}>
           {title || docSlug}
           {/* WIKI4AI-100: lock icon on private documents */}
@@ -208,6 +257,15 @@ const DocumentViewer: React.FC<DocumentViewerProps> = ({ projectSlug: propProjec
           )}
         </h1>
         <div className="document-actions">
+          {/* WIKI4AI-186: pin to the top of the project's document list */}
+          <PinButton
+            pinned={pinned}
+            onToggle={handleTogglePin}
+            name={title || docSlug}
+            kind="document"
+            disabled={savingPin}
+            data-testid={`pin-doc-${docSlug}`}
+          />
           {/* WIKI4AI-100: visibility toggle (immediate PUT on change) */}
           <VisibilityToggle
             value={visibility}

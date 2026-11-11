@@ -1,10 +1,23 @@
 <!doctype html>
-<html lang="sk">
+<html lang="sk" data-theme="glass-dark">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Google Fonts — Nexaverse Typography -->
+    <!-- WIKI4AI-185 / WIKI4AI-192 (DIZ-1): FOUC guard. Téma sa musí dostať na
+         <html> PRED prvým paintom — CSS sa loaduje asynchrónne a bez tohto
+         skriptu by prvý snímok bol v predvolenej téme a až potom blikol na
+         uloženú.
+         Skript sa NEPÍŠE ručne: placeholder nahradí `themeBootstrapPlugin` v
+         `vite.config.ts` vygenerovanou podobou z `src/theme/themeBootstrap.ts`,
+         ktorá zdieľa kľúč, povolené identity, legacy mapping (`dark` →
+         `glass-dark`, `light` → `glass-light`) aj predvolenú tému s
+         `src/theme/themes.ts`.
+         Atribút `data-theme` na <html> vyššie je fallback pre prostredie bez
+         JavaScriptu — musí sa rovnať DEFAULT_THEME (strážny test
+         `src/__tests__/designTokens.test.ts`). -->
+    <!--theme-bootstrap-->
+    <!-- Google Fonts — Wiki4AI Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&family=Syne:wght@400;500;600;700&display=swap" rel="stylesheet">

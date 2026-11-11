@@ -133,6 +133,57 @@ class GlobalExceptionHandlerStatusMappingTest {
                     .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
         }
 
+        /**
+         * WIKI4AI-197 (REV-2 P0 #10): the 500 body stopped being a quotation of whatever
+         * the library that threw happened to say.
+         * <p>
+         * The status was already pinned above; this pins the body, which is the half that
+         * was leaking. Before the fix, {@code ex.getMessage()} went straight to the
+         * client, so Hibernate ("could not extract ResultSet: ERROR: relation
+         * \"documents\" does not exist"), the pgvector driver, Jackson and the KDBX parser
+         * were all naming tables, columns and file internals in a public response — and an
+         * exception message can carry the values it was formatting, which is how a secret
+         * ends up in a log line and then in a browser console.
+         * <p>
+         * Asserted with a message that is obviously distinctive, so a regression that
+         * re-attaches the cause fails here rather than passing on a coincidence.
+         */
+        @Test
+        @DisplayName("the 500 body is generic and never quotes the exception")
+        void catchAllBodyDoesNotLeakTheCause() {
+            ResponseEntity<Map<String, Object>> response = handler.handleGeneralException(
+                    new IllegalStateException("relation \"vault_entries\" does not exist — value 'hunter2'"));
+
+            assertThat(response.getBody())
+                    .containsEntry("message", "An unexpected error occurred")
+                    .containsEntry("error", "Internal Server Error")
+                    .containsEntry("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+
+            // Belt to the brace: the body as a whole must not contain the cause's words,
+            // so the fix cannot be undone by moving the message into another key.
+            assertThat(String.valueOf(response.getBody()))
+                    .doesNotContain("vault_entries")
+                    .doesNotContain("hunter2");
+        }
+
+        /**
+         * The body shape is unchanged — same keys, same status, and the same fallback
+         * string clients already received whenever an exception had no message. A fix to
+         * what a 500 says must not silently change what a 500 <i>is</i>.
+         */
+        @Test
+        @DisplayName("the 500 body keeps its keys, including for a message-less exception")
+        void catchAllBodyShapeIsUnchanged() {
+            ResponseEntity<Map<String, Object>> withMessage =
+                    handler.handleGeneralException(new IllegalStateException("boom"));
+            ResponseEntity<Map<String, Object>> withoutMessage =
+                    handler.handleGeneralException(new NullPointerException());
+
+            assertThat(withMessage.getBody()).containsKeys("timestamp", "status", "error", "message");
+            assertThat(withoutMessage.getBody()).containsEntry("message", "An unexpected error occurred");
+            assertThat(statusOf(withMessage)).isEqualTo(statusOf(withoutMessage));
+        }
+
         /** Only needed to build a real MethodArgumentNotValidException. */
         private static class SampleBody {
             @SuppressWarnings("unused")

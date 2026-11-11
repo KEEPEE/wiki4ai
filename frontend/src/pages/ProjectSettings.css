@@ -64,25 +64,24 @@
 .settings-form textarea {
   width: 100%;
   padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05); /* glassmorphism input bg */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  background: var(--glass-strong); /* glassmorphism input bg */
+  border: 1px solid var(--glass-border); /* var(--glass-border) */
   border-radius: 12px;
   font-size: 0.95rem;
   box-sizing: border-box;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
 }
 
 .settings-form input:focus,
 .settings-form textarea:focus {
-  outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 20px var(--glow-cyan); /* neon cyan glow */
 }
 
 .settings-form input::placeholder,
 .settings-form textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 /* ── Danger Zone — glassmorphism s neon red border ─────────────── */
@@ -107,28 +106,6 @@
   margin: 0 0 1rem 0;
 }
 
-/* Danger Zone button — glassmorphism s neon red accent */
-.danger-zone .btn-danger {
-  background: rgba(220, 38, 38, 0.2); /* danger bg per story */
-  color: #dc2626; /* red text per story */
-  border: 1px solid rgba(220, 38, 38, 0.4); /* neon red border */
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
-}
-
-.danger-zone .btn-danger:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.3);
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.3); /* neon red glow per story */
-}
-
-.danger-zone .btn-danger:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
 /* ── Breadcrumb Navigation ─────────────────────────────────────── */
 
 .breadcrumb {
@@ -150,24 +127,13 @@
 }
 
 .breadcrumb .separator {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   user-select: none;
 }
 
 .breadcrumb .current {
   color: var(--text-secondary);
   font-weight: 500;
-}
-
-/* ── Error Messages ─────────────────────────────────────────────── */
-
-.error {
-  color: var(--color-error-text);
-  background: var(--color-error-bg);
-  padding: 0.75rem 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
 }
 
 /* ── Delete Warning in Modal ───────────────────────────────────── */
@@ -215,7 +181,7 @@
 .form-hint {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 /* ── WIKI4AI-100: visibility field label (toggle + .form-hint are shared) ── */

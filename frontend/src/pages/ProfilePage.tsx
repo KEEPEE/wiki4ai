@@ -617,7 +617,7 @@ export default function ProfilePage() {
           </div>
           <div className="info-row">
             <span className="info-label">{t('profile.roleLabel')}:</span>
-            <span className={`info-value role-badge role-${(displayUser as UserProfile)?.role?.toLowerCase() || 'user'}`} data-testid="profile-role">
+            <span className={`info-value tag tag-role tag-${(displayUser as UserProfile)?.role?.toLowerCase() || 'user'}`} data-testid="profile-role">
               {(displayUser as UserProfile)?.role ?? (displayUser?.username ? 'USER' : '—')}
             </span>
           </div>
@@ -636,7 +636,7 @@ export default function ProfilePage() {
           </div>
         )}
         {updateError && (
-          <div className="error-message" role="alert" data-testid="update-error">
+          <div className="state-error" role="alert" data-testid="update-error">
             {updateError}
           </div>
         )}
@@ -737,7 +737,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUseNewTokenExpiry(e.target.checked)}
                 style={{ width: 'auto', marginRight: '8px' }}
               />
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.setCustomExpiry')}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{t('profile.setCustomExpiry')}</span>
             </div>
 
             {useNewTokenExpiry && (
@@ -752,7 +752,7 @@ export default function ProfilePage() {
               />
             )}
 
-            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {useNewTokenExpiry && newTokenExpiresAt
                 ? t('profile.expiresAtHint', { when: new Date(newTokenExpiresAt).toLocaleString(locale) })
                 : t('profile.neverExpiresHint')}
@@ -783,7 +783,7 @@ export default function ProfilePage() {
                 </label>
               ))}
             </div>
-            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {t('profile.tokenScopesHint')}
             </p>
           </div>
@@ -801,9 +801,9 @@ export default function ProfilePage() {
         {/* Unified Token Cards */}
         <div className="token-cards" data-testid="api-tokens-list">
           {isFetchingTokens && storedTokens.length === 0 ? (
-            <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.loadingTokens')}</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{t('profile.loadingTokens')}</p>
           ) : tokenCards.length === 0 ? (
-            <p style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.noTokensYet')}</p>
+            <p style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{t('profile.noTokensYet')}</p>
           ) : (
               tokenCards.map((token) => {
                 // WIKI4AI-138: the deprecation banner is driven by `hashed === false`
@@ -947,7 +947,7 @@ export default function ProfilePage() {
                 onChange={(e) => setUseCustomExpiry(e.target.checked)}
                 style={{ width: 'auto', marginRight: '8px' }}
               />
-              <span style={{ fontSize: '14px', color: '#6b7280' }}>{t('profile.setCustomExpiry')}</span>
+              <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>{t('profile.setCustomExpiry')}</span>
             </div>
 
             {useCustomExpiry && (
@@ -962,7 +962,7 @@ export default function ProfilePage() {
               />
             )}
 
-            <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {useCustomExpiry && expiresAt
                 ? t('profile.expiresAtHint', { when: new Date(expiresAt).toLocaleString(locale) })
                 : t('profile.neverExpiresHint')}
@@ -996,7 +996,7 @@ export default function ProfilePage() {
 
       {/* Delete toast */}
       {deleteToast && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 1000, background: '#1f2937', color: '#fff', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 1000, background: 'var(--surface-overlay)', color: 'var(--text-primary)', padding: '12px 16px', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           <span style={{ fontSize: '14px' }}>{deleteToast}</span>
         </div>
       )}

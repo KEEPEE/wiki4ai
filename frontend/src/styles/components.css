@@ -1,0 +1,740 @@
+/*
+ * components.css — zdieľané primitíva (WIKI4AI-192, DIZ-1)
+ * =========================================================
+ * Importuje sa z `globals.css` PO `base.css`. Farby výhradne z `tokens.css`.
+ * WIKI4AI-194 (DIZ-3 item 6): data: URL chevronu v `.form-select` bola
+ * posledná zdokumentovaná výnimka — reťazec v `url()` nemôže čítať CSS
+ * premennú. Chevron je teraz pár `linear-gradient` trojuholníkov, takže
+ * výnimka zanikla a `components.css` má 0 tvrdých farieb.
+ */
+
+/* ===== WIKI4AI-89 — single shared native <select> treatment app-wide =====
+ * One class for every form-field select (audit V-D4 found three divergent
+ * treatments: 41/29.5/43 px heights, radius 10 vs 12, native arrow vs
+ * custom chevron vs no indicator). Unified here: fixed height, 12 px radius
+ * (matching inputs), glassmorphism border/background, custom chevron
+ * (appearance:none — no OS arrows anywhere in the app).
+ * Page-scoped select rules were removed (ProjectSettings.css `.form-group
+ * select`, AdminUsers.css legacy `.form-select`) so this is the only source.
+ * The editor autosave-interval control is a compact toolbar element inside a
+ * 35 px pill — it keeps its small size but reuses the same chevron and
+ * appearance:none (see DocumentEditor.css .autosave-dropdown). */
+.form-select {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 42px;
+  padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  background-color: var(--glass-strong);
+  /* WIKI4AI-194 (DIZ-3 item 6) + WIKI4AI-195 (DIZ-4 item 9):
+   * dovtedy bol chevron data: SVG s `fill='%239ca3af'` — 2.4:1 na svetlom
+   * poli, teda 1.4.11 failure, a `url()` sa nedá napojiť na token.
+   * Dva 6 px štvorce s 45°/135° gradientom tvoria plný smerujúci nadol
+   * trojuholník (overené rasterizáciou: 45° vľavo + 135° vpravo, hrany
+   * seba sa dotýkajú) a farbí sa z `--text-muted` = 5.84 / 7.93 / 9.50:1.
+   * `background-position` radí vrstvy: 1. vrstva = ĽAVÝ štvorec (jeho pravý
+   * okraj je 18 px od pravej hrany), 2. vrstva = PRAVÝ (12 px). */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  background-position:
+    right 1.125rem center,
+    right 0.75rem center;
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color var(--transition-base);
+}
+
+.form-select:hover {
+  border-color: var(--border-hover);
+}
+
+/* Focus orámovanie dáva globálne `:where(...)` pravidlo v `base.css`
+ * (DIZ-4 item 1). `0 0 20px var(--glow-cyan)` bolo zrušené — glow nemá
+ * tvrdú hranu a 3:1 (1.4.11) nesplní nikdy (Opus 4.2). */
+.form-select:focus {
+  border-color: var(--primary);
+}
+
+/* ===== WIKI4AI-194 (DIZ-3 item 5) + WIKI4AI-195 (DIZ-4 items 5, 6, 10) — modal =====
+ *
+ * Tri mená toho istého vzoru a dva rôzne box modely:
+ *   Dashboard.css    `.modal-backdrop` — `--surface-overlay` + blur(8px),
+ *                    `.modal-content` padding 2rem, max-width 500px,
+ *                    `0 0 30px var(--glow-cyan)` neonová žiara
+ *   AdminUsers.css   `.modal-overlay` — `rgba(0, 0, 0, 0.6)` TVRDÁ farba,
+ *                    `.modal-content` padding 1.5rem, max-width 420px,
+ *                    iná animácia (`scaleIn`), zduplikované `@keyframes fadeIn`
+ *   ProjectSettings  `.modal-backdrop` vôbec nemal backdrop click,
+ *                    `role="dialog"` ani Escape — najhorší z troch
+ *
+ * Native `<dialog>` + `showModal()` (hook `useDialog`) dáva zadarmo to,
+ * čo tieto komponenty nerobili: focus trap, návrat focusu, Escape,
+ * `aria-modal` a top layer — teda podklad nie je tabovateľný
+ * (WIKI4AI-195 DIZ-4 items 5, 6).
+ *
+ * PREČO `[open]`: UA štýl dáva zatvorenému `<dialog>` `display: none`.
+ * Pravidlo s triedou `.modal-backdrop` (špecifika 0,1,0) by ho prepísalo a
+ * zatvorený modal by bol viditeľný. Viazanie na `[open]` (0,2,0) vyhráva
+ * nad UA `dialog[open]` (0,1,1) a zatvorený dialog necháva skrytý.
+ *
+ * PREČO `::backdrop` a nie background prvku: element dialogu je pri
+ * modalnom zobrazení celá viewportová plocha. Ak by mal vlastnú tmavú
+ * výplň, scrim by sa maloval DVAKRÁT (element + `::backdrop`). Element je
+ * preto priehľadný a stmavenie dáva výhradne `::backdrop` z `--scrim` —
+ * token, lebo v glass-light musí mať modal kontrast so stlmenou stránkou
+ * (4.55:1) a `--surface-overlay` je v všetkých troch identitách `--dark-3`. */
+
+.modal-backdrop[open],
+.modal-overlay[open] {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 1.5rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  overflow: auto;
+  animation: modal-fade-in var(--dur-med) var(--ease-soft);
+}
+
+.modal-backdrop::backdrop,
+.modal-overlay::backdrop {
+  background: var(--scrim);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  position: relative;
+  width: min(500px, 100%);
+  padding: 1.75rem;
+  background: var(--surface-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  box-shadow:
+    var(--shadow-card-strong),
+    var(--shadow-inset-hairline);
+  animation: modal-rise var(--dur-slow) var(--ease-pop);
+}
+
+@keyframes modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-content h3,
+.modal-title {
+  margin: 0 0 1.25rem;
+  padding-right: 2rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  /* Gradientový titulok (primary → text-strong → secondary) je signatúra
+   * appky a je čisto tokenová — ponechaná zámerne. `text-fill-color`
+   * transparent vyžaduje `color` ako fallback, inak gradient v
+   * nepodporujúcich prehliadačoch zmizne. */
+  color: var(--text-1);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Popisky vnútri modalu — `.modal-content label` bol doteraz súčasťou
+ * pravidla, ktoré ZáROVEŇ zasahovalo `.create-form label` z innej stránky
+ * (ProjectDetail). `.create-form` v Dashboard.css je mŕtvy selektor. */
+.modal-content label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+.modal-text {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+/* `.form-actions` tu ZÁMERNE nie je — definujú ho 4 stránkové súbory
+ * samy a zjednotenie je mimo rozsah tohto kroku (nebude z toho
+ * piata konkurenčná definícia). */
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* Zatváracie tlačidlo — `×` je dekorácia, prístupný názor MUSÍ dať
+ * `aria-label` v markup (robí to Dashboard aj ProjectSettings). */
+.modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.25rem;
+  border: 0;
+  background: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-base);
+}
+
+.modal-close:hover {
+  color: var(--text-1);
+}
+
+/* ===== WIKI4AI-194 (DIZ-3 item 11) — .state-empty / .state-error =====
+ *
+ * Predtým deväť kópií s rôznym box modelom:
+ *   `.error` 4x globálne (Dashboard, ProjectDetail, ProjectSettings,
+ *            VaultPage) — banner bez orámovania, padding 1rem/0.75rem
+ *   `.error-message` 3x (AdminUsers, Profile, DocumentViewer) — banner S
+ *            orámovaním, ale DocumentViewer verzia mala padding 2rem a
+ *            text-align center, teda iný box model ako zvyšok
+ *   `.empty-state` 2x (Dashboard flex column 4rem, ProjectDetail center
+ *            3rem)
+ *
+ * Jazyk je prepísaný z referencie forum4Ai (`components.css` sekcia
+ * „8 — Stavy"): prázdny panel nesmie vyzerať ako obal bez obsahu — horná
+ * aura prezradí, že je to panel, nie diera do pozadia.
+ *
+ * Skeletony tu nie sú: okrem `UploadedImage` žiadny neexistuje a komentár
+ * o „skeleton shimmer" v `base.css` opisoval niečo, čo nebolo postavené
+ * (Opus DIZ-3 item 11 — „Don't build skeletons in this pass"). */
+
+.state-empty,
+.state-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2.5rem 2rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.state-empty {
+  color: var(--text-muted);
+  background:
+    radial-gradient(ellipse 72% 44% at 50% 0%, var(--glass-bg-accent) 0%, transparent 72%),
+    var(--glass-bg);
+}
+
+.state-error {
+  color: var(--color-error-text);
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error-border);
+  font-size: 0.9rem;
+}
+
+.state-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+
+.state-detail {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.state-error p,
+.state-error .state-detail {
+  color: var(--color-error-text);
+}
+
+/* ===== WIKI4AI-194 (DIZ-3 item 3) + WIKI4AI-195 (DIZ-4 item 11) — .data-table
+ *
+ * Predtým existovali TRI rôzne štýly tabuľkovej hlavičky:
+ *   AdminUsers.css   `.admin-table thead { background: --glass-strong }` a
+ *                    veta-case `th`, hover riadku `--glow-cyan` (slot s
+ *                    alfou 0.4 → riadok sa zaliel emeraldom)
+ *   ResourcesPage    `.resource-table th` uppercase 0.72rem, muted
+ *   MarkdownPreview  `thead { background: rgba(0,0,0,.3) }` — šedá plotňa
+ *                    v tmavých témach a blátová šeda v glass-light
+ *
+ * Jazyk je prepísaný z referencie forum4Ai (`components.css`
+ * `table.event-card thead th`): display font, uppercase, široký
+ * letter-spacing, `--text-muted`, `--surface-2` výplň, hairline spodná
+ * hrana a aktívny riadok cez `inset 3px 0 0 var(--primary)` — teda
+ * odlíšenie, ktoré nezávisí len od farby.
+ *
+ * Hover riadku je `--glass-bg-hover` (VÝPLŇ), nie `--glow-cyan` (SLOT).
+ * Slot má alfu 0.4 a riadok by zalial — rovnaká chyba, akú má karta v
+ * `designTokens.test.ts` zdokumentovanú. */
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.data-table thead th {
+  /* Sticky hlavička — referenčný jazyk (forum4Ai `components.css:1442-1512`).
+   * Bez scroll kontajnera je sticky len no-op, takže to nič nepokazí;
+   * s ním hlavička drží, keď človek scroluje dlhý zoznam (2.4.x pomáha
+   * najviac klávesnici, ktorá inak stratí kontext stĺpcov). */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: var(--text-muted);
+  /* Dva vrstvy, nie jedna: gradient navrch dáva sklenený lesk, pod ním je
+   * NEPRIEHLADNÝ --surface-3, inak sa pod text presvitajú riadky a
+   * kontrast hlavičky klesne pod 4.5:1 (1.4.3). */
+  background-image: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+  background-color: var(--surface-3);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.data-table tbody tr {
+  transition: background-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.data-table tbody tr:hover {
+  background-color: var(--glass-bg-hover);
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.data-table tbody tr:hover td {
+  color: var(--text-1);
+}
+
+.data-table td {
+  padding: 0.625rem 0.75rem;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-2);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+/* ===== WIKI4AI-194 (DIZ-3 item 6) + WIKI4AI-195 (DIZ-4 item 9) — .form-input
+ *
+ * `.form-input` bolo definovane 3x GLOBALNE a vzdy inak: Login.css
+ * (padding 14px 16px, radius 12px, --glass-strong), AdminUsers.css
+ * (0.5rem 0.75rem, radius 8px, --glass-bg), Profile.css (0.625rem 1rem,
+ * radius 8px, --glass-bg). Kolizia rovnakeho typu ako pri tlacidlach —
+ * víťaz zavisel od toho, ktory subor sa injectoval posledny.
+ *
+ * Vyska 42px zamerne sedi s `.form-select` (audit V-D4 zjednotil selecty
+ * na 42px, inputy nie). Focus orámovanie prichadza z globalneho
+ * `:where(...)` pravidla v `base.css` (DIZ-4 item 1), preto tu ziadne
+ * focus pravidlo nie je — a ziadny `0 0 20px var(--glow-cyan)` glow,
+ * ktory nema tvrdú hranu (Opus 4.2).
+ *
+ * HRANA POLA (1.4.11): `--glass-border` ma na karte len 1.22-1.43:1 a
+ * výpln pola je takmer totozna s kartou, takže orámovanie je jedina hrana
+ * — preto `--border-input` (3.43 / 3.80 / 3.82:1). */
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-sm);
+  background-color: var(--glass-strong);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  transition:
+    border-color var(--transition-base),
+    background-color var(--transition-base);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+  /* 5.33 / 4.86 / 4.91:1 — placeholder nie je popis, staci 4.5:1 (1.4.3) */
+  color: var(--text-dim);
+}
+
+.form-input:hover:not(:disabled),
+.form-textarea:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  border-color: var(--primary);
+  background-color: var(--glass-hover);
+}
+
+.form-input:disabled,
+.form-textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== WIKI4AI-194 (DIZ-3 item 2) + WIKI4AI-195 (DIZ-4 item 2) — .btn =====
+ *
+ * Pred týmto primitívom bolo `.btn-primary` definované nescopane v 7
+ * suboroch a `.btn-secondary` v 7, plus 6 scopovanych variantov
+ * (`.modal-content .btn-primary`, `.cal-detail-modal .btn-*`,
+ * `.danger-zone .btn-danger`, ...). `DocumentEditor` a `AgentsPage` su
+ * lazy chunky (`App.tsx:31,39`), takže ich CSS sa injectuje az PO hlavný
+ * bundle — otvorením editora `.btn-primary` nahradil každé d'alsie
+ * primárne tlačidlo v appke do reloadu. Víťaz závisel od histórie
+ * prehliadania. `index.css` sa importuje ako prvý (`main.tsx:7`), preto
+ * primitívum prerazí len vtedy, ak sú kópie v stránkach PREC — preto sú
+ * vymazané v tom istom commite (Opus past 1).
+ *
+ * Opus 4.3: nepredefinovat stránkové tlačidlá prefixmi — skrýva to
+ * kolíziu lazy chunku a vytvára to šiesty štýl tlačidla.
+ *
+ * Jazyk primitíva je prepísany z referencie forum4Ai
+ * (`packages/ui/src/styles/app.css`: `.primary-btn` / `.ghost-btn` /
+ * `.retry-btn`) — self-contained trieda, pill radius, display font,
+ * letter-spacing, explicitny :disabled. Odchýlka od predlohy: primary je
+ * PLNA výpln, nie sklenená pilulka, kvôli kontrastu.
+ *
+ * KONTRAST (WCAG 1.4.3, namerane light / dark / nexaverse):
+ *   primary   5.25 /  8.65 / 14.34:1  (`--text-inverse` na `--primary`)
+ *   hover     7.36 / 10.96 / 16.13:1  (`--primary-strong`)
+ *   danger    6.20 /  6.01 /  6.88:1
+ *   secondary 14.26 / 12.47 / 14.09:1 (`--text-1` na `--surface-2`)
+ *   ghost      7.92 / 11.99 / 10.93:1
+ * `color: var(--dark-1)` na `--primary` malo v glass-light len 4.39:1 a
+ * 0.9rem/500 text sa nerati ako large — 1.4.3 failure. `--on-accent`
+ * (biela) je na `--primary` len 1.41-1.92:1. Gradient primary->accent
+ * koncil na #c2603f = 3.33:1, preto na fill tlačidlách žiadny gradient
+ * nie je (Opus DIZ-4 item 2). */
+
+/* Zdielany box model je aj na selektore variantov, nie len na `.btn`,
+ * lebo ~53 miest v TSX pouziva `className="btn-primary"` bez `.btn`.
+ * Predloha forum4Ai ma samostatne `.primary-btn` / `.ghost-btn` —
+ * rovnaky princip. `class="btn btn-primary"` funguje tiez. */
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.125rem;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-fast);
+}
+
+.btn:disabled,
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-ghost:disabled,
+.btn-danger:disabled,
+.btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:active:not(:disabled),
+.btn-primary:active:not(:disabled),
+.btn-secondary:active:not(:disabled),
+.btn-ghost:active:not(:disabled),
+.btn-danger:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* kompaktnejsia velkost pre toolbary a tabulkove riadky */
+.btn-sm,
+.btn-small {
+  min-height: 30px;
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* -- primary: plna vypn, text vzdy --text-inverse ---------------- */
+/* WIKI4AI-208: primarna akcia ma gradient --primary -> --secondary a
+   atrament --text-inverse. `background-color` zostava ako fallback (a ako
+   kotva pre strazny test designTokens), `background-image` je to, co sa
+   skutocne kresli. Merane WCAG 2.1 cez oba stopy + prostredok:
+   glass-light MIN 4.64:1, glass-dark MIN 7.47:1, nexaverse MIN 5.56:1.
+   Predtym --primary -> --accent skoncil v glass-light na #c2603f = 3.33:1.
+   `--action-glow` je box-shadow, focus prstenec je `outline` (base.css),
+   takze sa navzajom neprepisuju. */
+.btn-primary {
+  background-color: var(--primary);
+  background-image: var(--action-gradient);
+  border-color: var(--primary);
+  color: var(--text-inverse);
+  box-shadow: var(--action-glow);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-strong);
+  background-image: var(--action-gradient-hover);
+  border-color: var(--primary-strong);
+  color: var(--text-inverse);
+}
+
+/* -- secondary: povrch + hranica, text --text-1 ------------------- */
+.btn-secondary {
+  background-color: var(--surface-2);
+  border-color: var(--border-default);
+  color: var(--text-1);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--glass-bg-hover);
+  border-color: var(--border-hover);
+  color: var(--text-1);
+}
+
+/* -- ghost: priehladne, len hrana -------------------------------- */
+.btn-ghost {
+  background-color: transparent;
+  border-color: var(--border-default);
+  color: var(--text-2);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--glass-bg-hover);
+  border-color: var(--border-hover);
+  color: var(--text-1);
+}
+
+/* -- danger: destrukтивna akcia ---------------------------------- */
+.btn-danger {
+  background-color: var(--danger);
+  border-color: var(--danger);
+  color: var(--text-inverse);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: var(--color-error-text);
+  border-color: var(--color-error-text);
+  color: var(--text-inverse);
+}
+
+/* ===== Loading Screen — dual-ring spinner ===== */
+
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--bg-0);
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  /* WIKI4AI-82: shorter fade — the splash now hides on the content-ready
+     signal (not a fixed 1 s), so a long tail would keep it visibly up over
+     the page loader and recreate the double-spinner overlap. */
+  transition: opacity var(--transition-slow), visibility var(--transition-slow);
+}
+
+.loading-screen.hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.loader-ring {
+  width: 80px;
+  height: 80px;
+  position: relative;
+}
+
+.loader-ring::before,
+.loader-ring::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  border: 2px solid transparent;
+}
+
+/* Outer ring — primary slot, clockwise rotation */
+.loader-ring::before {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-top-color: var(--primary);
+  border-right-color: var(--primary);
+  animation: spin 1.2s linear infinite;
+}
+
+/* Inner ring — secondary slot, counter-clockwise rotation */
+.loader-ring::after {
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  border-bottom-color: var(--secondary);
+  border-left-color: var(--secondary);
+  animation: spin 0.8s linear infinite reverse;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin-top: 30px;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 4px;
+  color: var(--primary);
+  text-transform: uppercase;
+}
+
+/* WIKI4AI-193 (DIZ-2): globálny reduced-motion v `base.css` vypína všetky
+   animácie. Spinner na splashi je jediná výnimka — nesie informáciu
+   „načítavam“, nie dekoratívny pohyb, preto si animáciu re-assertuje
+   (neskorší import vyhráva rovnakú špecifickosť). */
+/* ══ Tag — JEDINA definícia štítku (WIKI4AI-194, DIZ-3 item 8) ══════════
+ * Predtým štyri implementácie toho istého komponentu:
+ *   components/Tag.css   `.tag` + `.tag-admin` / `.tag-user`        (Outfit 400)
+ *   pages/Profile.css    `.role-badge` + `.role-admin` / `.role-user`
+ *                        (Syne 600, neon gradient, uppercase)
+ *   pages/AdminUsers.css `.role-badge` + `.role-admin` / `.role-user`
+ *                        — kópia `.tag` pod iným menom, v AdminUsers sa
+ *                        `.role-badge` vôbec nepoužíva (mŕtve CSS)
+ *   pages/AdminUsers.css `.admin-role-badge` + `.admin-role-badge.role-admin`
+ *                        — kompaktnejšia tokenová verzia, tá sa reálne použila
+ * `.role-admin` preto súťažilo s `.admin-role-badge.role-admin` o ten istý
+ * element a vyhrávalo len špecifiko (0,2,0 vs 0,1,0).
+ *
+ * PREČO TU, NIE V components/Tag.css: `Tag.css` importoval iba `Tag.tsx`
+ * a ten nikto neimportoval — Vite teda stylesheet vôbec nebundloval a
+ * `.tag` prišiel na stránku NEOŠTÝLOVANÝ (overené live: background
+ * transparent, border 0px, radius 0px). Primitívum, ktoré sa nenahrá, nie
+ * je primitívum. `.btn`, `.form-input`, `.data-table` a `.state-*` žijú
+ * tu isté — štítok patrí k nim.
+ *
+ * 14 TVRDÝCH FARIEB → 0. `rgba(245, 158, 11, …)` a `rgba(59, 130, 246, …)`
+ * sú presne hodnoty tokenov `--color-warning-*` / `--color-info-*`, len
+ * zaliate do CSS priamo. `var(--color-warning-text, #fbbf24)` mal fallback,
+ * ktorý sa nikdy nepoužil — token je definovaný vo všetkých troch
+ * identitách. Mŕtvy fallback klame, že farba môže chýbať.
+ *
+ * HOVER JE PREČ: `.tag` má `cursor: default`. Zmena farby textu, orámovania
+ * a neonové `box-shadow` na prvku, ktorý sa nedá stlačiť ani dosiahnuť
+ * klávesnicou, je klamná afordancia — tvári sa interaktívny, ním nie je.
+ * Interaktívny štítok musí mať `role="button"` + `tabIndex` a hover sa viaže
+ * na neho; presne to `Tag.tsx` robí, keď dostane `onClick`.
+ */
+
+.tag {
+  display: inline-block;
+  padding: 4px 12px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 50px; /* pill shape */
+  font-family: var(--font-ui);
+  font-weight: 400;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: default;
+}
+
+/* Interaktívny štítok — `Tag.tsx` pri `onClick` pridá `role="button"` a
+ * tabIndex. Hover patrí sem, nie do `.tag:hover`. Focus prstenec dáva
+ * globalne `:where(...)` pravidlo v `base.css`, preto tu nie je. */
+.tag[role='button'] {
+  cursor: pointer;
+  transition: border-color var(--transition-base), color var(--transition-base);
+}
+
+.tag[role='button']:hover {
+  border-color: var(--border-hover);
+  color: var(--text-1);
+}
+
+/* Role variant — uppercase, display font (Profile hlavička) */
+.tag-role {
+  /* `.info-value` v Profile má gradient-text trik s
+   * `-webkit-text-fill-color: transparent`. Skratka `background:` na
+   * štítku navyše resetuje `background-clip` na border-box, čo štítok
+   * zneviditeľní. Obe hodnoty sa musia tvrdo pretlačiť, inak je ADMIN /
+   * USER na pilulke neviditeľný. */
+  -webkit-text-fill-color: currentColor;
+  background-clip: border-box;
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tag-admin {
+  background: var(--color-warning-bg);
+  border-color: var(--color-warning-border);
+  color: var(--color-warning-text);
+}
+
+.tag-user {
+  background: var(--color-info-bg);
+  border-color: var(--color-info-border);
+  color: var(--color-info-text);
+}
+
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-ring::before {
+    animation: spin 2.4s linear infinite !important;
+  }
+
+  .loader-ring::after {
+    animation: spin 1.6s linear infinite reverse !important;
+  }
+}

@@ -1,0 +1,730 @@
+/*
+ * Wiki4AI — diznový tokenový systém (WIKI4AI-192, DIZ-1)
+ * =======================================================
+ * Tri témy via `data-theme` na <html>:
+ *
+ *   glass-dark   DEFAULT — deep-forest glassmorphismus, emerald + gold
+ *                (TemplateMo 607 „Glass Admin", tm-607)
+ *   glass-light  svetlá varianta tej istej identity (tm-607 light)
+ *   nexaverse    neon tyrkysová / magenta / fialová (TemplateMo 603)
+ *
+ * Pravidlá (inšpirácia forum4Ai `packages/ui/src/styles/tokens.css`):
+ *  1. EVERY color lives here. `base.css`/`components.css`/`app.css` a
+ *     komponentové CSS nesmú písať farby natvrdo — inak preklop témy
+ *     nefunguje. Strážny test: `src/__tests__/designTokens.test.ts`.
+ *  2. Názvy tokenov z tm-603 (`--primary`, `--secondary`, `--accent`,
+ *     `--dark-1..3`, `--glass-bg`, `--glass-border`, `--glow-cyan`,
+ *     `--glow-magenta`) sú KANONICKÉ — každá téma ich predefinuje a
+ *     komponenty sa tvária podľa nich. `--glow-cyan`/`--glow-magenta` sú
+ *     dva „glow" SLOTY, nie dve farby: v glass témach sú emerald/gold.
+ *  3. Prvý blok (`:root` + nexaverse) je 1:1 kópia `:root` zo šablóny
+ *     tm-603 (názvy aj hodnoty). Vlastné aliasy sú označené DERIVED.
+ *
+ * Poradie blokov je súčasťou dizajnu: root/nexaverse → glass-dark →
+ * glass-light. `:root` a `[data-theme='…']` majú rovnakú špecifickosť
+ * (0,1,0), takže téma vyhráva práve preto, že je v súbore neskôr.
+ *
+ * Legacy identity: `[data-theme='dark']` / `[data-theme='light']` sú
+ * aliasy glass tém pre prípad, že sa na <html> dostane stará hodnota
+ * (FOUC guard aj `themes.ts` normalizujú, toto je poistka).
+ */
+
+/* ===== 1:1 kópia :root zo šablóny tm-603 (Nexaverse) + DERIVED = ========== */
+:root,
+[data-theme='nexaverse'] {
+  /* --- akcenty (primary / secondary / accent zo šablóny) -------------- */
+  --primary: #00f0ff;
+  --secondary: #ff00d4;
+  --accent: #9d4edd;
+
+  /* --- pozadie (dark-1/2/3 zo šablóny) -------------------------------- */
+  --dark-1: #0a0a12;
+  --dark-2: #12121f;
+  --dark-3: #1a1a2e;
+
+  /* --- sklo (glass-bg / glass-border zo šablóny) ---------------------- */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  /* --- glow sloty (glow-cyan / glow-magenta zo šablóny) --------------- */
+  --glow-cyan: rgba(0, 240, 255, 0.4);
+  --glow-magenta: rgba(255, 0, 212, 0.4);
+
+  /* ===== DERIVED — pozadie a vrstvy ===== */
+  --bg-0: #06060d;
+  /* WIKI4AI-208: pozri glass-dark — najsvetlejší stop gradientu je základ
+     najhoršieho prípadu. `--dark-3` (povrch) ostáva #1a1a2e, mení sa len
+     gradient pozadia. */
+  --bg-grad-1: #08080f;
+  --bg-grad-2: #0f0f1a;
+  --bg-grad-3: #141424;
+  --bg-mist-1: rgba(0, 240, 255, 0.4);
+  --bg-mist-2: rgba(255, 0, 212, 0.4);
+  --bg-mist-3: rgba(157, 78, 221, 0.3);
+  /* DERIVED: intenzita mlhy/orbov nie je v šablóne — tá mala orb-y naplno
+     a žiadnu vrstvu mlhy navyše. My vrstvíme 4 vrstvy (body gradient +
+     .background::before + 3 orb-y + mriežka), takže každú stiahneme: inak
+     sa neon rozleje a karty splývajú s pozadím (audit forum4Ai P2-9). */
+  --bg-mist-opacity: 0.4;
+  --orb-opacity: 0.4;
+  --vignette-opacity: 0.8;
+  --grid-opacity: 1;
+  --grid-line: rgba(255, 255, 255, 0.06);
+
+  /* ===== DERIVED — povrchy ===== */
+  --glass-bg-hover: rgba(255, 255, 255, 0.05);
+  --glass-bg-accent: rgba(0, 240, 255, 0.08);
+  --glass-strong: rgba(255, 255, 255, 0.06);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-hairline: rgba(255, 255, 255, 0.2);
+  --surface-1: rgba(10, 10, 18, 0.55);
+  --surface-2: rgba(10, 10, 18, 0.68);
+  --surface-3: rgba(18, 18, 31, 0.94);
+  --surface-sunken: rgba(4, 4, 10, 0.6);
+  --surface-accent: rgba(0, 240, 255, 0.1);
+
+  /* ===== DERIVED — text ===== */
+  --text-1: #ffffff;
+  --text-2: rgba(255, 255, 255, 0.78);
+  --text-muted: rgba(255, 255, 255, 0.68);
+  /* WIKI4AI-208: zdvihnuté z .48, lebo po odhalení neonovej mlhy by
+     `.48` na holom liste pri špičkovej alfe kleslo na 4,31:1. Poradie
+     text-1 1.0 > text-2 .78 > muted .68 > dim .66 zostáva monotónne. */
+  --text-dim: rgba(255, 255, 255, 0.66);
+  --text-inverse: #06060d;
+
+  /* ===== DERIVED — akcenty (doplňkové sloty) ===== */
+  --primary-strong: #7ff8ff;
+  --primary-deep: #00b8c8;
+  --secondary-strong: #ff6ae4;
+  --secondary-deep: #d400b0;
+  --accent-strong: #b473f0;
+  --accent-deep: #7b3fb8;
+  /* POZOR (DIZ-4 audit, WIKI4AI-195): biely NIE je čitateľný na akcentovej
+     výplni — 1.41:1 na #00f0ff a 1.92:1 na #34d399. Token je zachovaný len
+     preto, že ho nikto nepoužíva; na text na `--primary` výplni slúži
+     `--text-inverse` (5.25:1 light / 8.65:1 dark). Nepoužívať. */
+  --on-accent: #ffffff;
+  --brand-gradient: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  --card-glow: rgba(0, 240, 255, 0.14);
+  --focus-glow: rgba(0, 240, 255, 0.28);
+  --focus-ring-color: var(--primary);
+  --focus-ring-shadow: 0 0 0 3px rgba(0, 240, 255, 0.15);
+
+  /* ===== DERIVED — sémantické triády (WIKI4AI-208) =====
+     Predtým bol `--success` = `#00f0ff`, teda ZNAČKA. Každá neonová plocha
+     sa tvárila ako „úspech" a stav prestal znamenať niečo konkrétne
+     (Opus 5.8). `--ok` je teraz mint zelená, jasne odlišná od tyrkysovej
+     značky; `--info` je obloha, nie fialová, lebo fialová je `--accent`. */
+  --ok: #34e2a4;
+  --info: #4cc9f0;
+  --warn: #ffd166;
+  --error: #ff5c8a;
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --error-soft: color-mix(in srgb, var(--error) 14%, transparent);
+  --ok-glow: color-mix(in srgb, var(--ok) 35%, transparent);
+  --info-glow: color-mix(in srgb, var(--info) 35%, transparent);
+  --warn-glow: color-mix(in srgb, var(--warn) 35%, transparent);
+  --error-glow: color-mix(in srgb, var(--error) 35%, transparent);
+  --success: var(--ok);
+  --warning: var(--warn);
+  --danger: var(--error);
+  --amber: #9d4edd;
+  --color-success-bg: color-mix(in srgb, var(--ok) 10%, transparent);
+  --color-success-border: color-mix(in srgb, var(--ok) 30%, transparent);
+  --color-success-text: #6ee7b7;
+  --color-error-bg: color-mix(in srgb, var(--error) 10%, transparent);
+  --color-error-border: color-mix(in srgb, var(--error) 30%, transparent);
+  --color-error-text: #fca5a5;
+  --color-warning-bg: color-mix(in srgb, var(--warn) 10%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--warn) 30%, transparent);
+  --color-warning-text: #fbbf24;
+  --color-info-bg: color-mix(in srgb, var(--info) 10%, transparent);
+  --color-info-border: color-mix(in srgb, var(--info) 30%, transparent);
+  --color-info-text: #60a5fa;
+
+  /* ===== DERIVED — chart paleta (WIKI4AI-208) =====
+     9 sérií, žiadna z nich nie je značka ani sémantika: graf s dvoma
+     rovnakými zelenými by klamal. Paleta drží poradie forum4Ai (0..8),
+     aby sa dátový graf dal porovnávať medzi produktmi. */
+  --chart-0: #00f0ff;
+  --chart-1: #ff00d4;
+  --chart-2: #9d4edd;
+  --chart-3: #a3ff67;
+  --chart-4: #ffd166;
+  --chart-5: #4cc9f0;
+  --chart-6: #ff9f1c;
+  --chart-7: #f72585;
+  --chart-8: #34e2a4;
+
+  /* ===== DERIVED — tichá zóna (WIKI4AI-208) =====
+     Wiki4AI je primárne čítačka dokumentov. Proza, editor aj diagram MUSIA
+     mať plne nepriehľadné pozadie — tenké čiary diagramu a kód nad mlhou
+     sa strácajú a dlhý text na farebnom podklade unaví. */
+  --prose-bg: #12121f;
+  --diagram-bg: #12121f;
+
+  /* ===== DERIVED — chrome ===== */
+  --border-default: rgba(255, 255, 255, 0.1);
+  --border-hover: rgba(255, 255, 255, 0.18);
+  --border-input: rgba(255, 255, 255, 0.4);
+  --scrim: rgba(0, 0, 0, 0.66);
+  --glass-shadow: rgba(0, 0, 0, 0.3);
+  /* ===== AKCIA — primárne tlačidlo + aktívny pill (WIKI4AI-208) =========
+     Predtým `--primary → --accent`: v glass-light končil gradient na
+     `#c2603f` = 3.33:1 a `.btn-create-new` mal na plnej `--primary`
+     4.39:1 — obe POD 4.5 (WIKI4AI-206). `--secondary` je druhá farba
+     identity, takže gradient drží identitu ANI kontrast.
+     Merané WCAG 2.1, sRGB lineárna interpolácia (luminancia je pozdĺž
+     priamky lineárna => najhorší bod je vždy na jednom zo stopov,
+     prostredok je len poistka), atrament `--text-inverse`:
+       glass-light  5.25 / 5.30 / 4.64  MIN 4.64
+       glass-dark   8.65 / 7.54 / 7.47  MIN 7.47
+       nexaverse   14.34 / 5.56 / 5.97  MIN 5.56
+     `contrastBudget.test.ts` to počíta znova zo tohto súboru pri každom
+     spustení, takže číslo nemôže zapadnúť prachom. */
+  --action-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --action-gradient-hover: linear-gradient(135deg, var(--primary-strong) 0%, var(--secondary) 100%);
+  /* Glow PATRÍ len primárnej akcii a aktívnemu pillu — nie všetkému.
+     Nexaverse chce halo okolo prvku (neón), glass témy tieň pod ním. */
+  --action-glow: 0 0 22px color-mix(in srgb, var(--primary) 85%, transparent);
+  --pill-active-bg: var(--action-gradient);
+  --pill-active-color: var(--text-inverse);
+  --pill-active-border: transparent;
+  /* Aktívna položka navigácie — gradient + atrament + 3px inset pruh.
+     Pruh je WCAG 1.4.1: príznak aktivity, ktorý nezávisí od farby.
+     (DIZ-1: komponentové CSS nesmie siať po `[data-theme=…]` — rozdiely
+     žijú tu, v tokenoch.) */
+  --nav-active-bg: var(--action-gradient);
+  --nav-active-color: var(--text-inverse);
+  --nav-active-border: transparent;
+  --nav-active-shadow: inset 3px 0 0 var(--text-inverse), var(--action-glow);
+  /* DIZ-2: susedné karty sa musia odlíšiť aj bez rozdielu farieb — inset
+     vlas hore + vrstvený tieň robia hranu čitateľnú aj pod plnou mlhou. */
+  --shadow-2: 0 4px 14px -2px rgba(0, 0, 0, 0.4);
+  --shadow-3: 0 12px 28px -8px rgba(0, 0, 0, 0.45);
+  --shadow-card: 0 20px 40px rgba(0, 0, 0, 0.3);
+  --shadow-card-strong: 0 24px 48px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 30px rgba(0, 200, 220, 0.2);
+  --shadow-hover: 0 18px 38px -14px rgba(0, 0, 0, 0.55), 0 0 26px rgba(0, 240, 255, 0.16);
+  --shadow-inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  --color-scheme: dark;
+
+  /* ===== DERIVED — legacy aliasy Wiki4AI (rodina pred DIZ-1) =====
+     Ktorémeno je KANONICKÉ, toto je len preklep na ten istý slot, aby
+     46 komponentových CSS súborov prežilo bez polovičatého mixu. */
+  --bg: var(--dark-1);
+  --glass: var(--glass-bg);
+  --glass-hover: var(--glass-bg-hover);
+  --top-line: var(--glass-hairline);
+  --text: var(--text-1);
+  --text-strong: var(--text-1);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --muted: var(--text-dim);
+  --accent-light: var(--primary-strong);
+  --accent2: var(--secondary);
+  --accent2-light: var(--secondary-strong);
+  --accent3: var(--accent);
+  --mist-1: var(--bg-mist-1);
+  --mist-2: var(--bg-mist-2);
+  --mist-3: var(--bg-mist-3);
+  --orb-1: var(--bg-mist-1);
+  --orb-2: var(--bg-mist-2);
+  --orb-3: var(--bg-mist-3);
+  --surface: var(--surface-1);
+  --surface-base: var(--dark-1);
+  --surface-raised: var(--dark-2);
+  --surface-overlay: var(--dark-3);
+}
+
+/* ==========================================================================
+   glass-dark — DEFAULT (tm-607 Glass Admin: emerald + gold on deep forest)
+   ========================================================================== */
+[data-theme='glass-dark'],
+[data-theme='dark'] {
+  /* --- akcenty: emerald (primary) + gold (secondary) + coral ---------- */
+  --primary: #34d399;
+  --secondary: #d4a574;
+  --accent: #e07a5f;
+
+  /* --- pozadie: deep forest, o vrstvu hlbšie než originál ------------- */
+  --dark-1: #070f0b;
+  --dark-2: #0d1a14;
+  --dark-3: #16281e;
+
+  /* --- sklo ----------------------------------------------------------- */
+  --glass-bg: rgba(255, 255, 255, 0.055);
+  --glass-border: rgba(255, 255, 255, 0.12);
+
+  /* --- glow sloty: v glass téme emerald / gold (nie cyan / magenta) --- */
+  --glow-cyan: rgba(52, 211, 153, 0.4);
+  --glow-magenta: rgba(212, 165, 116, 0.35);
+
+  /* ===== DERIVED — pozadie a vrstvy ===== */
+  --bg-0: #040907;
+  /* WIKI4AI-208: gradient je hlbší než predtým. `--bg-grad-3` bol #1a3325 a
+     práve on je najsvetlejší stop 135deg gradientu, teda základ najhoršieho
+     prípadu pre svetlý text — po odhalení mlhy by text na holom liste klesol
+     pod 4,5:1. Tmavší koniec gradientu kúpa hlavu pre mlhu AJ pre text. */
+  --bg-grad-1: #07110c;
+  --bg-grad-2: #0c1912;
+  --bg-grad-3: #122118;
+  --bg-mist-1: rgba(16, 185, 129, 0.42);
+  --bg-mist-2: rgba(212, 165, 116, 0.34);
+  --bg-mist-3: rgba(224, 122, 95, 0.22);
+  /* WIKI4AI-208: mlha a orb-y boli ladené pre stav, kedy ich nepriehľadné
+     <body> aj tak zakrylo (viz `base.css`). Po oprave paint orderu sa
+     skutočne maľujú, preto idú na strop strážneho testu
+     (`designTokens.test.ts`: mlha aj orb-y ≤ 0.60, inak zliekajú susedné
+     karty). Strop neprekráčam — intenzitu dotahuje tmavý panel povrchov,
+     ktorý drží kontrast, nie ďalšia alfa mlhy. */
+  --bg-mist-opacity: 0.48;
+  --orb-opacity: 0.48;
+  --vignette-opacity: 0.75;
+  --grid-opacity: 0;
+  --grid-line: rgba(255, 255, 255, 0.04);
+
+  /* ===== DERIVED — povrchy =====
+     WIKI4AI-208: povrch bol biely overlay s alfou .045 — cez odhalenú mlhu
+     to dal kartu len 1,13:1 od pozadia („karty splývajú s pozadím") a text
+     na karte dedil svetlosť priamo z mlhy, takže tlmený text klesol pod
+     4,5:1. Tmavý priesvitný panel rieši OBOJE naraz: text sidlí na paneli
+     (odolný voči intenzite mlhy) a mlha zostáva viditeľná v medzerách
+     medzi kartami. Namerané: odlíšenie karta/pozadie 1,13 → 1,64:1,
+     worst-case tlmený text 2,96 → 4,56:1 pri špičkovej alfe 0,30. */
+  --glass-bg-hover: rgba(255, 255, 255, 0.085);
+  --glass-bg-accent: rgba(52, 211, 153, 0.1);
+  --glass-strong: rgba(255, 255, 255, 0.09);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-hairline: rgba(255, 255, 255, 0.22);
+  --surface-1: rgba(8, 18, 14, 0.55);
+  --surface-2: rgba(8, 18, 14, 0.68);
+  --surface-3: rgba(11, 22, 17, 0.94);
+  --surface-sunken: rgba(3, 8, 6, 0.55);
+  --surface-accent: rgba(212, 165, 116, 0.12);
+
+  /* ===== DERIVED — text ===== */
+  --text-1: #f5f5f4;
+  --text-2: rgba(245, 245, 244, 0.8);
+  --text-muted: rgba(245, 245, 244, 0.72);
+  /* WIKI4AI-208: hierarchia textu bola stlačená nahor (.52 → .67), nie
+     sploštená — poradie text-1 1.0 > text-2 .80 > muted .72 > dim .67 zostáva
+     a každý stupeň drží 4,5:1 aj na najsvetlejšom mieste odhalenej mlhy.
+     Predtým by `.52` na holom liste pri špičkovej alfe kleslo na 4,31:1. */
+  --text-dim: rgba(245, 245, 244, 0.67);
+  --text-inverse: #06231a;
+
+  /* ===== DERIVED — akcenty (doplňkové sloty) ===== */
+  --primary-strong: #6ee7bf;
+  --primary-deep: #059669;
+  --secondary-strong: #e8c9a0;
+  --secondary-deep: #b45309;
+  --accent-strong: #f09b83;
+  --accent-deep: #b8543b;
+  --on-accent: #ffffff;
+  --brand-gradient: linear-gradient(115deg, #34d399 0%, #eaf7ef 38%, #e8c9a0 68%, #d4a574 100%);
+  --card-glow: rgba(52, 211, 153, 0.12);
+  --focus-glow: rgba(52, 211, 153, 0.22);
+  --focus-ring-color: var(--primary);
+  --focus-ring-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+
+  /* ===== DERIVED — sémantické triády (WIKI4AI-208) =====
+     `--ok` je KANONICKÁ farba úspechu a `--success`/`--warning`/`--danger`
+     na ňu teraz ukazuje aliasom — predtým mali vlastné čísla, takže dva
+     tokeny mohli znamenať ten istý stav a rozísť sa.
+     Opus 5.8 / DIZ-4: `--ok` sa MUSÍ líšiť od značky. Značka je emerald
+     `--primary` #34d399 (mint), úspech je čistá zelená #22c55e. Keby boli
+     totožné, každá emerald plocha by tvárila „úspech" a stav by prestal
+     niesť informáciu.
+     `-soft` a `-glow` sa odvádzajú `color-mix`-om, teda BEZ nového čísla —
+     inak by každá nová hodnota zdvihla ratchet tvrdých farieb. */
+  --ok: #22c55e;
+  --info: #38bdf8;
+  --warn: #eab308;
+  --error: #f87171;
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --error-soft: color-mix(in srgb, var(--error) 14%, transparent);
+  --ok-glow: color-mix(in srgb, var(--ok) 35%, transparent);
+  --info-glow: color-mix(in srgb, var(--info) 35%, transparent);
+  --warn-glow: color-mix(in srgb, var(--warn) 35%, transparent);
+  --error-glow: color-mix(in srgb, var(--error) 35%, transparent);
+  --success: var(--ok);
+  --warning: var(--warn);
+  --danger: var(--error);
+  --amber: #d4a574;
+  --color-success-bg: color-mix(in srgb, var(--ok) 12%, transparent);
+  --color-success-border: color-mix(in srgb, var(--ok) 32%, transparent);
+  --color-success-text: #6ee7b7;
+  --color-error-bg: color-mix(in srgb, var(--error) 12%, transparent);
+  --color-error-border: color-mix(in srgb, var(--error) 32%, transparent);
+  --color-error-text: #fca5a5;
+  --color-warning-bg: color-mix(in srgb, var(--warn) 12%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--warn) 32%, transparent);
+  --color-warning-text: #fde68a;
+  --color-info-bg: color-mix(in srgb, var(--info) 12%, transparent);
+  --color-info-border: color-mix(in srgb, var(--info) 32%, transparent);
+  --color-info-text: #7dd3fc;
+
+  /* ===== DERIVED — chart paleta (WIKI4AI-208) =====
+     9 sérií: identita (emerald/gold/coral) + sémantika + chladný pár, aby
+     sa susedné série dali odlíšiť. Žiadna séria nie je `--primary`, inak
+     by graf splýval so značkou. */
+  --chart-0: #34d399;
+  --chart-1: #d4a574;
+  --chart-2: #e07a5f;
+  --chart-3: #38bdf8;
+  --chart-4: #a3e635;
+  --chart-5: #f0abfc;
+  --chart-6: #fbbf24;
+  --chart-7: #f472b6;
+  --chart-8: #818cf8;
+
+  /* ===== DERIVED — tichá zóna (WIKI4AI-208) =====
+     Proza, editor aj diagram majú plne nepriehľadné pozadie: tenké čiary
+     diagramu a kód nad mlhou sa strácajú a dlhý text na farebnom podklade
+     unaví. Wiki4AI je primárne čítačka dokumentov. */
+  --prose-bg: #0b1611;
+  --diagram-bg: #0b1611;
+
+  /* ===== DERIVED — chrome ===== */
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.2);
+  --border-input: rgba(255, 255, 255, 0.4);
+  --scrim: rgba(0, 0, 0, 0.62);
+  --glass-shadow: rgba(0, 0, 0, 0.35);
+  /* ===== AKCIA — primárne tlačidlo + aktívny pill (WIKI4AI-208) =========
+     Recept je rovnaký vo všetkých troch identitách, líši sa len glow.
+     Merané MIN cez oba stop-y gradientu aj prostredok: 7.47:1 (glass-dark),
+     4.64:1 (glass-light), 5.56:1 (nexaverse) — všetky ≥ 4.5. Dôvod, prečo
+     nie `--accent`: v glass-light by gradient končil na #c2603f = 3.33:1.
+     Podrobný výpočet je v nexaverse bloku a v contrastBudget.test.ts. */
+  --action-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --action-gradient-hover: linear-gradient(135deg, var(--primary-strong) 0%, var(--secondary) 100%);
+  --action-glow: 0 10px 26px -12px color-mix(in srgb, var(--primary) 75%, transparent);
+  --pill-active-bg: var(--action-gradient);
+  --pill-active-color: var(--text-inverse);
+  --pill-active-border: transparent;
+  --nav-active-bg: var(--action-gradient);
+  --nav-active-color: var(--text-inverse);
+  --nav-active-border: transparent;
+  /* DIZ-3 item 4 (WIKI4AI-194): aktívna položka bola na nerozoznanie od
+     hoveru — active mal --glass-strong a hover --glass-hover, čo je ten
+     istý token s alfa 0.085 vs 0.09. 3px inset pruh je indikator, ktorý
+     nezávisí len od farby (WCAG 1.4.1); atrament v ňom je viditeľný na
+     svetlom aj tmavom konci gradientu. */
+  --nav-active-shadow: inset 3px 0 0 var(--text-inverse), var(--action-glow);
+  --shadow-2: 0 4px 14px -2px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 12px 28px -8px rgba(0, 0, 0, 0.42);
+  --shadow-card: 0 20px 40px rgba(0, 0, 0, 0.32);
+  --shadow-card-strong: 0 24px 48px rgba(0, 0, 0, 0.42);
+  --shadow-glow: 0 0 24px rgba(52, 211, 153, 0.22);
+  --shadow-hover: 0 18px 38px -14px rgba(0, 0, 0, 0.5), 0 0 26px rgba(52, 211, 153, 0.14);
+  --shadow-inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --color-scheme: dark;
+
+  /* ===== DERIVED — legacy aliasy ===== */
+  --bg: var(--dark-1);
+  --glass: var(--glass-bg);
+  --glass-hover: var(--glass-bg-hover);
+  --top-line: var(--glass-hairline);
+  --text: var(--text-1);
+  --text-strong: var(--text-1);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --muted: var(--text-dim);
+  --accent-light: var(--primary-strong);
+  --accent2: var(--secondary);
+  --accent2-light: var(--secondary-strong);
+  --accent3: var(--accent);
+  --mist-1: var(--bg-mist-1);
+  --mist-2: var(--bg-mist-2);
+  --mist-3: var(--bg-mist-3);
+  --orb-1: var(--bg-mist-1);
+  --orb-2: var(--bg-mist-2);
+  --orb-3: var(--bg-mist-3);
+  --surface: var(--surface-1);
+  --surface-base: var(--dark-1);
+  --surface-raised: var(--dark-2);
+  --surface-overlay: var(--dark-3);
+}
+
+/* ==========================================================================
+   glass-light — svetlá varianta tej istej identity (tm-607 light)
+   `[data-theme='light']` je alias — záchrana pre staré uložené voľby.
+   ========================================================================== */
+[data-theme='glass-light'],
+[data-theme='light'] {
+  /* --- akcenty: tmavší emerald + bronzové gold (AA na bielej) --------- */
+  --primary: #047857;
+  --secondary: #8a6d3b;
+  --accent: #c2603f;
+
+  /* --- pozadie: šalviový papier, o dve vrstvy tmavší než biela --------
+     Na takmer bielej by bola biela sklenená karta neviditeľná — blur aj
+     tiene potrebujú za kartou niečo, čo nie je biela. */
+  --dark-1: #e2e8db;
+  --dark-2: #ffffff;
+  --dark-3: #d5ddcb;
+
+  /* --- sklo: biele plotýnky s priehľadnosťou -------------------------- */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(20, 45, 32, 0.16);
+
+  /* --- glow sloty: na svetlej tlmené (0.4 neon by sa rozlial) --------- */
+  --glow-cyan: rgba(5, 150, 105, 0.25);
+  --glow-magenta: rgba(164, 118, 58, 0.22);
+
+  /* ===== DERIVED — pozadie a vrstvy ===== */
+  --bg-0: #cfd8c6;
+  --bg-grad-1: #d5e7d8;
+  --bg-grad-2: #e6eed9;
+  --bg-grad-3: #f4efdd;
+  --bg-mist-1: rgba(5, 150, 105, 0.3);
+  --bg-mist-2: rgba(212, 165, 116, 0.34);
+  --bg-mist-3: rgba(224, 122, 95, 0.2);
+  --bg-mist-opacity: 0.56;
+  --orb-opacity: 0.34;
+  --vignette-opacity: 0.5;
+  --grid-opacity: 0;
+  --grid-line: rgba(20, 40, 30, 0.05);
+
+  /* ===== DERIVED — povrchy ===== */
+  --glass-bg-hover: rgba(255, 255, 255, 0.9);
+  --glass-bg-accent: rgba(5, 150, 105, 0.1);
+  --glass-strong: rgba(255, 255, 255, 0.85);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+  --glass-hairline: rgba(255, 255, 255, 0.95);
+  --surface-1: rgba(255, 255, 255, 0.62);
+  --surface-2: rgba(255, 255, 255, 0.82);
+  --surface-3: rgba(255, 255, 255, 0.97);
+  --surface-sunken: rgba(20, 45, 32, 0.06);
+  --surface-accent: rgba(164, 118, 58, 0.12);
+
+  /* ===== DERIVED — text ===== */
+  --text-1: #14201a;
+  --text-2: rgba(20, 32, 26, 0.8);
+  --text-muted: rgba(20, 32, 26, 0.7);
+  --text-dim: rgba(20, 32, 26, 0.66);
+  --text-inverse: #f7fbf8;
+
+  /* ===== DERIVED — akcenty (doplňkové sloty) ===== */
+  --primary-strong: #065f46;
+  --primary-deep: #03543f;
+  --secondary-strong: #6f5522;
+  --secondary-deep: #a4763a;
+  --accent-strong: #a44b2c;
+  --accent-deep: #8b3d21;
+  --on-accent: #ffffff;
+  --brand-gradient: linear-gradient(115deg, #047857 0%, #0f8f6b 34%, #a4763a 72%, #8a6d3b 100%);
+  --card-glow: rgba(5, 150, 105, 0.1);
+  --focus-glow: rgba(5, 150, 105, 0.18);
+  --focus-ring-color: var(--primary);
+  --focus-ring-shadow: 0 0 0 3px rgba(5, 150, 105, 0.22);
+
+  /* ===== DERIVED — sémantické triády (WIKI4AI-208, kontrast na bielej) =====
+     Pozri poznámku v glass-dark: `--ok` je kanonická, aliasy ukazuju na ňu.
+     Na svetlej je `--ok` o stupeň tmavšia než `--primary` (#047857), lebo na
+     našlepenom pozadí s mlhou potrebuje 4,5:1 — #15803d malo na worst-case
+     karte len 4,46:1 a #166534 drží rezervu. */
+  --ok: #166534;
+  --info: #0369a1;
+  /* `--warn` je na svetlej text-safe odtieň, nie výplňová oranžová:
+     #b45309 malo na worst-case karte 4,47:1. `--amber` ostáva #b45309 pre
+     dekoratívne použitie, `--color-warning-text` je totožné. */
+  --warn: #92400e;
+  --error: #b91c1c;
+  --ok-soft: color-mix(in srgb, var(--ok) 14%, transparent);
+  --info-soft: color-mix(in srgb, var(--info) 14%, transparent);
+  --warn-soft: color-mix(in srgb, var(--warn) 14%, transparent);
+  --error-soft: color-mix(in srgb, var(--error) 14%, transparent);
+  --ok-glow: color-mix(in srgb, var(--ok) 22%, transparent);
+  --info-glow: color-mix(in srgb, var(--info) 22%, transparent);
+  --warn-glow: color-mix(in srgb, var(--warn) 22%, transparent);
+  --error-glow: color-mix(in srgb, var(--error) 22%, transparent);
+  --success: var(--ok);
+  --warning: var(--warn);
+  --danger: var(--error);
+  --amber: #b45309;
+  --color-success-bg: color-mix(in srgb, var(--ok) 10%, transparent);
+  --color-success-border: color-mix(in srgb, var(--ok) 28%, transparent);
+  --color-success-text: #166534;
+  --color-error-bg: color-mix(in srgb, var(--error) 8%, transparent);
+  --color-error-border: color-mix(in srgb, var(--error) 26%, transparent);
+  --color-error-text: #b91c1c;
+  --color-warning-bg: color-mix(in srgb, var(--warn) 12%, transparent);
+  --color-warning-border: color-mix(in srgb, var(--warn) 30%, transparent);
+  --color-warning-text: #92400e;
+  --color-info-bg: color-mix(in srgb, var(--info) 10%, transparent);
+  --color-info-border: color-mix(in srgb, var(--info) 26%, transparent);
+  --color-info-text: #0369a1;
+
+  /* ===== DERIVED — chart paleta (WIKI4AI-208) =====
+     Na svetlej identite musia série držať 3:1 proti pozadiu grafu, preto
+     sú tmavé odtiene tej istej rodiny — nie neon, ktorý by na bielej zmizol. */
+  --chart-0: #047857;
+  --chart-1: #a16207;
+  --chart-2: #c2603f;
+  --chart-3: #0369a1;
+  --chart-4: #4d7c0f;
+  --chart-5: #7c3aed;
+  --chart-6: #be123c;
+  --chart-7: #374151;
+  --chart-8: #1f2937;
+
+  /* ===== DERIVED — tichá zóna (WIKI4AI-208) =====
+     Pozri poznámku v glass-dark. Na svetlej je papier biely, nie šedivý,
+     lebo šalviové pozadie stránky by v dlhom texte vytváralo farebný závoj. */
+  --prose-bg: #ffffff;
+  --diagram-bg: #ffffff;
+
+  /* ===== DERIVED — chrome ===== */
+  --border-default: rgba(20, 45, 32, 0.16);
+  --border-hover: rgba(20, 45, 32, 0.28);
+  --border-input: rgba(20, 45, 32, 0.55);
+  --scrim: rgba(20, 32, 26, 0.55);
+  --glass-shadow: rgba(20, 45, 32, 0.1);
+  /* ===== AKCIA — primárne tlačidlo + aktívny pill (WIKI4AI-208) =========
+     Svetlá identita je najtesnejší prípad: `--text-inverse` je takmer
+     biely a `--secondary` #8a6d3b je najsvetlejší stop z celej palety,
+     preto práve tu končí 4.64:1. Predtým `--accent` #c2603f = 3.33:1 a
+     `.btn-create-new` na plnej `--primary` = 4.39:1 (WIKI4AI-206).
+     Glow je tu tieň, nie žiara — na svetlom pozadí by žiara zmizla. */
+  --action-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  --action-gradient-hover: linear-gradient(135deg, var(--primary-strong) 0%, var(--secondary) 100%);
+  --action-glow: 0 10px 26px -12px color-mix(in srgb, var(--primary) 60%, transparent);
+  --pill-active-bg: var(--action-gradient);
+  --pill-active-color: var(--text-inverse);
+  --pill-active-border: transparent;
+  --nav-active-bg: var(--action-gradient);
+  --nav-active-color: var(--text-inverse);
+  --nav-active-border: transparent;
+  --nav-active-shadow: inset 3px 0 0 var(--text-inverse), var(--action-glow);
+  --shadow-2: 0 4px 16px -4px rgba(20, 45, 32, 0.18);
+  --shadow-3: 0 12px 30px -10px rgba(20, 45, 32, 0.22);
+  --shadow-card: 0 20px 40px rgba(20, 45, 32, 0.12);
+  --shadow-card-strong: 0 24px 48px rgba(20, 45, 32, 0.16);
+  --shadow-glow: 0 0 20px rgba(5, 150, 105, 0.16);
+  --shadow-hover: 0 18px 34px -16px rgba(20, 45, 32, 0.28), 0 0 20px rgba(5, 150, 105, 0.1);
+  --shadow-inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --color-scheme: light;
+
+  /* ===== DERIVED — legacy aliasy ===== */
+  --bg: var(--dark-1);
+  --glass: var(--glass-bg);
+  --glass-hover: var(--glass-bg-hover);
+  --top-line: var(--glass-hairline);
+  --text: var(--text-1);
+  --text-strong: var(--text-1);
+  --text-primary: var(--text-1);
+  --text-secondary: var(--text-2);
+  --muted: var(--text-dim);
+  --accent-light: var(--primary-strong);
+  --accent2: var(--secondary);
+  --accent2-light: var(--secondary-strong);
+  --accent3: var(--accent);
+  --mist-1: var(--bg-mist-1);
+  --mist-2: var(--bg-mist-2);
+  --mist-3: var(--bg-mist-3);
+  --orb-1: var(--bg-mist-1);
+  --orb-2: var(--bg-mist-2);
+  --orb-3: var(--bg-mist-3);
+  --surface: var(--surface-1);
+  --surface-base: var(--dark-1);
+  --surface-raised: var(--dark-2);
+  --surface-overlay: var(--dark-3);
+}
+
+/* =====================================================================
+   TICHALÁ ZÓNA — druhá os, NIE tretia téma (WIKI4AI-208)
+   =====================================================================
+   `data-theme` odpovedá na „aká identita", `data-mood` na „čo práve
+   čítam". Nastavuje ho `Layout.tsx` z routy (čítačka dokumentov, editor,
+   vyhľadávanie). Dôvod: Wiki4AI je primárne čítačka — mlha a orby sú
+   výzdoba pre navigáciu, ale pod dlhým textom, kódom a tenkými čiarami
+   diagramu prekážajú.
+
+   Prečo per-identita a nie `calc(var(--bg-mist-opacity) * .45)`: token
+   by sa odkazoval SÁM NA SEBA a výstup by bol neplatný (cyklus).
+   Explicitné čísla sú aj čitateľnejšie než calc.
+
+   Kontrast tým LEN rastie — podklad tmavne a vineta stvrdne, takže
+   `contrastBudget.test.ts` (merí IDENTITU, nie náladu) zostáva platný.
+   Podlaha `--bg-mist-opacity >= 0.30` v ňom chráni identitu; tichá zóna
+   je vedomé výnimka a preto je tu, nie v tematickom bloku.
+
+   Špecifickosť `[data-theme=…][data-mood=…]` je (0,2,0) a porazí
+   tematické bloky (0,1,0) bez ohľadu na poradie v súbore. Pred `html`
+   sa nekladie: alias musí zostať posledný člen zoznamu selektorov
+   (stráž v `contrastBudget.test.ts` to pripúta) a elementový prefix by
+   z neho urobil prostý výskyt.
+   ===================================================================== */
+
+[data-theme='glass-dark'][data-mood='quiet'],
+[data-theme='dark'][data-mood='quiet'] {
+  --bg-mist-opacity: 0.18;
+  --orb-opacity: 0.15;
+  --vignette-opacity: 0.9;
+}
+
+[data-theme='glass-light'][data-mood='quiet'],
+[data-theme='light'][data-mood='quiet'] {
+  /* Na svetlej identite by plná mlha zrazila kontrast dlhého textu;
+     0.16 ponechá šalviový odtieň, no podklad drží 4,5:1 s rezervou. */
+  --bg-mist-opacity: 0.16;
+  --orb-opacity: 0.12;
+  --vignette-opacity: 0.6;
+}
+
+[data-theme='nexaverse'][data-mood='quiet'] {
+  /* Nexaverse má najsvetlejšie mlhy (cyan), teda aj najväčšie riziko —
+     stlmenie je tu najagresívnejšie. */
+  --bg-mist-opacity: 0.16;
+  --orb-opacity: 0.14;
+  --vignette-opacity: 0.92;
+}
+
+/* ===== Rozmery / typografia / prechody — spoločné pre všetky 3 témy ======
+ * Fonty Wiki4AI ostávajú Outfit + Syne (predloha má Space Mono — menia sa
+ * farby a layout, nie typografia). */
+:root {
+  --sidebar-w: 264px;
+  --radius: 20px;
+  --radius-sm: 12px;
+  --card-pad: 24px;
+  --font-ui: 'Outfit', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Syne', 'Outfit', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* ===== Motion tokeny (WIKI4AI-208) =====
+     Trvania zostávajú presne tie isté ako predtým (0.15 / 0.2 / 0.3 s),
+     mení sa len to, že sú MENOVANÉ — `components.css` aj stránkové CSS
+     mohli doteraz písať `transition: ... ease` natvrdo a žiadny prepínač
+     ich nevypol. `--transition-*` sa skladá z `--dur-*` + `--ease-*`,
+     takže `prefers-reduced-motion` stačí vynulovať tri premenné a celá
+     appka prestane hýbať (viz `base.css`).
+     `--ease-pop` je overshoot (cubic-bezier s 1.275) len pre `pop-in`
+     modalu a dropdownu — na riadkoch tabuľky by skákal text. */
+  --dur-fast: 0.15s;
+  --dur-med: 0.2s;
+  --dur-slow: 0.3s;
+  --ease-pop: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  --ease-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --transition-fast: var(--dur-fast) var(--ease-soft);
+  --transition-base: var(--dur-med) var(--ease-soft);
+  --transition-slow: var(--dur-slow) var(--ease-soft);
+  /* Maska nepotrebuje farbu — potrebuje ALFU. Hodnota je preto spoločná pre
+     všetky 3 témy a žije tu, nie v komponentovom CSS (strážny test
+     `designTokens.test.ts` inak hlási tvrdú farbu mimo tokens.css). */
+  --mask-solid: #000000;
+  /* DIZ-4 (WIKI4AI-195) item 1 — focus MUSÍ mať tvrdú hranu. `--focus-ring-shadow`
+     je 3 px halo s alfou 0.15–0.22 a nameria len 1.29–1.46:1, teda 3:1 (1.4.11)
+     nesplní nikdy. Pevná 2 px orámovacia čiara v `--primary` (4.99–13.30:1)
+     splní aj 2.4.13. `--focus-ring-color` je per-téma, preto sa `var()`
+     vyhodnotí až pri použití — token môže žiť v spoločnom bloku. */
+  --focus-ring: 2px solid var(--focus-ring-color);
+  --focus-ring-offset: 2px;
+}

@@ -1,0 +1,69 @@
+/**
+ * WIKI4AI-185 → WIKI4AI-192: segmentový prepínač 3 identít
+ * (glass-dark / glass-light / nexaverse).
+ * Sklo = rovnaký recept ako glass-admin karta (glass + blur + tenká hrana),
+ * preto všetky hodnoty idú z tokenov a menia sa s témou.
+ */
+
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 14px;
+}
+
+.theme-option {
+  position: relative;
+  width: 34px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.theme-option:hover {
+  color: var(--text-primary);
+  background: var(--glass-hover);
+}
+
+.theme-option:focus-visible {
+  box-shadow: var(--focus-ring-shadow);
+}
+
+.theme-option-active {
+  color: var(--primary);
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+  box-shadow: 0 0 12px var(--card-glow);
+}
+
+/* Glyf témy (☾ / ☀ / ✦) — text, nie emoji, preto dedí font a farbu segmentu. */
+.theme-option-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Popisok je len pre čítačku — vizuálne zostáva ikonový segment. */
+.theme-option-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

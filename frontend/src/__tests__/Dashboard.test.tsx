@@ -937,6 +937,34 @@ describe('Dashboard', () => {
       { id: 3, name: 'Gamma Docs', slug: 'gamma-docs', description: null, documentCount: 10, createdAt: '', updatedAt: '' },
     ]
 
+    /**
+     * WIKI4AI-187: filtering and sorting moved to the BACKEND. The mock
+     * therefore behaves like the real endpoint — it receives
+     * `{ sort, q, visibility }` from the page and returns the matching rows —
+     * so a test can assert both the parameters the page sent and the list it
+     * rendered from the response.
+     */
+    async function mockServerProjects(rows: any[] = mockProjects) {
+      const { useProjects } = await import('../hooks/useProjects')
+      const impl = vi.fn((query?: { sort?: string; q?: string; visibility?: string }) => {
+        const q = (query?.q ?? '').toLowerCase()
+        const visibility = query?.visibility ?? ''
+        const filtered = rows.filter((p) => {
+          const matchesQ =
+            !q ||
+            String(p.name).toLowerCase().includes(q) ||
+            String(p.description ?? '').toLowerCase().includes(q)
+          const matchesVisibility = !visibility || p.visibility === visibility
+          return matchesQ && matchesVisibility
+        })
+        return {
+          projects: filtered, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+        }
+      })
+      vi.mocked(useProjects).mockImplementation(impl as any)
+      return impl
+    }
+
     it('should render search input when projects exist', async () => {
       const { useProjects } = await import('../hooks/useProjects')
       vi.mocked(useProjects).mockReturnValue({
@@ -966,11 +994,8 @@ describe('Dashboard', () => {
       expect(screen.queryByTestId('search-input')).not.toBeInTheDocument()
     })
 
-    it('should filter projects by name when typing in search input (case-insensitive)', async () => {
-      const { useProjects } = await import('../hooks/useProjects')
-      vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      } as any)
+    it('sends the typed text to the backend as ?q= (debounced) and renders the response', async () => {
+      const server = await mockServerProjects()
 
       renderWithProviders(<Dashboard />)
 
@@ -980,22 +1005,22 @@ describe('Dashboard', () => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
       })
 
-      // Type "alpha" in search input (case-insensitive match)
+      // WIKI4AI-187: the text box is no longer a client-side filter — the value
+      // goes to `GET /projects?q=` after a ~300 ms debounce.
       await user.type(screen.getByTestId('search-input'), 'ALPHA')
 
-      // Wait for debounce + re-render
       await waitFor(() => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
         expect(screen.queryByText('Project Beta')).not.toBeInTheDocument()
         expect(screen.queryByText('Gamma Docs')).not.toBeInTheDocument()
-      }, { timeout: 1000 })
+      }, { timeout: 1500 })
+
+      const lastCall = server.mock.calls[server.mock.calls.length - 1][0]
+      expect(lastCall).toMatchObject({ q: 'ALPHA' })
     })
 
-    it('should filter projects by description when typing in search input', async () => {
-      const { useProjects } = await import('../hooks/useProjects')
-      vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      } as any)
+    it('matches description text through the server q parameter', async () => {
+      await mockServerProjects()
 
       renderWithProviders(<Dashboard />)
 
@@ -1005,22 +1030,18 @@ describe('Dashboard', () => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
       })
 
-      // Type "backend" which matches Project Beta's description
+      // "backend" is only in Project Beta's description — the backend does that
+      // match (name + description), the UI just renders what comes back.
       await user.type(screen.getByTestId('search-input'), 'backend')
 
-      // Wait for debounce + re-render
       await waitFor(() => {
         expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument()
         expect(screen.getByText('Project Beta')).toBeInTheDocument()
-        expect(screen.queryByText('Gamma Docs')).not.toBeInTheDocument()
-      }, { timeout: 1000 })
+      }, { timeout: 1500 })
     })
 
-    it('should show results count when searching', async () => {
-      const { useProjects } = await import('../hooks/useProjects')
-      vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      } as any)
+    it('shows the number of matches returned by the server', async () => {
+      await mockServerProjects()
 
       renderWithProviders(<Dashboard />)
 
@@ -1030,14 +1051,11 @@ describe('Dashboard', () => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
       })
 
-      // Type "project" which matches Project Alpha and Project Beta (by name)
       await user.type(screen.getByTestId('search-input'), 'project')
 
-      // Results count should show after debounce
       await waitFor(() => {
-        const resultsCount = screen.getByTestId('results-count')
-        expect(resultsCount).toHaveTextContent('Showing 2 of 3 projects')
-      }, { timeout: 1000 })
+        expect(screen.getByTestId('results-count')).toHaveTextContent('2 matching projects')
+      }, { timeout: 1500 })
     })
 
     it('should not show results count when search is empty', async () => {
@@ -1057,10 +1075,7 @@ describe('Dashboard', () => {
     })
 
     it('should show "No projects match your search" when no results', async () => {
-      const { useProjects } = await import('../hooks/useProjects')
-      vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      } as any)
+      await mockServerProjects()
 
       renderWithProviders(<Dashboard />)
 
@@ -1070,20 +1085,15 @@ describe('Dashboard', () => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
       })
 
-      // Type something that doesn't match anything
       await user.type(screen.getByTestId('search-input'), 'xyznonexistent')
 
-      // Empty state should show after debounce
       await waitFor(() => {
         expect(screen.getByText('No projects match your search')).toBeInTheDocument()
-      }, { timeout: 1000 })
+      }, { timeout: 1500 })
     })
 
-    it('should clear search when clear button is clicked', async () => {
-      const { useProjects } = await import('../hooks/useProjects')
-      vi.mocked(useProjects).mockReturnValue({
-        projects: mockProjects, isLoading: false, error: null, refetch: vi.fn(), createProject: vi.fn(), updateProject: vi.fn(), deleteProject: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
-      } as any)
+    it('clearing the search asks the server for the unfiltered list again', async () => {
+      const server = await mockServerProjects()
 
       renderWithProviders(<Dashboard />)
 
@@ -1093,25 +1103,24 @@ describe('Dashboard', () => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
       })
 
-      // Type something to filter
       await user.type(screen.getByTestId('search-input'), 'alpha')
 
       await waitFor(() => {
         expect(screen.queryByText('Project Beta')).not.toBeInTheDocument()
-      }, { timeout: 1000 })
+      }, { timeout: 1500 })
 
-      // Click clear button
       await user.click(screen.getByTestId('search-clear-button'))
 
-      // All projects should be visible again immediately (no debounce needed for clearing)
+      // All projects come back once the q parameter is gone again.
       await waitFor(() => {
         expect(screen.getByText('Project Alpha')).toBeInTheDocument()
         expect(screen.getByText('Project Beta')).toBeInTheDocument()
         expect(screen.getByText('Gamma Docs')).toBeInTheDocument()
-      }, { timeout: 1000 })
+      }, { timeout: 1500 })
 
-      // Search input should be empty
       expect(screen.getByTestId('search-input')).toHaveValue('')
+      const lastCall = server.mock.calls[server.mock.calls.length - 1][0]
+      expect(lastCall).toMatchObject({ q: '' })
     })
 
     it('should show clear button only when search has content', async () => {

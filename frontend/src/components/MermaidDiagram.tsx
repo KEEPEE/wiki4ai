@@ -13,23 +13,84 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import mermaid from 'mermaid';
+import { useTheme } from '../theme/useTheme';
+import { DEFAULT_THEME } from '../theme/themes';
+import type { ThemeId } from '../theme/themes';
+import { sanitizeDiagramSvg } from '../utils/svgSanitizer';
 import './MermaidDiagram.css';
 
-// Initialize mermaid once — idempotent call
-// Dark theme with custom variables for Nexaverse cyan/magenta neon aesthetic
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'dark',
-  securityLevel: 'loose',
-  themeVariables: {
+/**
+ * WIKI4AI-185: Mermaid init sleduje tému WebUI.
+ *
+ * Mermaid si farby kreslí do SVG sám — CSS tokeny mu nepomôžu, preto palety
+ * duplicujeme tu (hex, nie var()). `applyMermaidTheme` sa volá pred každým
+ * renderom; volanie `mermaid.initialize` je idempotentné a lacne.
+ */
+const MERMAID_PALETTES: Record<ThemeId, { theme: 'dark' | 'default'; primaryColor: string; primaryTextColor: string; secondaryColor: string; tertiaryColor: string; lineColor: string }> = {
+  // glass-dark — DEFAULT, deep forest + emerald (tm-607)
+  'glass-dark': {
+    theme: 'dark',
+    primaryColor: '#16281e',
+    primaryTextColor: 'rgba(245, 245, 244, 0.88)',
+    secondaryColor: '#0f2118',
+    tertiaryColor: '#08120e',
+    lineColor: '#34d399',
+  },
+  // glass-light — svetlé karty, tmavý text (inak by bol diagram čierny text
+  // na svetlom SVG, ale čiary v tmavom neonovom tóne nečitelné)
+  'glass-light': {
+    theme: 'default',
+    primaryColor: '#e6eed9',
+    primaryTextColor: 'rgba(20, 32, 26, 0.9)',
+    secondaryColor: '#d5e7d8',
+    tertiaryColor: '#f4efdd',
+    lineColor: '#047857',
+  },
+  // nexaverse — neon tyrkysová / magenta (tm-603)
+  nexaverse: {
+    theme: 'dark',
     primaryColor: '#1a1a2e',
     primaryTextColor: 'rgba(255, 255, 255, 0.85)',
     secondaryColor: '#16213e',
     tertiaryColor: '#0f3460',
     lineColor: '#00f0ff',
-    fontSize: '14px',
   },
-});
+};
+
+export function applyMermaidTheme(theme: ThemeId): void {
+  const palette = MERMAID_PALETTES[theme] ?? MERMAID_PALETTES[DEFAULT_THEME];
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: palette.theme,
+    // WIKI4AI-198: `strict`, nie `loose`. Jediný behaviorálny rozdiel medzi
+    // týmito dvoma režimami je, že v `loose` Mermaid **preskočí** vlastnú
+    // DOMPurify pasu na výslednom SVG (v mermaid.core.mjs je to jediná vetva
+    // na `securityLevel`). V `strict` teda beží navyše pas, ktorý knižnica
+    // aplikuje sama a ktorý je stavaný tak, aby nepoškodil jej vlastný výstup.
+    //
+    // Cena tohto prepnutia je nula: z 773 dokumentov na dev má 74 Mermaid
+    // blok, v 33 z nich je HTML — a vždy je to iba `<br/>`, ktoré `strict`
+    // nepoškodí (rieši sa pri parsovaní labelu, nie vo finálnom SVG pase).
+    // `click`, `link`, `linkStyle` a `javascript:` nepoužíva 0 dokumentov.
+    // Strážca to má `mermaidStrictRender.test.tsx`.
+    //
+    // Sink sanitizáciu (`sanitizeDiagramSvg`) to nenahrádza a ani nezbytočnú
+    // nerobí: tá je jedinú obranou pre kroki SVG, ktoré Mermaid vôbec nevidí.
+    securityLevel: 'strict',
+    themeVariables: {
+      primaryColor: palette.primaryColor,
+      primaryTextColor: palette.primaryTextColor,
+      secondaryColor: palette.secondaryColor,
+      tertiaryColor: palette.tertiaryColor,
+      lineColor: palette.lineColor,
+      fontSize: '14px',
+    },
+  });
+}
+
+// Predvolená téma (nexaverse) — inicializácia pri module load, aby prvý render
+// mal správne nastavenie aj bez ThemeProvider (testy).
+applyMermaidTheme(DEFAULT_THEME);
 
 /**
  * Simple hash function for generating stable diagram IDs from content.
@@ -102,9 +163,13 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
 
   // Stable ID based on content hash — same diagram code always produces the same ID.
   // This prevents duplicate ID errors when components rapidly mount/unmount during editing.
+  // WIKI4AI-185: téma sa zahŕňa do VSTUPU hashu (nie ako suffix ID) — mermaid
+  // cache-uje render podľa id, takže bez toho by prepnutie témy nič neprekreslilo
+  // a diagram by ostal v starej palete. Format ID ostáva `mermaid-<hex>`.
+  const { theme } = useTheme();
   const stableId = useMemo(
-    () => `mermaid-${simpleHash(code.slice(0, 100))}`,
-    [code],
+    () => `mermaid-${simpleHash(`${code.slice(0, 100)}::${theme}`)}`,
+    [code, theme],
   );
 
   useEffect(() => {
@@ -122,12 +187,22 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
 
     let cancelled = false;
 
+    // WIKI4AI-185: paleta musi byť nastavená pred renderom
+    applyMermaidTheme(theme);
+
     mermaid.render(stableId, code)
       .then(({ svg: renderedSvg }) => {
         if (!cancelled) {
           // WIKI4AI-84: pin the SVG to its natural pixel size so the CSS can
           // scroll wide diagrams instead of downscaling them.
-          setSvg(withNaturalSize(renderedSvg));
+          //
+          // WIKI4AI-198: `sanitizeDiagramSvg` je posledný krok pred tým, ako
+          // markup putuje do state a odtiaľ do `dangerouslySetInnerHTML`.
+          // Mermaid si od `strict` own pasu robí, ale tá naša je to, čomu
+          // veríme: nezávisí od nastavenia knižnice ani od jej verzie.
+          // Sanitizuje sa až po `withNaturalSize`, aby žiadna ďalšia úprava
+          // markupu neprebila sanitizáciu.
+          setSvg(sanitizeDiagramSvg(withNaturalSize(renderedSvg)));
         }
       })
       .catch((err) => {
@@ -151,7 +226,7 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ code, className }) => {
         el.remove();
       }
     };
-  }, [code, stableId]);
+  }, [code, stableId, theme]);
 
   return (
     <div className={`mermaid-diagram ${className ?? ''}`}>

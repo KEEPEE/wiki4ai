@@ -81,7 +81,22 @@ logging:
 
 # JWT configuration
 jwt:
-  secret: ${JWT_SECRET:your-secret-key-change-in-production}
+  # WIKI4AI-197 (REV-2 P0 #1): the default is EMPTY, not a working secret.
+  #
+  # The previous default was the literal "your-secret-key-change-in-production".
+  # It is public — it sits in this file, in the seed deployment doc and in the repo's
+  # compose file — so anyone could mint a token for any account, ADMIN included,
+  # because an HMAC signature made with a known key is forgeable by definition.
+  # jjwt's own weak-key guard did not catch it either: the placeholder is 36 bytes,
+  # over the 32-byte HMAC-SHA256 minimum, so the library accepted it silently.
+  #
+  # An empty default means an unset JWT_SECRET reaches JwtUtil's constructor as "" and
+  # the application refuses to start there with a message naming the property. That is
+  # deliberate fail-fast: a wiki whose signing key is public does not have a bug, it has
+  # no access control. Tests are unaffected — src/test/resources/application.properties
+  # supplies a test-only secret for every context, including the three that run without
+  # the "test" profile.
+  secret: ${JWT_SECRET:}
   expiration: 86400000  # 24 hours in ms
   refreshExpiration: 604800000  # 7 days
 

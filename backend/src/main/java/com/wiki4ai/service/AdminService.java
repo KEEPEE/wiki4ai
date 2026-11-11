@@ -22,10 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminService {
 
     private final UserRepository userRepository;
+    private final EffectiveAdmin effectiveAdmin;
     private final BCryptPasswordEncoder passwordEncoder;
 
-    public AdminService(UserRepository userRepository) {
+    public AdminService(UserRepository userRepository, EffectiveAdmin effectiveAdmin) {
         this.userRepository = userRepository;
+        this.effectiveAdmin = effectiveAdmin;
         this.passwordEncoder = new BCryptPasswordEncoder();
     }
 
@@ -65,6 +67,12 @@ public class AdminService {
     @Transactional
     public UserDTO createUser(CreateUserRequestDTO request) {
         verifyAdminRole();
+
+        // WIKI4AI-197 (REV-2 P0 #4): an ADMIN named 'anonymous' is the worst case of
+        // the hole, because the permission layer special-cases the ADMIN role before it
+        // ever looks at project grants — the account would hold the key and be read as
+        // nobody at the same time.
+        ReservedUsernames.rejectIfReserved(request.getUsername());
 
         // Validate uniqueness of username
         if (userRepository.existsByUsername(request.getUsername())) {
@@ -165,6 +173,13 @@ public class AdminService {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new SecurityException("Admin access required. Current role: " + currentUser.getRole());
         }
+
+        // WIKI4AI-197 (REV-2 P0 #5): the role is necessary and not sufficient. Every
+        // administrative endpoint in this class — list users, create a user, change a
+        // role, delete an account — used to stop at the role, so a token an administrator
+        // issued for a read-only integration could delete a user account. The token
+        // declares its own authority; the account's role is not the token's authority.
+        effectiveAdmin.requireCredentialMayCarryAdmin();
     }
 
     /**

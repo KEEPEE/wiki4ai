@@ -1,0 +1,56 @@
+/* WIKI4AI-186: shared pin/unpin toggle (projects + documents).
+   Ghost icon button; the pinned state is carried by BOTH the filled pin shape
+   and the accent colour + glow, so it is distinguishable without colour.
+   Tokens only — identical look in the light / dark / nexaverse themes. */
+
+.pin-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  opacity: 0.65;
+  transition: color var(--transition-base), opacity var(--transition-base),
+    background-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+/* Revealed on hover/focus for unpinned items; pinned ones stay fully visible. */
+.pin-button:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--glass-strong);
+  border-color: var(--glass-border);
+}
+
+.pin-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  opacity: 1;
+}
+
+.pin-button:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+/* Pinned: solid pin, accent colour, soft glow — a permanent indication. */
+.pin-button-active,
+.pin-button-active:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--primary);
+  border-color: var(--glow-cyan);
+  background: var(--glass-strong);
+  box-shadow: 0 0 10px var(--glow-cyan);
+}
+
+/* In dense rows the button must not widen the line height. */
+.pin-button-sm {
+  width: 26px;
+  height: 26px;
+}

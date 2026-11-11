@@ -1,0 +1,260 @@
+/**
+ * WIKI4AI-185 — glass-admin sidebar (tm-607 Glass Admin: SIDEBAR).
+ *
+ * Glass recept: `background: var(--glass)` + `backdrop-filter: blur(20px)` +
+ * 1 px okraj. Blur je vidieť LEN cez priesvitné pozadie — preto Layout renderuje
+ * `.background` + 3 `.orb` (AmbientBackground). Bez nich by bol sidebar plochý.
+ *
+ * Všetky farby idú z tokenov v globals.css (3 bloky), takže sidebar mení vzhľad
+ * s témou bez jedinej farby navyše.
+ */
+
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  z-index: 100;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid var(--glass-border);
+  transition: transform var(--transition-slow), background var(--transition-slow);
+}
+
+/* --- header: logo + wordmark --------------------------------------------- */
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  box-shadow: 0 0 18px var(--card-glow);
+}
+
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+
+.logo-text-accent {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* --- navigácia ------------------------------------------------------------ */
+
+.nav-menu {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  /* Tenký scrollbar v odtieni témy — pri 900 px výške sa navigácia nezmestí a
+     systémový scrollbar by vyzeral ako tvrdý sivý pruh cez sklo. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+.sidebar::-webkit-scrollbar,
+.nav-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-thumb,
+.nav-menu::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-track,
+.nav-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  padding-left: 4px;
+}
+
+.nav-item {
+  margin-bottom: 4px;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background-color var(--transition-fast), color var(--transition-fast),
+    border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.nav-link svg {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.nav-link:hover {
+  background: var(--glass-hover);
+  color: var(--text-primary);
+}
+
+.nav-link:focus-visible {
+  box-shadow: var(--focus-ring-shadow);
+}
+
+/* DIZ-3 item 4 (WIKI4AI-194): aktívna položka bola takmer na nerozoznanie
+ * od hoverowanej — active mal `--glass-strong`, hover `--glass-hover`, a
+ * `--glass-hover` je alias na `--glass-bg-hover` (alfa .085 vs .09).
+ * Aktívna položka má preto VÝPLN `--glass-bg-accent` (emeraldový odtieň,
+ * nie neutrálny) a 3px inset pruh v `--primary` z `--nav-active-shadow`
+ * — ten je indikator, ktorý nezávisí len od farby (WCAG 1.4.1).
+ * `--nav-active-*` tokeny zostávajú jediným miestom, kde sa identity
+ * líšia (DIZ-1: komponentové CSS nesmie poznať mená tém). */
+.nav-link-active {
+  /* WIKI4AI-208: aktívna položka je plná pill s gradientom a atramentom,
+     nie len odtieň. `background-color` je fallback, `background-image`
+     nesie `--nav-active-bg` (gradient). 3px inset pruh v `--nav-active-shadow`
+     zostáva WCAG 1.4.1 indikátor nezávislý od farby. */
+  background-color: var(--primary);
+  background-image: var(--nav-active-bg);
+  border-color: var(--nav-active-border);
+  color: var(--nav-active-color);
+  box-shadow: var(--nav-active-shadow);
+  font-weight: 600;
+}
+
+/* `.nav-link:hover` má shorthand `background:`, ktoré by zrušilo
+   background-image aktívnej položky — preto explicitný hover pre active.
+   Bez tohto pravidla sa gradient pri prejdení myšou stratil. */
+.nav-link-active:hover {
+  background-color: var(--primary-strong);
+  background-image: var(--nav-active-bg);
+  color: var(--nav-active-color);
+}
+
+.nav-link-active svg {
+  opacity: 1;
+  /* ikona v --primary by na gradiente s --primary zmizela */
+  color: var(--nav-active-color);
+}
+
+/* DIZ-1: neonová aktívna položka Nexaverse sa rieši tokenmi
+   (--nav-active-*), nie selektorom `[data-theme='nexaverse']` — komponentové
+   CSS nesmie poznať mená tém, inak sa identita nedá premenovať bez driftu. */
+
+/* --- footer: profil + prepínač tém ---------------------------------------- */
+
+.sidebar-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.user-profile:hover,
+.user-profile-active {
+  background: var(--glass-hover);
+  border-color: var(--glass-border);
+}
+
+.user-avatar {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-strong);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
+
+.user-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-role {
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* --- mobil: off-canvas sidebar (predloha: 900 px) ------------------------- */
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+    box-shadow: 0 0 60px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar-open {
+    transform: translateX(0);
+  }
+}

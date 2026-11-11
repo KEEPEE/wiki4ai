@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useVault } from '../contexts/VaultContext';
-import { cryptoApi } from '../services/cryptoApi';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
 import { EyeIcon, EyeOffIcon, LockIcon } from './icons';
 
@@ -16,14 +15,12 @@ const VaultUnlockScreen: React.FC = () => {
 
     if (!password) return;
 
-    const encoder = new TextEncoder();
-    const passwordBuffer = encoder.encode(password);
-
-    const hashBuffer = await cryptoApi.sha256(passwordBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const masterPasswordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-    await unlock(masterPasswordHash);
+    // The **raw** password goes to the context, not SHA-256(password). v2 derives its
+    // key from the password itself and sends neither the password nor its hash
+    // anywhere; `h` is computed inside the context, only to open rows still stored
+    // under v1. Hashing it here and sending the hash is what let the server derive
+    // the same key and read the whole vault.
+    await unlock(password);
   };
 
   return (

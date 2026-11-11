@@ -69,6 +69,33 @@ export function ClockIcon(props: IconProps) {
   );
 }
 
+/**
+ * Push-pin (WIKI4AI-186: pinned project/document).
+ *
+ * `filled` renders the solid pin so a pinned item is distinguishable at a
+ * glance and not only by colour — the outline pin means "click to pin".
+ */
+export function PinIcon({ size = 16, className, filled = false }: IconProps & { filled?: boolean }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <line x1="12" y1="17" x2="12" y2="22" />
+      <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+    </svg>
+  );
+}
+
 /** Gear (settings). */
 export function SettingsIcon(props: IconProps) {
   return (
@@ -166,6 +193,23 @@ export function TagIcon(props: IconProps) {
     <LineIcon {...props}>
       <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83z" />
       <line x1="7" y1="7" x2="7.01" y2="7" />
+    </LineIcon>
+  );
+}
+
+/**
+ * Six-dot grip (WIKI4AI-187 drag handle). The dots are filled rather than
+ * stroked — at 14 px a 1 px ring reads as noise — so `fill="currentColor"` on
+ * the children overrides the wrapper's `fill="none"`.
+ */
+export function GripIcon(props: IconProps) {
+  return (
+    <LineIcon {...props}>
+      {[9, 15].map((x) =>
+        [5, 12, 19].map((y) => (
+          <circle key={`${x}-${y}`} cx={x} cy={y} r="1.4" fill="currentColor" stroke="none" />
+        )),
+      )}
     </LineIcon>
   );
 }

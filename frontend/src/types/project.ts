@@ -21,6 +21,16 @@ export interface Project {
   ownerId?: number | null;
   /** WIKI4AI-99/100: visibility, defaults to 'public' on the backend. */
   visibility?: Visibility;
+  /**
+   * WIKI4AI-186: pinned projects are listed first. Read-only — changed only
+   * through POST /projects/{slug}/pin|unpin.
+   */
+  pinned?: boolean;
+  /**
+   * WIKI4AI-186: position in the manual order. OPAQUE — it may be negative and
+   * the backend renumbers it; never display it, only use it for sorting.
+   */
+  sortOrder?: number;
 }
 
 export interface ProjectDTO {

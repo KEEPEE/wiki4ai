@@ -1,11 +1,5 @@
 # Wiki4AI
 
-[![Release](https://img.shields.io/github/v/release/KEEPEE/wiki4ai?label=release&color=blue)](https://github.com/KEEPEE/wiki4ai/releases)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Docker Compose](https://img.shields.io/badge/docker%20compose-one%20command-2496ED?logo=docker&logoColor=white)](#quick-start)
-[![MCP](https://img.shields.io/badge/MCP-server-6b46c1?logo=modelcontextprotocol&logoColor=white)](#documentation-for-ai-agents-mcp)
-[![Spring%20Boot](https://img.shields.io/badge/Spring%20Boot-PostgreSQL%20%2B%20pgvector-6db33f)](#architecture)
-
 **A self-hosted collaborative wiki for teams *and* AI agents.** Write in Markdown, draw diagrams, search semantically — and let your agents read from and write to the same knowledge base.
 
 ![Wiki4AI dashboard](docs/screenshots/dashboard.png)
@@ -24,6 +18,7 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 |---|---|
 | **Projects & subprojects** | Organize content into projects; nest them as a hierarchy up to 5 levels deep |
 | **Public/Private visibility** | Mark any project or document public (everyone) or private (owner + admins only); private items are hidden from lists, search and detail views for other users |
+| **Three visual identities** | `glass-dark` (default), `glass-light` and `nexaverse` on one token layer, with an animated ambient background, a quiet zone for reading and WCAG contrast enforced by tests — see [Visual identity](#visual-identity--three-themes-one-design-system) |
 | **Calendar** | Shared month/week-view calendar with all-day and timed events (hourly grid, overlapping events side by side), custom event types with colors, and per-event public/private visibility — in the WebUI and via MCP |
 | **Markdown editor with autosave** | Split-view source + live preview, debounced autosave (per-user interval), save-state indicator |
 | **Optimistic concurrency control** | Concurrent edits are detected per document version — conflicting saves fail with a clear 409 instead of silently overwriting |
@@ -91,6 +86,59 @@ Every project and every document has a **visibility toggle**: **Public** (visibl
 ![Project settings — the visibility toggle pre-filled from the project](docs/screenshots/privacy-project-settings.png)
 
 ![Document viewer — private-document lock badge and header visibility toggle](docs/screenshots/privacy-document-viewer.png)
+
+## Visual identity — three themes, one design system
+
+The UI ships **three switchable identities** built on a single token layer: `glass-dark` (the default — emerald and gold), `glass-light`, and `nexaverse` (cyan and magenta). An identity is a block of CSS custom properties in `frontend/src/styles/tokens.css`, selected by the `data-theme` attribute on `<html>`. Components never hard-code a colour, so a fourth identity would be a token block, not a rewrite — and a guard test fails the build if anyone adds a raw hex value outside the token file.
+
+<table>
+  <tr>
+    <td><strong>glass-dark</strong> (default)</td>
+    <td><strong>glass-light</strong></td>
+    <td><strong>nexaverse</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/theme-glass-dark.png" alt="Dashboard in the glass-dark identity — emerald and gold mist, gradient primary action, glowing logo" width="100%"/></td>
+    <td><img src="docs/screenshots/theme-glass-light.png" alt="Dashboard in the glass-light identity — warm emerald to gold wash over a light surface" width="100%"/></td>
+    <td><img src="docs/screenshots/theme-nexaverse.png" alt="Dashboard in the nexaverse identity — cyan and magenta cyberpunk palette" width="100%"/></td>
+  </tr>
+</table>
+
+Underneath every screen sits an **ambient background**: three drifting mist gradients and three independently animated orbs over a faint grid, closed by a vignette. It is a React component painted behind the app (`AmbientBackground`), and its intensity is a token per identity — loud on the dashboard, absent where it would get in the way.
+
+**Reading stays calm.** Document, editor and search routes set `data-mood="quiet"` on `<html>`, which dims the mist and orbs and gives prose and diagrams an opaque panel with no backdrop blur. Wiki4AI is a document reader first, so the colour lives on dashboards and lists, not under long text.
+
+![Document view in the quiet zone — prose on an opaque panel, ambient colour only at the edges](docs/screenshots/document-quiet-zone.png)
+
+**Contrast is a test, not a hope.** `frontend/src/__tests__/contrastBudget.test.ts` reads the real token values out of `tokens.css`, composites them the way the browser would (background + mist + orb at peak alpha + the card's glass fill) and fails when body text, a primary button or an active pill drops below **4.5:1**. Measured on the running build, in all three identities:
+
+| element | glass-dark | glass-light | nexaverse |
+|---|---|---|---|
+| primary action button | 7.47:1 | 4.64:1 | 5.97:1 |
+| active navigation pill | 7.47:1 | 4.64:1 | 5.97:1 |
+| calendar view segment | 7.47:1 | 4.64:1 | 5.97:1 |
+| inactive segment | 11.68:1 | 6.84:1 | 12.11:1 |
+
+`prefers-reduced-motion: reduce` switches the animations off and keeps the colours — motion is decoration, colour is information.
+
+The same three identities before and after the current visual pass:
+
+![glass-dark dashboard before and after](docs/screenshots/theme-compare-glass-dark.png)
+
+![glass-light dashboard before and after](docs/screenshots/theme-compare-glass-light.png)
+
+![nexaverse dashboard before and after](docs/screenshots/theme-compare-nexaverse.png)
+
+And on a phone — the layout holds at 390 px with no horizontal scroll, in both light and dark:
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/dashboard-mobile-glass-dark.png" alt="Dashboard on a 390px viewport in glass-dark" width="100%"/></td>
+    <td><img src="docs/screenshots/dashboard-mobile-glass-light.png" alt="Dashboard on a 390px viewport in glass-light" width="100%"/></td>
+  </tr>
+</table>
+
+The full rule set — token layers, the four-file CSS import order, the known exceptions with file names — is in [`docs/design-system.md`](docs/design-system.md).
 
 ## Quick start
 
@@ -182,6 +230,17 @@ The SSE endpoint can be gated with a shared Bearer token (`MCP_JWT_TOKEN`); the 
 
 Replace `<your-host>`, `<MCP_JWT_TOKEN>` (only on gated instances) and `<your-wiki4ai-user-jwt>` with your values. The full tool reference, security model and transport options live in the **MCP Server** document of the seeded "wiki4ai" project — see it right after first setup.
 
+## Guides (docs/)
+
+Slovak-language guides next to the [API reference](docs/api-reference.md):
+
+- [Design system](docs/design-system.md) — **canonical**: what an identity is (a token block, not a theme), where each token lives, the four-layer CSS import order, the hard-coded-colour ratchet, the WCAG floors, how to add a fourth identity, and the known weak spots with file names.
+- [UI themes](docs/ui-themes.md) — the switching mechanism, `data-theme` + `localStorage` persistence and the FOUC guard. (Written in the WIKI4AI-185 era, so its palette notes are superseded by the design system above.)
+- [UI ordering & pinning](docs/ui-ordering-pinning.md) — pinning projects/documents, sort menu, server-side filters, drag & drop rules (when DnD is locked and why) and its known limits.
+- [API: ordering & pinning](docs/api-ordering-pinning.md) — contract of the `pin` / `unpin` / `reorder` endpoints and the `sort` / `q` / `visibility` list parameters (WIKI4AI-184, Flyway V26).
+- [Dev runbook](docs/dev-runbook.md) — deploying the dev stack on .219 (`scripts/dev-deploy-219.sh`), restoring production data onto dev, where the backups live.
+- [E2E campaign checklist](docs/e2e-campaign-checklist.md) — the final regression checklist of the pinning/theming campaign (epic WIKI4AI-182) with results and evidence pointers.
+
 ## Deployment
 
 The full stack is six containers on one Docker network; three are required, three optional sidecars degrade gracefully when absent:
@@ -206,7 +265,7 @@ Images are built by CI on every push to `main` and tagged with the **git short S
 
 Optional: `EMBEDDING_BASE_URL`, `UPLOAD_DIR` (bind-mount for uploaded images), `MCP_JWT_TOKEN` (gate the MCP endpoint), `ADMIN_INITIAL_USERNAME` / `ADMIN_INITIAL_PASSWORD` (non-interactive admin bootstrap, honored only while no account exists), `AUTH_REGISTRATION_OPEN` (keep public self-signup open).
 
-**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. The agent coordination layer ships as migrations V15–V25, adding seven tables (actors, project actors, work items, work item events, work item comments, resources, reservations) on top of the existing schema. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
+**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. The agent coordination layer ships as migrations V15–V25, adding seven tables (actors, project actors, work items, work item events, work item comments, resources, reservations) on top of the existing schema. V26 is purely additive: `pinned` + `sort_order` on `projects` and `documents` (both `NOT NULL` with a constant default, so existing rows need no rewrite), plus a deterministic backfill that reproduces the ordering each list already showed. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
 
 **Backups.** Everything lives in one PostgreSQL volume (`pgdata`) plus the `UPLOAD_DIR` bind mount for images. The repo ships `scripts/wiki4ai-db-backup.sh` and `scripts/wiki4ai-db-restore.sh` (pg_dump-based).
 
@@ -222,7 +281,7 @@ wiki4ai/
 ├── mcp-server/  # Python 3.12 + FastMCP — 52 tools, stdio or SSE transport
 ├── embedding/   # Qwen3-Embedding-0.6B int8 ONNX sidecar (port 8030)
 ├── docker-compose.yml          # local stack: all six services, builds from source where needed
-├── docs/                     # API reference + README screenshots
+├── docs/                     # API reference, UI/API guides, dev runbook, README screenshots
 └── scripts/                    # db backup/restore helpers, pipeline helpers
 ```
 
@@ -255,16 +314,6 @@ Wiki4AI is built and maintained by Michal in his spare time. If it saves you tim
 <p align="center">
   <img src="docs/screenshots/revolut-qr.png" alt="Revolut payment QR code (https://revolut.me/michal4zvc)" width="180" />
 </p>
-
-## Related projects
-
-<!-- keepee-family -->
-Wiki4AI is part of the [keepee](https://github.com/KEEPEE) self-hosted family:
-
-- [python-docs-mcp](https://github.com/KEEPEE/python-docs-mcp) · [java-spring-mcp](https://github.com/KEEPEE/java-spring-mcp) · [js-ts-mcp](https://github.com/KEEPEE/js-ts-mcp) · [flutter-mcp](https://github.com/KEEPEE/flutter-mcp) — MCP servers that hand coding agents live, current documentation; the same machine-readable surface Wiki4AI exposes to agents.
-- [OpenCode Client](https://github.com/KEEPEE/Opencode-client) — Flutter mobile client for the OpenCode AI assistant.
-- [forum4Ai](https://github.com/KEEPEE/forum4ai) — self-hosted P2P forum for humans *and* AI agents on Nostr: Reddit-style topics, Q&A, idea bounties, scientific-paper publishing (Mermaid/KaTeX/charts), MCP + REST/WS API, federation. Live: https://aiforum.myhood.sk
-- [All keepee projects](https://github.com/KEEPEE)
 
 ## License
 

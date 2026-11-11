@@ -5,6 +5,9 @@
 
 import type { Document, CreateDocumentDto, UpdateDocumentDto, EmbeddingStatus, GlobalSearchResult } from '../types/document';
 import { apiGet, apiPost, apiPut, apiDelete, apiPostFormData } from './apiClient';
+// WIKI4AI-187: sort/filter query parameters + the reorder body of the DnD list
+import { buildListQuery } from '../utils/listSort';
+import type { ReorderBody } from '../utils/dragOrder';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
@@ -14,15 +17,55 @@ export interface DocumentContentResponse {
   wikiLinks: string[];
 }
 
+/** Query of `GET /projects/{slug}/documents` (WIKI4AI-184). */
+export interface DocumentListQuery {
+  sort?: string;
+  q?: string;
+  page?: number;
+  /** backend default 50, clamped to 100 */
+  size?: number;
+}
+
+/** One page of the document list plus the total, which the UI needs for DnD. */
+export interface DocumentListPage {
+  items: Document[];
+  /** total number of documents in the project (ignoring the page window) */
+  total: number;
+}
+
 export const documentApi = {
   /**
    * Get all documents in a project by slug.
    * Backend returns a Spring Data Page object with { content: Document[], ... }.
    * We extract the .content array for frontend consumption.
+   *
+   * WIKI4AI-187: `query` sends the sort/filter choice to the backend
+   * (`sort`, `q`) instead of re-ordering the response client-side.
    */
-  getByProject: async (projectSlug: string): Promise<Document[]> => {
-    const data = await apiGet<any>(`${API_BASE_URL}/projects/${projectSlug}/documents?page=0&size=50`);
+  getByProject: async (projectSlug: string, query?: DocumentListQuery): Promise<Document[]> => {
+    const data = await apiGet<any>(
+      `${API_BASE_URL}/projects/${projectSlug}/documents${buildListQuery({ page: 0, size: 50, ...query })}`,
+    );
     return Array.isArray(data) ? data : data.content || [];
+  },
+
+  /**
+   * WIKI4AI-187: same request as `getByProject`, but keeps `totalElements`.
+   *
+   * Drag & drop needs to know whether the window it can reorder is the whole
+   * list or only part of it: the backend clamps `size` to 100, so a project with
+   * more documents can only be reordered inside the loaded page. Without the
+   * total the UI could not say so (see `ProjectDetail`, `dndTruncated`).
+   */
+  getByProjectPage: async (projectSlug: string, query?: DocumentListQuery): Promise<DocumentListPage> => {
+    const data = await apiGet<any>(
+      `${API_BASE_URL}/projects/${projectSlug}/documents${buildListQuery({ page: 0, size: 100, ...query })}`,
+    );
+    if (Array.isArray(data)) return { items: data, total: data.length };
+    return {
+      items: data?.content ?? [],
+      total: typeof data?.totalElements === 'number' ? data.totalElements : (data?.content?.length ?? 0),
+    };
   },
 
   /**
@@ -135,4 +178,34 @@ export const documentApi = {
    */
   getEmbeddingStatus: (): Promise<EmbeddingStatus> =>
     apiGet(`${API_BASE_URL}/embeddings/status`),
+
+  /**
+   * WIKI4AI-186: pin a document to the top of its project's list.
+   * Endpoint: POST /projects/:slug/documents/:docSlug/pin — requires UPDATE in
+   * the project (403 otherwise). Returns the updated document with
+   * `pinned`/`sortOrder`; neither `version` nor `updatedAt` changes, so an
+   * in-progress edit is not pushed into a 409 by a pin.
+   */
+  pinDocument: (projectSlug: string, docSlug: string): Promise<Document> =>
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/pin`),
+
+  /**
+   * WIKI4AI-186: unpin a document. The manual `sortOrder` is kept, so the
+   * document returns to exactly the position it had before pinning.
+   * Endpoint: POST /projects/:slug/documents/:docSlug/unpin — requires UPDATE.
+   */
+  unpinDocument: (projectSlug: string, docSlug: string): Promise<Document> =>
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/unpin`),
+
+  /**
+   * WIKI4AI-187: move a document inside the manual order of its project
+   * (drag & drop). Endpoint: POST /projects/:slug/documents/:docSlug/reorder —
+   * requires UPDATE in the project (403 otherwise).
+   *
+   * Exactly one of `beforeSlug` / `afterSlug` / `position` (WIKI4AI-184). The
+   * document `version` is NOT bumped, so reordering never pushes a concurrent
+   * edit into a 409.
+   */
+  reorderDocument: (projectSlug: string, docSlug: string, body: ReorderBody): Promise<Document> =>
+    apiPost(`${API_BASE_URL}/projects/${projectSlug}/documents/${docSlug}/reorder`, body),
 };

@@ -6,6 +6,7 @@
 /* ── Page Background ──────────────────────────────────────────── */
 
 .auth-page {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -16,13 +17,21 @@
 
 /* ── Auth Card — Glassmorphism Container ─────────────────────── */
 
+/* WIKI4AI-185: prepínač tém na auth stránkach (bez Layoutu/sidebaru) */
+.auth-theme {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 2;
+}
+
 .auth-card {
   width: 100%;
   max-width: 440px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 24px;
   padding: 48px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -36,7 +45,7 @@
   font-weight: 700;
   text-align: center;
   margin-bottom: 1.5rem;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -71,31 +80,7 @@
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ── Form Inputs — Glass + Neon Glow Focus ───────────────────── */
-
-.form-input {
-  width: 100%;
-  padding: 14px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  font-size: 0.9375rem;
-  color: rgba(255, 255, 255, 0.7);
-  background-color: rgba(255, 255, 255, 0.05);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
-}
-
-.form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: #00f0ff;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
-  background-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
 }
 
 /* ── Validation Error Styles ─────────────────────────────────── */
@@ -130,35 +115,13 @@
   margin-top: 0.5rem;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%);
-  color: #0a0a12;
-  border: none;
-  border-radius: 50px;
-  font-family: 'Syne', sans-serif;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: box-shadow var(--transition-fast), transform var(--transition-fast);
-}
-
-.btn-primary:hover:not(:disabled) {
-  box-shadow: 0 0 30px rgba(0, 240, 255, 0.4), 0 0 60px rgba(0, 240, 255, 0.2);
-  transform: translateY(-2px) scale(1.02);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 /* ── Auth Footer — Register / Login Link ─────────────────────── */
 
 .auth-footer {
   text-align: center;
   margin-top: 1.5rem;
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .auth-link {
@@ -169,5 +132,5 @@
 }
 
 .auth-link:hover {
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
+  text-shadow: 0 0 10px var(--glow-cyan);
 }

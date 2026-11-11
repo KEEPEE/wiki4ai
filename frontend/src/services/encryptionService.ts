@@ -1,12 +1,22 @@
 /**
- * Client-side encryption utility using Web Crypto API with fallback for insecure contexts.
+ * Client-side encryption utilities for the vault, with a fallback for insecure
+ * contexts (plain HTTP), where `crypto.subtle` is unavailable.
  *
- * Provides PBKDF2 key derivation and AES-256-GCM encrypt/decrypt operations
- * for securing vault data in the browser. Works on both HTTPS and HTTP.
+ * ## What this module is in WIKI4AI-197 D2
+ *
+ * The v1 half of the vault: base64 for the wire format, the v1 key derivation, and
+ * reading a v1 field. There is deliberately **no `encrypt` here any more.** v1
+ * encryption used to live here, and deleting it is the load-bearing change of the
+ * migration: a client that cannot produce v1 bytes cannot leave a vault half-migrated
+ * by accident, no matter which code path it takes. Reading v1 stays, because the
+ * existing rows are still in that format and only v1's shape can open them.
+ *
+ * v2 — the key hierarchy, the AAD, the per-field IV — is in `vaultCrypto.ts`.
  */
 
 import { cryptoApi } from './cryptoApi';
-import type { EncryptedVaultEntry } from '../types/vault';
+import type { EncryptedField } from '../types/vault';
+import type { V1DecryptKey } from './vaultCrypto';
 
 const PBKDF2_ITERATIONS = 100_000;
 
@@ -26,12 +36,12 @@ export function base64ToBytes(base64: string): Uint8Array {
 }
 
 /**
- * Derive an encryption key from a master password using PBKDF2.
- * Returns raw key bytes (Uint8Array) for use with cryptoApi.
+ * Derive the v1 key K1 = PBKDF2-SHA256(h, vault_salt, 100 000, 32 B).
  *
- * @param masterPassword - The user's master password
- * @param salt - Random salt bytes (should be at least 16 bytes)
- * @returns Raw encryption key bytes suitable for AES-GCM operations
+ * The `masterPassword` argument is `h`, the SHA-256 of the master password — that is
+ * what v1 was built with, so it is what opens existing rows. It is not what v2 uses:
+ * v2 derives from the raw password (see `vaultCrypto.deriveV2Kek`), which is the whole
+ * point of the migration.
  */
 export async function deriveKey(
   masterPassword: string,
@@ -41,40 +51,27 @@ export async function deriveKey(
 }
 
 /**
- * Encrypt plaintext data using AES-256-GCM.
- * Generates a new random IV for each encryption operation.
+ * Open one v1 field and hand back its plaintext **bytes**.
  *
- * @param data - The plaintext string to encrypt
- * @param keyBytes - The raw encryption key bytes from deriveKey()
- * @param iv - Optional explicit IV to use instead of generating a random one
- *   (the backend persists a single IV per vault entry, shared across its fields)
- * @returns EncryptedVaultEntry containing ciphertext (with tag) and iv
- */
-export async function encrypt(
-  data: string,
-  keyBytes: Uint8Array,
-  iv?: Uint8Array,
-): Promise<EncryptedVaultEntry> {
-  const result = await cryptoApi.encrypt(data, keyBytes, iv);
-
-  return {
-    ciphertext: result.ciphertextWithTag, // Tag is appended to ciphertext (Web Crypto API compatible)
-    iv: result.iv,
-  };
-}
-
-/**
- * Decrypt AES-256-GCM encrypted data.
+ * Bytes rather than a string, because the migration has to compare what it read with
+ * what it writes, and a `TextDecoder` round trip is not byte-preserving for input
+ * that is not well-formed UTF-8. Whoever needs text can decode it; whoever needs
+ * bytes still has them.
  *
- * @param ciphertext - The encrypted data bytes (with authentication tag appended)
- * @param iv - The initialization vector used during encryption
- * @param keyBytes - The raw encryption key bytes derived with the same password and salt
- * @returns The decrypted plaintext string, or null if decryption fails
+ * `null` means the tag did not verify — wrong key, wrong IV, or a field written under
+ * a different key. It never means "empty", and it must never be turned into a
+ * placeholder value: the previous version of this code substituted the literal
+ * `'[decryption failed]'`, the edit form prefilled it, and saving wrote it out as the
+ * user's password.
  */
-export async function decrypt(
-  ciphertext: Uint8Array,
-  iv: Uint8Array,
-  keyBytes: Uint8Array,
-): Promise<string | null> {
-  return cryptoApi.decrypt(ciphertext, iv, keyBytes);
+export async function decryptV1Bytes(
+  field: EncryptedField | null | undefined,
+  key: V1DecryptKey,
+): Promise<Uint8Array | null> {
+  if (!field?.ciphertext || !field.iv) return null;
+  return cryptoApi.decryptBytes(
+    base64ToBytes(field.ciphertext),
+    base64ToBytes(field.iv),
+    key,
+  );
 }

@@ -32,10 +32,23 @@ curl -X GET http://localhost:8080/api/health
 
 ### GET /api/v1/projects
 
-Zoznam všetkých projektov.
+Zoznam projektov. Od WIKI4AI-184 podporuje filter a poradie.
+
+| Parameter | Typ | Default | Význam |
+|---|---|---|---|
+| `sort` | string | `created_desc` | `manual` \| `name_asc` \| `name_desc` \| `created_asc` \| `created_desc` \| `updated_desc` |
+| `q` | string | – | case-insensitive filter na **názov + popis** projektu |
+| `visibility` | string | – | `public` \| `private` (inak obe) |
+
+**Vždy** platí, že pripnuté projekty (`pinned: true`) sú na vrchu a až potom nasleduje
+zvolený sort. Bez parametrov je poradie totožné s predchádzajúcou verziou
+(`created_at DESC`), len pinned projekty preskočia na vrch. Neznáma hodnota `sort`
+alebo `visibility` je 400 a chybová správa vypíše povolené hodnoty.
 
 ```bash
 curl -X GET http://localhost:8080/api/v1/projects
+curl -X GET "http://localhost:8080/api/v1/projects?sort=manual"
+curl -X GET "http://localhost:8080/api/v1/projects?sort=name_asc&q=wiki&visibility=public"
 ```
 
 **Odpoveď (200 OK):**
@@ -46,11 +59,81 @@ curl -X GET http://localhost:8080/api/v1/projects
     "name": "Moja Wiki",
     "slug": "moja-wiki",
     "description": "Prvý wiki projekt",
+    "parentSlug": null,
+    "depth": 1,
+    "documentCount": 3,
+    "ownerId": 1,
+    "visibility": "public",
+    "pinned": true,
+    "sortOrder": -1,
     "createdAt": "2026-05-18T10:00:00",
     "updatedAt": "2026-05-18T10:00:00"
   }
 ]
 ```
+
+`pinned` a `sortOrder` sú read-only — menia ich iba endpointy pin/unpin/reorder nižšie.
+`sortOrder` sa číta len pri `sort=manual`; nie je to spojitá číselná rada, ale pozícia
+v zozname, ktoré reorder prečísli husto 0..n-1. Položka práve vytvorená alebo práve
+pripnutá má pozíciu `min - 1` (teda zápornú) — je to zámer, aby bola na vrchu.
+
+---
+
+### POST /api/v1/projects/{slug}/pin
+
+Pripnú projekt na vrch všetkých zoznamov (WIKI4AI-184). Vyžaduje **MANAGE** oprávnenie;
+cudzí súkromný projekt vráti 404.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/pin \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Odpoveď (200 OK):** projekt s `pinned: true`.
+
+Pri prvom pripnutí projekt získa aj pozíciu nad súčasnou prvou položkou manuálneho
+poradia, takže je na vrchu aj pri `sort=manual`. Opakované pripnutie pozíciu nemení.
+`updatedAt` projektu sa **neposúva** — pin nie je editácia, a `updated_desc` je jeden
+zo sortov, takže by úprava času ticho prehodila zoznam, ktorý sa práve prehadzujú.
+
+---
+
+### POST /api/v1/projects/{slug}/unpin
+
+Odopnú projekt. `sortOrder` zostáva zachovaný, takže sa projekt vráti presne tam,
+kde bol pred pripnutím. Vyžaduje **MANAGE**.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/unpin \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### POST /api/v1/projects/{slug}/reorder
+
+Presunie projekt v manuálnom poradí (WIKI4AI-184). Vyžaduje **MANAGE**.
+Telo musí obsahovať **práve jeden** zo troch selektorov:
+
+| Telo | Význam |
+|---|---|
+| `{"beforeSlug": "iný-slug"}` | presun tesne pred tento projekt |
+| `{"afterSlug": "iný-slug"}` | presun tesne po tomto projekte |
+| `{"position": N}` | presun na absolútnu pozíciu (0-indexovanú) |
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/reorder \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"beforeSlug": "druhy-projekt"}'
+```
+
+**Odpoveď (200 OK):** presunutý projekt s novou hodnotou `sortOrder`.
+
+Po presunutí sa celý zoznam prečísla husto 0..n-1, takže uložený stav je vždy permutácia
+bez duplicit. `position` mimo rozsahu sa **zovrie** na hranicu (presun za koniec = drop na
+koniec), nie je to chyba. Presun relatívne k vlastnému slugu je no-op. Chyby:
+400 (telelo bez selektora alebo s viacerými), 404 (projekt neexistuje alebo kotva
+`beforeSlug`/`afterSlug` neexistuje), 403 (chýba MANAGE).
 
 ---
 
@@ -194,10 +277,23 @@ curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/documents \
 
 ### GET /api/v1/projects/{projectSlug}/documents
 
-Zoznam všetkých dokumentov v projekte.
+Paginovaný zoznam dokumentov v projekte. Od WIKI4AI-184 podporuje filter a poradie.
+
+| Parameter | Typ | Default | Význam |
+|---|---|---|---|
+| `page` | int | `0` | číslo stránky (0-indexované) |
+| `size` | int | `50` | veľkosť stránky (max 100) |
+| `sort` | string | `updated_desc` | `manual` \| `name_asc` \| `name_desc` \| `created_asc` \| `created_desc` \| `updated_desc` |
+| `q` | string | – | case-insensitive filter na **názov aj obsah** dokumentu |
+
+Pripnuté dokumenty sú vždy na vrchu. Poradie sa vyhodnocuje v SQL, preto je stabilné aj
+medzi stránkami — bez toho by `sort=manual` medzi stránkou 1 a 2 prehadzovalo riadky.
+Filter `q` zužuje aj `totalElements`, nie len riadky na stránke.
 
 ```bash
 curl -X GET http://localhost:8080/api/v1/projects/moja-wiki/documents
+curl -X GET "http://localhost:8080/api/v1/projects/moja-wiki/documents?sort=manual"
+curl -X GET "http://localhost:8080/api/v1/projects/moja-wiki/documents?sort=name_asc&q=routing&page=0&size=20"
 ```
 
 **Odpoveď (200 OK):**
@@ -208,6 +304,10 @@ curl -X GET http://localhost:8080/api/v1/projects/moja-wiki/documents
     "title": "Úvod",
     "slug": "uvod",
     "projectId": 1,
+    "visibility": "public",
+    "pinned": true,
+    "sortOrder": -1,
+    "linkedDocuments": [],
     "createdAt": "2026-05-18T10:15:00",
     "updatedAt": "2026-05-18T10:15:00"
   },
@@ -216,11 +316,65 @@ curl -X GET http://localhost:8080/api/v1/projects/moja-wiki/documents
     "title": "Architektúra",
     "slug": "architektura",
     "projectId": 1,
+    "visibility": "public",
+    "pinned": false,
+    "sortOrder": 0,
+    "linkedDocuments": [],
     "createdAt": "2026-05-18T10:20:00",
     "updatedAt": "2026-05-18T10:20:00"
   }
 ]
 ```
+
+---
+
+### POST /api/v1/projects/{projectSlug}/documents/{docSlug}/pin
+
+Pripnú dokument na vrch zoznamu v rámci projektu (WIKI4AI-184). Vyžaduje **UPDATE**
+oprávnenie v projekte.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/documents/uvod/pin \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Odpoveď (200 OK):** dokument s `pinned: true`.
+
+Dôležité: `version` (optimistické blokovanie, WIKI4AI-72) sa **nenavyšuje** a `updatedAt`
+sa neposúva. Pin ani reorder sa totiž ukladajú priamym UPDATE v repozitári, nie
+load-and-save — inak by prehadzovanie dokumentov v bočnom paneli rozbilo práve prebiehajúcu
+editáciu obsahu toho istého dokumentu chybovou 409.
+
+---
+
+### POST /api/v1/projects/{projectSlug}/documents/{docSlug}/unpin
+
+Odopnú dokument. `sortOrder` zostáva zachovaný. Vyžaduje **UPDATE**. `version` sa
+nenavyšuje.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/documents/uvod/unpin \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### POST /api/v1/projects/{projectSlug}/documents/{docSlug}/reorder
+
+Presunie dokument v manuálnom poradí **v rámci jeho projektu** (WIKI4AI-184).
+Vyžaduje **UPDATE**. Telo má rovnakú semantiku ako reorder projektu — práve jeden zo
+selektorov `beforeSlug` / `afterSlug` / `position`:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/projects/moja-wiki/documents/uvod/reorder \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"afterSlug": "architektura"}'
+```
+
+**Odpoveď (200 OK):** presunutý dokument s novou hodnotou `sortOrder`.
+
+Poradie dokumentov projektu sa prečísla husto 0..n-1. Kotou môže byť iba dokument
+z toho istého projektu — cudzí slug je 404. `version` sa ani tu nenavyšuje.
 
 ---
 

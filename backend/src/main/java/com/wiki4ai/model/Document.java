@@ -119,6 +119,44 @@ public class Document {
     private String visibility;
 
     /**
+     * Whether this document is pinned to the top of the project's list (WIKI4AI-184).
+     * A display concern only — it never affects visibility or permissions.
+     * <p>
+     * Written by a JPQL UPDATE in {@code DocumentRepository}, never by load-and-save:
+     * this entity carries {@code @Version} (WIKI4AI-72), so saving it for a pin would
+     * bump the version and make an editor's concurrent save fail with 409 for a change
+     * that touched no content. The same reasoning keeps {@code updatedAt} unchanged —
+     * pinning is not editing.
+     * <p>
+     * {@code updatable = false} (WIKI4AI-197): a content save writes the whole entity back,
+     * and without this it would also write the {@code pinned} value read at load time,
+     * silently reverting a pin made in between. See {@link #sortOrder} for the full story.
+     */
+    @Column(name = "pinned", nullable = false, updatable = false)
+    @Builder.Default
+    private boolean pinned = false;
+
+    /**
+     * Position inside the manual ordering of its project (WIKI4AI-184), dense 0..n-1
+     * and maintained by the reorder endpoint. Scoped to the project: the document list
+     * is always nested under one project, and so is the index that backs this column.
+     * Only {@code sort=manual} reads it; ties are broken by {@code id} so the order is
+     * total and stable across pages. Same {@code @Version} caveat as
+     * {@link #pinned}: written by JPQL UPDATE.
+     * <p>
+     * Both columns are {@code updatable = false} (WIKI4AI-197). A content save loads the
+     * whole entity and writes it back; without this, that UPDATE would carry the
+     * {@code pinned}/{@code sort_order} values as they were when the row was read, and a
+     * pin or a drag made in between would be silently reverted. The version check does not
+     * catch it — pinning deliberately does not bump {@code @Version}. Hibernate leaves
+     * non-updatable columns out of the UPDATE statement entirely, so the only writers are
+     * the JPQL bulk updates in {@code DocumentRepository}.
+     */
+    @Column(name = "sort_order", nullable = false, updatable = false)
+    @Builder.Default
+    private int sortOrder = 0;
+
+    /**
      * Generate a URL-friendly slug from the document title.
      * Transliterates diacritics (e.g., "ú" → "u") then strips remaining non-ASCII chars.
      * Examples: "My Document" → "my-document", "Úvod do Wiki4AI" → "uvod-do-wiki4ai"
@@ -202,6 +240,26 @@ public class Document {
      */
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    /**
+     * Set the pinned flag (WIKI4AI-184). Used by tests and when building a new row;
+     * the production write path is the JPQL UPDATE in {@code DocumentRepository}, which
+     * neither bumps {@code @Version} nor moves {@code updatedAt}. On a row Hibernate is
+     * already tracking this setter changes the field in memory only — the column is
+     * {@code updatable = false}, so it is not written back.
+     */
+    public void setPinned(boolean pinned) {
+        this.pinned = pinned;
+    }
+
+    /**
+     * Set the manual position (WIKI4AI-184). Same note as {@link #setPinned(boolean)}:
+     * the reorder endpoint writes it with a JPQL UPDATE, and on a managed row this setter
+     * is in-memory only.
+     */
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     /**

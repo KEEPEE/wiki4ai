@@ -24,11 +24,18 @@ export interface ToastItem {
 }
 
 /* ── Accent bar gradient per type ─────────────────────────────── */
+const AUTO_DISMISS_MS = 5000;
 
+
+/* WIKI4AI-194 (DIZ-3 item 7): tri hex gradienty mimo tokens.css
+   (#065f46/#16a34a, #dc2626/#ef4444). Accent lista je 4px INDIKATOR,
+   preto top vrstva pouziva --color-*-text — sýtu farbu, ktorá v každej
+   identite spĺňa 3:1 (1.4.11) na sklenom paneli. --accent pri info tipe
+   bol fialový slot, ktorý v glass-light nie je info farba. */
 const accentGradients: Record<ToastType, string> = {
-  success: 'linear-gradient(180deg, #065f46 0%, #16a34a 100%)',
-  error:   'linear-gradient(180deg, #dc2626 0%, #ef4444 100%)',
-  info:    'linear-gradient(180deg, var(--primary) 0%, var(--accent) 100%)',
+  success: 'linear-gradient(180deg, var(--color-success-text) 0%, var(--color-success-border) 100%)',
+  error:   'linear-gradient(180deg, var(--color-error-text) 0%, var(--color-error-border) 100%)',
+  info:    'linear-gradient(180deg, var(--color-info-text) 0%, var(--color-info-border) 100%)',
 };
 
 /* ── ToastItem component ─────────────────────────────────────── */
@@ -60,23 +67,40 @@ const ToastItemComponent: React.FC<ToastItemProps> = ({ item, onDismiss }) => {
     scheduleTimer(() => onDismiss(item.id), 300); // wait for slide-out animation
   }, [item.id, onDismiss, scheduleTimer]);
 
+  /* WIKI4AI-195 (DIZ-4 item 7, WCAG 2.2.1 Timing Adjustable): chybovy
+   * toast zmizal po 5 s. Človek, ktorému čítačka hlásku stíha neskoro,
+   * alebo klávesnica, ktorá sa k toastu dostane až po odtabovaní panela —
+   * tí by správu NIČIL a nemohli by ju vrátiť. Error sa preto
+   * nautodimissuje vôbec; mizne len na požiadanie. (Success a info sú
+   * potvrdenia — ich strata nič neblokuje.) */
   useEffect(() => {
-    // Auto-dismiss after 5 seconds (configurable)
-    scheduleTimer(startSlideOut, 5000);
+    if (item.type === 'error') {
+      return () => {
+        timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+        timersRef.current = [];
+      };
+    }
+
+    scheduleTimer(startSlideOut, AUTO_DISMISS_MS);
 
     return () => {
       timersRef.current.forEach((timerId) => window.clearTimeout(timerId));
       timersRef.current = [];
     };
-  }, [item.id, onDismiss, scheduleTimer, startSlideOut]);
+  }, [item.id, item.type, onDismiss, scheduleTimer, startSlideOut]);
 
   const handleDismiss = () => startSlideOut();
 
   return (
     <div
       className={`toast toast-${item.type} ${isExiting ? 'toast-exit' : ''}`}
-      role="alert"
-      aria-live="polite"
+      /* WIKI4AI-195 (DIZ-4 item 7): role="alert" IMPLIKUJE
+       * aria-live="assertive", takže explicitné aria-live="polite" ho
+       * priamo rozporovalo a implementácie sa nezhodujú, ktorá vyhráva.
+       * Delene podľa typu: error = alert (preruší), success/info = status
+       * (nepreruší). aria-live sa nedáva vôbec — zdrojom pravdy je role. */
+      role={item.type === 'error' ? 'alert' : 'status'}
+      data-testid={`toast-${item.type}`}
     >
       {/* Neon accent bar */}
       <span

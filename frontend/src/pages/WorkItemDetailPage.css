@@ -211,7 +211,7 @@
 .wi-event-claimed {
   background: rgba(157, 78, 221, 0.12);
   border-color: rgba(157, 78, 221, 0.4);
-  color: #d8b4fe;
+  color: var(--accent);
 }
 
 /* lease_expired is the entry a human must not miss: own colour, own border. */
@@ -476,7 +476,7 @@
 .board-kind-decision {
   background: rgba(157, 78, 221, 0.12);
   border-color: rgba(157, 78, 221, 0.4);
-  color: #d8b4fe;
+  color: var(--accent);
 }
 
 .presence-dot {
@@ -488,16 +488,16 @@
 }
 
 .presence-active {
-  background: #34d399;
+  background: var(--success);
   box-shadow: 0 0 6px rgba(52, 211, 153, 0.6);
 }
 
 .presence-paused {
-  background: #fbbf24;
+  background: var(--warning);
 }
 
 .presence-archived {
-  background: #6b7280;
+  background: var(--text-muted);
 }
 
 .wi-loading,

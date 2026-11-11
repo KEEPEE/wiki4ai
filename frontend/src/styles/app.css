@@ -1,0 +1,43 @@
+/*
+ * app.css — vrstva aplikácie (WIKI4AI-192, DIZ-1)
+ * ================================================
+ * Importuje sa z `globals.css` NAPOSLEDY: pravidlá tu prepisujú `base.css`
+ * aj `components.css` s rovnakou špecifickosťou, preto je poradie súčastťou
+ * dizajnu. Farby výhradne z `tokens.css`.
+ */
+
+/* ===== Brand Name — gradientový wordmark ===== */
+
+.brand-name {
+  font-weight: 600;
+  font-size: 52px;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== Section Title — gradientový nadpis ===== */
+
+.section-title {
+  font-weight: 600;
+  font-size: 42px;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ===== Text hierarchy utility triedy =====
+ * Historické pomenovanie je posunuté o jeden stupeň (--text-primary v sebe
+ * nesie --text-2), zachováva sa pre 46 stránkových CSS bez polovičatého mixu. */
+
+.text-secondary {
+  color: var(--text-muted);
+}
+
+.text-primary {
+  color: var(--text-secondary);
+}

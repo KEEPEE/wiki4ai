@@ -21,7 +21,10 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import Editor, { loader } from '@monaco-editor/react';
+import { useTheme } from '../theme/useTheme';
+import type { ThemeId } from '../theme/themes';
 import type { editor } from 'monaco-editor';
 import * as monaco from 'monaco-editor';
 import MarkdownToolbar from './MarkdownToolbar';
@@ -110,7 +113,9 @@ export const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
   colors: {
     'editor.background': '#12121f',
     'editor.foreground': '#e8e8f0',
-    'editor.lineNumberForeground': '#666666',
+    /* DIZ-4 item 9 (WIKI4AI-195, WCAG 1.4.3): císla riadkov su TEXT, nie
+     * dekoracia — 4.5:1 na ne plati. #666666 na #12121f bolo 3.23:1. */
+    'editor.lineNumberForeground': '#8a8aa0',
     'editorCursor.foreground': '#00f0ff',
     // WIKI4AI-83: hex8 (#RRGGBBAA) equivalents of the old rgba() values — see the
     // fromHex/#ff0000 note in the header comment above.
@@ -130,6 +135,111 @@ export const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
 };
 
 /**
+ * WIKI4AI-185: Monaco MUSÍ prepínať s témou WebUI — inak by v light téme
+ * zostal tmavý editor (biely text na bielom) a naopak.
+ *
+ * Palety sú RUČNE napísané hex hodnoty, NIE odčítané z CSS tokenov: Monaco
+ * `colors` akceptuje len #RRGGBB / #RRGGBBAA (WIKI4AI-83) a `getComputedStyle`
+ * vracia rgba()/oklch(), ktoré by Monaco zahodilo na červenú. Držiame preto
+ * parity s tokenmi v globals.css (svetlé odtiene majú WCAG AA na #ffffff,
+ * tmavé na svojom pozadí).
+ */
+
+/** deep-forest Glass Admin (data-theme="dark") — emerald + gold. */
+export const WIKI4AI_FOREST_THEME: editor.IStandaloneThemeData = {
+  base: 'vs-dark',
+  inherit: true,
+  rules: [
+    { token: '', foreground: 'F5F5F4', background: '132419' },
+    { token: 'keyword.md', foreground: '34D399' },
+    { token: 'keyword.table.header.md', foreground: 'FFFFFF' },
+    { token: 'strong.md', foreground: 'FFFFFF' },
+    { token: 'emphasis.md', foreground: 'E8C9A0' },
+    { token: 'variable.md', foreground: 'FFD08A' },
+    { token: 'variable.source.md', foreground: 'FFD08A' },
+    { token: 'string.md', foreground: 'FFD08A' },
+    { token: 'string.link.md', foreground: '34D399' },
+    { token: 'comment.md', foreground: '9AA0B5' },
+    { token: 'meta.separator.md', foreground: '7D8497' },
+    { token: 'tag.md', foreground: 'E0A899' },
+  ],
+  colors: {
+    'editor.background': '#132419',
+    'editor.foreground': '#f5f5f4',
+    /* DIZ-4 item 9: #6b7a72 na #132419 bolo 3.59:1, pod 4.5:1. */
+    'editor.lineNumberForeground': '#8fa39a',
+    'editorCursor.foreground': '#34d399',
+    'editor.selectionBackground': '#34D39933',
+    'editor.findWidget.background': '#34D3991A',
+    'editor.findWidget.foreground': '#34d399',
+    'scrollbarSlider.background': '#34D3991F',
+    'scrollbarSlider.hoverBackground': '#34D39940',
+    'editor.lineHighlightBackground': '#34D39914',
+    'editorBracketHighlight.unexpectedBracket.foreground': '#F5F5F4',
+  },
+};
+
+/** Glass Admin light (data-theme="light") — tmavý text na bielej. */
+export const WIKI4AI_LIGHT_THEME: editor.IStandaloneThemeData = {
+  base: 'vs',
+  inherit: true,
+  rules: [
+    { token: '', foreground: '1A1A1A', background: 'FFFFFF' },
+    { token: 'keyword.md', foreground: '047857' },
+    { token: 'keyword.table.header.md', foreground: '0D0D0D' },
+    { token: 'strong.md', foreground: '0D0D0D' },
+    { token: 'emphasis.md', foreground: '6D28D9' },
+    { token: 'variable.md', foreground: '92400E' },
+    { token: 'variable.source.md', foreground: '92400E' },
+    { token: 'string.md', foreground: '92400E' },
+    { token: 'string.link.md', foreground: '0369A1' },
+    { token: 'comment.md', foreground: '57606A' },
+    { token: 'meta.separator.md', foreground: '6B7280' },
+    { token: 'tag.md', foreground: 'BE185D' },
+  ],
+  colors: {
+    'editor.background': '#ffffff',
+    'editor.foreground': '#1a1a1a',
+    /* DIZ-4 item 9: #9aa0a6 na cisto bielom #ffffff bolo 2.64:1 — najhorsie
+     * cislo z celej appky. #6b7280 je 4.83:1 a drzi chladny odtien, ktory
+     * ma aj zvysok light palety. */
+    'editor.lineNumberForeground': '#6b7280',
+    'editorCursor.foreground': '#047857',
+    'editor.selectionBackground': '#05966933',
+    'editor.findWidget.background': '#F1F8E9',
+    'editor.findWidget.foreground': '#047857',
+    'scrollbarSlider.background': '#0596691F',
+    'scrollbarSlider.hoverBackground': '#05966940',
+    'editor.lineHighlightBackground': '#05966914',
+    'editorBracketHighlight.unexpectedBracket.foreground': '#1A1A1A',
+  },
+};
+
+/**
+ * Mapovanie téma WebUI → Monaco (WIKI4AI-192, DIZ-1).
+ *
+ * `wiki4ai-dark` je od DIZ-1 paleta DEFAULT témy glass-dark (deep forest +
+ * emerald), nie Nexaverse: meno označuje „tmavú identitu aplikácie“, a tou
+ * je od DIZ-1 glass-dark. Neon paleta má vlastné meno `wiki4ai-neon`.
+ * Testy, ktoré tvrdia „používa wiki4ai-dark“, preto ostanú platné — len
+ * pod tým myslia default, nie Nexaverse.
+ */
+export /* macOS má Monaco viazané na inú klávesu — Ctrl+Cmd+M by bolo
+ * klamné. navigator.platform je deprecated, ale ostava jediná
+ * synchronne dostupna hodnota; userAgent je fallback. */
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  (/Mac|iPhone|iPad|iPod/.test((navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData?.platform ?? '') ||
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform ?? '') ||
+    /Mac OS X/.test(navigator.userAgent));
+
+const MONACO_THEME_BY_APP_THEME: Record<ThemeId, string> = {
+  'glass-dark': 'wiki4ai-dark',
+  'glass-light': 'wiki4ai-light',
+  nexaverse: 'wiki4ai-neon',
+};
+
+/**
  * Register the wiki4ai-dark theme on the Monaco instance loaded by
  * @monaco-editor/react (CDN by default). Resolves once the theme exists on
  * that instance so the editor can be rendered with it from first paint.
@@ -137,7 +247,11 @@ export const WIKI4AI_DARK_THEME: editor.IStandaloneThemeData = {
 function registerWiki4aiTheme(): Promise<void> {
   return loader.init().then((loadedMonaco) => {
     try {
-      loadedMonaco.editor.defineTheme('wiki4ai-dark', WIKI4AI_DARK_THEME);
+      // WIKI4AI-185: definujeme naraz všetky 3 — prepínanie témy potom nemusí
+      // registrovať za behu a editor sa prepnú okamžite.
+      loadedMonaco.editor.defineTheme('wiki4ai-dark', WIKI4AI_FOREST_THEME);
+      loadedMonaco.editor.defineTheme('wiki4ai-neon', WIKI4AI_DARK_THEME);
+      loadedMonaco.editor.defineTheme('wiki4ai-light', WIKI4AI_LIGHT_THEME);
     } catch {
       // Theme already defined (e.g. hot reload) — non-fatal
     }
@@ -153,6 +267,11 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   // determined by the viewport-bounded flex chain, independent of the Monaco
   // wrapper's explicit pixel height (see file header).
   const hostRef = useRef<HTMLDivElement>(null);
+  // WIKI4AI-185: Monaco paleta sleduje tému WebUI (light → svetlá, dark/nexaverse
+  // → tmavá). Bez toho by bol editor v light téme čierny blok.
+  const { theme: appTheme } = useTheme();
+  const { t } = useTranslation();
+  const monacoTheme = MONACO_THEME_BY_APP_THEME[appTheme];
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const [editorHeight, setEditorHeight] = useState<number>(600);
   // Gate: only render the Monaco Editor once wiki4ai-dark is registered on
@@ -302,7 +421,7 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               onChange={handleEditorChange}
               onMount={handleEditorMount}
               height={editorHeight}
-              theme="wiki4ai-dark"
+              theme={monacoTheme}
               options={{
                 minimap: { enabled: false },
                 lineNumbers: 'on',
@@ -336,6 +455,20 @@ const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
               } as editor.IStandaloneEditorConstructionOptions}
             />
           </div>
+
+          {/* WIKI4AI-195 (DIZ-4 item 10, WCAG 2.1.2 No Keyboard Trap):
+              Monaco berie Tab a vkladá medzerník — klávesnica sa z neho
+              nedostane. Únik je editor.action.toggleTabFocusMode; overené
+              v zdroji monaco-editor 0.55.1
+              (esm/vs/editor/contrib/toggleTabFocusMode/browser/
+               toggleTabFocusMode.js): primary = CtrlCmd|KeyM, mac =
+              WinCtrl|Shift|KeyM. Príslove je skryté, preto ho musime
+              VYPIŠOVAŤ — 2.1.2 vyžaduje, aby spôsob úniku bol známy. */}
+          <p className="editor-keyboard-hint" data-testid="editor-keyboard-hint">
+            {t('editor.tabHint', {
+              key: IS_MAC ? t('editor.tabHintMac') : t('editor.tabHintWin'),
+            })}
+          </p>
         </>
       )}
     </div>

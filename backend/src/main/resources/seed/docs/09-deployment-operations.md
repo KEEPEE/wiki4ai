@@ -8,14 +8,29 @@ A full wiki4ai stack consists of six containers on one Docker network. Three are
 
 | Container | Image | Host port (local compose) | Purpose | Required? |
 |---|---|---|---|---|
-| `db` | `pgvector/pgvector:pg16` | `5432→5432` (remap freely) | PostgreSQL 16 + pgvector. Source of truth: users, tokens, projects, documents, embeddings, vault. | Yes |
-| `backend` | built from source (`./backend`) or `<your-registry>/wiki4ai/backend:<tag>` | `8080→8080` (remap freely) | Spring Boot REST API; runs Flyway migrations on startup; issues JWTs. | Yes |
+| `db` | `pgvector/pgvector:pg16` | — (internal :5432) | PostgreSQL 16 + pgvector. Source of truth: users, tokens, projects, documents, embeddings, vault. Only the backend needs it, and it reaches it by service name. | Yes |
+| `backend` | built from source (`./backend`) or `<your-registry>/wiki4ai/backend:<tag>` | — (internal :8080) | Spring Boot REST API; runs Flyway migrations on startup; issues JWTs. Reached through the frontend's nginx, which proxies `/api/v1` and `/actuator/`. | Yes |
 | `frontend` | built from source (`./frontend`) or `<your-registry>/wiki4ai/frontend:<tag>` | `80→80` (remap freely) | React SPA served by nginx, which also reverse-proxies `/api/v1`, `/actuator/` and `/plantuml/`. | Yes |
-| `embedding` | built from source (`./embedding`) or `<your-registry>/wiki4ai/embedding:<tag>` | `8030→8030` (remap freely) | Qwen3-Embedding-0.6B int8 ONNX sidecar (dim 1024, batch ≤ 4). Powers semantic search. | No — without it search is text-only |
+| `embedding` | built from source (`./embedding`) or `<your-registry>/wiki4ai/embedding:<tag>` | — (internal :8030) | Qwen3-Embedding-0.6B int8 ONNX sidecar (dim 1024, batch ≤ 4). Powers semantic search. It has no authentication of its own, so it is deliberately not published. | No — without it search is text-only |
 | `kroki` | `yuzutech/kroki:0.32.1` | — (internal :8000) | Stateless PlantUML renderer; nginx proxies `/plantuml/` to it, so no host port is exposed. | No — without it PlantUML blocks show an error card |
 | `mcp` | built from source (`./mcp-server`) or `<your-registry>/wiki4ai/mcp:<tag>` | `8099→8095` (remap freely) | MCP server (SSE transport) exposing the wiki API to AI agents. | No — WebUI is unaffected without it |
 
 Container ports (`80`, `8080`, `5432`, `8030`, `8095`) are fixed; the host side can be remapped freely in your compose file.
+
+**Only two ports are published in the reference compose file: `80` (the WebUI and the API
+behind nginx) and `8099` (the MCP SSE endpoint, which exists to be reached from another
+machine).** The database, the backend and the embedding sidecar are reachable inside the
+compose network by service name and are not bound on the host. Each one that was published
+used to be a second, unproxied door: the API bypassing nginx's rules, an unauthenticated
+inference endpoint, and a database with a default password on every interface of the host.
+
+To reach one from the host for debugging, publish it for a single run instead of adding it
+back to the file:
+
+```bash
+docker compose exec backend curl -s localhost:8080/actuator/health   # no publish needed
+docker compose exec db psql -U wiki4ai -d wiki4ai -c '\dt'           # no publish needed
+docker compose run --rm -p 8080:8080 backend                          # when you really need the host
 
 ```mermaid
 flowchart LR
@@ -28,9 +43,9 @@ flowchart LR
         MCP["mcp<br/>SSE :8095 (optional)"]
     end
     BROWSER["Browser — WebUI"] -->|":80"| FE
-    API["API clients / Swagger UI"] -->|":8080"| BE
+    API["API clients / Swagger UI"] -->|":80 via nginx /api/v1"| BE
     AGENT["AI agents (MCP client)"] -->|":8099"| MCP
-    OPS["Operator"] -->|":8030 /health"| EMB
+    OPS["Operator"] -->|"docker compose exec"| BE
     FE -->|"/api/v1, /actuator/"| BE
     FE -->|"/plantuml/"| KROKI
     BE -->|"JDBC (pool 20)"| DB
@@ -98,7 +113,7 @@ All configuration is passed as environment variables; there are no config files 
 | `SPRING_DATASOURCE_USERNAME` | `wiki4ai` (postgres profile) | backend | DB user; must match `POSTGRES_USER`. |
 | `SPRING_DATASOURCE_PASSWORD` | none — must be set | backend | DB password; must match `POSTGRES_PASSWORD` on the db service. |
 | `SPRING_JPA_HIBERNATE_DDL_AUTO` | `validate` (postgres profile) | backend | The repo's local compose overrides this to `update`; schema itself is owned by Flyway. |
-| `JWT_SECRET` | `your-secret-key-change-in-production` (insecure placeholder) | backend | HMAC secret for access + refresh JWTs. Must be a long random string; see [JWT secret & rotation](#jwt_secret--rotation). |
+| `JWT_SECRET` | none — **the backend refuses to start without it** | backend | HMAC secret for access + refresh JWTs. Must be a long random string (32+ bytes); the old insecure placeholder default is now rejected outright, as is anything shorter than 32 bytes. See [JWT secret & rotation](#jwt_secret--rotation). |
 | `EMBEDDING_BASE_URL` | `http://localhost:8030` | backend | Base URL of the embedding sidecar; compose sets `http://embedding:8030`. When unreachable, search degrades to text-only (never a hard failure). |
 | `UPLOAD_DIR` | `/uploads` | backend | Directory for user-uploaded images; bind-mount it to a host path (`./uploads`) or it is lost on container recreation. |
 | `MULTIPART_MAX_FILE_SIZE` | `10MB` | backend | Max size of one uploaded file (images). |
@@ -110,7 +125,7 @@ All configuration is passed as environment variables; there are no config files 
 | `POSTGRES_USER` | — (set in compose: `wiki4ai`) | db | Superuser created on first start. |
 | `POSTGRES_PASSWORD` | none — must be set | db | Password for `POSTGRES_USER`; must match `SPRING_DATASOURCE_PASSWORD`. |
 | `PGDATA` | `/var/lib/postgresql/data` (image default) | db | Data directory inside the container. |
-| `MCP_JWT_TOKEN` | empty (open mode) | mcp | Bearer credential required to reach the MCP SSE endpoint. See [MCP gated vs open](#mcp_jwt_token-gated-vs-open). The repo's local compose passes `${MCP_JWT_TOKEN:-}` — set it in your `.env` to gate the endpoint. |
+| `MCP_JWT_TOKEN` | **none — compose refuses to start without it** | mcp | Bearer credential required to reach the MCP SSE endpoint. See [MCP gated vs open](#mcp_jwt_token-gated-vs-open). The repo's compose declares it as `${MCP_JWT_TOKEN:?…}` because an empty value means OPEN, and the MCP port is published on the host: an open, unauthenticated endpoint that can read and write the wiki is the whole API exposed. Set a real token in `.env`. |
 | `EMBED_MAX_BATCH` | `4` | embedding | Max texts per `/embed` request (also the backend's batch size). |
 | `EMBED_MAX_TOKENS` | `512` | embedding | Max tokens per input text; longer inputs are truncated. |
 
@@ -120,7 +135,7 @@ Fixed (non-environment) values that operators should know: access-token expiry *
 
 ### JWT_SECRET & rotation
 
-`JWT_SECRET` signs both access tokens (24 h) and refresh tokens (7 d). The built-in default is a public placeholder — **replace it before any real deployment**. Rotation implications: the backend is stateless, so changing the secret does not invalidate anything on its own *until* tokens are re-validated against the new key — in practice **every existing access and refresh token becomes invalid immediately** and all users (and MCP clients using a stored JWT) must authenticate again. Keep the value stable across upgrades; store it only in the host compose file or environment, never in the repository.
+`JWT_SECRET` signs both access tokens (24 h) and refresh tokens (7 d). **There is no default.** An unset `JWT_SECRET`, one shorter than 32 bytes, or the old public placeholder (`your-secret-key-change-in-production`) makes the backend refuse to start rather than serve traffic under a key anyone could know — an HMAC signature is only as secret as its key, so a committed default means every account, admin included, could be impersonated by forging a token. The placeholder is 36 bytes, which is why a length check alone would not have caught it and why it is refused by value as well. Rotation implications: the backend is stateless, so changing the secret does not invalidate anything on its own *until* tokens are re-validated against the new key — in practice **every existing access and refresh token becomes invalid immediately** and all users (and MCP clients using a stored JWT) must authenticate again. Keep the value stable across upgrades; store it only in the host compose file or environment, never in the repository.
 
 ### AUTH_REGISTRATION_OPEN (tri-state)
 
@@ -274,6 +289,6 @@ wiki4ai is built so that only the database and backend are hard dependencies; ev
 - **Stateless JWTs, no server-side sessions.** Access tokens live 24 h; refresh tokens are persisted in the database (7 d) and are single-active per user — each login replaces the previously stored token, so a leaked refresh token stops working at the next login of that account.
 - **Registration is closed by default** after the first account exists; all further accounts are admin-managed with an explicit `USER`/`ADMIN` role. Keep it that way unless you deliberately want public signup.
 - **Run MCP in gated mode** on any instance reachable beyond a trusted LAN: set `MCP_JWT_TOKEN` so the SSE endpoint requires a Bearer credential. The MCP server authenticates to the backend with its own valid wiki JWT, so gate the transport, not the identity.
-- **Secrets live in the host compose file / environment — never in the repository.** The repo's compose file ships placeholder defaults (`wiki4ai`/`wiki4ai`, `your-secret-key-change-in-production`) that exist for local development and must be replaced with strong values before any real deployment.
+- **Secrets live in the host compose file / environment — never in the repository.** Three variables have no default at all and `docker compose up` stops with a message naming the one to set until you put real values in `.env`: `JWT_SECRET`, `POSTGRES_PASSWORD` and `MCP_JWT_TOKEN`. A placeholder that silently works is worse than a missing value, because nobody is ever told to choose a real one — `wiki4ai`/`wiki4ai` shipped as DB defaults for exactly that reason. `POSTGRES_PASSWORD` is also what the backend logs in with (the same variable, so the two cannot drift apart). A signing key that is committed to the repository is not a key — anyone can mint a token for any account, including an admin one.
 - **Rotate `JWT_SECRET` only deliberately** — it forces a re-login for every user and client (see [Troubleshooting](#troubleshooting)).
 - Uploaded images are served **only to authenticated users** (login-only policy); anonymous visitors cannot fetch them even with the direct URL.

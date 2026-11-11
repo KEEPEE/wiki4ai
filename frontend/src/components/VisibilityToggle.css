@@ -5,10 +5,10 @@
 
 .visibility-toggle {
   display: inline-flex;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-strong);
 }
 
 .visibility-option {
@@ -26,17 +26,17 @@
 }
 
 .visibility-option + .visibility-option {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--glass-border);
 }
 
 .visibility-option:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-strong);
 }
 
 .visibility-option-active {
   color: var(--text-primary);
-  background: rgba(0, 240, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
+  background: var(--glow-cyan);
+  box-shadow: inset 0 0 0 1px var(--glow-cyan);
 }
 
 .visibility-option-active[aria-pressed='true'] {

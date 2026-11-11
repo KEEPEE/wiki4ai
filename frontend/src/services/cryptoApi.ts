@@ -15,6 +15,24 @@
  * key derivation on every non-HTTPS deployment. Do not reintroduce a
  * hand-rolled implementation - use audited libraries for anything
  * security-sensitive.
+ *
+ * ## Everything here works on bytes, not strings (WIKI4AI-197 D2)
+ *
+ * The v1 helpers used to take a string in and hand a string back, decoding the
+ * plaintext with `new TextDecoder()` and returning `null` on failure. Both details
+ * cost the migration its correctness:
+ *
+ * - A plaintext is a byte sequence, and `TextDecoder` is lossy in one direction: it
+ *   replaces ill-formed sequences with U+FFFD, so bytes in and bytes out are not the
+ *   same sequence. Re-encrypting the output of a decode therefore changes the data.
+ *   v1 → v2 migrates the *bytes*, and only bytes can be compared byte-for-byte after
+ *   the round trip to prove nothing changed.
+ * - Returning `null` instead of throwing is survivable for a caller that checks, and
+ *   fatal for one that does not: the previous caller substituted the literal
+ *   `'[decryption failed]'`, showed it in the edit form, and saved it back as the
+ *   user's password. The `null` stays (throwing across this boundary would be a
+ *   bigger change than it is worth) but the type now says `Uint8Array | null`, so a
+ *   caller has to decide what a failure means before it can use the value.
  */
 
 import { sha256 as nobleSha256 } from '@noble/hashes/sha2.js';
@@ -23,6 +41,31 @@ import { gcm } from '@noble/ciphers/aes.js';
 
 // Check if Web Crypto API is available
 const hasWebCrypto = typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined';
+
+/** AES-GCM IV length in bytes, for both WebCrypto and the noble fallback. */
+const IV_BYTES = 12;
+
+export interface EncryptBytesResult {
+  /** Ciphertext with the 16-byte GCM tag appended, as WebCrypto emits it. */
+  ciphertextWithTag: Uint8Array;
+  /** The IV that was used - generated when the caller did not supply one. */
+  iv: Uint8Array;
+}
+
+export interface EncryptBytesOptions {
+  /**
+   * Reuse a specific IV. v1 needs this because the backend stores one IV per row and
+   * shares it across the row's fields; v2 never passes it, precisely so that each
+   * field gets its own.
+   */
+  iv?: Uint8Array;
+  /**
+   * Additional authenticated data: bound into the tag but not encrypted. v2 puts the
+   * row and field identity here so a ciphertext cannot be moved between fields or
+   * rows without the tag failing.
+   */
+  aad?: Uint8Array;
+}
 
 /**
  * Crypto interface that works in both secure and insecure contexts.
@@ -67,10 +110,19 @@ export const cryptoApi = {
     return noblePbkdf2(nobleSha256, encoder.encode(password), salt, { c: iterations, dkLen: 32 });
   },
 
-  async encrypt(data: string, keyBytes: Uint8Array, providedIv?: Uint8Array): Promise<{ ciphertextWithTag: Uint8Array; iv: Uint8Array }> {
-    const encoder = new TextEncoder();
-    const plaintext = encoder.encode(data);
-    const iv = providedIv ?? crypto.getRandomValues(new Uint8Array(12));
+  /**
+   * AES-256-GCM over raw bytes.
+   *
+   * The plaintext is never encoded or decoded here. Whoever holds the bytes decides
+   * what they mean, which is what lets a migration prove it moved them unchanged.
+   */
+  async encryptBytes(
+    data: Uint8Array,
+    keyBytes: Uint8Array,
+    options: EncryptBytesOptions = {}
+  ): Promise<EncryptBytesResult> {
+    const iv = options.iv ?? crypto.getRandomValues(new Uint8Array(IV_BYTES));
+    const aad = options.aad;
 
     if (hasWebCrypto) {
       const key = await crypto.subtle.importKey(
@@ -82,19 +134,29 @@ export const cryptoApi = {
       );
 
       const ciphertextBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: iv as BufferSource },
+        { name: 'AES-GCM', iv: iv as BufferSource, additionalData: aad as BufferSource | undefined },
         key,
-        plaintext
+        data as BufferSource
       );
 
       return { ciphertextWithTag: new Uint8Array(ciphertextBuffer), iv };
     }
 
-    const ciphertextWithTag = gcm(keyBytes, iv).encrypt(plaintext);
+    const ciphertextWithTag = gcm(keyBytes, iv, aad).encrypt(data);
     return { ciphertextWithTag, iv };
   },
 
-  async decrypt(ciphertextWithTag: Uint8Array, iv: Uint8Array, keyBytes: Uint8Array): Promise<string | null> {
+  /**
+   * AES-256-GCM decrypt, returning the plaintext bytes or `null` if the tag does not
+   * verify. `null` means "these bytes are not this ciphertext under this key and
+   * context" - it is a failure the caller must handle, never a value to display.
+   */
+  async decryptBytes(
+    ciphertextWithTag: Uint8Array,
+    iv: Uint8Array,
+    keyBytes: Uint8Array,
+    aad?: Uint8Array
+  ): Promise<Uint8Array | null> {
     if (hasWebCrypto) {
       const key = await crypto.subtle.importKey(
         'raw',
@@ -106,19 +168,18 @@ export const cryptoApi = {
 
       try {
         const plaintextBuffer = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv } as AesGcmParams,
+          { name: 'AES-GCM', iv, additionalData: aad } as AesGcmParams,
           key,
           ciphertextWithTag.slice() as BufferSource
         );
-        return new TextDecoder().decode(plaintextBuffer);
+        return new Uint8Array(plaintextBuffer);
       } catch {
         return null;
       }
     }
 
     try {
-      const plaintext = gcm(keyBytes, iv).decrypt(ciphertextWithTag);
-      return new TextDecoder().decode(plaintext);
+      return gcm(keyBytes, iv, aad).decrypt(ciphertextWithTag);
     } catch {
       return null;
     }

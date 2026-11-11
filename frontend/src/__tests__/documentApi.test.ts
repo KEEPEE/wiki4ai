@@ -184,4 +184,114 @@ describe('documentApi', () => {
       )
     })
   })
+
+  // WIKI4AI-186: pin endpoints (story 184). POST, no body. Neither call bumps
+  // the document `version`, so an open editor is not pushed into a 409.
+  describe('pinDocument / unpinDocument', () => {
+    it('POSTs /projects/{slug}/documents/{docSlug}/pin', async () => {
+      const updated = {
+        id: 2, title: 'Readme', slug: 'readme', projectId: 1,
+        createdAt: '', updatedAt: '', version: 3, pinned: true, sortOrder: -1,
+      }
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => updated })
+
+      const result = await documentApi.pinDocument('ordering', 'readme')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/ordering/documents/readme/pin',
+        expect.objectContaining({ method: 'POST' }),
+      )
+      expect(result.pinned).toBe(true)
+      // Pinning must not change the optimistic-locking version.
+      expect((result as unknown as typeof updated).version).toBe(3)
+    })
+
+    it('POSTs /projects/{slug}/documents/{docSlug}/unpin', async () => {
+      const updated = {
+        id: 2, title: 'Readme', slug: 'readme', projectId: 1,
+        createdAt: '', updatedAt: '', version: 3, pinned: false, sortOrder: 2,
+      }
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => updated })
+
+      const result = await documentApi.unpinDocument('ordering', 'readme')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/ordering/documents/readme/unpin',
+        expect.objectContaining({ method: 'POST' }),
+      )
+      expect(result.pinned).toBe(false)
+    })
+
+    it('rejects with a 403-prefixed message when UPDATE is missing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        json: async () => ({ message: 'Chýba UPDATE oprávnenie' }),
+      })
+
+      await expect(documentApi.pinDocument('ordering', 'readme')).rejects.toThrow(/^403: /)
+    })
+  })
+
+  // ── WIKI4AI-187: sort/filter parameters + reorder ─────────────────────────
+  describe('document list query (WIKI4AI-187)', () => {
+    it('appends sort and q to the paginated request', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ content: [], totalElements: 0 }),
+      })
+
+      await documentApi.getByProject('ordering', { sort: 'manual', q: 'guide' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/ordering/documents?page=0&size=50&sort=manual&q=guide',
+        expect.objectContaining({ method: 'GET' }),
+      )
+    })
+
+    it('getByProjectPage asks for the backend maximum and keeps the total', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ content: [{ id: 1, slug: 'a' }], totalElements: 137 }),
+      })
+
+      const page = await documentApi.getByProjectPage('ordering', { sort: 'manual' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/ordering/documents?page=0&size=100&sort=manual',
+        expect.objectContaining({ method: 'GET' }),
+      )
+      // The total is what lets the UI admit that only part of the project can
+      // be dragged.
+      expect(page).toEqual({ items: [{ id: 1, slug: 'a' }], total: 137 })
+    })
+  })
+
+  describe('reorderDocument (WIKI4AI-187)', () => {
+    it('POSTs the slug anchor body to the document reorder endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ id: 1, slug: 'b' }) })
+
+      await documentApi.reorderDocument('ordering', 'b', { afterSlug: 'c' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/ordering/documents/b/reorder',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ afterSlug: 'c' }),
+        }),
+      )
+    })
+
+    it('rejects with a 403-prefixed message when UPDATE is missing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        json: async () => ({ message: 'Chýba UPDATE oprávnenie' }),
+      })
+
+      await expect(documentApi.reorderDocument('ordering', 'b', { position: 2 })).rejects.toThrow(/^403: /)
+    })
+  })
 })

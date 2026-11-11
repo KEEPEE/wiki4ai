@@ -119,6 +119,11 @@ public class AuthService {
             throw new RegistrationDisabledException("Registration is disabled on this instance");
         }
 
+        // WIKI4AI-197 (REV-2 P0 #4): the name must not be an internal marker. Checked
+        // BEFORE the uniqueness query so the reason a name is unusable is the real one —
+        // 'anonymous' is usually free, and "already taken" would be a misleading answer.
+        ReservedUsernames.rejectIfReserved(request.getUsername());
+
         // Validate uniqueness of username
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username is already taken");
@@ -173,6 +178,11 @@ public class AuthService {
             String email = (request.getEmail() != null && !request.getEmail().isBlank())
                     ? request.getEmail().trim()
                     : request.getUsername() + "@localhost";
+
+            // WIKI4AI-197: the first-run setup flow is a username write like any other.
+            // An instance whose very first account were 'anonymous' would start out with
+            // an ADMIN that the permission layer reads as an unauthenticated visitor.
+            ReservedUsernames.rejectIfReserved(request.getUsername());
 
             if (userRepository.existsByEmail(email)) {
                 throw new IllegalArgumentException("Email is already registered");
@@ -344,6 +354,99 @@ public class AuthService {
             throw new IllegalArgumentException("User not found");
         }
         return jwtUtil.generateRefreshToken(user.getUsername());
+    }
+
+    /**
+     * Exchange a refresh token for a new access token (WIKI4AI-197, plan commit 2b).
+     * <p>
+     * <b>Why this endpoint had to be written at all.</b> The frontend has always called
+     * {@code POST /auth/refresh} ({@code apiClient.ts:43}, {@code AuthContext.tsx:240})
+     * and {@code AuthController} never had the mapping, so the call has been hitting a
+     * 404 since the day it was written. Nothing noticed because a refresh token also
+     * used to pass the access-token check — it is a signed JWT with a subject — so the
+     * session quietly survived on a 7-day token pretending to be a 1-day token. Once
+     * the filter started requiring {@code type == ACCESS}, that stopped working, and
+     * without this endpoint the session would simply die at 24 hours with the client
+     * calling into nothing. This commit is what makes the previous one an improvement
+     * rather than a regression.
+     * <p>
+     * <b>Two proofs, not one.</b> A refresh token is not only a JWT. It is also a row in
+     * {@code refresh_tokens}, and both halves are checked:
+     * <ol>
+     *   <li>the token parses as a REFRESH token — signature, exact type, an {@code exp}
+     *       that exists and lies ahead, a non-blank subject;</li>
+     *   <li>a row with that exact token value exists, is not expired by its own
+     *       {@code expires_at}, and belongs to the very account the token names.</li>
+     * </ol>
+     * Proof 1 alone would let a refresh token that was rotated away, or one whose DB
+     * row was deleted, keep minting access tokens until its JWT expiry. Proof 2 alone
+     * would skip signature verification. The account match is not redundant either: it
+     * is what stops a row belonging to one user being presented under a subject that
+     * names another.
+     * <p>
+     * <b>The refresh token is not rotated here.</b> The schema allows one live row per
+     * user ({@code refresh_tokens.user_id} is unique), the caller already holds this
+     * value, and rotating it would mean a write on every silent token renewal plus a
+     * race between two tabs that both hold the old one. Rotation is a deliberate act
+     * that belongs to login and to {@code POST /auth/token}, which already replace the
+     * row. The response echoes the same refresh token so the client's stored value
+     * stays correct either way.
+     * <p>
+     * Returns {@code null} for every rejection — missing, malformed, wrong type,
+     * expired, unknown row, account mismatch — so the controller answers 401 with one
+     * indistinguishable message. Telling the caller WHICH check failed would let
+     * someone probe which refresh tokens exist. The reason is logged server-side.
+     *
+     * @param refreshToken the value the client stored at login
+     * @return access token + the same refresh token + user info, or null to mean 401
+     */
+    @Transactional(readOnly = true)
+    public AuthResponseDTO refreshAccessToken(String refreshToken) {
+        if (refreshToken == null || refreshToken.isBlank()) {
+            return null;
+        }
+
+        var claims = jwtUtil.parseRefreshToken(refreshToken);
+        if (claims.isEmpty()) {
+            // Includes the common mistake of sending the ACCESS token here: the type
+            // check refuses it, which is the whole point of having two types.
+            log.debug("Refresh rejected: token is not a well-formed REFRESH token");
+            return null;
+        }
+        String subject = claims.get().getSubject();
+
+        RefreshToken row = refreshTokenRepository.findByToken(refreshToken).orElse(null);
+        if (row == null) {
+            // Signed correctly, right type, but never persisted or since rotated away.
+            log.debug("Refresh rejected for account '{}': no matching refresh_tokens row", subject);
+            return null;
+        }
+        if (row.isExpired()) {
+            log.debug("Refresh rejected for account '{}': stored row expired at {}", subject, row.getExpiresAt());
+            return null;
+        }
+
+        User user = userRepository.findByUsername(subject).orElse(null);
+        if (user == null) {
+            // The account the token names no longer exists. The row may outlive it
+            // briefly, but an access token for nobody is not worth minting.
+            log.debug("Refresh rejected: account '{}' in the token no longer exists", subject);
+            return null;
+        }
+        if (!user.getId().equals(row.getUser().getId())) {
+            // A row for one account presented under a subject naming another.
+            log.warn("Refresh rejected: refresh_tokens row {} belongs to user {}, token names '{}'",
+                    row.getId(), row.getUser().getId(), subject);
+            return null;
+        }
+
+        String accessToken = generateAccessToken(user.getId(), user.getUsername());
+
+        return AuthResponseDTO.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(convertToUserDTO(user))
+                .build();
     }
 
     /**
@@ -573,6 +676,11 @@ public class AuthService {
         // Update username if provided and different
         if (request.getUsername() != null && !request.getUsername().isBlank()) {
             if (!request.getUsername().equals(user.getUsername())) {
+                // WIKI4AI-197: PUT /auth/me can rename, so it is a username write too.
+                // Without this the registration rule is a turnstile someone can walk
+                // around by renaming into the reserved name afterwards.
+                ReservedUsernames.rejectIfReserved(request.getUsername());
+
                 if (userRepository.existsByUsername(request.getUsername())) {
                     throw new IllegalArgumentException("Username is already taken");
                 }

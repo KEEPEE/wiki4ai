@@ -103,9 +103,9 @@ const SearchPage: React.FC = () => {
       {searching ? (
         <div className="loading-state"><div className="spinner" /><p>{t('search.searching')}</p></div>
       ) : hasSearched && results.length === 0 ? (
-        <p className="empty-state">{t('search.noResults')}</p>
+        <p className="state-empty">{t('search.noResults')}</p>
       ) : !hasSearched ? (
-        <p className="empty-state">{t('search.startTypingHint')}</p>
+        <p className="state-empty">{t('search.startTypingHint')}</p>
       ) : (
         <>
           <p className="search-results-count" data-testid="search-results-count">

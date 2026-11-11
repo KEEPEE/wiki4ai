@@ -6,6 +6,7 @@ import com.wiki4ai.repository.UserRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -99,6 +100,83 @@ class AuthRegistrationOptInTest {
                 .andExpect(jsonPath("$.role").value("USER"));
 
         assertThat(userRepository.count()).isEqualTo(2);
+    }
+
+    /**
+     * WIKI4AI-197 (REV-2 P0 #4): a name the application uses as its own internal marker
+     * can never be an account name.
+     * <p>
+     * Roughly fifteen controllers resolve their caller as {@code authentication.getName()}
+     * and fall back to the literal {@code "anonymous"} when nothing authenticated, and the
+     * permission checks compare against that literal. An account named {@code anonymous}
+     * therefore produced requests that every one of those comparisons classified as
+     * unauthenticated — the account had proved who it was and was treated as nobody.
+     * <p>
+     * These live here rather than in their own class because this class already runs with
+     * {@code auth.registration.open=true} and its own named H2: the register endpoint is
+     * otherwise closed once any account exists, and a new property combination would mean
+     * a ninth Spring context — one past the test context cache, whose LRU eviction closes a
+     * {@code create-drop} context and drops the H2 schema every other class is using.
+     */
+    @Nested
+    @DisplayName("WIKI4AI-197: reserved usernames")
+    class ReservedUsernames {
+
+        @Test
+        @DisplayName("'anonymous' is refused and leaves no row behind")
+        void anonymousIsRefused() throws Exception {
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"username\":\"anonymous\",\"email\":\"anon@example.com\",\"password\":\"secret123\"}"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("reserved")));
+
+            assertThat(userRepository.findByUsername("anonymous")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("the case variants are refused — the unique index is case-sensitive")
+        void caseVariantsAreRefused() throws Exception {
+            // 'Anonymous' is a DIFFERENT row as far as the unique index is concerned, so a
+            // reserved check written against the lowercase literal alone would let it in
+            // and reintroduce exactly the collision the sentinel comparison makes.
+            for (String name : List.of("Anonymous", "ANONYMOUS", "anonymoususer", "AnonymousUser")) {
+                mockMvc.perform(post("/api/v1/auth/register")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\":\"" + name + "\",\"email\":\""
+                                        + name.toLowerCase() + "@example.com\",\"password\":\"secret123\"}"))
+                        .andExpect(status().isConflict())
+                        .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.containsString("reserved")));
+                assertThat(userRepository.findByUsername(name)).isEmpty();
+            }
+        }
+
+        @Test
+        @DisplayName("control: a name that merely contains the marker still registers")
+        void namesContainingTheMarkerStillWork() throws Exception {
+            // The lazy implementation of the rule is a substring check, and a substring
+            // check turns away ordinary members of staff.
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"username\":\"anonymous_reporter\",\"email\":\"rep@example.com\",\"password\":\"secret123\"}"))
+                    .andExpect(status().isCreated());
+
+            assertThat(userRepository.findByUsername("anonymous_reporter")).isPresent();
+        }
+
+        @Test
+        @DisplayName("the reserved rule is checked before uniqueness, so the reason is the real one")
+        void reservedIsReportedRatherThanAlreadyTaken() throws Exception {
+            // 'anonymous' is normally FREE, so a uniqueness-first order would answer
+            // "Username is already taken" — a misleading message for a name that was
+            // never taken by anybody.
+            mockMvc.perform(post("/api/v1/auth/register")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"username\":\"anonymous\",\"email\":\"a@example.com\",\"password\":\"secret123\"}"))
+                    .andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.error").value(org.hamcrest.Matchers.not(
+                            org.hamcrest.Matchers.containsString("already taken"))));
+        }
     }
 
     @Test

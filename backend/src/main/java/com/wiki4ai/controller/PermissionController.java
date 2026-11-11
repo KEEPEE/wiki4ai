@@ -1,14 +1,19 @@
 package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.PermissionGrantRequestDTO;
+import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.dto.UserPermissionDTO;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.repository.ProjectRepository;
 import com.wiki4ai.service.PermissionService;
+import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
@@ -36,6 +41,7 @@ public class PermissionController {
 
     private final PermissionService permissionService;
     private final ProjectRepository projectRepository;
+    private final ProjectService projectService;
 
     /**
      * Get the current authenticated username from SecurityContext.
@@ -62,22 +68,67 @@ public class PermissionController {
     @GetMapping
     @Operation(
             summary = "List all user permissions",
-            description = "Returns all users and their permissions on this project. Requires READ permission."
+            description = "Returns all users and their permissions on this project. Requires an "
+                    + "authenticated caller and that the project is visible to it: a private project "
+                    + "belonging to somebody else is reported as 404, the same way the project "
+                    + "endpoints report it."
     )
-    @ApiResponse(responseCode = "200", description = "List of user permissions returned successfully")
+    @ApiResponse(responseCode = "200", description = "List of user permissions returned successfully",
+            content = @Content(array = @ArraySchema(schema = @Schema(implementation = UserPermissionDTO.class))))
+    @ApiResponse(responseCode = "401", description = "Not authenticated")
     @ApiResponse(responseCode = "403", description = "Missing READ permission")
-    @ApiResponse(responseCode = "404", description = "Project not found")
-    public ResponseEntity<List<UserPermissionDTO>> listPermissions(
+    @ApiResponse(responseCode = "404", description = "Project not found, or private and not yours")
+    public ResponseEntity<?> listPermissions(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug) {
 
-        Project project = getProjectBySlug(projectSlug);
         String username = getCurrentUsername();
 
-        // Require READ permission to view permissions list
+        // WIKI4AI-197 commit 13: the member list used to be readable by literally anyone.
+        // GET /api/v1/projects/** is permitAll in SecurityConfig, so an unauthenticated
+        // visitor reached this method, getCurrentUsername() answered "anonymous", and
+        // PermissionService.checkPermission exempts anonymous callers — so the check the
+        // javadoc advertised had nothing behind it. Who has access to which project is
+        // itself information: on a wiki where projects are public by default, this was a
+        // directory of accounts and their roles.
+        if (isAnonymous(username)) {
+            return unauthorized();
+        }
+
+        // The visibility gate, not just a permission check: a private project of another
+        // user must be 404 here, exactly as getProjectBySlug reports it, or the member
+        // list would confirm that a project the caller was told does not exist does exist.
+        ProjectDTO project = projectService.getProjectBySlug(projectSlug, username);
+
+        // Kept deliberately: READ is universal for authenticated callers today, so this
+        // is not what rejects anyone. It is the seam where a stricter READ rule lands
+        // without touching this method again.
         permissionService.checkPermission(username, project.getId(), Permission.READ);
 
         List<UserPermissionDTO> permissions = permissionService.getAllProjectPermissions(project.getId());
         return ResponseEntity.ok(permissions);
+    }
+
+    /** Whether this caller carries no identity (WIKI4AI-197 commit 13). */
+    private static boolean isAnonymous(String username) {
+        return username == null
+                || username.isBlank()
+                || "anonymous".equals(username)
+                || "anonymousUser".equals(username);
+    }
+
+    /**
+     * The 401 body for a caller with no identity. Shaped like {@code GlobalExceptionHandler}
+     * so a client parses one error shape for every failure, and returned rather than thrown
+     * because this route is {@code permitAll} — the filter chain never gets the chance to
+     * answer it, and an exception with no handler would surface as a 500.
+     */
+    private static ResponseEntity<Map<String, Object>> unauthorized() {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", java.time.LocalDateTime.now().toString());
+        body.put("status", HttpStatus.UNAUTHORIZED.value());
+        body.put("error", "Unauthorized");
+        body.put("message", "Authentication required to list project members");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
     // ── POST: Grant permissions to a user ─────────────────────────────────────

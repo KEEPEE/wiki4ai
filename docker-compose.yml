@@ -1,8 +1,21 @@
 services:
   backend:
     build: ./backend
-    ports:
-      - "8080:8080"
+    # No published host port (WIKI4AI-197, REV-2 P0 #7).
+    #
+    # The backend used to publish 8080 on the host, which put a second, unproxied door on
+    # the same API the frontend already fronts: nginx proxies /api/v1 and /actuator to
+    # http://backend:8080 (nginx.conf:42,95,103), so anyone who could reach the host could
+    # also bypass whatever the proxy adds (rate limiting, TLS, path rules) and talk to the
+    # API directly. `expose` keeps the port reachable for the other services in the
+    # compose network — the frontend, the mcp server and the agent endpoints all need it —
+    # without binding it on the host.
+    #
+    # To debug from the host, publish it for one run rather than in the file:
+    #   docker compose run --rm --service-ports -p 8080:8080 backend
+    # or use `docker compose exec backend curl -s localhost:8080/actuator/health`.
+    expose:
+      - "8080"
     environment:
       # postgres profile: Postgres driver + Flyway migrations (V1-V12) on first boot.
       # Without it the backend defaults to the H2 dev profile and refuses the
@@ -10,9 +23,35 @@ services:
       - SPRING_PROFILES_ACTIVE=postgres
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/wiki4ai
       - SPRING_DATASOURCE_USERNAME=wiki4ai
-      - SPRING_DATASOURCE_PASSWORD=${SPRING_DATASOURCE_PASSWORD:?set in .env}
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      # Same variable as the db service, so the two cannot drift apart. It used to be a
+      # second hardcoded 'wiki4ai', which meant an operator who set a real
+      # POSTGRES_PASSWORD got a database the backend could not log into.
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env - the database password, also used by the backend}
+      # No ddl-auto override (WIKI4AI-197, REV-2 P0 #8).
+      #
+      # `update` let Hibernate ALTER the schema at boot whenever an entity and a Flyway
+      # migration disagreed. That is not a convenience, it is a second, undocumented
+      # migration mechanism running in production with no version, no rollback and no
+      # record: the schema on a running host stops being describable by the files in
+      # db/migration, and the next migration is written against a schema nobody chose.
+      #
+      # The postgres profile already says `ddl-auto: validate` (application-postgres.yml),
+      # so removing this line does not pick a new policy — it stops overriding the one the
+      # application declares. Boot now fails loudly on drift instead of repairing it
+      # silently, and the repair belongs in a numbered migration.
       - EMBEDDING_BASE_URL=http://embedding:8030
+      # WIKI4AI-197 (REV-2 P0 #1): REQUIRED, with no default on purpose.
+      #
+      # This service used to inherit the placeholder secret from application.yml, which
+      # is public and therefore lets anyone mint a token for any account. The `:?` form
+      # makes `docker compose up` fail with this exact message instead of starting a
+      # backend that JwtUtil would refuse to boot anyway — failing at the compose layer
+      # names the file to fix, failing in the container only shows a stack trace.
+      #
+      # Consequence worth stating: rotating this value invalidates every JWT and every
+      # refresh token issued under the old one. That is the correct outcome here,
+      # because tokens signed with the placeholder were forgeable by anyone.
+      - JWT_SECRET=${JWT_SECRET:?set JWT_SECRET in .env - a long random value, 32+ bytes}
     depends_on:
       db:
         condition: service_healthy
@@ -36,11 +75,16 @@ services:
     environment:
       POSTGRES_DB: wiki4ai
       POSTGRES_USER: wiki4ai
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      # Required, no default (WIKI4AI-197, REV-2 P0 #7). 'wiki4ai' was a placeholder that
+      # looked like a setting: an operator could bring a stack up without ever choosing a
+      # password and never be told. `:?` stops `docker compose up` with the name of the
+      # variable to set.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env - the database password, also used by the backend}
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+    # No published host port: only the backend needs the database, and it reaches it by
+    # service name on the compose network. Publishing 5432 put a database with a default
+    # password on every interface of the host.
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U wiki4ai"]
       interval: 10s
@@ -53,8 +97,11 @@ services:
   # batch <= 4, ORT enable_cpu_mem_arena=false (see embeddings research doc §9).
   embedding:
     build: ./embedding
-    ports:
-      - "8030:8030"
+    # No published host port: the backend calls it at http://embedding:8030 and nothing
+    # outside the network does. The sidecar has no authentication, so a published port was
+    # an open inference endpoint on the host.
+    expose:
+      - "8030"
     mem_limit: 2560m
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8030/health', timeout=8); sys.exit(0 if r.status==200 else 1)\""]
@@ -74,9 +121,21 @@ services:
       context: ./mcp-server
       dockerfile: Dockerfile.standalone
     ports:
+      # Published on purpose, unlike the services above: the MCP endpoint exists to be
+      # reached from another machine, so it has no in-network-only form.
       - "8099:8095"
     environment:
-      - MCP_JWT_TOKEN=${MCP_JWT_TOKEN:-}
+      # Required (WIKI4AI-197, REV-2 P0 #7). It used to default to empty, and empty means
+      # OPEN: no Bearer check on the SSE endpoint. A port published on the host with an
+      # open, unauthenticated endpoint that can read and write the wiki is not a
+      # development convenience, it is the whole API exposed. Compose now refuses to start
+      # until the operator either sets a token or says out loud that they want it open.
+      #
+      # To keep an intentionally open instance, set the variable to a single space in
+      # .env — the value is what the server compares the Bearer header against, so it must
+      # be non-empty to mean anything:
+      #   MCP_JWT_TOKEN=some-long-random-value
+      - MCP_JWT_TOKEN=${MCP_JWT_TOKEN:?set MCP_JWT_TOKEN in .env - the Bearer token agents must present on the SSE endpoint}
     command: ["python", "mcp_server.py", "--base-url=http://backend:8080/api", "--transport=sse", "--port=8095"]
     depends_on:
       - backend

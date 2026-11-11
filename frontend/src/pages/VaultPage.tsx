@@ -8,7 +8,10 @@ import type { VaultEntryFormData } from '../components/VaultEntryForm';
 import VaultSetupScreen from '../components/VaultSetupScreen';
 import VaultUnlockScreen from '../components/VaultUnlockScreen';
 import { vaultApi } from '../services/vaultApi';
-import { deriveKey, decrypt, base64ToBytes } from '../services/encryptionService';
+import { decodeEntry } from '../services/vaultEntryCodec';
+import { describeMigration } from '../services/vaultMigration';
+import type { VaultKeys } from '../contexts/VaultContext';
+import { useDialog } from '../hooks/useDialog';
 import './VaultPage.css';
 
 interface DecryptedExportEntry {
@@ -20,44 +23,30 @@ interface DecryptedExportEntry {
   notes?: string;
 }
 
-async function decryptEntriesForExport(backendEntries: BackendVaultEntry[], masterPassword: string, salt: Uint8Array): Promise<DecryptedExportEntry[]> {
-  const key = await deriveKey(masterPassword, salt);
-
+/**
+ * Export reads through the same codec the list uses.
+ *
+ * It used to derive its own key from `config.masterPassword` — which held `h`, not a
+ * password — and to substitute `'[decryption failed]'` into the CSV for anything it
+ * could not open, so an export of a healthy vault could contain that literal as
+ * someone's password and a re-import would keep it. Now an unreadable row exports with
+ * an empty password, which is what it is.
+ */
+async function decryptEntriesForExport(
+  backendEntries: BackendVaultEntry[],
+  keys: VaultKeys
+): Promise<DecryptedExportEntry[]> {
   return Promise.all(
     backendEntries.map(async (entry) => {
-      try {
-        const usernameDecrypted = entry.usernameEncrypted
-          ? await decrypt(base64ToBytes(entry.usernameEncrypted.ciphertext), base64ToBytes(entry.usernameEncrypted.iv), key)
-          : null;
-        const passwordDecrypted = await decrypt(base64ToBytes(entry.passwordEncrypted.ciphertext), base64ToBytes(entry.passwordEncrypted.iv), key);
-
-        let notesDecrypted: string | null;
-        if (entry.notesEncrypted) {
-          try {
-            notesDecrypted = await decrypt(base64ToBytes(entry.notesEncrypted.ciphertext), base64ToBytes(entry.notesEncrypted.iv), key);
-          } catch {
-            notesDecrypted = null;
-          }
-        } else {
-          notesDecrypted = null;
-        }
-
-        return {
-          title: entry.title,
-          username: usernameDecrypted ? JSON.parse(usernameDecrypted) : undefined,
-          password: passwordDecrypted ? JSON.parse(passwordDecrypted) : '[decryption failed]',
-          url: entry.url,
-          groupPath: entry.groupPath,
-          notes: notesDecrypted ? JSON.parse(notesDecrypted) : undefined,
-        };
-      } catch {
-        return {
-          title: entry.title,
-          password: '[decryption failed]',
-          url: entry.url,
-          groupPath: entry.groupPath,
-        };
-      }
+      const { data, isReadable } = await decodeEntry(entry, keys);
+      return {
+        title: entry.title,
+        username: isReadable ? data.username : undefined,
+        password: isReadable ? data.password : '',
+        url: entry.url,
+        groupPath: entry.groupPath,
+        notes: isReadable ? data.notes : undefined,
+      };
     }),
   );
 }
@@ -122,7 +111,7 @@ const VaultPage: React.FC = () => {
 
   // All hooks must be called unconditionally, BEFORE any conditional returns,
   // to avoid React error #310 (rendered more hooks than during the previous render).
-  const vaultEntriesHook = useVaultEntries(vault.config ?? null);
+  const vaultEntriesHook = useVaultEntries(vault.keys ?? null);
   const { entries, isLoading, error, createEntry, updateEntry, deleteEntry } = vaultEntriesHook;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -131,11 +120,20 @@ const VaultPage: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Shown when an entry could not be opened, so the user learns why Edit did nothing.
+  const [unreadableError, setUnreadableError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Import state
   const [showImportModal, setShowImportModal] = useState(false);
+  /* WIKI4AI-194 (DIZ-3 item 5) + WIKI4AI-195 (4.1.2): import modal bol
+   * <div>. Focus trap, Escape a nedostupne pozadie si riesil sam a nezvladol
+   * ich ziadny. Native <dialog> + showModal() dava top layer, ::backdrop,
+   * automaticku aria-modal, focus trap aj navrat focusu zadarmo.
+   * Hook je VOLANY NA TOP-LEVEL, nie v conditional vetve — React pravidlo
+   * hookov sa neda porusit ani ked je modal renderovany podmocene. */
+  const importDialogRef = useDialog<HTMLDialogElement>(showImportModal);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importPassword, setImportPassword] = useState('');
   const [isImporting, setIsImporting] = useState(false);
@@ -248,7 +246,7 @@ const VaultPage: React.FC = () => {
   }
 
   // Show loading while checking status or setting up/unlocking
-  if (vault.isLoading || vault.config === null) {
+  if (vault.isLoading || vault.keys === null) {
     return (
       <div className="vault-page">
         <div className="loading-state">
@@ -357,7 +355,7 @@ const VaultPage: React.FC = () => {
   };
 
   const handleExport = async (format: 'csv' | 'json') => {
-    if (!vault.config || entries.length === 0) return;
+    if (!vault.keys || entries.length === 0) return;
 
     setIsExporting(true);
     setExportError(null);
@@ -365,7 +363,7 @@ const VaultPage: React.FC = () => {
 
     try {
       const backendEntries = await vaultApi.getExportEntries();
-      const decryptedEntries = await decryptEntriesForExport(backendEntries, vault.config.masterPassword, vault.config.salt);
+      const decryptedEntries = await decryptEntriesForExport(backendEntries, vault.keys);
 
       if (format === 'csv') {
         const content = generateCsvContent(decryptedEntries);
@@ -383,10 +381,25 @@ const VaultPage: React.FC = () => {
 
   const openCreateForm = () => {
     setEditingEntry(null);
+    setUnreadableError(null);
     setShowForm(true);
   };
 
   const openEditForm = (entry: VaultEntry) => {
+    // Never offer to write what we could not read. The old code prefilled
+    // '[decryption failed]' into the password box and Save wrote it out as the
+    // entry's new password, turning a read failure into a silent overwrite.
+    if (!entry.isReadable) {
+      setUnreadableError(
+        t(
+          'vault.entryUnreadable',
+          'This entry could not be decrypted with the current master password, so it cannot be edited.'
+        )
+      );
+      setShowForm(false);
+      return;
+    }
+    setUnreadableError(null);
     setEditingEntry(entry);
     setShowForm(true);
   };
@@ -422,7 +435,7 @@ const VaultPage: React.FC = () => {
     return (
       <div className="vault-page">
         <div className="error-state">
-          <p className="error">{error.message}</p>
+          <p className="state-error">{error.message}</p>
           <button onClick={() => window.location.reload()} className="btn-secondary">
             {t('dashboard.retry')}
           </button>
@@ -433,6 +446,23 @@ const VaultPage: React.FC = () => {
 
   return (
     <div className="vault-page">
+      {/* WIKI4AI-197 (D2): the first v2 unlock re-encrypts whatever is still v1.
+          A row that could not be decrypted is left alone rather than migrated
+          with a field missing, and the user is told which. */}
+      {vault.migrationReport && (
+        <div className="vault-migration-banner" data-testid="vault-migration-banner" role="status">
+          <span>{describeMigration(vault.migrationReport)}</span>
+          <button
+            type="button"
+            className="vault-migration-dismiss"
+            onClick={vault.dismissMigrationReport}
+            data-testid="vault-migration-dismiss"
+            aria-label={t('vault.dismiss', 'Dismiss')}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="vault-header">
         <h1>{t('vault.title')}</h1>
@@ -501,14 +531,20 @@ const VaultPage: React.FC = () => {
       </header>
 
       {deleteError && (
-        <div style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: 4, marginBottom: 12 }} data-testid="vault-delete-error">
+        <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)', borderRadius: 4, marginBottom: 12 }} data-testid="vault-delete-error">
           {deleteError}
         </div>
       )}
 
       {exportError && (
-        <div style={{ padding: '8px 16px', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: 4, marginBottom: 12 }} data-testid="vault-export-error">
+        <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)', borderRadius: 4, marginBottom: 12 }} data-testid="vault-export-error">
           {exportError}
+        </div>
+      )}
+
+      {unreadableError && (
+        <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-error-bg)', color: 'var(--color-error-text)', borderRadius: 4, marginBottom: 12 }} data-testid="vault-entry-unreadable">
+          {unreadableError}
         </div>
       )}
 
@@ -532,7 +568,7 @@ const VaultPage: React.FC = () => {
           </button>
 
           {entries.length === 0 ? (
-            <div className="empty-state">
+            <div className="state-empty">
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
@@ -563,7 +599,7 @@ const VaultPage: React.FC = () => {
               {/* Main - Entries */}
               <main className="vault-main">
                 {Object.keys(filteredGroups).length === 0 && searchQuery ? (
-                  <div className="empty-state">
+                  <div className="state-empty">
                     <p className="empty-text">{t('vault.noMatches')}</p>
                   </div>
                 ) : (
@@ -642,9 +678,21 @@ const VaultPage: React.FC = () => {
 
       {/* Import Modal */}
       {showImportModal && (
-        <div className="import-modal-overlay" data-testid="vault-import-modal">
+        <dialog
+          ref={importDialogRef}
+          className="modal-backdrop import-modal-overlay"
+          data-testid="vault-import-modal"
+          aria-labelledby="vault-import-title"
+          onClick={(e) => {
+            /* klik mimo panela = klik na <dialog> samotny. Testid sedelo na
+             * backdrop elemente a testy klikali na neho — po migraci je to
+             * stale ten isty element, len s ulohou dialog. */
+            if (e.target === e.currentTarget) closeImportModal();
+          }}
+          onCancel={closeImportModal}
+        >
           <div className="import-modal">
-            <h2>{t('vault.importTitle')}</h2>
+            <h2 id="vault-import-title">{t('vault.importTitle')}</h2>
             <p className="import-description">{t('vault.importDescription')}</p>
 
             <div className="import-field">
@@ -696,7 +744,7 @@ const VaultPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

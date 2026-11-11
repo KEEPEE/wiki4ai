@@ -18,7 +18,7 @@
   transform: translateY(-50%);
   width: 1.125rem;
   height: 1.125rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: var(--text-muted, var(--text-muted));
   pointer-events: none;
 }
 
@@ -28,28 +28,32 @@
      width: 18px → occupies x 16–34). 44px leaves a consistent 10px gap
      between icon and text; the old 20px overlapped the first character. */
   padding: 12px 20px 12px 44px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 50px; /* pill shape */
   font-size: 0.95rem;
   box-sizing: border-box;
-  transition: border-color var(--transition-base, all 0.3s ease),
-    background-color var(--transition-base, all 0.3s ease),
-    box-shadow var(--transition-base, all 0.3s ease);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.7);
+  /* Povodne to bolo `var(--transition-base, all 0.3s ease)` — token s
+     LITERÁLNÝM fallbackom. `--transition-base` definuje `:root` v
+     `tokens.css`, ktorý má každá stránka, takže fallback je mŕtvy kód;
+     horšie, práve on obchádzal reduced-motion, lebo `--dur-*` v ňom nie je.
+     (Sweep sem siahol len na prvý riadok — proto je tu cele pravidlo.) */
+  transition: border-color var(--transition-base),
+    background-color var(--transition-base),
+    box-shadow var(--transition-base);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
 }
 
 .global-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .global-search-input:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+  background: var(--glass-strong);
 }
 
 .global-search-input:focus {
-  outline: none;
-  border-color: var(--primary, #00f0ff);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow */
+  border-color: var(--primary, var(--primary));
+  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow */
 }

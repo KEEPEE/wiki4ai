@@ -382,7 +382,7 @@ const DocumentEditor: React.FC<DocumentEditorProps> = ({ initialContent = '', on
           <button
             onClick={handleManualSave}
             disabled={saving || !title.trim()}
-            className={`btn-primary save-btn ${saving ? 'saving' : ''}`}
+            className={`btn-ghost save-btn ${saving ? 'saving' : ''}`}
           >
             {saving ? t('editor.statusSaving') : t('common.save')}
           </button>

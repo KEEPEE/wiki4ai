@@ -1,0 +1,208 @@
+/* WIKI4AI-187: toolbar above the project / document lists (sort menu, filters,
+   drag handles, drop indicator) plus the state message that explains why a
+   handle is locked. Tokens only — the same look in every theme. */
+
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin: 0 0 0.75rem;
+}
+
+.list-toolbar-field {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.list-toolbar-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Pill select matching the search bar, so the toolbar reads as one row. */
+.list-toolbar-select {
+  appearance: none;
+  padding: 8px 32px 8px 14px;
+  border: 1px solid var(--glass-border);
+  border-radius: 50px;
+  background-color: var(--glass-bg);
+  /* caret drawn as a background glyph — `appearance: none` removes the native one */
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-secondary) 50%),
+    linear-gradient(135deg, var(--text-secondary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base),
+    background-color var(--transition-base);
+}
+
+.list-toolbar-select:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background-color: var(--glass-strong);
+}
+
+.list-toolbar-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 12px var(--glow-cyan);
+}
+
+.list-toolbar-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.list-toolbar-select option {
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* ── Active filter chips ─────────────────────────────────────────────────── */
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.9rem;
+}
+
+.filter-chips-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid var(--color-info-border);
+  border-radius: 50px;
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+  font-size: 0.8rem;
+}
+
+.filter-chip-clear {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+  border-radius: 50%;
+}
+
+.filter-chip-clear:hover {
+  background: var(--glass-strong);
+  color: var(--text-primary);
+}
+
+.filter-clear-all {
+  border: 1px solid var(--glass-border);
+  border-radius: 50px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.filter-clear-all:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+/* ── Drag handle ─────────────────────────────────────────────────────────── */
+
+.drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 26px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0.55;
+  transition: color var(--transition-fast), opacity var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.drag-handle:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--glass-strong);
+}
+
+.drag-handle:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  opacity: 1;
+}
+
+/* Locked (sort is not manual / a filter is active): still clickable — the click
+   is what unlocks it — but the cursor and the dimmed grip say "not yet". */
+.drag-handle-locked {
+  cursor: pointer;
+  opacity: 0.3;
+}
+
+.drag-handle-locked:hover {
+  opacity: 0.85;
+  color: var(--primary);
+}
+
+/* Row/card being dragged: keep it visible but clearly "lifted". */
+.is-dragging {
+  opacity: 0.45;
+}
+
+/* ── Drop indicator ──────────────────────────────────────────────────────── */
+
+/* The line is drawn on the row under the cursor, on the edge the dragged item
+   will actually land on (above when it moves up, below when it moves down). */
+.drop-above {
+  box-shadow: 0 -3px 0 0 var(--primary), 0 -8px 14px var(--glow-cyan);
+}
+
+.drop-below {
+  box-shadow: 0 3px 0 0 var(--primary), 0 8px 14px var(--glow-cyan);
+}
+
+/* ── State message (why DnD is off, or that only part of the list is movable) ─ */
+
+.dnd-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 7px 12px;
+  border: 1px dashed var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.dnd-status button {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--primary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

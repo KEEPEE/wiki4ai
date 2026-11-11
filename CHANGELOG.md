@@ -2,8 +2,54 @@
 
 All notable changes to Wiki4AI are documented here. The format follows Keep a Changelog and this project uses Semantic Versioning.
 
-The entries below are derived from the commit history (362 commits since 2026-05-16), grouped by release phase.
+The entries below are derived from the commit history (496 commits since 2026-05-16), grouped by release phase.
 
+
+## November 2026
+
+Two campaigns landed since October. A hardening sweep closed the security and correctness findings from a full-code review (WIKI4AI-197…202), and a visual pass made the web UI as colourful and alive as its sibling forum4Ai (WIKI4AI-206, 208). Between them: per-user project ordering, and a vault crypto format that can be replaced without touching a single stored password.
+
+### Added
+
+- **ui**: three visual identities on one token layer — `glass-dark` (now the default), `glass-light`, `nexaverse` — selected by `data-theme` on `<html>`, with legacy `dark`/`light` kept as aliases (`WIKI4AI-192`)
+- **ui**: an ambient background of three drifting mist gradients, three independently animated orbs, a faint grid and a vignette, all four layers token-driven (`WIKI4AI-193`)
+- **ui**: semantic colour triads `--ok` / `--info` / `--warn` / `--error` with `-soft` and `-glow` variants derived by `color-mix` rather than by new hex values, wired into states, badges and toasts (`WIKI4AI-208`)
+- **ui**: gradient and glow on the primary action and on the active navigation pill, with dark ink instead of white text (`WIKI4AI-208`, `WIKI4AI-206`)
+- **ui**: a quiet zone — `data-mood="quiet"` on document, editor and search routes dims the ambient layer and gives prose and diagrams an opaque panel, so reading stays calm while the dashboards stay loud (`WIKI4AI-208`)
+- **ui**: a chart palette `--chart-0..8` per identity, feeding the canvas charts and the share bar (`WIKI4AI-208`)
+- **ui**: 39 transitions and 9 animations moved onto motion tokens, so `prefers-reduced-motion` silences motion without touching colour (`WIKI4AI-208`)
+- **ui**: shared primitives `.btn`, `.data-table`, `.form-input`, `.state-empty`, `.state-error` and a single badge definition, replacing nine and fourteen duplicated copies (`WIKI4AI-194`)
+- **ui**: modals are native `<dialog>` elements; the Vault import and the Markdown toolbar followed the shell (`WIKI4AI-194`)
+- **a11y**: a global focus ring through `:where()` after deleting 38 `outline: none` rules, a skip link, `inert` on the off-canvas sidebar, accessible dialog names, and toasts that satisfy WCAG 2.2.1 (`WIKI4AI-195`)
+- **ordering**: pin, unpin and reorder projects and documents — endpoints, drag & drop in the UI, a sort menu and server-side filters (`WIKI4AI-184`, `WIKI4AI-186`, `WIKI4AI-187`)
+- **ordering**: the project order is now **per viewer** (`user_project_order`, migration V28); arranging your own list needs only READ, while the global order stays an admin endpoint (`WIKI4AI-200`)
+- **vault**: crypto v2 — canonical JSON, additional authenticated data, a KEK/DEK split and a per-field IV, with the whole vault re-encrypted at unlock; stored passwords are kept, only the format migrates (`WIKI4AI-197`)
+- **api**: `POST /auth/refresh`, the route the frontend had been calling all along (`WIKI4AI-197`)
+- **security**: an SVG sanitizer on the diagram `innerHTML` sinks (`WIKI4AI-198`)
+- **tests**: `contrastBudget.test.ts` composites the real token values the way a browser would and fails when body text, a primary button or an active pill drops below 4.5:1 (`WIKI4AI-208`); the frontend suite grew from 903 to 1151 tests across the campaign
+- **docs**: `docs/design-system.md` is the canonical description of the identities, the token layers, the WCAG floors and the known exceptions — with file names
+
+### Fixed
+
+- **security**: an API token's scopes are enforced and can no longer be outranked by its owner's role; an API token can no longer mint or clone credentials (`WIKI4AI-197`)
+- **security**: moving a document requires CREATE on the target project, image uploads require CREATE, and the project member list runs through the visibility gate (`WIKI4AI-197`)
+- **security**: the H2 web console is not a deployed endpoint, and a 500 no longer quotes the library that threw (`WIKI4AI-197`)
+- **auth**: reserved usernames can be neither written nor authenticated; the JWT layer fails fast when the signing secret is not a secret, parses a token once, and requires an access token to say it is one (`WIKI4AI-197`)
+- **auth**: `PUT /api/v1/auth/me` validates its body — `@Valid` was missing (`WIKI4AI-202`)
+- **vault**: a v1 update may no longer omit the password, and a master-password reset is refused once v2 owns the vault (`WIKI4AI-197`)
+- **ordering**: a reorder runs under a pessimistic lock as a compare-and-set, and `pinned` / `sort_order` stopped being written by entity saves (`WIKI4AI-197`)
+- **diagrams**: rendered Mermaid and kroki PlantUML SVG is sanitized before it reaches `innerHTML`, with `securityLevel: strict` kept as a second pass (`WIKI4AI-198`)
+- **backend**: the embedding sidecar call leaves the document's transaction, and the dashboard answers one grouped count instead of one query per project (`WIKI4AI-197`)
+- **wcag 1.4.3**: the vault unlock button and the active pills measured 2.94:1 to 4.39:1; they now measure 4.64:1 to 7.47:1 in all three identities (`WIKI4AI-206`)
+- **a11y**: after Escape, focus returns to the invoker instead of `<body>`; an activated menu item returns focus to its trigger; `<body>` is never treated as an invoker (`WIKI4AI-195`, `WIKI4AI-201`)
+- **i18n**: Slovak typo `Káľendar` → `Kalendár` (`WIKI4AI-199`)
+- **tests**: the Spring context cache stopped dropping the H2 schema, which had been posing as a flake (`WIKI4AI-197`)
+
+### Changed
+
+- Colours live **only** in `frontend/src/styles/tokens.css`; a guard test caps hard-coded colour values at 98 across 27 files and fails the build when the budget grows undocumented.
+- The default theme is `glass-dark`. Saved preferences for `dark` and `light` map onto the new identities instead of breaking.
+- Compose publishes only the two ports that need publishing, and `ddl-auto` is no longer overridden with `update` — Flyway owns the schema (`WIKI4AI-197`).
 
 ## October 2026
 

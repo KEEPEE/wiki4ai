@@ -44,7 +44,13 @@ class PermissionServiceTest {
         projectPermissionRepo = mock(ProjectPermissionRepository.class);
         projectRepository = mock(ProjectRepository.class);
         userRepository = mock(UserRepository.class);
-        permissionService = new PermissionService(projectPermissionRepo, projectRepository, userRepository);
+        // EffectiveAdmin is real, not a mock, and sits on the same mocked UserRepository:
+        // the ADMIN bypass must behave exactly as it did when PermissionService read the
+        // role itself. With no API token in the SecurityContext — the case every test here
+        // runs — the credential half of the rule is always satisfied, so the verdict is
+        // the role check and nothing else.
+        permissionService = new PermissionService(projectPermissionRepo, projectRepository, userRepository,
+                new EffectiveAdmin(userRepository));
 
         // Create test users
         userAlice = User.builder().id(1L).username("alice").email("alice@test.com").password("$2a$10.hashed").build();

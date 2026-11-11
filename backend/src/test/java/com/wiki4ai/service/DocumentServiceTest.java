@@ -81,6 +81,15 @@ class DocumentServiceTest {
     @Mock
     private RequestActorResolver requestActorResolver;
 
+    /**
+     * WIKI4AI-197 commit 17: DocumentService gained this collaborator when the embed moved
+     * out of the save's transaction. Mocked and never stubbed, so {@code enqueueFor} does
+     * nothing — which is the point: these tests assert on the save, and the embed is now
+     * somebody else's job.
+     */
+    @Mock
+    private EmbeddingQueueService embeddingQueueService;
+
     @InjectMocks
     private DocumentService documentService;
 
@@ -97,10 +106,11 @@ class DocumentServiceTest {
 
         // WIKI4AI-99: the visibility-filtered paginated query (used for non-ADMIN /
         // anonymous callers) delegates to the plain paginated stub in these unit tests,
-        // where all fixture documents are legacy-public anyway.
-        lenient().when(documentRepository.findVisibleByProjectIdOrderByUpdatedAtDesc(anyLong(), any(), any(Pageable.class)))
-                .thenAnswer(inv -> documentRepository.findByProjectIdOrderByUpdatedAtDesc(
-                        inv.getArgument(0), inv.getArgument(2)));
+        // where all fixture documents are legacy-public anyway. WIKI4AI-184 renamed the
+        // pair to ...Filtered(...) because both now also take the optional q filter.
+        lenient().when(documentRepository.findVisibleByProjectIdFiltered(anyLong(), any(), anyString(), anyString(), any(Pageable.class)))
+                .thenAnswer(inv -> documentRepository.findAllByProjectIdFiltered(
+                        inv.getArgument(0), inv.getArgument(2), inv.getArgument(3), inv.getArgument(4)));
 
         testProject = Project.builder()
                 .id(1L)
@@ -2402,7 +2412,7 @@ class DocumentServiceTest {
                     .build();
             Page<Document> docPage = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(0, 10), 25);
 
-            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+            when(documentRepository.findAllByProjectIdFiltered(eq(1L), anyString(), anyString(), any(Pageable.class)))
                     .thenReturn(docPage);
 
             // when
@@ -2424,7 +2434,7 @@ class DocumentServiceTest {
         void shouldReturnEmptyPageWhenNoDocuments() {
             // given
             Page<Document> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 50), 0);
-            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+            when(documentRepository.findAllByProjectIdFiltered(eq(1L), anyString(), anyString(), any(Pageable.class)))
                     .thenReturn(emptyPage);
 
             // when
@@ -2447,7 +2457,7 @@ class DocumentServiceTest {
                     .build();
             Page<Document> docPage = new PageImpl<>(List.of(doc), PageRequest.of(1, 10), 23);
 
-            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+            when(documentRepository.findAllByProjectIdFiltered(eq(1L), anyString(), anyString(), any(Pageable.class)))
                     .thenReturn(docPage);
 
             // when
@@ -2472,7 +2482,7 @@ class DocumentServiceTest {
                     .build();
             Page<Document> docPage = new PageImpl<>(List.of(doc), PageRequest.of(0, 10), 1);
 
-            when(documentRepository.findByProjectIdOrderByUpdatedAtDesc(eq(1L), any(Pageable.class)))
+            when(documentRepository.findAllByProjectIdFiltered(eq(1L), anyString(), anyString(), any(Pageable.class)))
                     .thenReturn(docPage);
 
             // when

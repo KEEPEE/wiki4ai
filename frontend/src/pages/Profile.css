@@ -12,7 +12,7 @@
   font-family: 'Syne', sans-serif;
   font-size: 28px;
   font-weight: 700;
-  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -48,7 +48,7 @@
 
 .section-description {
   font-size: 0.875rem;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
   margin-bottom: 1rem;
 }
 
@@ -75,7 +75,7 @@
 .info-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
 }
 
 /* Username — Syne gradient (cyan → white → magenta) */
@@ -83,66 +83,10 @@
   font-family: 'Syne', sans-serif;
   font-size: 1.75rem; /* ~28px */
   font-weight: 600;
-  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}
-
-/* ── Role badge — Nexaverse pill style ─────────────────────────── */
-
-.role-badge {
-  display: inline-block;
-  padding: 4px 12px;
-  /* WIKI4AI-80: the badge also carries .info-value, whose gradient-text trick sets
-     -webkit-text-fill-color: transparent; the badge's own `background:` shorthand
-     additionally resets background-clip to border-box → invisible text on the pill.
-     Force an opaque fill (resolves to the per-role `color`) so ADMIN/USER are visible
-     while the pill background stays intact. Username/email spans keep .info-value
-     gradient text untouched. */
-  -webkit-text-fill-color: currentColor;
-  background-clip: border-box;
-  background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(255, 0, 212, 0.15) 100%);
-  border: 1px solid rgba(0, 240, 255, 0.3);
-  border-radius: 50px; /* pill shape */
-  font-family: 'Syne', sans-serif;
-  font-weight: 600;
-  color: var(--primary); /* #00f0ff */
-  font-size: 12px;
-  line-height: 1.4;
-  text-transform: uppercase;
-  white-space: nowrap;
-  transition: border-color var(--transition-base), color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.role-badge:hover {
-  border-color: var(--primary, #00f0ff);
-  color: var(--primary, #00f0ff);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
-}
-
-.role-admin {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(245, 158, 11, 0.05) 100%);
-  border-color: rgba(245, 158, 11, 0.3); /* warning orange */
-  color: var(--color-warning-text, #fbbf24);
-}
-
-.role-admin:hover {
-  border-color: var(--color-warning-text, #fbbf24);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
-  color: var(--color-warning-text, #fbbf24);
-}
-
-.role-user {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%);
-  border-color: rgba(59, 130, 246, 0.3); /* info blue */
-  color: var(--color-info-text, #60a5fa);
-}
-
-.role-user:hover {
-  border-color: var(--color-info-text, #60a5fa);
-  box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
-  color: var(--color-info-text, #60a5fa);
 }
 
 /* ── Form styling — glassmorphism inputs ───────────────────────── */
@@ -162,29 +106,7 @@
 .form-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
-}
-
-.form-input {
-  width: 100%;
-  padding: 0.625rem 1rem;
-  background-color: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-family: 'Outfit', sans-serif;
-  font-size: 0.875rem;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 20px var(--glow-cyan);
+  color: var(--text-secondary); /* Nexaverse body text opacity */
 }
 
 /* ── Messages ──────────────────────────────────────────────────── */
@@ -199,16 +121,6 @@
   margin-bottom: 1rem;
 }
 
-.error-message {
-  padding: 0.75rem 1rem;
-  background-color: var(--color-error-bg);
-  border: 1px solid var(--color-error-border);
-  border-radius: 8px;
-  color: var(--color-error-text);
-  font-size: 0.875rem;
-  margin-bottom: 1rem;
-}
-
 /* ── Token display — glassmorphism field ───────────────────────── */
 
 .token-display {
@@ -217,76 +129,17 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background-color: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  background-color: var(--glass-bg); /* var(--glass-bg) */
+  border: 1px solid var(--glass-border); /* var(--glass-border) */
   border-radius: 8px;
 }
 
 .token-display code {
   flex: 1;
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
   word-break: break-all;
   font-family: 'SF Mono', 'Fira Code', monospace;
-}
-
-/* ── Buttons — glassmorphism + neon hover glow ─────────────────── */
-
-.btn-secondary {
-  background-color: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  color: var(--primary); /* #00f0ff */
-  border: 1px solid var(--glass-border);
-  border-radius: 50px; /* pill shape like Nexaverse */
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-base);
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: rgba(0, 240, 255, 0.1); /* Nexaverse cyan hover */
-  border-color: var(--primary);
-  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow */
-}
-
-.btn-secondary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-danger {
-  background-color: rgba(220, 38, 38, 0.05); /* Danger zone bg per spec */
-  color: var(--color-error-text);
-  border: 1px solid rgba(220, 38, 38, 0.3); /* Danger zone border per spec */
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.btn-danger:hover:not(:disabled) {
-  background-color: rgba(239, 68, 68, 0.15); /* brighter red */
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
-}
-
-.btn-small {
-  padding: 0.375rem 0.75rem;
-  font-size: 0.8125rem;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background-color: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.btn-small:hover {
-  background-color: rgba(255, 255, 255, 0.06);
 }
 
 /* WIKI4AI-89 (V-D6): `.profile-danger-zone` removed — the Profile Danger Zone
@@ -315,8 +168,8 @@
 }
 
 .token-card:hover {
-  border-color: rgba(0, 240, 255, 0.3);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.08);
+  border-color: var(--glow-cyan);
+  box-shadow: 0 0 12px var(--glow-cyan);
 }
 
 .token-card.expired {
@@ -360,7 +213,7 @@
 }
 
 .token-card-meta .expired-text {
-  color: #fca5a5; /* error text */
+  color: var(--color-error-text); /* error text */
 }
 
 .token-card-actions {
@@ -381,12 +234,12 @@
 }
 
 .btn-copy-token:hover:not(:disabled) {
-  background-color: rgba(0, 240, 255, 0.1);
+  background-color: var(--glow-cyan);
   border-color: var(--primary);
 }
 
 .btn-copy-token.copied {
-  color: #6ee7b7; /* success text */
+  color: var(--color-success-text); /* success text */
   border-color: rgba(16, 185, 129, 0.3);
 }
 
@@ -396,14 +249,14 @@
   border-radius: 6px;
   border: 1px solid rgba(239, 68, 68, 0.3);
   background-color: transparent;
-  color: #fca5a5; /* error text */
+  color: var(--color-error-text); /* error text */
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .btn-delete-token:hover:not(:disabled) {
   background-color: rgba(239, 68, 68, 0.1);
-  border-color: #fca5a5;
+  border-color: var(--color-error-border);
 }
 
 /* ── WIKI4AI-138: legacy token deprecation ───────────────────────── */
@@ -444,7 +297,7 @@
   border-radius: 8px;
   border: 1px solid rgba(245, 158, 11, 0.5);
   background-color: rgba(245, 158, 11, 0.12);
-  color: #fcd34d; /* warning text */
+  color: var(--color-warning-text); /* warning text */
   font-size: 12.5px;
   line-height: 1.45;
   text-align: left;
@@ -457,7 +310,7 @@
 }
 
 .token-legacy-banner-text strong {
-  color: #fbbf24;
+  color: var(--color-warning-text);
   font-weight: 700;
 }
 
@@ -468,7 +321,7 @@
 }
 
 .token-card-meta .revoked-text {
-  color: #fbbf24;
+  color: var(--color-warning-text);
 }
 
 /* Rotate — same shape as copy/delete, distinct (cyan) accent. */
@@ -476,7 +329,7 @@
   padding: 4px 12px;
   font-size: 12px;
   border-radius: 6px;
-  border: 1px solid rgba(0, 240, 255, 0.3);
+  border: 1px solid var(--glow-cyan);
   background-color: transparent;
   color: var(--primary);
   cursor: pointer;
@@ -484,7 +337,7 @@
 }
 
 .btn-rotate-token:hover:not(:disabled) {
-  background-color: rgba(0, 240, 255, 0.1);
+  background-color: var(--glow-cyan);
   border-color: var(--primary);
 }
 
@@ -505,7 +358,7 @@
 .rotated-token-warning {
   margin: 0 0 8px;
   font-size: 12.5px;
-  color: #6ee7b7; /* success text */
+  color: var(--color-success-text); /* success text */
 }
 
 /* ── WIKI4AI-168: one-time plaintext panel (created or rotated token) ───── */
@@ -522,7 +375,7 @@
   margin: 0 0 8px;
   font-size: 12.5px;
   font-weight: 600;
-  color: #fcd34d;
+  color: var(--color-warning-text);
 }
 
 /* A hashed token whose secret is no longer available anywhere in the browser. */
@@ -538,7 +391,7 @@
   border-radius: 8px;
   border: 1px solid rgba(245, 158, 11, 0.4);
   background-color: rgba(245, 158, 11, 0.1);
-  color: #fcd34d;
+  color: var(--color-warning-text);
   font-size: 12.5px;
   line-height: 1.45;
 }
@@ -551,15 +404,15 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1rem;
-  background-color: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  background-color: var(--glass-bg); /* var(--glass-bg) */
+  border: 1px solid var(--glass-border); /* var(--glass-border) */
   border-radius: 8px;
 }
 
 .token-display code {
   flex: 1;
   font-size: 0.8125rem;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
   word-break: break-all;
   font-family: 'SF Mono', 'Fira Code', monospace;
 }

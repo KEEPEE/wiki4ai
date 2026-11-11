@@ -75,6 +75,17 @@ class MigrationServiceTest {
     @Mock
     private EmbeddingService embeddingService;
 
+    /**
+     * WIKI4AI-197 (REV-2 P0 #5): MigrationService now asks whether the credential may
+     * carry administrative authority, and @InjectMocks leaves a constructor parameter
+     * null when no mock is declared for it. A mock is the right stand-in here: this class
+     * tests the role half of the rule, and a mocked no-op leaves that half exactly as it
+     * was. The credential half is covered by
+     * EffectiveAdminScopeEnforcementIntegrationTest.
+     */
+    @Mock
+    private EffectiveAdmin effectiveAdmin;
+
     @InjectMocks
     private MigrationService migrationService;
 

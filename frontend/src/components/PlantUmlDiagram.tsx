@@ -15,6 +15,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { plantUmlSvgUrl } from '../utils/plantUmlEncoding';
+import { sanitizeDiagramSvg } from '../utils/svgSanitizer';
 import './PlantUmlDiagram.css';
 
 interface PlantUmlDiagramProps {
@@ -52,7 +53,13 @@ const PlantUmlDiagram: React.FC<PlantUmlDiagramProps> = ({ code, className }) =>
         }
         const svgText = await response.text();
         if (!cancelled) {
-          setSvg(svgText);
+          // WIKI4AI-198: SVG sem prichádza z kroki, teda z cudzieho procesu,
+          // ktorému sme poslali ľubovoľný PlantUML text od autora dokumentu.
+          // PlantUML síce text v `<text>` entituje, ale odpoveď je cudzí
+          // markup a mieri do `dangerouslySetInnerHTML` — preto sa sanitizuje.
+          // Na skutočnej odpovedi kroki jej to neuberie nič, čo sa kreslí
+          // (overené v svgSanitizer.test.ts).
+          setSvg(sanitizeDiagramSvg(svgText));
         }
       })
       .catch((err: unknown) => {

@@ -1,20 +1,18 @@
 import { StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 // WIKI4AI-73: i18n must be initialized before the app renders (default locale: en)
 import './i18n'
 import i18n from './i18n'
 import './index.css'
+// WIKI4AI-185: 3 prepínateľné témy (light / dark / nexaverse). Téma sa
+// aplikuje už v index.html (FOUC guard); ThemeProvider ju drží v stave a
+// perzistuje do localStorage.
+import { ThemeProvider } from './theme/ThemeProvider'
+// WIKI4AI-200: the cache moved out of this file into its own module so AuthContext can
+// drop it when the signed-in identity changes. Same instance, same options as before.
+import { queryClient } from './utils/queryClient'
 import App from './App.tsx'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 2,
-    },
-  },
-})
 
 // Loading fallback component
 function LoadingFallback() {
@@ -53,9 +51,11 @@ try {
   root.render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <Suspense fallback={<LoadingFallback />}>
-          <App />
-        </Suspense>
+        <ThemeProvider>
+          <Suspense fallback={<LoadingFallback />}>
+            <App />
+          </Suspense>
+        </ThemeProvider>
       </QueryClientProvider>
     </StrictMode>,
   )

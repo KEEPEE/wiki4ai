@@ -33,6 +33,17 @@ import java.util.stream.Collectors;
  * (private events are visible only to their creator and ADMIN users —
  * other users get 404 so existence is not revealed), default date range
  * (current month) and ordering (date, then time with all-day events first).
+ * <p>
+ * <b>Who may change what.</b> An event belongs to its creator: only the creator or an
+ * ADMIN may update or delete it. An <i>event type</i> belongs to nobody and everybody —
+ * one global list with no creator column — so it follows the rule for a shared resource:
+ * any authenticated user may add one (additive, and the MCP's
+ * {@code calendar_create_event_type} runs as an ordinary user), only an administrator may
+ * remove one (WIKI4AI-197 commit 15).
+ * <p>
+ * Note that calendar events have no project. There is no project-scoped calendar in this
+ * application, so no project permission is consulted here; the ownership and ADMIN rules
+ * above are the whole model.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,6 +53,7 @@ public class CalendarEventService {
     private final CalendarEventRepository calendarEventRepository;
     private final EventTypeRepository eventTypeRepository;
     private final UserRepository userRepository;
+    private final EffectiveAdmin effectiveAdmin;
 
     // ── Current-user resolution ───────────────────────────────────────────────
 
@@ -286,6 +298,16 @@ public class CalendarEventService {
     /**
      * Create a new event type. Duplicate names (case-insensitive) are rejected
      * with 409 Conflict.
+     *
+     * <p><b>Decision (WIKI4AI-197 commit 15):</b> creating stays open to any authenticated
+     * user while deleting becomes ADMIN-only. Event types are a single global vocabulary —
+     * there is no per-project or per-user type — so the two operations are not symmetric:
+     * a create is additive and can be cleaned up by an administrator, while a delete
+     * removes a value every other user sees and, once types are in use, cannot be undone
+     * at all (events referencing it block the delete with 409). Keeping create open also
+     * keeps {@code calendar_create_event_type} working for agents, which run as ordinary
+     * users; restricting it would turn that documented MCP tool into a 403 for everyone
+     * but an administrator.</p>
      */
     @Transactional
     public EventTypeDTO createEventType(EventTypeCreateDTO dto, String username) {
@@ -309,10 +331,25 @@ public class CalendarEventService {
     /**
      * Delete an event type. Types that are still referenced by calendar events
      * cannot be deleted (409 Conflict with the event count).
+     *
+     * <p>WIKI4AI-197 commit 15: this needs an administrator. Event types are global —
+     * one shared list for every user — and until a type is in use any account could delete
+     * it out from under everyone else, including the seeded types the UI and the MCP tool
+     * descriptions name by string. Ownership is not a usable rule here either: {@code
+     * EventType} records no creator, so "your own type" has no meaning and the only
+     * defensible rule left is the one for a shared resource.</p>
+     *
+     * <p>The check goes through {@link EffectiveAdmin}, not {@code user.getRole()}, so an
+     * administrator's default {@code read}+{@code write} API token cannot delete global
+     * types on his behalf — the same rule the other administrative endpoints use.</p>
      */
     @Transactional
     public void deleteEventType(Long id, String username) {
         requireUser(username);
+        EffectiveAdmin.Verdict admin = effectiveAdmin.check(username);
+        if (!admin.allowed()) {
+            throw new AccessDeniedException(admin.message());
+        }
         EventType type = eventTypeRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Event type not found with id: " + id));
 

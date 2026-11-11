@@ -24,6 +24,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -506,6 +507,51 @@ class VisibilityIntegrationTests {
             DocumentDTO moved = documentService.moveDocument(
                     publicProject.getId(), movable.getSlug(), alicePrivate.getSlug(), ADMIN);
             assertThat(moved.getProjectId()).isEqualTo(alicePrivate.getId());
+        }
+
+        /**
+         * WIKI4AI-197 commit 12. The target check used to be READ, and READ is granted to
+         * every authenticated user by wiki convention — so "I can see that project" was
+         * enough to land somebody else's document inside it. A move writes into the target,
+         * exactly like a copy, and copy already required CREATE there.
+         */
+        @Test
+        @DisplayName("Move into a project the caller may only read is 403, not a silent write")
+        void moveIntoReadOnlyProjectIsDenied() {
+            // given — ALICE's PUBLIC project. Public means BOB can read it; it does not
+            // mean he may write into it. BOB has MANAGE on the source so the source-side
+            // checks (UPDATE + DELETE) pass and only the target check can fail.
+            ProjectDTO readOnlyTarget = projectService.createProject(
+                    ProjectCreateDTO.builder().name("Read Only Target").build(), ALICE);
+            projectPermissionRepository.save(ProjectPermission.builder()
+                    .project(projectRepository.findById(publicProject.getId()).orElseThrow())
+                    .user(user(BOB))
+                    .permissions(List.of(Permission.MANAGE))
+                    .build());
+            DocumentDTO movable = documentService.createDocument(publicProject.getId(),
+                    DocumentCreateDTO.builder().title("Movable").content("move me").build(), BOB);
+
+            // when & then — BOB reads the target fine but cannot move into it
+            assertThat(projectService.getProjectBySlug(readOnlyTarget.getSlug(), BOB).getSlug())
+                    .isEqualTo(readOnlyTarget.getSlug());
+            assertThatThrownBy(() -> documentService.moveDocument(
+                    publicProject.getId(), movable.getSlug(), readOnlyTarget.getSlug(), BOB))
+                    .isInstanceOf(AccessDeniedException.class)
+                    .hasMessageContaining("CREATE");
+
+            // and the document really stayed put — a denied move wrote nothing
+            assertThat(documentService.getDocument(publicProject.getId(), movable.getSlug(), BOB)
+                    .getProjectId()).isEqualTo(publicProject.getId());
+
+            // once ALICE grants him CREATE, the same call succeeds
+            projectPermissionRepository.save(ProjectPermission.builder()
+                    .project(projectRepository.findById(readOnlyTarget.getId()).orElseThrow())
+                    .user(user(BOB))
+                    .permissions(List.of(Permission.CREATE, Permission.READ))
+                    .build());
+            assertThat(documentService.moveDocument(
+                    publicProject.getId(), movable.getSlug(), readOnlyTarget.getSlug(), BOB)
+                    .getProjectId()).isEqualTo(readOnlyTarget.getId());
         }
 
         @Test

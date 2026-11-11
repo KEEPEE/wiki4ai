@@ -440,7 +440,7 @@ class CalendarEventServiceIntegrationTests {
             calendarEventService.createEvent(
                     eventDto("Deploy run", YearMonth.now().atDay(15), "Deploy", null, null, null), ALICE);
 
-            assertThatThrownBy(() -> calendarEventService.deleteEventType(deployId, ALICE))
+            assertThatThrownBy(() -> calendarEventService.deleteEventType(deployId, ADMIN))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("used by 1");
         }
@@ -451,9 +451,55 @@ class CalendarEventServiceIntegrationTests {
             Long tempId = calendarEventService.createEventType(
                     EventTypeCreateDTO.builder().name("Temp").build(), ALICE).getId();
 
-            calendarEventService.deleteEventType(tempId, ALICE);
+            calendarEventService.deleteEventType(tempId, ADMIN);
 
             assertThat(eventTypeRepository.existsById(tempId)).isFalse();
+        }
+
+        /**
+         * WIKI4AI-197 commit 15. Event types are one global list shared by every user, and
+         * {@code EventType} records no creator — so "your own type" has no meaning and any
+         * account could delete a value everybody else sees, seeded types included, until a
+         * reference blocked it.
+         */
+        @Test
+        @DisplayName("A regular user cannot delete an event type (403)")
+        void regularUserCannotDeleteEventType() {
+            Long tempId = calendarEventService.createEventType(
+                    EventTypeCreateDTO.builder().name("Temp").build(), ALICE).getId();
+
+            assertThatThrownBy(() -> calendarEventService.deleteEventType(tempId, BOB))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class)
+                    .hasMessageContaining("Admin access required");
+
+            assertThat(eventTypeRepository.existsById(tempId))
+                    .as("a refused delete must remove nothing")
+                    .isTrue();
+        }
+
+        /**
+         * Creating stays open to any authenticated user (the decision recorded on
+         * {@code CalendarEventService.createEventType}): it is additive, an administrator
+         * can clean up after it, and the MCP's calendar_create_event_type runs as an
+         * ordinary user.
+         */
+        @Test
+        @DisplayName("A regular user may still create an event type")
+        void regularUserCanCreateEventType() {
+            assertThat(calendarEventService.createEventType(
+                    EventTypeCreateDTO.builder().name("Deploy").build(), BOB).getName())
+                    .isEqualTo("Deploy");
+        }
+
+        /**
+         * The 403 is decided before the row is looked up, so a regular user cannot use the
+         * delete endpoint to probe which type ids exist.
+         */
+        @Test
+        @DisplayName("A regular user gets 403 for an unknown type id, not 404")
+        void regularUserCannotProbeTypeIds() {
+            assertThatThrownBy(() -> calendarEventService.deleteEventType(999_999L, BOB))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
         }
     }
 

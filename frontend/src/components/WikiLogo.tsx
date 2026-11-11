@@ -3,7 +3,7 @@
  *
  * Inšpirované TemplateMo 603 - Nexaverse:
  *   - Hexagonálny tvar s vnútorným menším hexagónom a centrálnym kruhom
- *   - Gradient stroke: linear-gradient(#00f0ff → #ff00d4) pre vonkajší polygon
+ *   - Gradient stroke: primary → text-strong → secondary (tokeny, nie hex)
  *   - Inner polygon: 1.5px stroke pri 60% opacity
  *   - Vonkajší polygon: 2px stroke
  *   - Neon glow efekt: drop-shadow(0 0 20px var(--glow-cyan))
@@ -46,9 +46,9 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
         {/* SVG Gradient Definition */}
         <defs>
           <linearGradient id="wikiLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#00f0ff" />
-            <stop offset="50%" stopColor="#ffffff" />
-            <stop offset="100%" stopColor="#ff00d4" />
+            <stop offset="0%" style={{ stopColor: 'var(--primary)' }} />
+            <stop offset="50%" style={{ stopColor: 'var(--text-strong)' }} />
+            <stop offset="100%" style={{ stopColor: 'var(--secondary)' }} />
           </linearGradient>
 
           {/* Neon glow filter */}
@@ -57,7 +57,7 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
               dx="0"
               dy="0"
               stdDeviation="6"
-              floodColor="#00f0ff"
+              style={{ floodColor: 'var(--primary)' }}
               floodOpacity="0.5"
             />
           </filter>
@@ -68,7 +68,7 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
               dx="0"
               dy="0"
               stdDeviation="10"
-              floodColor="#00f0ff"
+              style={{ floodColor: 'var(--primary)' }}
               floodOpacity="0.7"
             />
           </filter>
@@ -88,7 +88,7 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
         <polygon
           points={hexPoints(cx, cy, innerR)}
           fill="none"
-          stroke="#00f0ff"
+          style={{ stroke: 'var(--primary)' }}
           strokeWidth="1.5"
           opacity="0.6"
           className="wiki-logo-inner"
@@ -99,7 +99,7 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
           cx={cx}
           cy={cy}
           r={s * 0.08}
-          fill="#00f0ff"
+          style={{ fill: 'var(--primary)' }}
           filter="url(#wikiLogoGlow)"
           className="wiki-logo-center"
         />
@@ -109,7 +109,7 @@ export default function WikiLogo({ size = 90 }: WikiLogoProps) {
           cx={cx}
           cy={cy}
           r={s * 0.03}
-          fill="#ffffff"
+          style={{ fill: 'var(--text-strong)' }}
         />
       </svg>
     </div>

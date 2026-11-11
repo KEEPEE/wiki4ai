@@ -27,7 +27,7 @@
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -61,7 +61,7 @@
   border: 1px solid rgba(255, 71, 87, 0.35);
   border-radius: 8px;
   background: rgba(255, 71, 87, 0.08);
-  color: #ff8a94;
+  color: var(--color-error-text);
   font-size: 0.85rem;
 }
 
@@ -147,17 +147,17 @@
 }
 
 .agent-status[data-presence='active'] {
-  border-color: rgba(0, 240, 255, 0.4);
+  border-color: var(--glow-cyan);
   color: var(--primary);
 }
 
 .agent-status[data-presence='paused'] {
   border-color: rgba(255, 200, 0, 0.35);
-  color: #ffcc4d;
+  color: var(--color-warning-text);
 }
 
 .agent-status[data-presence='archived'] {
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-default);
   color: var(--text-muted);
 }
 
@@ -226,7 +226,7 @@
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--glass-border);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--glass-bg);
 }
 
 .agent-token-name {
@@ -246,18 +246,13 @@
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #ff8a94;
+  color: var(--color-error-text);
 }
 
 .agent-token-actions {
   margin-left: auto;
   display: flex;
   gap: 0.4rem;
-}
-
-.btn-danger {
-  border-color: rgba(255, 71, 87, 0.4);
-  color: #ff8a94;
 }
 
 .agent-revoke-all {

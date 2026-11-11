@@ -75,6 +75,7 @@ public class MigrationService {
     private final IntegrityService integrityService;
     private final EmbeddingClient embeddingClient;
     private final EmbeddingService embeddingService;
+    private final EffectiveAdmin effectiveAdmin;
 
     public MigrationService(ProjectRepository projectRepository,
                             DocumentRepository documentRepository,
@@ -83,7 +84,8 @@ public class MigrationService {
                             PermissionService permissionService,
                             IntegrityService integrityService,
                             EmbeddingClient embeddingClient,
-                            EmbeddingService embeddingService) {
+                            EmbeddingService embeddingService,
+                            EffectiveAdmin effectiveAdmin) {
         this.projectRepository = projectRepository;
         this.documentRepository = documentRepository;
         this.userRepository = userRepository;
@@ -92,6 +94,7 @@ public class MigrationService {
         this.integrityService = integrityService;
         this.embeddingClient = embeddingClient;
         this.embeddingService = embeddingService;
+        this.effectiveAdmin = effectiveAdmin;
     }
 
     /**
@@ -108,6 +111,9 @@ public class MigrationService {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new SecurityException("Admin access required. Current role: " + currentUser.getRole());
         }
+        // WIKI4AI-197 (REV-2 P0 #5): import and export move the whole instance's content
+        // and can overwrite documents, so the token has to say it may do that.
+        effectiveAdmin.requireCredentialMayCarryAdmin();
     }
 
     // ==================== export ====================

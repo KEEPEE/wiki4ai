@@ -89,13 +89,60 @@
     "adding": "Pridáva sa...",
     "addLink": "Pridať prepojenie",
     "backlinks": "Odkazuje z (Backlinks)",
-    "noBacklinks": "Žiadne spätné odkazy"
+    "noBacklinks": "Žiadne spätné odkazy",
+    "removeAria": "Odstrániť prepojenie"
   },
   "tag": {
     "label": "Štítok: {{label}}"
   },
   "toast": {
     "dismissAria": "Zavrieť oznámenie"
+  },
+  "pin": {
+    "pin": "Pripnúť",
+    "unpin": "Odopnúť",
+    "pinned": "Pripnuté",
+    "typeProject": "projekt",
+    "typeDocument": "dokument",
+    "pinAria": "Pripnúť {{type}} {{name}} na vrch",
+    "unpinAria": "Odopnúť {{type}} {{name}} z vrchu",
+    "pinnedProject": "Projekt {{name}} je pripnutý na vrch",
+    "unpinnedProject": "Projekt {{name}} je odopnutý",
+    "pinnedDocument": "Dokument {{name}} je pripnutý na vrch",
+    "unpinnedDocument": "Dokument {{name}} je odopnutý",
+    "forbiddenProject": "Nemáte oprávnenie pripnúť tento projekt",
+    "forbiddenDocument": "Nemáte oprávnenie pripnúť tento dokument",
+    "failed": "Nepodarilo sa zmeniť pripnutie: {{message}}"
+  },
+  "listSort": {
+    "projectsLabel": "Zoradiť projekty",
+    "documentsLabel": "Zoradiť dokumenty",
+    "manual": "Vlastné poradie",
+    "nameAsc": "Názov A-Z",
+    "nameDesc": "Názov Z-A",
+    "createdAsc": "Najstaršie vytvorené",
+    "createdDesc": "Najnovšie vytvorené",
+    "updatedDesc": "Najnovšie upravené",
+    "visibilityLabel": "Viditeľnosť",
+    "visibilityAll": "Všetky",
+    "visibilityPublic": "Verejné",
+    "visibilityPrivate": "Súkromné",
+    "activeFilters": "Aktívne filtre:",
+    "clearAll": "Zrušiť filtre",
+    "clearFilterAria": "Odstrániť filter {{filter}}",
+    "filterQuery": "Text: {{q}}",
+    "filterVisibility": "Viditeľnosť: {{value}}",
+    "dragHint": "Potiahnutím zmeníš poradie",
+    "dragAria": "Rúčka na presunutie {{name}}",
+    "switchToManual": "Prepnúť na vlastné poradie",
+    "lockedSort": "Drag & drop funguje len vo vlastnom poradí.",
+    "lockedFilter": "Drag & drop je vypnutý, kým je aktívny filter. Zruš ho, aby si mohol presúvať.",
+    "truncated": "Projekt má {{total}} dokumentov - načítaných je prvých {{loaded}}, len tie sa dajú presúvať.",
+    "toastReordered": "Nové poradie uložené",
+    "toastReorderFailed": "Nepodarilo sa uložiť poradie: {{message}}",
+    "reorderForbiddenProject": "Nemáš oprávnenie meniť poradie projektov",
+    "reorderForbiddenDocument": "Nemáš oprávnenie meniť poradie dokumentov v tomto projekte",
+    "matchCount": "Zhodujúce projekty: {{shown}}"
   },
   "dashboard": {
     "docsCount": "{{count}} dok.",
@@ -213,13 +260,33 @@
     "logout": "Odhlásiť sa",
     "login": "Prihlásenie",
     "register": "Registrácia",
-    "calendar": "Káľendar",
+    "calendar": "Kalendár",
     "board": "Tabuľa",
     "agents": "Agenti",
     "resources": "Zdroje",
     "metrics": "Metriky",
     "newEvents": "Nové udalosti: {{count}}",
-    "newEventsHint": "Otvorte, čo pribudlo; potom marker zmizne."
+    "newEventsHint": "Otvorte, čo pribudlo; potom marker zmizne.",
+    "nav": {
+      "sectionWiki": "Wiki",
+      "sectionCoordination": "Koordinácia",
+      "sectionAccount": "Účet",
+      "dashboard": "Dashboard",
+      "search": "Hľadať",
+      "menuToggle": "Otvoriť navigáciu",
+      "menuClose": "Zavrieť navigáciu",
+      "homeAria": "Wiki4AI — úvodná stránka"
+    },
+    "theme": {
+      "switchAria": "Farebná téma",
+      "glass-dark": "Glass tmavá",
+      "glass-darkHint": "Glass Admin — deep forest emerald + gold (predvolená)",
+      "glass-light": "Glass svetlá",
+      "glass-lightHint": "Glass Admin — svetlá verzia",
+      "nexaverse": "Nexaverse",
+      "nexaverseHint": "Nexaverse — neonová tyrkysová / magenta"
+    },
+    "skipToContent": "Preskočiť na hlavný obsah"
   },
   "viewer": {
     "loadFailed": "Nepodarilo sa načítať dokument",
@@ -257,7 +324,10 @@
     "reload": "Znovu načítať",
     "emptyPreview": "Začnite písať markdown pre náhľad...",
     "wordsCount": "{{count}} slov",
-    "charsCount": "{{count}} znakov"
+    "charsCount": "{{count}} znakov",
+    "tabHint": "Monaco zachytáva Tab. Stlačte {{key}}, aby Tab presúval focus mimo editora — a znovu, ak sa chcete vrátiť.",
+    "tabHintMac": "⌃⇧M",
+    "tabHintWin": "Ctrl+M"
   },
   "markdown": {
     "insert": "Vložiť",
@@ -510,7 +580,7 @@
     "logoutDesc": "Odhláste sa od svojho účtu na tomto zariadení."
   },
   "calendar": {
-    "title": "Káľendar",
+    "title": "Kalendár",
     "today": "Dnes",
     "prevMonth": "Predchádzajúci mesiac",
     "nextMonth": "Nasledujúci mesiac",
@@ -521,7 +591,7 @@
     },
     "prevWeek": "Predchádzajúci týždeň",
     "nextWeek": "Nasledujúci týždeň",
-    "loading": "Načítavam káľendar...",
+    "loading": "Načítavam kalendár...",
     "loadError": "Nepodarilo sa načítať udalosti",
     "retry": "Skúsiť znova",
     "noEvents": "V tomto mesiaci nie sú žiadne udalosti. Klikni na deň a vytvor ju.",

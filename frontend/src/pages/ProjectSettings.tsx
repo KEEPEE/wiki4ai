@@ -12,6 +12,7 @@ import type { ProjectDTO, Visibility } from '../types/project';
 // WIKI4AI-100: shared Public/Private visibility toggle
 import VisibilityToggle from '../components/VisibilityToggle';
 import './ProjectSettings.css';
+import { useDialog } from '../hooks/useDialog';
 
 const ProjectSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -28,6 +29,10 @@ const ProjectSettings: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  /* WIKI4AI-194 (DIZ-3 item 5): modal je native <dialog> —
+   * focus trap, Escape a `::backdrop` dáva prehliadač, nie komponent. */
+  const deleteDialogRef = useDialog<HTMLDialogElement>(showDeleteConfirm);
 
   // Find the project by slug
   const project = projects.find((p) => p.slug === slug);
@@ -185,7 +190,7 @@ const ProjectSettings: React.FC = () => {
             </p>
           </div>
 
-          {saveError && <p className="error" data-testid="save-error">{saveError}</p>}
+          {saveError && <p className="state-error" data-testid="save-error">{saveError}</p>}
 
           <div className="form-actions">
             <Link to={`/projects/${slug}`} className="btn-secondary">{t('common.cancel')}</Link>
@@ -211,12 +216,21 @@ const ProjectSettings: React.FC = () => {
           {t('dashboard.deleteProjectTitle')}
         </button>
 
-        {deleteError && <p className="error" data-testid="delete-error">{deleteError}</p>}
+        {deleteError && <p className="state-error" data-testid="delete-error">{deleteError}</p>}
       </section>
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="modal-backdrop" data-testid="delete-modal">
+        <dialog
+          ref={deleteDialogRef}
+          className="modal-backdrop"
+          aria-labelledby="project-delete-title"
+          data-testid="delete-modal"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDeleteConfirm(false);
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        >
           <div className="modal-content">
             <button
               onClick={() => setShowDeleteConfirm(false)}
@@ -225,7 +239,7 @@ const ProjectSettings: React.FC = () => {
             >
               &times;
             </button>
-            <h3>{t('dashboard.deleteProjectTitle')}</h3>
+            <h3 id="project-delete-title">{t('dashboard.deleteProjectTitle')}</h3>
             <p className="delete-warning">
               {t('project.deleteConfirmStart')} <strong>"{project.name}"</strong>?{' '}
               {t('project.deleteConfirmEnd')}
@@ -248,7 +262,7 @@ const ProjectSettings: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

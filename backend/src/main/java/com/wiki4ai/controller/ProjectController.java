@@ -4,6 +4,7 @@ import com.wiki4ai.dto.ProjectCreateDTO;
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.dto.ProjectTreeNodeDTO;
 import com.wiki4ai.dto.ProjectUpdateDTO;
+import com.wiki4ai.dto.ReorderRequestDTO;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,11 +47,27 @@ public class ProjectController {
         return "anonymous";
     }
 
-    @Operation(summary = "Zoznam všetkých projektov", description = "Vráti zoznam wiki projektov zoradených podľa dátumu vytvorenia. Súkromné (private) projekty sú viditeľné len ich vlastníkovi a ADMINom — ostatným používateľom sa v zozname neobjavia.")
+    @Operation(summary = "Zoznam projektov (filter + poradie)", description = """
+            Vráti zoznam wiki projektov. Voliteľné parametre (WIKI4AI-184):
+            `sort` = manual | name_asc | name_desc | created_asc | created_desc (default) | updated_desc,
+            `q` = case-insensitive filter na názov + popis,
+            `visibility` = public | private.
+            Vždy platí, že pripnuté (pinned) projekty sú na vrchu a až potom nasleduje zvolený sort.
+            Bez parametrov sa správanie nemení oproti predchádzajúcej verzii (created_desc), len pinned projekty
+            preskočia na vrch. Súkromné (private) projekty sú viditeľné len ich vlastníkovi a ADMINom —
+            ostatným používateľom sa v zozname neobjavia.""")
     @ApiResponse(responseCode = "200", description = "Zoznam projektov úspešne načítaný")
+    @ApiResponse(responseCode = "400", description = "Neplatná hodnota parametra sort alebo visibility")
     @GetMapping
-    public ResponseEntity<List<ProjectDTO>> getAllProjects() {
-        return ResponseEntity.ok(projectService.getAllProjects(getCurrentUsername()));
+    public ResponseEntity<List<ProjectDTO>> getAllProjects(
+            @Parameter(description = "Poradie: manual | name_asc | name_desc | created_asc | created_desc | updated_desc")
+            @RequestParam(required = false) String sort,
+            @Parameter(description = "Case-insensitive filter na názov a popis projektu")
+            @RequestParam(required = false) String q,
+            @Parameter(description = "Filter viditeľnosti: public | private")
+            @RequestParam(required = false) String visibility) {
+        return ResponseEntity.ok(
+                projectService.getAllProjects(sort, q, visibility, getCurrentUsername()));
     }
 
     @Operation(summary = "Detail projektu podľa slugu", description = "Vráti detail projektu na základe jeho URL-friendly slugu. Cudzí súkromný (private) projekt vráti 404 (neodhaľuje existenciu).")
@@ -125,6 +142,55 @@ public class ProjectController {
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .contentLength(zipData.length)
                 .body(resource);
+    }
+
+    // ── Pin to top + manual order (WIKI4AI-184) ───────────────────────────────
+    //
+    // Dedicated POST endpoints, not a PATCH: the backend has no @PatchMapping
+    // anywhere, and the existing PUT cannot carry a pin-only change because
+    // ProjectUpdateDTO.name is @NotBlank.
+
+    @Operation(summary = "Pripnutie projektu na vrch", description = """
+            Pripne projekt na vrch zoznamov (WIKI4AI-184). Pri prvom pripnutí projekt získa
+            aj pozíciu nad súčasnou prvou položkou manuálneho poradia. Opakované pripnutie
+            pozíciu nemení. `updated_at` projektu sa neposúva — pin nie je editácia.
+            Vyžaduje MANAGE oprávnenie; cudzí súkromný projekt vráti 404.""")
+    @ApiResponse(responseCode = "200", description = "Projekt pripnutý")
+    @ApiResponse(responseCode = "403", description = "Chýba MANAGE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený (alebo je cudzí súkromný)")
+    @PostMapping("/{slug}/pin")
+    public ResponseEntity<ProjectDTO> pinProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug) {
+        return ResponseEntity.ok(projectService.pinProject(slug, getCurrentUsername()));
+    }
+
+    @Operation(summary = "Odopnutie projektu", description = """
+            Odoberie projekt z vrchu zoznamov (WIKI4AI-184). Manuálna pozícia (sortOrder)
+            zostáva zachovaná, takže sa projekt vrámi presne tam, kde bol pred pripnutím.
+            Vyžaduje MANAGE oprávnenie.""")
+    @ApiResponse(responseCode = "200", description = "Projekt odopnutý")
+    @ApiResponse(responseCode = "403", description = "Chýba MANAGE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Projekt s daným slugom nebol nájdený (alebo je cudzí súkromný)")
+    @PostMapping("/{slug}/unpin")
+    public ResponseEntity<ProjectDTO> unpinProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug) {
+        return ResponseEntity.ok(projectService.unpinProject(slug, getCurrentUsername()));
+    }
+
+    @Operation(summary = "Zmena poradia projektu", description = """
+            Presunie projekt v manuálnom poradí (WIKI4AI-184). Práve jedno z telies:
+            `{"beforeSlug": "..."}`, `{"afterSlug": "..."}` alebo `{"position": N}`
+            (0-indexované, hodnota mimo rozsahu sa zovrie). Celé zoznam sa po presunutí
+            prečísla husto 0..n-1. `updated_at` sa neposúva. Vyžaduje MANAGE oprávnenie.""")
+    @ApiResponse(responseCode = "200", description = "Projekt presunutý, vráta sa s novou pozíciou")
+    @ApiResponse(responseCode = "400", description = "Telelo neobsahuje práve jeden selektor (beforeSlug/afterSlug/position)")
+    @ApiResponse(responseCode = "403", description = "Chýba MANAGE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Projekt alebo kotva (beforeSlug/afterSlug) nebol nájdený")
+    @PostMapping("/{slug}/reorder")
+    public ResponseEntity<ProjectDTO> reorderProject(
+            @Parameter(description = "Slug projektu") @PathVariable String slug,
+            @RequestBody ReorderRequestDTO request) {
+        return ResponseEntity.ok(projectService.reorderProject(slug, request, getCurrentUsername()));
     }
 
     // ── ID-based endpoints (for frontend compatibility) ──────────────────────

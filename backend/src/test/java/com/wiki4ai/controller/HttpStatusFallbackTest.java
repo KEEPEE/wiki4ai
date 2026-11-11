@@ -279,7 +279,23 @@ class HttpStatusFallbackTest {
                                 + "classes; an ordinary runtime fault still lands on the "
                                 + "Exception handler")
                         .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR.value());
-                assertThat(result.getResponse().getContentAsString()).contains("simulated internal failure");
+                // WIKI4AI-197 (REV-2 P0 #10) changed this line, and the change is the
+                // point rather than a side effect. It used to read
+                //     contains("simulated internal failure")
+                // which pinned the exception's own words in the response body. That was
+                // never this test's subject — the test is about the STATUS staying 500 — but
+                // it was an assertion, so it quietly made the leak part of the contract:
+                // the catch-all quoted whatever the throwing library happened to say, and
+                // for a real fault that means Hibernate naming a table, the pgvector driver
+                // naming a column, or the KDBX parser quoting bytes from a secret store.
+                // The body is now a fixed string and the cause goes to the log with its
+                // stack trace, so the assertion is restated against the body that is
+                // actually returned — and the cause is asserted ABSENT, which is the
+                // property worth holding.
+                assertThat(result.getResponse().getContentAsString())
+                        .as("a 500 says the server could not complete the request, not why")
+                        .contains("An unexpected error occurred")
+                        .doesNotContain("simulated internal failure");
             } catch (Exception e) {
                 throw new AssertionError("the standalone MockMvc should not propagate the fault", e);
             }

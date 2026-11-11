@@ -19,6 +19,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+/**
+ * Byte comparison that survives the jsdom/Node realm split.
+ *
+ * `toEqual` on typed arrays also compares constructors, and here the two sides come
+ * from different realms: a `TextEncoder().encode()` in the test is a jsdom
+ * `Uint8Array`, while bytes handed back by WebCrypto are Node's. Same name, same
+ * bytes, different constructor — so the assertion fails on values that print
+ * identically. Comparing the contents sidesteps a difference that means nothing.
+ */
+function expectBytes(actual: Uint8Array | null | undefined, expected: Uint8Array): void {
+  expect(actual).toBeInstanceOf(Uint8Array);
+  expect(Array.from(actual ?? [])).toEqual(Array.from(expected));
+}
+
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
@@ -81,22 +95,95 @@ describe('cryptoApi insecure-context fallback', () => {
     expect(toHex(k1)).toBe(toHex(k2));
   });
 
-  it('fallback AES-256-GCM round-trips correctly on its own', async () => {
+  it('fallback AES-256-GCM round-trips bytes on its own', async () => {
     const key = new Uint8Array(32).fill(9);
-    const { ciphertextWithTag, iv } = await fallback.encrypt('hello secret', key);
-    const decrypted = await fallback.decrypt(ciphertextWithTag, iv, key);
-    expect(decrypted).toBe('hello secret');
+    const plaintext = new TextEncoder().encode('hello secret');
+
+    const { ciphertextWithTag, iv } = await fallback.encryptBytes(plaintext, key);
+    const decrypted = await fallback.decryptBytes(ciphertextWithTag, iv, key);
+
+    expectBytes(decrypted, plaintext);
   });
 
   it('fallback and WebCrypto paths interoperate: encrypt with one, decrypt with the other', async () => {
     const key = new Uint8Array(32).fill(5);
+    const plaintext = new TextEncoder().encode('cross-path secret');
 
-    const encFallback = await fallback.encrypt('cross-path secret A', key);
-    const decBySecure = await secure.decrypt(encFallback.ciphertextWithTag, encFallback.iv, key);
-    expect(decBySecure).toBe('cross-path secret A');
+    const encFallback = await fallback.encryptBytes(plaintext, key);
+    expectBytes(await secure.decryptBytes(encFallback.ciphertextWithTag, encFallback.iv, key), plaintext);
 
-    const encSecure = await secure.encrypt('cross-path secret B', key);
-    const decByFallback = await fallback.decrypt(encSecure.ciphertextWithTag, encSecure.iv, key);
-    expect(decByFallback).toBe('cross-path secret B');
+    const encSecure = await secure.encryptBytes(plaintext, key);
+    expectBytes(await fallback.decryptBytes(encSecure.ciphertextWithTag, encSecure.iv, key), plaintext);
+  });
+
+  it('both paths preserve non-UTF8 bytes exactly (the reason the API is bytes, not strings)', async () => {
+    // 0xff is not a valid UTF-8 start byte. A string-based API has to invent a
+    // replacement character here, and a migration comparing "what went in" with "what
+    // came back" would then be comparing two different things.
+    const key = new Uint8Array(32).fill(7);
+    const plaintext = new Uint8Array([0xff, 0xfe, 0x00, 0x41, 0xc3, 0xa9]);
+
+    for (const api of [fallback, secure]) {
+      const { ciphertextWithTag, iv } = await api.encryptBytes(plaintext, key);
+      expectBytes(await api.decryptBytes(ciphertextWithTag, iv, key), plaintext);
+    }
+  });
+
+  it('a wrong AAD refuses to open the blob on both paths', async () => {
+    // v2 seals each field against the row it belongs to. If the AAD were ignored, a
+    // blob could be moved between rows or users and still decrypt, which is the
+    // confusion GCM's "associated data" exists to prevent.
+    const key = new Uint8Array(32).fill(11);
+    const plaintext = new TextEncoder().encode('field secret');
+    const aad = new TextEncoder().encode('w4ai-vault|2|7|uuid|password|key');
+
+    for (const api of [fallback, secure]) {
+      const { ciphertextWithTag, iv } = await api.encryptBytes(plaintext, key, { aad });
+
+      expectBytes(await api.decryptBytes(ciphertextWithTag, iv, key, aad), plaintext);
+      expect(await api.decryptBytes(ciphertextWithTag, iv, key)).toBeNull();
+      expect(await api.decryptBytes(ciphertextWithTag, iv, key, new TextEncoder().encode('other'))).toBeNull();
+    }
+  });
+
+  it('the AAD is authenticated but not secret: it does not appear in the ciphertext', async () => {
+    const key = new Uint8Array(32).fill(12);
+    const plaintext = new TextEncoder().encode('secret');
+    const aad = new TextEncoder().encode('entry-uuid-12345');
+
+    const { ciphertextWithTag } = await secure.encryptBytes(plaintext, key, { aad });
+    const asText = new TextDecoder('utf-8', { fatal: false }).decode(ciphertextWithTag);
+    expect(asText).not.toContain('entry-uuid-12345');
+  });
+
+  it('a supplied IV is used verbatim, which is how v1 shared one IV across a row', async () => {
+    const key = new Uint8Array(32).fill(13);
+    const iv = new Uint8Array(12).fill(3);
+    const plaintext = new TextEncoder().encode('same data');
+
+    const a = await secure.encryptBytes(plaintext, key, { iv });
+    const b = await secure.encryptBytes(plaintext, key, { iv });
+
+    expectBytes(a.iv, iv);
+    expect(a.ciphertextWithTag).toEqual(b.ciphertextWithTag);
+  });
+
+  it('without a supplied IV every call gets a fresh one', async () => {
+    const key = new Uint8Array(32).fill(14);
+    const plaintext = new TextEncoder().encode('same data');
+
+    const a = await secure.encryptBytes(plaintext, key);
+    const b = await secure.encryptBytes(plaintext, key);
+
+    expect(a.iv).not.toEqual(b.iv);
+    expect(a.ciphertextWithTag).not.toEqual(b.ciphertextWithTag);
+    expect(a.iv.length).toBe(12);
+  });
+
+  it('decryptBytes returns null for a wrong key rather than garbage', async () => {
+    const plaintext = new TextEncoder().encode('secret data');
+    const { ciphertextWithTag, iv } = await secure.encryptBytes(plaintext, new Uint8Array(32).fill(1));
+
+    expect(await secure.decryptBytes(ciphertextWithTag, iv, new Uint8Array(32).fill(2))).toBeNull();
   });
 });

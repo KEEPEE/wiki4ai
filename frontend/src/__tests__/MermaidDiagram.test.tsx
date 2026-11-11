@@ -12,6 +12,12 @@ import MermaidDiagram, { withNaturalSize } from '../components/MermaidDiagram';
 
 const mockSvg = '<svg xmlns="http://www.w3.org/2000/svg"><text>Mock Diagram</text></svg>';
 
+// WIKI4AI-198: sank musí filtrovať bez ohľadu na to, či mu Mermaid pomohol.
+// Mock preto vracá SVG, v ktorom útočník prežil — taký, aký Mermaid vracal v
+// `securityLevel: 'loose'` (bez vlastnej DOMPurify pasy) a taký, aký by
+// vrátil aj v `strict`, keby knižnica svoju pas niekedy stratila. Sankom musí
+// prejsť a v DOM nesmie ostať nič, čo by prehliadač vykonal.
+
 vi.mock('mermaid', () => ({
   default: {
     initialize: vi.fn(),
@@ -19,6 +25,19 @@ vi.mock('mermaid', () => ({
       // Simulate invalid syntax error for specific codes
       if (code.includes('INVALID_SYNTAX')) {
         throw new Error('Parse error on line 1: Invalid syntax');
+      }
+      // WIKI4AI-198: simulate the unsanitized `loose` output
+      if (code.includes('XSS_PAYLOAD')) {
+        return {
+          svg:
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 40"><text>Mock Diagram</text>' +
+            '<foreignObject width="100" height="40"><div xmlns="http://www.w3.org/1999/xhtml">' +
+            '<img src="x" onerror="window.__mermaidSinkPwned=1">' +
+            '<script>window.__mermaidSinkPwned=2<\/script>' +
+            '</div></foreignObject>' +
+            '<a href="javascript:window.__mermaidSinkPwned=3" target="_blank"><text>click</text></a>' +
+            '</svg>',
+        };
       }
       return { svg: mockSvg };
     }),
@@ -247,6 +266,56 @@ describe('MermaidDiagram', () => {
       // If we got here without errors, the cancelled flag is working correctly
       expect(true).toBe(true);
     });
+  });
+});
+
+describe('WIKI4AI-198: sank nesmie pustiť vykonateľný uzol', () => {
+  /** Atribút `on…`, `<script>` alebo `javascript:` URL v navrstvenom DOM. */
+  const triggers = (root: ParentNode): string[] => {
+    const found: string[] = [];
+    root.querySelectorAll('*').forEach((el) => {
+      for (const attr of Array.from(el.attributes)) {
+        if (/^on/i.test(attr.name)) found.push(`${el.tagName.toLowerCase()}@${attr.name}`);
+        if (/^\s*javascript:/i.test(attr.value)) found.push(`${el.tagName.toLowerCase()}@${attr.name}=javascript:`);
+      }
+      if (el.tagName.toUpperCase() === 'SCRIPT') found.push('script');
+    });
+    return found;
+  };
+
+  it('nevyrenderuje onerror / script / javascript: z Mermaid SVG do DOM', async () => {
+    const { container } = render(<MermaidDiagram code='flowchart TD\n  A["XSS_PAYLOAD"] --> B' />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-diagram__svg svg')).toBeInTheDocument();
+    });
+
+    const sink = container.querySelector('.mermaid-diagram__svg') as HTMLElement;
+    // Mock útočníka obsahoval — keby test netvrdil aspoň túto pomôcku,
+    // mohol by zelenou prejsť aj vtedy, keď sme útočníka nikdy neskúšali.
+    expect(sink.textContent).toContain('Mock Diagram');
+    expect(triggers(sink)).toEqual([]);
+    expect((window as unknown as Record<string, unknown>).__mermaidSinkPwned).toBeUndefined();
+  });
+
+  it('nechá diagram kresliť aj po sanitizácii (viewBox, text, foreignObject)', async () => {
+    const { container } = render(<MermaidDiagram code='flowchart TD\n  A["XSS_PAYLOAD"] --> B' />);
+
+    await waitFor(() => {
+      expect(container.querySelector('.mermaid-diagram__svg svg')).toBeInTheDocument();
+    });
+
+    const svg = container.querySelector('.mermaid-diagram__svg svg') as SVGSVGElement;
+    expect(svg.getAttribute('viewBox')).toBe('0 0 100 40');
+    expect(svg.querySelector('text')?.textContent).toBe('Mock Diagram');
+    // HTML label v foreignObject musí ostať HTML element, inak by sa
+    // kreslenie labelov rozpadlo (to je dôvod, prečo sank nepoužíva
+    // USE_PROFILES: { svg: true }).
+    const div = svg.querySelector('foreignObject > div');
+    expect(div).not.toBeNull();
+    expect(div?.namespaceURI).toBe('http://www.w3.org/1999/xhtml');
+    // link zostane link, len bez javascript: URL
+    expect(svg.querySelector('a')).not.toBeNull();
   });
 });
 

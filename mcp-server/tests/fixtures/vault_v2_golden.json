@@ -1,0 +1,226 @@
+{
+  "aad": [
+    {
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "username",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "user_id": 7,
+      "utf8_hex": "773461692d7661756c74003200370033663961316332322d373737372d346230652d396131312d30643064306430643064306400757365726e616d650036333064636432393636633433333636393131323534343862626232356234666634313261343963373332646232633861626331623835383162643731306464"
+    },
+    {
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "password",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "user_id": 7,
+      "utf8_hex": "773461692d7661756c74003200370033663961316332322d373737372d346230652d396131312d3064306430643064306430640070617373776f72640036333064636432393636633433333636393131323534343862626232356234666634313261343963373332646232633861626331623835383162643731306464"
+    },
+    {
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "notes",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "user_id": 7,
+      "utf8_hex": "773461692d7661756c74003200370033663961316332322d373737372d346230652d396131312d306430643064306430643064006e6f7465730036333064636432393636633433333636393131323534343862626232356234666634313261343963373332646232633861626331623835383162643731306464"
+    },
+    {
+      "entry_uuid": "3F9A1C22-7777-4B0E-9A11-0D0D0D0D0D0D",
+      "field": "password",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "user_id": 7,
+      "utf8_hex": "773461692d7661756c74003200370033663961316332322d373737372d346230652d396131312d3064306430643064306430640070617373776f72640036333064636432393636633433333636393131323534343862626232356234666634313261343963373332646232633861626331623835383162643731306464"
+    }
+  ],
+  "field": [
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "password",
+      "iv_hex": "000102030405060708090a0b",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-00-password",
+      "packed_b64": "AAECAwQFBgcICQoLZWqjdbGAsCmvZQ4W0T7N3wQSj/S3YA5RwA==",
+      "user_id": 7,
+      "value": "hunter2"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "username",
+      "iv_hex": "0708090a0b0c0d0e0f101112",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-01-username",
+      "packed_b64": "BwgJCgsMDQ4PEBEScjPuBev/1DFnWa67L6iGjW0qQjm5rKJvJimw6ICJmvPXbfHDQ5rt03vJVEcYydXWvQHYPvhTQE1YE3he",
+      "user_id": 7,
+      "value": "P\u0159\u00ed\u0161ern\u011b \u017elu\u0165ou\u010dk\u00fd k\u016f\u0148 \u2014 heslo"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "notes",
+      "iv_hex": "0e0f10111213141516171819",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-02-notes",
+      "packed_b64": "Dg8QERITFBUWFxgZQSndYQeJYdT3VX1y53ZI9g3eG0bZLDPexFjB8J/aFCmfCvMe",
+      "user_id": 7,
+      "value": "\ud83d\ude00 pass \u2014 \ud83d\ude00"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "password",
+      "iv_hex": "15161718191a1b1c1d1e1f20",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-03-password",
+      "packed_b64": "FRYXGBkaGxwdHh8gGRjEB9MwQgzTyOpoYO6SYYa3/87FB2DoQpQihxDc1ndem/D7pxEZWksOVuedaLuUyjXpLHSwqw==",
+      "user_id": 7,
+      "value": "quote \" backslash \\ newline\n tab\t"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "username",
+      "iv_hex": "1c1d1e1f2021222324252627",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-04-username",
+      "packed_b64": "HB0eHyAhIiMkJSYnYGEoVwAgE3Hf+vxn+FEb8pQtiNVb2wj4ATATFGHmgLuCg1olKH2SVp+XgA==",
+      "user_id": 7,
+      "value": "\u0000\u0001\u001f\u007f\u2028\u2029"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "notes",
+      "iv_hex": "232425262728292a2b2c2d2e",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-05-notes",
+      "packed_b64": "IyQlJicoKSorLC0ueuwcsl4c5baAQDlwjLhxrJccbz1jTduL1g7Q/x/xP9w7039xaCX46IhBu7w=",
+      "user_id": 7,
+      "value": "\ud800 lone high surrogate"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "password",
+      "iv_hex": "2a2b2c2d2e2f303132333435",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-06-password",
+      "packed_b64": "KissLS4vMDEyMzQ1yfMtrkfbkOorgv5ye8eC5mM6RAGCP6Fuu5L9w916",
+      "user_id": 7,
+      "value": "\udc00\udfff"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "username",
+      "iv_hex": "3132333435363738393a3b3c",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-07-username",
+      "packed_b64": "MTIzNDU2Nzg5Ojs80t2G2/CPbC650EYio+io0J60",
+      "user_id": 7,
+      "value": ""
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "entry_uuid": "3f9a1c22-7777-4b0e-9a11-0d0d0d0d0d0d",
+      "field": "notes",
+      "iv_hex": "38393a3b3c3d3e3f40414243",
+      "key_id": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "name": "field-08-notes",
+      "packed_b64": "ODk6Ozw9Pj9AQUJDXkySR6qYjLAne7iOdh2GXvkBI72v",
+      "user_id": 7,
+      "value": "007"
+    }
+  ],
+  "format": "w4ai-vault-v2-golden/1",
+  "json_text": [
+    {
+      "utf8_hex": "2268756e7465723222",
+      "value": "hunter2"
+    },
+    {
+      "utf8_hex": "2250c599c3adc5a165726ec49b20c5be6c75c5a56f75c48d6bc3bd206bc5afc58820e28094206865736c6f22",
+      "value": "P\u0159\u00ed\u0161ern\u011b \u017elu\u0165ou\u010dk\u00fd k\u016f\u0148 \u2014 heslo"
+    },
+    {
+      "utf8_hex": "22f09f9880207061737320e2809420f09f988022",
+      "value": "\ud83d\ude00 pass \u2014 \ud83d\ude00"
+    },
+    {
+      "utf8_hex": "2271756f7465205c22206261636b736c617368205c5c206e65776c696e655c6e207461625c7422",
+      "value": "quote \" backslash \\ newline\n tab\t"
+    },
+    {
+      "utf8_hex": "225c75303030305c75303030315c75303031667fe280a8e280a922",
+      "value": "\u0000\u0001\u001f\u007f\u2028\u2029"
+    },
+    {
+      "utf8_hex": "225c7564383030206c6f6e65206869676820737572726f6761746522",
+      "value": "\ud800 lone high surrogate"
+    },
+    {
+      "utf8_hex": "225c75646330305c756466666622",
+      "value": "\udc00\udfff"
+    },
+    {
+      "utf8_hex": "2222",
+      "value": ""
+    },
+    {
+      "utf8_hex": "2230303722",
+      "value": "007"
+    }
+  ],
+  "kdf_params": {
+    "iterations": 600000,
+    "kdf_json": "{\"alg\":\"PBKDF2-HMAC-SHA256\",\"iter\":600000,\"dkLen\":256}",
+    "key_bytes": 32
+  },
+  "note": "Cross-language vectors for the vault v2 wire format (WIKI4AI-197 D2b). Generated by tests/fixtures/gen_vault_v2_golden.py and asserted by both mcp-server/tests/test_vault_v2_golden.py and frontend/src/__tests__/vaultV2Golden.test.ts. Do not hand-edit.",
+  "pbkdf2_sha256": [
+    {
+      "iterations": 1000,
+      "key_hex": "a69b179e3add3c1e0aaf227a0eb3aa2aa8645ab86fecf6ca00c17512697c719e",
+      "password": "correct horse battery staple",
+      "salt_b64": "AAECAwQFBgcICQoLDA0ODw=="
+    },
+    {
+      "iterations": 100000,
+      "key_hex": "c9c3dec79abb5c8abe6ecc4b46a87b1739af7a37f6a5daa2ccc01d1e1e6bb445",
+      "password": "c4bbcb1fbec99d65bf59d85c8cb62ee2db963f0fe106f483d9afa73bd4e39a8a",
+      "salt_b64": "AAECAwQFBgcICQoLDA0ODw=="
+    },
+    {
+      "iterations": 600000,
+      "key_hex": "15693566d58e4bcb95ae438f29412c2188193ee24644c2d9cdb675b73dcb5838",
+      "password": "P\u0159\u00ed\u0161ern\u011b \u017elu\u0165ou\u010dk\u00fd k\u016f\u0148 \ud83d\ude00",
+      "salt_b64": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="
+    }
+  ],
+  "sha256_hex": [
+    {
+      "hex": "c4bbcb1fbec99d65bf59d85c8cb62ee2db963f0fe106f483d9afa73bd4e39a8a",
+      "input": "correct horse battery staple"
+    },
+    {
+      "hex": "32167dc5083f3bac379d83eba05fbc55956767d21276b6e85beb27a3915fa3a4",
+      "input": "P\u0159\u00ed\u0161ern\u011b k\u016f\u0148"
+    },
+    {
+      "hex": "f0443a342c5ef54783a111b51ba56c938e474c32324d90c3a60c9c8e3a37e2d9",
+      "input": "\ud83d\ude00"
+    }
+  ],
+  "wrap": [
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "iv_hex": "303132333435363738393a3b",
+      "kek_hex": "a69b179e3add3c1e0aaf227a0eb3aa2aa8645ab86fecf6ca00c17512697c719e",
+      "wrapped_b64": "MDEyMzQ1Njc4OTo71ZEW7AQj2rf6wwygx5ia3IeCuYJqkr9ySz4TxgVbwBeTTwNxrN2bbYivgFL1Xgkq"
+    },
+    {
+      "dek_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "iv_hex": "404142434445464748494a4b",
+      "kek_hex": "a56308d5098b9bb94f019d47bd969ca903f20c4ecc42c237108dd36d59631203",
+      "wrapped_b64": "QEFCQ0RFRkdISUpLvAknAs2370fLidNznYUMsO5kdrgi7JDDhzyIA8YAq+QVKaixaETqnB0MLVCLNR0U"
+    }
+  ]
+}

@@ -75,8 +75,11 @@ class EmbeddingServiceTest {
                 .build();
 
         // Explicit construction: EmbeddingProperties is a real POJO, not a mock.
+        // Real EffectiveAdmin over the same mocked UserRepository: no API token is in the
+        // SecurityContext in these tests, so the credential half of the admin rule is
+        // always satisfied and verifyAdminRole still decides on the role alone.
         embeddingService = new EmbeddingService(documentRepository, userRepository,
-                embeddingClient, properties, transactionTemplate);
+                embeddingClient, properties, transactionTemplate, new EffectiveAdmin(userRepository));
     }
 
     private Document doc(long id, String title, String content) {

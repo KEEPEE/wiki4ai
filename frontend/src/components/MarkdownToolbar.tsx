@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useDialog } from '../hooks/useDialog';
 import { useTranslation } from 'react-i18next';
 import './MarkdownToolbar.css';
 
@@ -115,6 +116,10 @@ const MenuIcon = () => (
 
 interface InsertModalProps {
   title: string;
+  /** id nadpisu, na ktory sa viaže aria-labelledby dialogu.
+   *  Musi byt unikatne: link aj image modal pouzivaju tu istu zlozku a
+   *  zdielane id by spojilo dva dialógy do jedneho mena. */
+  titleId: string;
   fieldLabel1: string;
   fieldPlaceholder1: string;
   fieldLabel2: string;
@@ -125,6 +130,7 @@ interface InsertModalProps {
 
 const InsertModal: React.FC<InsertModalProps> = ({
   title,
+  titleId,
   fieldLabel1,
   fieldPlaceholder1,
   fieldLabel2,
@@ -135,6 +141,9 @@ const InsertModal: React.FC<InsertModalProps> = ({
   const { t } = useTranslation();
   const [val1, setVal1] = useState('');
   const [val2, setVal2] = useState('');
+  /* Parent renderuje zlozku podmocene, preto je tu `true` —
+   * rovnaky vzor ako DeleteModal v Dashboard.tsx. */
+  const dialogRef = useDialog<HTMLDialogElement>(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,9 +153,19 @@ const InsertModal: React.FC<InsertModalProps> = ({
   };
 
   return (
-    <div className="toolbar-modal-overlay" onClick={onClose}>
-      <div className="toolbar-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{title}</h3>
+    <dialog
+      ref={dialogRef}
+      className="modal-backdrop toolbar-modal-overlay"
+      aria-labelledby={titleId}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      onCancel={onClose}
+    >
+      {/* stopPropagation uz netreba: handler sa viaze na
+          e.target === e.currentTarget, nie na zastavenie bublania. */}
+      <div className="toolbar-modal">
+        <h3 id={titleId}>{title}</h3>
         <form onSubmit={handleSubmit}>
           <label>
             {fieldLabel1}
@@ -173,7 +192,7 @@ const InsertModal: React.FC<InsertModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 };
 
@@ -346,6 +365,7 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
       {linkModalOpen && (
         <InsertModal
           title={t('markdown.insertLinkTitle')}
+          titleId="toolbar-link-modal-title"
           fieldLabel1={t('markdown.urlLabel')}
           fieldPlaceholder1="https://..."
           fieldLabel2={t('markdown.linkText')}
@@ -359,6 +379,7 @@ const MarkdownToolbar: React.FC<MarkdownToolbarProps> = ({ onInsert }) => {
       {imageModalOpen && (
         <InsertModal
           title={t('markdown.insertImageTitle')}
+          titleId="toolbar-image-modal-title"
           fieldLabel1={t('markdown.imageUrlLabel')}
           fieldPlaceholder1="https://..."
           fieldLabel2={t('markdown.altTextLabel')}

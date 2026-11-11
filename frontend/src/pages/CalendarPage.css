@@ -26,7 +26,7 @@
   color: var(--text-primary);
   margin: 0;
   font-weight: 700;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -74,23 +74,23 @@
 
 .cal-nav-btn:hover,
 .cal-today-btn:hover {
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--border-hover);
   color: var(--text-primary);
 }
 
 .cal-today-btn:hover {
   box-shadow: 0 0 12px var(--glow-cyan);
-  border-color: rgba(0, 240, 255, 0.4);
+  border-color: var(--glow-cyan);
 }
 
 /* ── View toggle (Mesiac | Týždeň) — WIKI4AI-110 ───────── */
 
 .cal-view-toggle {
   display: inline-flex;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-strong);
 }
 
 .cal-view-option {
@@ -108,17 +108,28 @@
 }
 
 .cal-view-option + .cal-view-option {
-  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid var(--glass-border);
 }
 
 .cal-view-option:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-strong);
+}
+/* WIKI4AI-206: `--glow-cyan` ako vypln = 3.83:1 / 3.82:1 (glass-dark /
+   glass-light). Segmentovy prepinac ma preto plnu vypln a atrament —
+   rovnaky recept ako primarna akcia, MIN 4.64:1. */
+.cal-view-option-active {
+  color: var(--pill-active-color);
+  background-color: var(--primary);
+  background-image: var(--pill-active-bg);
 }
 
-.cal-view-option-active {
-  color: var(--primary);
-  background: rgba(0, 240, 255, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.35);
+/* `.cal-view-option:hover:not(:disabled)` ma specificitu (0,3,0) a
+   prepisala by active (0,1,0) — bez tohto pravidla by gradient pri
+   prejdeni mysiou zmizol. */
+.cal-view-option-active:hover:not(:disabled) {
+  background-color: var(--primary-strong);
+  background-image: var(--pill-active-bg);
+  color: var(--pill-active-color);
 }
 
 /* ── Week view (hourly grid) — WIKI4AI-110 ─────────────── */
@@ -160,7 +171,7 @@
 }
 
 .cal-week-gutter-spacer {
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid var(--glass-border);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -174,7 +185,7 @@
   gap: 2px;
   padding: 0.5rem 0.25rem;
   min-width: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-left: 1px solid var(--glass-border);
 }
 
 .cal-week-dayhead-dow {
@@ -219,7 +230,7 @@
 
 .cal-week-allday-cell {
   min-width: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-left: 1px solid var(--glass-border);
   padding: 3px 4px;
   display: flex;
   flex-direction: column;
@@ -230,11 +241,10 @@
 }
 
 .cal-week-allday-cell:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-strong);
 }
 
 .cal-week-allday-cell:focus-visible {
-  outline: none;
   box-shadow: var(--focus-ring-shadow);
 }
 
@@ -257,7 +267,7 @@
 }
 
 .cal-time-gutter {
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid var(--glass-border);
 }
 
 .cal-hour-label {
@@ -277,25 +287,24 @@
 .cal-day-col {
   position: relative;
   min-width: 0;
-  border-left: 1px solid rgba(255, 255, 255, 0.04);
+  border-left: 1px solid var(--glass-border);
 }
 
 .cal-day-col-today {
-  background: rgba(0, 240, 255, 0.04);
+  background: var(--glow-cyan);
 }
 
 .cal-hour-cell {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--glass-border);
   cursor: pointer;
   transition: background-color var(--transition-fast);
 }
 
 .cal-hour-cell:hover {
-  background: rgba(0, 240, 255, 0.07);
+  background: var(--glow-cyan);
 }
 
 .cal-hour-cell:focus-visible {
-  outline: none;
   box-shadow: inset var(--focus-ring-shadow);
 }
 
@@ -322,7 +331,7 @@
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  transition: filter var(--transition-fast), z-index 0s;
+  transition: filter var(--transition-fast), z-index var(--transition-fast);
 }
 
 .cal-event-block:hover {
@@ -331,7 +340,6 @@
 }
 
 .cal-event-block:focus-visible {
-  outline: none;
   box-shadow: var(--focus-ring-shadow);
   z-index: 2;
 }
@@ -372,26 +380,6 @@
   border: 1px solid var(--color-error-border);
   color: var(--color-error-text);
   font-size: 0.9rem;
-}
-
-/* Retry button — scoped definitions (WIKI4AI-81 lesson: no cross-page reliance) */
-.calendar-page .btn-secondary {
-  padding: 0.4rem 0.85rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: var(--glass-bg);
-  color: var(--text-secondary);
-  font-size: 0.825rem;
-  cursor: pointer;
-}
-
-.calendar-page .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.calendar-page .btn-sm {
-  padding: 0.4rem 0.85rem;
-  font-size: 0.825rem;
 }
 
 .cal-no-events {
@@ -452,7 +440,7 @@
      the viewport breakpoint. */
   container-type: inline-size;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--glass-bg);
   border: 1px solid transparent;
   padding: 0.4rem;
   cursor: pointer;
@@ -463,12 +451,11 @@
 }
 
 .cal-cell:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.12);
+  background: var(--glass-strong);
+  border-color: var(--border-default);
 }
 
 .cal-cell:focus-visible {
-  outline: none;
   border-color: var(--primary);
   box-shadow: var(--focus-ring-shadow);
 }
@@ -480,9 +467,9 @@
 
 /* Today — highlighted */
 .cal-cell-today {
-  border-color: rgba(0, 240, 255, 0.45);
-  background: rgba(0, 240, 255, 0.06);
-  box-shadow: inset 0 0 18px rgba(0, 240, 255, 0.08);
+  border-color: var(--glow-cyan);
+  background: var(--glow-cyan);
+  box-shadow: inset 0 0 18px var(--glow-cyan);
 }
 
 .cal-day-number {
@@ -640,7 +627,7 @@
   justify-content: space-between;
   gap: 1rem;
   font-size: 0.9rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid var(--glass-border);
   padding-bottom: 0.4rem;
 }
 
@@ -670,7 +657,7 @@
   color: var(--text-secondary);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 10px;
   padding: 0.75rem;
@@ -678,57 +665,6 @@
 
 .cal-detail-spacer {
   flex: 1;
-}
-
-/* Detail modal buttons — scoped (WIKI4AI-81 lesson) */
-.cal-detail-modal .btn-primary,
-.cal-detail-modal .btn-secondary,
-.cal-detail-modal .btn-danger {
-  padding: 0.55rem 1.1rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: background-color var(--transition-base), transform var(--transition-fast);
-}
-
-.cal-detail-modal .btn-primary {
-  background: var(--primary);
-  color: var(--dark-1);
-}
-
-.cal-detail-modal .btn-primary:hover:not(:disabled) {
-  background: #00d4e6;
-  box-shadow: 0 0 12px var(--glow-cyan);
-}
-
-.cal-detail-modal .btn-secondary {
-  background: var(--glass-bg);
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.cal-detail-modal .btn-secondary:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.cal-detail-modal .btn-danger {
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  border: 1px solid var(--color-error-border);
-}
-
-.cal-detail-modal .btn-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.25);
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
-}
-
-.cal-detail-modal .btn-primary:disabled,
-.cal-detail-modal .btn-secondary:disabled,
-.cal-detail-modal .btn-danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 @media (max-width: 640px) {

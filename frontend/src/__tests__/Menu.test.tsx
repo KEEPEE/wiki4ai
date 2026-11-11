@@ -349,3 +349,131 @@ describe('Menu portal positioning (WIKI4AI-91)', () => {
     await waitFor(() => expect(panel.style.top).toBe(`${282 + 8}px`))
   })
 })
+
+/**
+ * WIKI4AI-201 — handoff focusu medzi menu a dialogom.
+ *
+ * Prečo tento test existuje, keď už existuje test na Escape: Escape NIE je
+ * jediná cesta, ako sa menu zavrie. Pri kliknutí na položku (myš aj Enter)
+ * sa panel odmountuje a focus padne na <body>. Ak tá položka otvorí natívny
+ * <dialog>, useDialog si na riadku 61 pamätá `document.activeElement` — v
+ * ten moment už <body>, takže návrat focusu po Escape je len `body.focus()`.
+ *
+ * Na top-layer sa tento test nespolíha: jsdom 29 nemá `showModal`, ale
+ * `.focus()` a `document.activeElement` implementujú plne. Testuje sa
+ * therefore mechanizmus (kto drží focus v momente, keď handler beží), nie
+ * následok, ktorý v jsdom neviem zmerať.
+ */
+describe('Menu — handoff focusu pri aktivácii položky (WIKI4AI-201)', () => {
+  /** Zapíše, kto mal focus v momente, keď handler položky beží. Presne toto
+   *  číta `useDialog` na začiatku svojho efektu. */
+  function renderWithProbe(onClick: () => void, item = 'plain') {
+    return render(
+      <Menu
+        ariaLabel="Test menu"
+        testId="menu-trigger"
+        panelTestId="menu-panel"
+        trigger={<span>Trigger</span>}
+      >
+        {item === 'radio' ? (
+          <MenuRadioItem testId="item-a" onClick={onClick}>
+            Role
+          </MenuRadioItem>
+        ) : (
+          <MenuItem danger testId="item-a" onClick={onClick}>
+            Delete
+          </MenuItem>
+        )}
+      </Menu>,
+    )
+  }
+
+  const whoHasFocus = () => {
+    const a = document.activeElement as HTMLElement
+    return `${a.tagName}.${a.className.trim()}`
+  }
+
+  it('položka vráti focus triggerovi SKÔR, než zavolá handler (to číta useDialog)', async () => {
+    const user = userEvent.setup()
+    let seenByHandler = ''
+    renderWithProbe(() => {
+      seenByHandler = whoHasFocus()
+    })
+
+    await user.click(screen.getByTestId('menu-trigger'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('item-a')))
+
+    await user.click(screen.getByTestId('item-a'))
+
+    expect(screen.queryByTestId('menu-panel')).not.toBeInTheDocument()
+    expect(
+      document.activeElement,
+      'odmountovaná položka nesmie zanechať focus na <body>',
+    ).toBe(screen.getByTestId('menu-trigger'))
+    expect(
+      seenByHandler,
+      'handler musí pri otváraní dialogu vidieť trigger, nie <body>',
+    ).toBe('BUTTON.menu-trigger')
+  })
+
+  it('klávesnica bez myši (Enter na položke) robí to isté', async () => {
+    const user = userEvent.setup()
+    let seenByHandler = ''
+    renderWithProbe(() => {
+      seenByHandler = whoHasFocus()
+    })
+
+    screen.getByTestId('menu-trigger').focus()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('item-a')))
+    await user.keyboard('{Enter}')
+
+    expect(screen.queryByTestId('menu-panel')).not.toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByTestId('menu-trigger'))
+    expect(seenByHandler).toBe('BUTTON.menu-trigger')
+  })
+
+  it('MenuRadioItem (zmena role v admin tabuľke) vráti focus tiež', async () => {
+    const user = userEvent.setup()
+    let seenByHandler = ''
+    renderWithProbe(
+      () => {
+        seenByHandler = whoHasFocus()
+      },
+      'radio',
+    )
+
+    await user.click(screen.getByTestId('menu-trigger'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('item-a')))
+    await user.click(screen.getByTestId('item-a'))
+
+    expect(document.activeElement).toBe(screen.getByTestId('menu-trigger'))
+    expect(seenByHandler).toBe('BUTTON.menu-trigger')
+  })
+
+  it('Tab z panelu focus na trigger NEVRÁTI — to by bola krádež smeru', async () => {
+    const user = userEvent.setup()
+    render(
+      <Menu
+        ariaLabel="Test menu"
+        testId="menu-trigger"
+        panelTestId="menu-panel"
+        trigger={<span>Trigger</span>}
+      >
+        <MenuItem testId="item-a">Item A</MenuItem>
+      </Menu>,
+    )
+
+    await user.click(screen.getByTestId('menu-trigger'))
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId('item-a')))
+
+    await user.keyboard('{Tab}')
+
+    // Tab znamená "ďalší prvok v poradí". Na trigger sa vracať nemá — to
+    // robí len Escape a aktivácia položky. Kam presne Tab v jsdom dopadne,
+    // tu netestujem: panel je portal na konci `body`, takže poradie v DOM je
+    // inak ako v prehliadači, a tvrdiť konkrétny cieľ by bol test kvrku.
+    expect(screen.queryByTestId('menu-panel')).not.toBeInTheDocument()
+    expect(document.activeElement).not.toBe(screen.getByTestId('menu-trigger'))
+  })
+})

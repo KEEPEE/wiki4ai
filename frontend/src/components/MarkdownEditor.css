@@ -3,9 +3,9 @@
  *
  * High-contrast color palette for comfortable long-form editing (WIKI4AI-77):
  * - Base text: #e8e8f0 bright cool near-white (matches the wiki4ai-dark
- *   Monaco theme base rule; ~15:1 contrast on the #12121f background)
+ *   Monaco theme base rule; ~15:1 contrast on the var(--surface-raised) background)
  * - Line numbers: white at 30% opacity (subtle, not cyan)
- * - Cursor: bright cyan (#00f0ff)
+ * - Cursor: bright cyan (var(--primary))
  * - Selection: subtle cyan highlight
  * - Find widget: themed to match the editor
  * - Scrollbar: consistent cyan tones
@@ -20,8 +20,8 @@
   position: relative;
   overflow: hidden;
   border-radius: 8px;
-  border: 1px solid rgba(0, 240, 255, 0.15);
-  background: rgba(10, 10, 30, 0.6);
+  border: 1px solid var(--glow-cyan);
+  background: var(--glass-bg);
   backdrop-filter: blur(10px);
   flex: 1; /* fill parent flex container (e.g. .editor-pane) */
   min-height: 0; /* critical for nested flex height calculation */
@@ -55,35 +55,35 @@
    colors map instead (see MarkdownEditor.tsx). Values mirror WIKI4AI_DARK_THEME. */
 
 .markdown-editor .monaco-editor {
-  --vscode-editor-background: #12121f;                        /* matches var(--dark-2) */
-  --vscode-editor-foreground: #e8e8f0;                        /* high-contrast base text (was dimmed 70% white) */
-  --vscode-editorLineNumber-foreground: rgba(255, 255, 255, 0.3); /* subtle white line numbers */
-  --vscode-editorCursor-foreground: #00f0ff;                  /* cyan cursor */
-  --vscode-editor-selectionBackground: rgba(0, 240, 255, 0.2);  /* subtle cyan selection (= #00F0FF33 in theme) */
-  --vscode-editor-lineHighlightBackground: rgba(0, 240, 255, 0.08); /* current line glow */
-  --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.12);
-  --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
+  --vscode-editor-background: var(--surface-raised);                        /* matches var(--dark-2) */
+  --vscode-editor-foreground: var(--text-primary);                        /* high-contrast base text (was dimmed 70% white) */
+  --vscode-editorLineNumber-foreground: var(--glass-hover); /* subtle white line numbers */
+  --vscode-editorCursor-foreground: var(--primary);                  /* cyan cursor */
+  --vscode-editor-selectionBackground: var(--glow-cyan);  /* subtle cyan selection (= var(--primary)33 in theme) */
+  --vscode-editor-lineHighlightBackground: var(--glow-cyan); /* current line glow */
+  --vscode-scrollbarSlider-background: var(--glow-cyan);
+  --vscode-scrollbarSlider-hoverBackground: var(--glow-cyan);
 }
 
 .markdown-editor .monaco-editor .margin {
-  background-color: #12121f !important;
+  background-color: var(--surface-raised) !important;
 }
 
 .markdown-editor .monaco-editor .margin .line-numbers {
-  color: #666666 !important;
+  color: var(--text-muted) !important;
 }
 
 /* ── Current line highlight — subtle cyan glow (0.08 opacity) ── */
 
 .markdown-editor .monaco-editor .current-line {
-  background: rgba(0, 240, 255, 0.08) !important;
+  background: var(--glow-cyan) !important;
 }
 
 /* ── Scrollbar styling ────────────────────────────────────────── */
 
 .markdown-editor .monaco-editor .scrollbar {
-  --vscode-scrollbarSlider-background: rgba(0, 240, 255, 0.12);
-  --vscode-scrollbarSlider-hoverBackground: rgba(0, 240, 255, 0.25);
+  --vscode-scrollbarSlider-background: var(--glow-cyan);
+  --vscode-scrollbarSlider-hoverBackground: var(--glow-cyan);
 }
 
 /* ── Loading placeholder (while Monaco + theme load) ─────────── */
@@ -94,30 +94,54 @@
   justify-content: center;
   flex: 1; /* WIKI4AI-79: fill the column container */
   min-height: 120px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 /* ── Read-only mode visual indicator ──────────────────────────── */
 
 .markdown-editor.read-only {
-  border-color: rgba(255, 0, 212, 0.2);
+  border-color: var(--glow-magenta);
   opacity: 0.85;
 }
 
-/* ── Focus outline — neon glow effect ─────────────────────────── */
-
-.markdown-editor .monaco-editor:focus {
+/* ── Focus — DIZ-4 (WIKI4AI-195) item 1 / 7 ──────────────────────
+ * Globálny `:where(...)` ring v `base.css` by pristál na Monacom riadenom
+ * skrytom <textarea> inputarea — tam by orámovanie viselo ako smietko pri
+ * kurzore, bez súvislosti s ovládacím prvkom. Keyboard cieľom je ale celý
+ * editor, preto ring prenášame na jeho kontajner cez `:focus-within`
+ * (2.4.7). Pravidlá majú specificitu triedy, takže `:where()` prerazia. */
+.markdown-editor .monaco-editor .inputarea:focus,
+.markdown-editor .monaco-editor .inputarea:focus-visible {
   outline: none;
 }
 
+.markdown-editor:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
+}
+
 .markdown-editor .monaco-editor:focus-within {
-  border-color: rgba(0, 240, 255, 0.4);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.1);
+  border-color: var(--primary);
 }
 
 /* ── Loading placeholder ──────────────────────────────────────── */
 
 .markdown-editor .monaco-editor .overflow-guard {
-  background: #12121f;
+  background: var(--surface-raised);
+}
+
+/* ── Klávesová úniková nápoveda — WIKI4AI-195 (DIZ-4 item 10, WCAG 2.1.2) ──
+ * Monaco berie Tab a vkladá medzerník; bez návestia sa klávesnica z editora
+ * nedostane a 2.1.2 vyžaduje, aby spôsob úniku bol ZNÁMY, nie len možný.
+ * Text je `--text-muted` (5.84 / 7.93 / 9.50:1), nie `--text-dim` — aj
+ * nepovinný text musí spĺňať 1.4.3. */
+.editor-keyboard-hint {
+  margin: 0.5rem 0 0;
+  padding: 0 0.25rem;
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  text-align: right;
 }

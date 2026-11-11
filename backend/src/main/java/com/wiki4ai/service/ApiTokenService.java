@@ -433,6 +433,17 @@ public class ApiTokenService {
             return Optional.empty();
         }
 
+        // WIKI4AI-197 (REV-2 P0 #4): the same rule the JWT branch of the filter now
+        // applies, on the other door. A w4a_ token carries no subject — the account
+        // comes from the row it resolves to — so the reserved name has to be refused
+        // here rather than in the parse. Without it, an account named 'anonymous' could
+        // still authenticate with a hashed token and be read as an unauthenticated
+        // caller by every controller that compares against that literal.
+        if (ReservedUsernames.isReserved(owner.getUsername())) {
+            validationCache.remove(hash);
+            return Optional.empty();
+        }
+
         // WIKI4AI-139: the limit is applied only to a token that has already passed
         // every validity check. An unknown, revoked or expired token is still a 401,
         // never a 429 — throttling must not become a way to probe token existence.

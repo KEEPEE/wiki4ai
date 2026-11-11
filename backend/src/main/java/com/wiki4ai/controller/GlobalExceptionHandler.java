@@ -7,6 +7,7 @@ import com.wiki4ai.exception.DocumentVersionConflictException;
 import com.wiki4ai.exception.RateLimitExceededException;
 import com.wiki4ai.exception.RegistrationDisabledException;
 import com.wiki4ai.exception.SetupAlreadyCompletedException;
+import com.wiki4ai.exception.VaultV2ConflictException;
 import com.wiki4ai.model.Document;
 import com.wiki4ai.repository.DocumentRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -323,6 +324,33 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * WIKI4AI-197 (D1): a vault v2 request whose assumptions no longer match the
+     * database — a key that is already initialised, or a re-encryption batch in which
+     * at least one row changed since the client read it.
+     *
+     * The whole batch is refused and nothing in it was written, which is why the body
+     * lists the ids: the client has to know which rows to re-read before it can retry,
+     * and it must not assume the other rows of the batch moved.
+     */
+    @ExceptionHandler(VaultV2ConflictException.class)
+    public ResponseEntity<Map<String, Object>> handleVaultV2Conflict(VaultV2ConflictException ex) {
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now().toString());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("error", "Conflict");
+        body.put("message", ex.getMessage());
+        if (!ex.getConflictingIds().isEmpty()) {
+            body.put("conflictingIds", ex.getConflictingIds());
+        }
+        if (!ex.getReasons().isEmpty()) {
+            body.put("reasons", ex.getReasons());
+        }
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    /**
      * Handle illegal argument exceptions (e.g., duplicate name, invalid file format).
      * Returns 403 Forbidden for ownership violations, 409 Conflict for business rule violations,
      * or 400 Bad Request for validation errors.
@@ -495,19 +523,39 @@ public class GlobalExceptionHandler {
 
     /**
      * Catch-all handler for unhandled exceptions.
-     * Returns 500 Internal Server Error.
+     * Returns 500 Internal Server Error with a fixed message (WIKI4AI-197, REV-2 P0 #10).
+     * <p>
+     * The message used to be {@code ex.getMessage()}, which is not a status — it is
+     * whatever the library that threw happened to say. For this application that meant
+     * Hibernate ("could not extract ResultSet: ERROR: relation "documents" does not
+     * exist"), Jackson, the pgvector driver and the KDBX parser were all writing into a
+     * public response body. Those strings name tables, columns, SQL fragments and file
+     * internals to whoever sent the request, and an exception message can carry the values
+     * it was formatting — a duplicate key message quotes the key, and a vault or token
+     * error can quote a secret.
+     * <p>
+     * A 500 is a promise that the server could not complete the request; it is not a
+     * promise about why, and the reader of a 500 is usually a client that cannot act on
+     * the detail anyway. The detail goes to the log, with the stack trace, which is where
+     * someone who can act on it will look for it.
+     * <p>
+     * The body keeps its shape — same keys, same status, and the same fallback string
+     * that clients already saw whenever an exception had no message — so nothing that
+     * parses a 500 today has to change.
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneralException(
             Exception ex) {
 
-        log.error("Unhandled exception occurred", ex);
+        // The one place the real reason is recorded. Logged at ERROR with the trace, so a
+        // generic body does not mean a generic diagnosis.
+        log.error("Unhandled exception occurred: {}", ex.getClass().getName(), ex);
 
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now().toString());
         body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
         body.put("error", "Internal Server Error");
-        body.put("message", ex.getMessage() != null ? ex.getMessage() : "An unexpected error occurred");
+        body.put("message", "An unexpected error occurred");
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }

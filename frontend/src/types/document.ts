@@ -18,6 +18,17 @@ export interface Document {
   /** WIKI4AI-99/100: visibility, defaults to 'public' on the backend. */
   visibility?: Visibility;
   /**
+   * WIKI4AI-186: pinned documents are listed first inside their project.
+   * Read-only — changed only through POST .../documents/{docSlug}/pin|unpin.
+   * Pinning does NOT bump `version` and does NOT move `updatedAt`.
+   */
+  pinned?: boolean;
+  /**
+   * WIKI4AI-186: position in the manual order within the project. OPAQUE —
+   * may be negative, renumbered by the backend; never display it.
+   */
+  sortOrder?: number;
+  /**
    * Hybrid-search relevance score (RRF, WIKI4AI-35). Present only on search
    * results — higher is more relevant.
    */

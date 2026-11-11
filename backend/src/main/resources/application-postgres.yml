@@ -16,6 +16,27 @@ spring:
       maximum-pool-size: 20
       leak-detection-threshold: 60000
 
+  # WIKI4AI-197 (REV-2 P0 #9): the H2 web console is off in the deployed profile.
+  #
+  # The base config turns it on for local H2 development, the postgres profile used to
+  # leave it on as well, and H2 is a compile-scope dependency that ships in the jar
+  # (pom.xml). So the console servlet was registered in the compose deployment too — a
+  # login form that connects to whatever JDBC URL the visitor types. With
+  # jdbc:postgresql://db:5432/wiki4ai and the placeholder wiki4ai/wiki4ai that was the
+  # whole database; with an H2 mem URL plus CREATE ALIAS ... AS $$java$$ it is code
+  # execution inside the JVM.
+  #
+  # The one thing standing between that and a remote visitor was H2's web-allow-others
+  # loopback check, which rejects traffic arriving through a published port or a proxy.
+  # Correct today, and one property away from remote code execution — a property whose
+  # default has changed across H2 versions.
+  #
+  # Disabled here rather than in the base config: local H2 development is exactly where
+  # the console is useful, and it is where the loopback check is genuinely satisfied.
+  h2:
+    console:
+      enabled: false
+
   # Flyway - manages database schema migrations
   flyway:
     enabled: true

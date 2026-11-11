@@ -29,22 +29,27 @@
   max-width: 420px;
 
   /* Glassmorphism */
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--glass-strong);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
 
-  /* Default neon glow (info) */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px var(--glow-cyan);
+  /* WIKI4AI-208: 8 tvrdých farieb v tomto súbore bolo posledných 8
+     mimo `tokens.css` (ratchet 8 → 0). Tieň je `--glass-shadow`,
+     which už per-identita definuje správnu farbu aj alfu —
+     `rgba(0, 0, 0, 0.3)` bol v glass-light príliš tvrdý.
+     Default stav je info, preto `--info-glow`, nie `--glow-cyan`
+     (slot s alfa .4 patrí na dekoráciu, nie na stav). */
+  box-shadow: 0 4px 16px var(--glass-shadow), 0 0 20px var(--info-glow);
 
   /* Entry animation: slide in from right + fade in */
-  animation: toastSlideIn 0.4s ease-out;
+  animation: toastSlideIn var(--dur-slow) var(--ease-soft);
 }
 
 /* ── Exit state — triggers slide-out animation ────────────────── */
 
 .toast-exit {
-  animation: toastSlideOut 0.3s ease-in forwards;
+  animation: toastSlideOut var(--dur-slow) var(--ease-soft) forwards;
 }
 
 @keyframes toastSlideIn {
@@ -96,8 +101,10 @@
   font-size: 1.25rem;
   cursor: pointer;
   padding: 0 0 0 0.75rem;
+  /* WIKI4AI-195 (DIZ-4 item 7, 1.4.11): opacity 0.6 z --text-muted
+   * urobilo 2.59:1 — pod 3:1, čo je pre ovládací prvok minimum.
+   * --text-muted sám je 5.84 / 7.93 / 9.50:1, stací aj bez priehľadnosti. */
   color: var(--text-muted);
-  opacity: 0.6;
   transition: opacity var(--transition-base), color var(--transition-fast);
   line-height: 1;
 }
@@ -110,22 +117,26 @@
 /* ── Success toast — green neon accent ───────────────────────── */
 
 .toast-success {
-  border-color: rgba(22, 163, 74, 0.3);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(16, 185, 129, 0.3);
+  /* Trojica `--ok` → `-soft` → `-glow` je jediny zdroj; `--color-success-*`
+     sa z nej odvadza `color-mix`, preto tu nie je jedine cislo. */
+  border-color: var(--color-success-border);
+  box-shadow: 0 4px 16px var(--glass-shadow), 0 0 20px var(--ok-glow);
 }
 
 /* ── Error toast — red neon accent ───────────────────────────── */
 
 .toast-error {
-  border-color: rgba(220, 38, 38, 0.3);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(239, 68, 68, 0.3);
+  border-color: var(--color-error-border);
+  box-shadow: 0 4px 16px var(--glass-shadow), 0 0 20px var(--error-glow);
 }
 
 /* ── Info toast — cyan→purple neon accent (default) ──────────── */
 
 .toast-info {
-  border-color: var(--primary);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px var(--glow-cyan);
+  /* `--primary` je znacka (emerald/cyan), nie stav — info ma vlastnu
+     trojicu, inak by oznam „ulozeno" a „info" vyzerali identicky. */
+  border-color: var(--color-info-border);
+  box-shadow: 0 4px 16px var(--glass-shadow), 0 0 20px var(--info-glow);
 }
 
 /* ── Responsive — mobile full-width toast ────────────────────── */

@@ -4,6 +4,9 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useAuth } from '../contexts/AuthContext';
 import AmbientBackground from '../components/AmbientBackground';
+// WIKI4AI-185: téma sa dá prepínať aj pred prihlásením — auth stránky
+// nemajú Layout (sidebar), preto samostatný prepínač v rohu.
+import ThemeSwitch from '../components/ThemeSwitch';
 import { signalContentReady } from '../utils/appReady';
 import './Login.css';
 
@@ -147,6 +150,9 @@ export default function Register() {
     <>
       <AmbientBackground />
       <div className="auth-page">
+        <div className="auth-theme" data-testid="auth-theme-switch">
+          <ThemeSwitch />
+        </div>
         <div className="auth-card">
           <h1 className="auth-title">{t('register.title')}</h1>
 

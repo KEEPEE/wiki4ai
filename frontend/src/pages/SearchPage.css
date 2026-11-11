@@ -22,7 +22,7 @@
   transform: translateY(-50%);
   width: 1.125rem;
   height: 1.125rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: var(--text-muted, var(--text-muted));
   pointer-events: none;
 }
 
@@ -30,30 +30,33 @@
   width: 100%;
   /* Left padding clears the magnifier (x 16–34) with a consistent 10px gap */
   padding: 12px 40px 12px 44px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--glass-border);
   border-radius: 50px; /* pill shape */
   font-size: 0.95rem;
   box-sizing: border-box;
-  transition: border-color var(--transition-base, all 0.3s ease),
-    background-color var(--transition-base, all 0.3s ease),
-    box-shadow var(--transition-base, all 0.3s ease);
-  background: rgba(255, 255, 255, 0.03);
-  color: rgba(255, 255, 255, 0.7);
+  /* Token s LITERÁLNÝM fallbackom (`var(--transition-base, all 0.3s ease)`)
+     je mŕtvy kód, lebo `--transition-base` definuje `:root` v `tokens.css`,
+     ktorý má každá stránka — a zároveň obchádza reduced-motion, lebo v
+     fallbacku nie je `--dur-*`. */
+  transition: border-color var(--transition-base),
+    background-color var(--transition-base),
+    box-shadow var(--transition-base);
+  background: var(--glass-bg);
+  color: var(--text-secondary);
 }
 
 .page-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 .page-search-input:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+  background: var(--glass-strong);
 }
 
 .page-search-input:focus {
-  outline: none;
-  border-color: var(--primary, #00f0ff);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow */
+  border-color: var(--primary, var(--primary));
+  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow */
 }
 
 .page-search-clear {
@@ -64,15 +67,15 @@
   background: none;
   border: none;
   font-size: 1.25rem;
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: var(--text-muted, var(--text-muted));
   cursor: pointer;
   padding: 0;
   line-height: 1;
-  transition: color var(--transition-base, all 0.3s ease);
+  transition: color var(--transition-base);
 }
 
 .page-search-clear:hover {
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 .search-page {
@@ -83,19 +86,19 @@
 
 .search-page-title {
   font-family: 'Syne', sans-serif;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   font-size: 1.75rem;
   margin-bottom: 0.25rem;
 }
 
 .search-page-subtitle {
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: var(--text-muted, var(--text-muted));
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
 }
 
 .search-results-count {
-  color: var(--text-muted, rgba(255, 255, 255, 0.4));
+  color: var(--text-muted, var(--text-muted));
   font-size: 0.85rem;
   margin: 0 0 1rem;
 }
@@ -119,7 +122,7 @@
   margin-top: 0.4rem;
   font-size: 0.85rem;
   line-height: 1.5;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
 }
 
 /* Owning-project badge per hit (WIKI4AI-61) */
@@ -128,7 +131,7 @@
   padding: 0.1rem 0.55rem;
   font-size: 0.72rem;
   white-space: nowrap;
-  color: #93c5fd;
+  color: var(--color-info-text);
   background: rgba(59, 130, 246, 0.14);
   border: 1px solid rgba(59, 130, 246, 0.35);
   border-radius: 999px;

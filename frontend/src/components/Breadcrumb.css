@@ -2,10 +2,10 @@
  * Breadcrumb navigation styles — Nexaverse glassmorphism design system.
  * 
  * Design tokens used:
- * - var(--glass-bg): rgba(255, 255, 255, 0.03) — glass panel fill
- * - var(--glass-border): rgba(255, 255, 255, 0.08) — glass border stroke
- * - var(--primary): #00f0ff — cyan neon accent
- * - var(--glow-cyan): rgba(0, 240, 255, 0.4) — cyan glow effect
+ * - var(--glass-bg): var(--glass-bg) — glass panel fill
+ * - var(--glass-border): var(--glass-hover) — glass border stroke
+ * - var(--primary): var(--primary) — cyan neon accent
+ * - var(--glow-cyan): var(--glow-cyan) — cyan glow effect
  * 
  * Typography:
  * - Project slug: 'Outfit' sans-serif (body font)
@@ -34,10 +34,10 @@
   border-radius: 50px;
 
   /* Subtle shadow for depth */
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), inset 0 1px 0 var(--top-line);
 
   /* Smooth transition for hover effects */
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 /* ── Breadcrumb Items ─────────────────────────────────────────── */
@@ -52,7 +52,7 @@
 .breadcrumb-link {
   text-decoration: none;
   font-size: 0.875rem;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
   padding: 0.15rem 0.25rem;
   border-radius: 4px;
 }
@@ -60,21 +60,21 @@
 /* Dashboard home link — muted color */
 .breadcrumb-home {
   font-family: 'Outfit', sans-serif;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .breadcrumb-home:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 /* Project slug link — Outfit font, muted */
 .breadcrumb-project {
   font-family: 'Outfit', sans-serif;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 .breadcrumb-project:hover {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 /* ── Breadcrumb Separator (→) ─────────────────────────────────── */
@@ -83,7 +83,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   font-size: 0.875rem;
   user-select: none;
   margin: 0 0.15rem;
@@ -98,11 +98,11 @@
 
 .breadcrumb-doc-title {
   font-family: 'Syne', sans-serif;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   font-weight: 600;
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
   cursor: default;
   /* WIKI4AI-84: long titles (130+ chars) ellipsis-truncate instead of
      wrapping to multiple lines; the full text is available via the
@@ -116,7 +116,7 @@
 /* Neon hover effect on document title */
 .breadcrumb-doc-title:hover {
   color: var(--primary);
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.3), 0 0 20px rgba(0, 240, 255, 0.15);
+  text-shadow: 0 0 10px var(--glow-cyan), 0 0 20px var(--glow-cyan);
 }
 
 /* ── Active / Focus States ────────────────────────────────────── */
@@ -142,7 +142,7 @@
 
   .breadcrumb-list::before {
     content: '→';
-    color: rgba(255, 255, 255, 0.3);
+    color: var(--text-muted);
     margin-right: 0.2rem;
   }
 

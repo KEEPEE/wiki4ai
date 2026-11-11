@@ -8,6 +8,7 @@ import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.config.SearchProperties;
 import com.wiki4ai.dto.GlobalSearchResultDTO;
+import com.wiki4ai.dto.ReorderRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.exception.DocumentVersionConflictException;
@@ -20,9 +21,11 @@ import com.wiki4ai.repository.DocumentRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import com.wiki4ai.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.persistence.OptimisticLockException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,6 +61,13 @@ public class DocumentService {
     private final MarkdownService markdownService;
     private final PermissionService permissionService;
     private final EmbeddingService embeddingService;
+    /**
+     * WIKI4AI-197 commit 17: a save records the intent to embed and the embed runs after
+     * the commit, so no document transaction is ever held open across an HTTP call.
+     * {@code embeddingService} stays because hybrid search needs the client synchronously;
+     * only the write path moved.
+     */
+    private final EmbeddingQueueService embeddingQueueService;
     private final SearchProperties searchProperties;
     private final UserRepository userRepository;
 
@@ -213,19 +223,60 @@ public class DocumentService {
      * Returns DocumentSummaryDTO (without content field) to keep list responses lightweight.
      * Visibility-aware (WIKI4AI-99): a foreign private project is 404; other users'
      * private documents are absent from the page.
+     * <p>
+     * WIKI4AI-184: this is now the no-parameter form of
+     * {@link #getDocumentsByProjectPaginated(Long, int, int, String, String, String)} —
+     * same default order (updatedAt DESC), plus pinned documents floated to the top.
      */
     public Page<DocumentSummaryDTO> getDocumentsByProjectPaginated(Long projectId, Pageable pageable, String username) {
+        return getDocumentsByProjectPaginated(projectId, pageable.getPageNumber(), pageable.getPageSize(),
+                null, null, username);
+    }
+
+    /**
+     * List the documents of one project with the WIKI4AI-184 sort and filter parameters.
+     *
+     * <p>Unlike the project list, this one is paginated, so the ordering has to be
+     * produced by the database: a Java-side sort of one page would sort each page on its
+     * own and shuffle rows between pages. The key is therefore handed to the query, whose
+     * ORDER BY starts with {@code pinned DESC} and ends with {@code id ASC} — without a
+     * total order, {@code sort=manual} is not stable across pages, which is exactly what
+     * the story requires.</p>
+     *
+     * <p>The Pageable is left unsorted on purpose. Spring Data appends a Pageable's Sort
+     * <em>after</em> an existing ORDER BY, and the derived
+     * {@code ...OrderByUpdatedAtDesc} methods put their own key <em>before</em> the
+     * caller's; either way the requested order would be silently demoted.</p>
+     *
+     * @param projectId the project whose documents are listed
+     * @param page      0-indexed page number (negative values clamp to 0)
+     * @param pageSize  page size (clamped to at least 1 by the caller)
+     * @param sort      one of {@link ListSort#ALLOWED}; null/blank = {@code updated_desc}
+     * @param q         case-insensitive substring of title or content; null/blank = no filter
+     * @param username  the authenticated caller
+     * @return a page of matching documents in the requested order
+     * @throws BadRequestException on an unknown sort key
+     */
+    public Page<DocumentSummaryDTO> getDocumentsByProjectPaginated(Long projectId, int page, int pageSize,
+                                                                   String sort, String q, String username) {
+        String sortKey = ListSort.normalize(sort, ListSort.DEFAULT_DOCUMENT_SORT, "sort");
+        // "" rather than null: the query tests ":q = ''" so that the parameter type is
+        // inferable and no null-comparison branch is needed in JPQL.
+        String needle = (q == null || q.isBlank()) ? "" : q.trim();
+
         User user = resolveUser(username);
         checkProjectVisibleById(projectId, user);
         permissionService.checkPermission(username, projectId, Permission.READ);
+
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(pageSize, 1));
         // ADMIN sees every document in the project; everyone else only public ones
         // plus their own private ones (SQL-level filter keeps page totals correct).
         boolean seesAll = user != null && user.getRole() == Role.ADMIN;
-        Page<Document> page = seesAll
-                ? documentRepository.findByProjectIdOrderByUpdatedAtDesc(projectId, pageable)
-                : documentRepository.findVisibleByProjectIdOrderByUpdatedAtDesc(
-                        projectId, user != null ? user.getId() : null, pageable);
-        return page.map(this::convertToSummaryDTO);
+        Page<Document> result = seesAll
+                ? documentRepository.findAllByProjectIdFiltered(projectId, needle, sortKey, pageable)
+                : documentRepository.findVisibleByProjectIdFiltered(
+                        projectId, user != null ? user.getId() : null, needle, sortKey, pageable);
+        return result.map(this::convertToSummaryDTO);
     }
 
     /**
@@ -255,6 +306,209 @@ public class DocumentService {
         checkProjectVisibleForCreate(document.getProject(), user);
         checkDocumentVisible(document, user);
         return convertToDTO(document);
+    }
+
+    // ==================== PIN + MANUAL ORDER (WIKI4AI-184) ====================
+    //
+    // The permission rule is updateDocumentBySlug's, unchanged: the project AND the
+    // document must be visible to the caller (the visibility gate runs before the
+    // permission check so a 403 can never reveal someone else's private document), and
+    // the caller must hold UPDATE on the project. Pin and reorder change no content, so
+    // UPDATE — the level move and copy already use — is the right level.
+    //
+    // Every write here is a JPQL UPDATE, and on this entity that is not a style choice:
+    // @Version (WIKI4AI-72) makes a load-and-save bump the version, which would turn
+    // another user's in-flight content edit into a 409 Conflict over a sidebar drag.
+    // Hibernate does not apply @Version to bulk JPQL UPDATEs, so pinning and reordering
+    // leave both version and updated_at exactly as they were.
+
+    /**
+     * Resolve a document for a pin/reorder write, applying the WIKI4AI-99 visibility
+     * gates and the UPDATE permission check.
+     */
+    private Document requireDocumentForOrdering(Long projectId, String docSlug, String username) {
+        User user = resolveUser(username);
+        Document document = documentRepository.findBySlugAndProjectId(docSlug, projectId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Document not found with slug '" + docSlug + "' in project " + projectId));
+        checkProjectVisibleForCreate(document.getProject(), user);
+        checkDocumentVisible(document, user);
+        permissionService.checkPermission(username, projectId, Permission.UPDATE);
+        return document;
+    }
+
+    /**
+     * Re-read a document after a JPQL UPDATE cleared the persistence context; the
+     * previously loaded instance is detached and still carries the old pinned/sortOrder.
+     */
+    private Document reloadDocument(Long id) {
+        return documentRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Document not found with id: " + id));
+    }
+
+    /**
+     * Pin a document to the top of its project's list (WIKI4AI-184). On the first pin it
+     * also takes the manual position above the current first document, so it lands at the
+     * top of a {@code sort=manual} list. Re-pinning keeps the position.
+     *
+     * <p>The optimistic-locking {@code version} of the document is NOT changed — see the
+     * section comment.</p>
+     *
+     * @param projectId the project the document belongs to
+     * @param docSlug   the document slug
+     * @param username  the authenticated caller
+     * @return the updated document
+     */
+    @Transactional
+    public DocumentDTO pinDocument(Long projectId, String docSlug, String username) {
+        // WIKI4AI-197 commit 11: the lock is taken BEFORE anything is read. A Document that
+        // is already in the persistence context keeps the values it was loaded with — the
+        // locking query returns the managed instance rather than refreshing it — so a row
+        // read before the lock can carry a sortOrder that was never the current one.
+        // projectId is a parameter, so the mutex is available before the lookup.
+        lockProjectList(projectId);
+        Document document = requireDocumentForOrdering(projectId, docSlug, username);
+        int order = document.isPinned()
+                ? document.getSortOrder()
+                : documentRepository.minSortOrderForProject(projectId) - 1;
+        documentRepository.updatePinning(document.getId(), true, order);
+        return convertToDTO(reloadDocument(document.getId()));
+    }
+
+    /**
+     * Unpin a document (WIKI4AI-184). {@code sort_order} is kept, so the document returns
+     * to the place it held before it was pinned. The {@code version} is not changed.
+     *
+     * @param projectId the project the document belongs to
+     * @param docSlug   the document slug
+     * @param username  the authenticated caller
+     * @return the updated document
+     */
+    @Transactional
+    public DocumentDTO unpinDocument(Long projectId, String docSlug, String username) {
+        // WIKI4AI-197 commit 11: lock first, then read (see pinDocument for why). Unpin
+        // writes sort_order too — it keeps the value — so it is a writer like any other.
+        lockProjectList(projectId);
+        Document document = requireDocumentForOrdering(projectId, docSlug, username);
+        documentRepository.updatePinning(document.getId(), false, document.getSortOrder());
+        return convertToDTO(reloadDocument(document.getId()));
+    }
+
+    /**
+     * Move a document inside its project's manual order (WIKI4AI-184).
+     *
+     * <p>The renumbering covers every document of the project — including private ones
+     * the caller cannot see — because {@code sort_order} is compared inside the project
+     * and renumbering only the visible subset would leave the invisible rows holding
+     * colliding positions.</p>
+     *
+     * @param projectId the project the document belongs to
+     * @param docSlug   the document to move
+     * @param request   exactly one of beforeSlug / afterSlug / position
+     * @param username  the authenticated caller
+     * @return the moved document, with its new position
+     * @throws BadRequestException     when the body is not exactly one selector
+     * @throws EntityNotFoundException when the anchor slug does not exist in this project
+     */
+    @Transactional
+    public DocumentDTO reorderDocument(Long projectId, String docSlug,
+                                       ReorderRequestDTO request, String username) {
+        // WIKI4AI-197 commit 11. The lock comes BEFORE every read in this method, including
+        // the lookup of the moved document. The lock is the parent project row, not the N
+        // document rows — one row is one mutex, and N locked rows would let two drags that
+        // locked in different orders deadlock.
+        lockProjectList(projectId);
+        Document document = requireDocumentForOrdering(projectId, docSlug, username);
+        List<Document> ordered = documentRepository.findByProjectId(projectId).stream()
+                .sorted(ListSort.manualDocumentOrder())
+                .collect(Collectors.toList());
+
+        int target = documentTargetIndex(ordered, document, request);
+        ordered.remove(document);
+        ordered.add(target, document);
+
+        for (int i = 0; i < ordered.size(); i++) {
+            Document row = ordered.get(i);
+            if (row.getSortOrder() != i) {
+                // Compare-and-set, not load-and-save: the write is refused if the row moved
+                // since the read. Under the project lock that cannot happen; if a future
+                // writer skips the lock it fails here instead of corrupting the order.
+                int moved = documentRepository.updateSortOrderIfCurrent(
+                        row.getId(), i, row.getSortOrder());
+                if (moved == 0) {
+                    throw new OptimisticLockException(
+                            "Document ordering changed concurrently; retry the reorder");
+                }
+            }
+        }
+        return convertToDTO(reloadDocument(document.getId()));
+    }
+
+    /**
+     * Take the mutex that serialises every writer of one project's manual order
+     * (WIKI4AI-197 commit 11). {@code sort_order} is scoped to the project, so the project
+     * row is the natural unit: one locked row, no deadlock between two drags in the same
+     * project, and every writer (pin, unpin, reorder, create, upload, copy) queues behind
+     * the others.
+     *
+     * <p>Must be called inside a transaction and before the list or the min is read.</p>
+     *
+     * <p>The result is deliberately ignored. Every caller has already resolved the project
+     * (or a document that belongs to it), so a missing project here would fail one line
+     * later anyway; refusing to lock would add a 404 whose message is less accurate than
+     * the one the caller produces.</p>
+     *
+     * @param projectId the project whose manual order is about to change
+     */
+    private void lockProjectList(Long projectId) {
+        projectRepository.findProjectByIdForUpdate(projectId);
+    }
+
+    /**
+     * Resolve the requested slot to an index in the list <b>without</b> the moved
+     * document. See {@code ProjectService.projectTargetIndex} for why the anchor needs no
+     * off-by-one correction once the item has been lifted out of the list.
+     */
+    private int documentTargetIndex(List<Document> ordered, Document moved, ReorderRequestDTO request) {
+        if (request == null) {
+            throw new BadRequestException(
+                    "Reorder requires exactly one of: beforeSlug, afterSlug, position");
+        }
+        int selectors = (request.getBeforeSlug() == null ? 0 : 1)
+                + (request.getAfterSlug() == null ? 0 : 1)
+                + (request.getPosition() == null ? 0 : 1);
+        if (selectors != 1) {
+            throw new BadRequestException(
+                    "Reorder requires exactly one of: beforeSlug, afterSlug, position (got "
+                            + selectors + ")");
+        }
+
+        // "Move X before X" is a no-op, not a 404.
+        if (moved.getSlug().equals(request.getBeforeSlug())
+                || moved.getSlug().equals(request.getAfterSlug())) {
+            return indexOfDocumentSlug(ordered, moved.getSlug());
+        }
+
+        List<Document> without = new ArrayList<>(ordered);
+        without.remove(moved);
+
+        if (request.getPosition() != null) {
+            return Math.max(0, Math.min(request.getPosition(), without.size()));
+        }
+        if (request.getBeforeSlug() != null) {
+            return indexOfDocumentSlug(without, request.getBeforeSlug());
+        }
+        return indexOfDocumentSlug(without, request.getAfterSlug()) + 1;
+    }
+
+    /** Index of a slug in a document list; 404 when it is not there. */
+    private int indexOfDocumentSlug(List<Document> list, String slug) {
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).getSlug().equals(slug)) {
+                return i;
+            }
+        }
+        throw new EntityNotFoundException("Document not found with slug: " + slug);
     }
 
     // ==================== CREATE OPERATIONS (require CREATE permission) ====================
@@ -297,8 +551,15 @@ public class DocumentService {
         // write. Null (a caller carrying no actor) is the normal case.
         document.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
+        // WIKI4AI-184: a new document takes the slot above the current first one of its
+        // project, so a sort=manual list shows it where updated_desc has always shown it.
+        // WIKI4AI-197 commit 11: min-1 is read under the project's ordering lock, or two
+        // concurrent creates both take the same slot above it.
+        lockProjectList(projectId);
+        document.setSortOrder(documentRepository.minSortOrderForProject(projectId) - 1);
+
         Document saved = documentRepository.save(document);
-        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
+        embeddingQueueService.enqueueFor(saved); // WIKI4AI-197 c17: queued, embedded after commit
         return convertToDTO(saved);
     }
 
@@ -338,8 +599,15 @@ public class DocumentService {
         // WIKI4AI-134: an upload is a create — attributed to the uploading actor.
         document.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
 
+        // WIKI4AI-184: a new document takes the slot above the current first one of its
+        // project, so a sort=manual list shows it where updated_desc has always shown it.
+        // WIKI4AI-197 commit 11: min-1 is read under the project's ordering lock, or two
+        // concurrent creates both take the same slot above it.
+        lockProjectList(projectId);
+        document.setSortOrder(documentRepository.minSortOrderForProject(projectId) - 1);
+
         Document saved = documentRepository.save(document);
-        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on create (never throws)
+        embeddingQueueService.enqueueFor(saved); // WIKI4AI-197 c17: queued, embedded after commit
         return convertToDTO(saved);
     }
 
@@ -380,7 +648,7 @@ public class DocumentService {
         // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
         // optimistic-locking failure (409) before the (slow) embedding call runs.
         documentRepository.flush();
-        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
+        embeddingQueueService.enqueueFor(saved); // WIKI4AI-197 c17: queued, embedded after commit
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
             result.setEditsApplied(editsApplied);
@@ -426,7 +694,7 @@ public class DocumentService {
         // WIKI4AI-72: fail fast — flush now so a concurrent commit surfaces as an
         // optimistic-locking failure (409) before the (slow) embedding call runs.
         documentRepository.flush();
-        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on update (never throws)
+        embeddingQueueService.enqueueFor(saved); // WIKI4AI-197 c17: queued, embedded after commit
         DocumentDTO result = convertToDTO(saved);
         if (editsApplied > 0) {
             result.setEditsApplied(editsApplied);
@@ -1161,8 +1429,15 @@ public class DocumentService {
 
     /**
      * Move a document from its current project to a target project.
-     * Requires UPDATE + DELETE on source project, READ on target project (not CREATE).
-     * Moving a document doesn't create new content — it moves existing content between projects.
+     *
+     * <p>Permissions: UPDATE + DELETE on the source project, CREATE on the target project
+     * (WIKI4AI-197 commit 12). The target check used to be READ, which the wiki grants to
+     * every authenticated user, so a logged-in reader could move a document into a project
+     * they had no write access to. A move lands content in the target exactly the way a
+     * copy does, and {@link #copyDocument} already required CREATE there.</p>
+     *
+     * <p>Anonymous callers are exempt from every project check, as everywhere in this
+     * service — see {@code PermissionService.checkPermission}.</p>
      */
     @Transactional
     public DocumentDTO moveDocument(Long sourceProjectId, String slug, String targetProjectSlug, String username) {
@@ -1178,7 +1453,7 @@ public class DocumentService {
         checkProjectVisibleForCreate(document.getProject(), user);
         checkDocumentVisible(document, user);
 
-        // Check permissions: UPDATE + DELETE on source, READ on target (not CREATE)
+        // Check permissions: UPDATE + DELETE on source, CREATE on target.
         permissionService.checkPermission(username, sourceProjectId, Permission.UPDATE);
         permissionService.checkPermission(username, sourceProjectId, Permission.DELETE);
 
@@ -1188,9 +1463,12 @@ public class DocumentService {
                         "Target project not found with slug: " + targetProjectSlug));
         checkProjectVisibleForCreate(targetProject, user);
 
-        // Check READ permission on target project (not CREATE — we're moving, not creating)
-        // Wiki convention: any authenticated user can read all projects
-        permissionService.checkPermission(username, targetProject.getId(), Permission.READ);
+        // WIKI4AI-197 commit 12: the target needs CREATE, not READ. READ is granted to
+        // every authenticated user by wiki convention, so "READ on target" meant anyone
+        // logged in could drop a document into a project they may only look at — and the
+        // document then inherits a project they cannot edit. A move is a write into the
+        // target: it is the same effect copyDocument already requires CREATE for.
+        permissionService.checkPermission(username, targetProject.getId(), Permission.CREATE);
 
         // Cannot move to the same project
         if (sourceProjectId.equals(targetProject.getId())) {
@@ -1275,9 +1553,13 @@ public class DocumentService {
         }
         // WIKI4AI-134: a copy is a new document — its creating actor is the caller.
         copy.setCreatedByActorId(requestActorResolver.currentAttributionActorId(username));
+        // WIKI4AI-184: the copy lands at the top of the TARGET project's manual order.
+        // WIKI4AI-197 commit 11: under the target project's ordering lock.
+        lockProjectList(targetProject.getId());
+        copy.setSortOrder(documentRepository.minSortOrderForProject(targetProject.getId()) - 1);
 
         Document saved = documentRepository.save(copy);
-        embeddingService.embedAndSave(saved); // WIKI4AI-35: re-embed on copy (never throws)
+        embeddingQueueService.enqueueFor(saved); // WIKI4AI-197 c17: queued, embedded after commit
         return convertToDTO(saved);
     }
 
@@ -1335,6 +1617,8 @@ public class DocumentService {
                 .projectId(document.getProject().getId())
                 .ownerId(document.getOwner() != null ? document.getOwner().getId() : null)
                 .visibility(document.getVisibility() != null ? document.getVisibility() : Document.VISIBILITY_PUBLIC)
+                .pinned(document.isPinned())
+                .sortOrder(document.getSortOrder())
                 .linkedDocuments(linkedDocIds)
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())
@@ -1360,6 +1644,8 @@ public class DocumentService {
                 .projectId(document.getProject().getId())
                 .ownerId(document.getOwner() != null ? document.getOwner().getId() : null)
                 .visibility(document.getVisibility() != null ? document.getVisibility() : Document.VISIBILITY_PUBLIC)
+                .pinned(document.isPinned())
+                .sortOrder(document.getSortOrder())
                 .linkedDocuments(linkedDocIds)
                 .createdAt(document.getCreatedAt())
                 .updatedAt(document.getUpdatedAt())

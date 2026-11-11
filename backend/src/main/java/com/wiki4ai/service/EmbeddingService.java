@@ -79,20 +79,28 @@ public class EmbeddingService {
                             UserRepository userRepository,
                             EmbeddingClient embeddingClient,
                             EmbeddingProperties properties,
-                            TransactionTemplate transactionTemplate) {
+                            TransactionTemplate transactionTemplate,
+                            EffectiveAdmin effectiveAdmin) {
         this.documentRepository = documentRepository;
         this.userRepository = userRepository;
         this.embeddingClient = embeddingClient;
         this.properties = properties;
         this.transactionTemplate = transactionTemplate;
+        this.effectiveAdmin = effectiveAdmin;
     }
 
     // ==================== per-document embed (create/update path) ====================
 
-    /** Text representation of a document: title + newline + body (per research doc §9). */
+    /**
+     * Text representation of a document: title + newline + body (per research doc §9).
+     *
+     * <p>Delegates to {@link EmbeddingQueueService#documentTextOf(Document)} so the
+     * backfill and the queued per-document worker cannot drift apart: if they built the
+     * text differently, a backfill would rewrite vectors with different input than the
+     * per-document path produced, and the two would never converge.</p>
+     */
     public String documentText(Document document) {
-        String content = document.getContent() != null ? document.getContent() : "";
-        return document.getTitle() + "\n" + content;
+        return EmbeddingQueueService.documentTextOf(document);
     }
 
     /**
@@ -121,7 +129,14 @@ public class EmbeddingService {
 
     // ==================== admin backfill ====================
 
-    /** Verify the caller has the ADMIN role (same pattern as AdminService). */
+    private final EffectiveAdmin effectiveAdmin;
+
+    /**
+     * Verify the caller may act as an administrator (same pattern as AdminService).
+     * WIKI4AI-197 (REV-2 P0 #5): the backfill re-embeds every document in the instance,
+     * which is exactly the kind of expensive, instance-wide action a scoped token was
+     * meant to be unable to trigger.
+     */
     public void verifyAdminRole() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getName() == null
@@ -134,6 +149,7 @@ public class EmbeddingService {
         if (currentUser.getRole() != Role.ADMIN) {
             throw new SecurityException("Admin access required. Current role: " + currentUser.getRole());
         }
+        effectiveAdmin.requireCredentialMayCarryAdmin();
     }
 
     /**

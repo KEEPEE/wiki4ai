@@ -5,6 +5,7 @@ import com.wiki4ai.dto.PermissionGrantRequestDTO;
 import com.wiki4ai.model.Permission;
 import com.wiki4ai.model.Project;
 import com.wiki4ai.model.ProjectPermission;
+import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
@@ -17,6 +18,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -56,7 +60,36 @@ class PermissionControllerIT {
     private User adminUser;
     private User readerUser;
     private User noPermUser;
+    private User instanceAdmin;
     private Project testProject;
+
+    /**
+     * Authenticate a MockMvc call as {@code username} (WIKI4AI-197 commit 13).
+     *
+     * <p>{@code security.enabled=false} in the test profile means the filter chain permits
+     * everything, but the chain still runs, so this post-processor is what puts a real
+     * {@code Authentication} into the {@code SecurityContextHolder} that
+     * {@code PermissionController.getCurrentUsername()} reads. Without it every call looked
+     * anonymous, which is exactly how the member-list hole stayed invisible: the endpoint
+     * was only ever exercised as an anonymous caller.</p>
+     */
+    private static org.springframework.test.web.servlet.request.RequestPostProcessor asUser(String username) {
+        return authentication(new UsernamePasswordAuthenticationToken(
+                username, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));
+    }
+
+    /** A PRIVATE project owned by {@code owner}, for the visibility-gate tests. */
+    private Project createPrivateProject(String slug, User owner) {
+        Project privateProject = Project.builder()
+                .name("Private " + slug)
+                .slug(slug)
+                .description("a private project")
+                .visibility(Project.VISIBILITY_PRIVATE)
+                .owner(owner)
+                .documents(new ArrayList<>())
+                .build();
+        return projectRepository.save(privateProject);
+    }
 
     @BeforeEach
     void setUp() {
@@ -69,7 +102,11 @@ class PermissionControllerIT {
         adminUser = User.builder().username("admin").email("admin@test.com").password("$2a$10.hashed").build();
         readerUser = User.builder().username("reader").email("reader@test.com").password("$2a$10.hashed").build();
         noPermUser = User.builder().username("noperm").email("noperm@test.com").password("$2a$10.hashed").build();
-        userRepository.saveAll(List.of(adminUser, readerUser, noPermUser));
+        // A real ADMIN role, distinct from the user named "admin" above (that one only
+        // holds a MANAGE grant on one project). The private-project tests need the role.
+        instanceAdmin = User.builder().username("root").email("root@test.com")
+                .password("$2a$10.hashed").role(Role.ADMIN).build();
+        userRepository.saveAll(List.of(adminUser, readerUser, noPermUser, instanceAdmin));
 
         // Create project (let JPA auto-generate the ID)
         testProject = Project.builder()
@@ -104,7 +141,7 @@ class PermissionControllerIT {
         @Test
         @DisplayName("should list all user permissions (as MANAGE user)")
         void shouldListAllPermissionsAsManage() throws Exception {
-            mockMvc.perform(get("/api/v1/projects/test-project/permissions"))
+            mockMvc.perform(get("/api/v1/projects/test-project/permissions").with(asUser("admin")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(2))
@@ -115,28 +152,77 @@ class PermissionControllerIT {
         @DisplayName("should list permissions (as READ user)")
         void shouldListPermissionsAsReadUser() throws Exception {
             // Reader has READ permission, which is sufficient to view the list
+            mockMvc.perform(get("/api/v1/projects/test-project/permissions").with(asUser("reader")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
+        }
+
+        /**
+         * WIKI4AI-197 commit 13. This test used to assert 200 while admitting in its own
+         * comment that it was testing the happy path, because with no authentication
+         * {@code getCurrentUsername()} answered "anonymous" and {@code checkPermission}
+         * exempts anonymous — so nothing was ever refused and the endpoint leaked the
+         * member list to any visitor. Now an unauthenticated call is a 401.
+         */
+        @Test
+        @DisplayName("should return 401 for an unauthenticated caller")
+        void shouldReturn401ForAnonymous() throws Exception {
             mockMvc.perform(get("/api/v1/projects/test-project/permissions"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.error").value("Unauthorized"))
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("Authentication required")));
+        }
+
+        @Test
+        @DisplayName("an authenticated user without an explicit grant still sees the list (READ is universal)")
+        void shouldListForUserWithoutExplicitGrant() throws Exception {
+            // noperm is authenticated and the wiki grants READ to every authenticated
+            // user, so the member list of a PUBLIC project is open to him. What is no
+            // longer open is the unauthenticated call above.
+            mockMvc.perform(get("/api/v1/projects/test-project/permissions").with(asUser("noperm")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
+        }
+
+        /**
+         * WIKI4AI-197 commit 13: the member list goes through the same visibility gate as
+         * the project itself. Answering 200 here would confirm that a project the caller
+         * was told does not exist does exist, and hand him its member list besides.
+         */
+        @Test
+        @DisplayName("a private project of another user is 404, not a member list")
+        void shouldHideMemberListOfForeignPrivateProject() throws Exception {
+            createPrivateProject("secret-vault", noPermUser);
+
+            mockMvc.perform(get("/api/v1/projects/secret-vault/permissions").with(asUser("reader")))
+                    .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("the owner of a private project sees its member list")
+        void ownerSeesMemberListOfOwnPrivateProject() throws Exception {
+            createPrivateProject("secret-vault", noPermUser);
+
+            mockMvc.perform(get("/api/v1/projects/secret-vault/permissions").with(asUser("noperm")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$").isArray());
         }
 
         @Test
-        @DisplayName("should return 403 for user without any permissions")
-        void shouldReturn403ForNoPermissionUser() throws Exception {
-            // noperm has no permissions on this project - but in test profile security is disabled,
-            // so the permissionService.checkPermission skips for anonymous. We need to verify
-            // that when a real username is present without READ, it returns 403.
-            // Since security.enabled=false in test profile, getCurrentUsername() returns "anonymous"
-            // and checkPermission skips for anonymous. So this test verifies the happy path works.
+        @DisplayName("an ADMIN sees the member list of someone else's private project")
+        void adminSeesMemberListForeignPrivateProject() throws Exception {
+            createPrivateProject("secret-vault", noPermUser);
 
-            mockMvc.perform(get("/api/v1/projects/test-project/permissions"))
-                    .andExpect(status().isOk());
+            mockMvc.perform(get("/api/v1/projects/secret-vault/permissions").with(asUser("root")))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$").isArray());
         }
 
         @Test
         @DisplayName("should return 404 for non-existent project")
         void shouldReturn404ForNonExistentProject() throws Exception {
-            mockMvc.perform(get("/api/v1/projects/nonexistent/permissions"))
+            mockMvc.perform(get("/api/v1/projects/nonexistent/permissions").with(asUser("admin")))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.error").value("Not Found"));
         }
@@ -144,7 +230,7 @@ class PermissionControllerIT {
         @Test
         @DisplayName("should return correct permission details")
         void shouldReturnCorrectPermissionDetails() throws Exception {
-            mockMvc.perform(get("/api/v1/projects/test-project/permissions"))
+            mockMvc.perform(get("/api/v1/projects/test-project/permissions").with(asUser("admin")))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$[*].username").exists())
                     .andExpect(jsonPath("$[*].permissions").exists());

@@ -24,6 +24,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -34,6 +36,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/vault")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Vault", description = "API pre správu šifrovaných vault entries (heslá, tokeny)")
 public class VaultController {
 
@@ -147,11 +150,29 @@ public class VaultController {
         return ResponseEntity.ok(isSet);
     }
 
-    @Operation(summary = "Nastaviť master password", description = "Uloží hash master password a šifrovací salt pre používateľa. Hash aj derivácia kľúča prebiehajú na klientovi (PBKDF2).")
+    @Operation(summary = "Nastaviť master password", description = "Uloží hash master password a šifrovací salt pre používateľa. Hash aj derivácia kľúča prebiehajú na klientovi (PBKDF2). Po v2 initu sa master password nastavuje cez vault v2 — toto vráti 409.")
     @ApiResponse(responseCode = "200", description = "Master password nastavené")
+    @ApiResponse(responseCode = "409", description = "Vault je pod správou kľúčovej hierarchie v2; resetovanie by osirotilo entries")
     @PostMapping("/master-password/set")
     public ResponseEntity<Void> setMasterPassword(@RequestBody SetMasterPasswordRequestDTO request) {
         User user = getCurrentUser();
+
+        // WIKI4AI-197 (D1): this endpoint overwrites the verifier AND the encryption
+        // salt, unconditionally, because that is what a first-time setup needs. Once a
+        // v2 wrapped key exists the salt it was built from is no longer ours to change:
+        // re-deriving from a new salt leaves the wrapped DEK unrecoverable and every
+        // entry in the vault with it.
+        //
+        // Refusing is the whole fix. Deleting the old verifier instead would read as
+        // "no master password set" to the current frontend, which sends the user to
+        // the setup screen and lands them right back here.
+        if (user.getVaultV2WrappedKey() != null
+                || masterPasswordService.isV2Managed(user.getVaultMasterPasswordHash())) {
+            throw new IllegalArgumentException(
+                    "Vault master password is managed by vault crypto v2; "
+                            + "change it from the v2 vault screen, which re-wraps the key");
+        }
+
         String hash = masterPasswordService.hashPassword(request.getMasterPasswordHash());
         user.setVaultMasterPasswordHash(hash);
         if (request.getSalt() != null && !request.getSalt().isBlank()) {
@@ -205,12 +226,29 @@ public class VaultController {
         } catch (IllegalArgumentException e) {
             throw e;
         } catch (IOException e) {
-            throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
+            // WIKI4AI-197 (REV-2 P0 #10): the reason is not the caller's to be told.
+            // "Invalid file format" is the whole answer a client can act on — re-read the
+            // file, pick another one. What follows the colon used to be the library's own
+            // words, and this is the endpoint that receives a vault file and a vault
+            // password: a parser complaining about a block it could not decrypt can quote
+            // bytes it was working with, and a message that quotes bytes from a secret
+            // store has now leaked something on its way to a 400 body.
+            //
+            // The phrase "Invalid file format" is load-bearing beyond the wording:
+            // GlobalExceptionHandler maps an IllegalArgumentException whose message
+            // contains it to 400, while the same exception without it becomes 409. The
+            // prefix stays; the appended detail goes.
+            throw new IllegalArgumentException("Invalid file format");
         } catch (Exception e) {
             // Defense in depth: the KDBX parsing library can throw unchecked exceptions
             // (e.g. on a truncated or non-KDBX file) that VaultImportService doesn't
             // wrap. Surface those as a 400 instead of a raw 500.
-            throw new IllegalArgumentException("Invalid file format: " + e.getMessage());
+            //
+            // Logged rather than echoed: an operator still needs to know whether the file
+            // was truncated, encrypted with a different KDF, or not a KDBX at all, and
+            // that is a question for the server log, not for the response body.
+            log.warn("KDBX import rejected an upload: {}", e.getClass().getName(), e);
+            throw new IllegalArgumentException("Invalid file format");
         }
     }
 

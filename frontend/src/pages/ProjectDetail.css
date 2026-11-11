@@ -20,14 +20,6 @@
   flex-wrap: wrap;
 }
 
-/* WIKI4AI-87: icon + label alignment in header action buttons (inline SVG) */
-.header-actions .btn-primary,
-.header-actions .btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
 .btn-import {
   font-size: 0.9rem;
 }
@@ -58,7 +50,7 @@
 .upload-progress-container {
   position: relative;
   margin-bottom: 1rem;
-  background: rgba(255, 255, 255, 0.05); /* track: dark glass */
+  background: var(--glass-strong); /* track: dark glass */
   border-radius: 6px;
   overflow: hidden;
   height: 28px;
@@ -71,8 +63,8 @@
   left: 0;
   top: 0;
   height: 100%;
-  background: linear-gradient(90deg, #00f0ff, #9d4edd); /* cyan → purple gradient */
-  transition: width 0.3s ease;
+  background: linear-gradient(90deg, var(--primary), var(--accent)); /* cyan → purple gradient */
+  transition: width var(--transition-slow);
   border-radius: 6px;
 }
 
@@ -113,7 +105,7 @@
 }
 
 .dismiss-btn:hover {
-  color: #ef4444; /* brighter red */
+  color: var(--color-error-text); /* brighter red */
 }
 
 /* ── Drag & Drop Overlay ──────────────────────────────────────── */
@@ -124,7 +116,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 240, 255, 0.1);
+  background: var(--glow-cyan);
   backdrop-filter: blur(4px);
   display: flex;
   flex-direction: column; /* WIKI4AI-87: stack folder icon above the hint text */
@@ -212,6 +204,22 @@
   margin: 0;
 }
 
+/* WIKI4AI-186: title + pin toggle on one line; the pinned project header gets
+   an accent underline so the state is visible without hovering. */
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.detail-title-row .header-pin {
+  flex: none;
+}
+
+.detail-header-pinned {
+  border-bottom-color: var(--primary);
+}
+
 .description {
   color: var(--text-muted);
   margin: 0;
@@ -240,21 +248,26 @@
   margin: 0;
 }
 
-/* ── Document Card — glassmorphism + neon hover ─────────────── */
+/* ── Document Card — glass povrch, DIZ-2 ─────────────────────────
+   `--surface-1` + inset vlas + vrstvený tieň: zoznam dokumentov je dlhý a
+   susedné riadky sa pri plnej mlhe/orboch pozadia prelievajú do jednolitej
+   hmoty (audit forum4Ai P2-9). Vlas a tieň ich držia od seba bez rozdielu
+   farieb. */
 
 .document-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  border-bottom: 1px solid var(--glass-border);
-  transition: all 0.3s ease;
+  border-bottom: 1px solid var(--glass-hairline);
+  transition: all var(--transition-slow);
 
   /* Glassmorphism base */
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: 16px;
+  box-shadow: var(--shadow-inset-hairline);
 
   /* Glossy shine overlay */
   position: relative;
@@ -269,7 +282,8 @@
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, transparent 100%);
+  background: linear-gradient(180deg, var(--glass-highlight) 0%, transparent 100%);
+  opacity: 0.5;
   border-radius: 16px 16px 0 0;
   pointer-events: none;
 }
@@ -281,12 +295,23 @@
 /* ── Document Card Hover — neon glow effect ─────────────────── */
 
 .document-item:hover {
-  background: rgba(0, 240, 255, 0.08); /* cyan at 8% opacity */
-  border-color: var(--primary); /* #00f0ff */
+  /* DIZ-2: podklad hoveru je akcentná VÝPLŇ (--glass-bg-accent, 8 %), nie
+     glow slot — `--glow-cyan` má alfu 0.4 a ako background by kartu zaliał.
+     Glow patrí len do tieňa, tam je slot správne (v glass téme emerald). */
+  background: var(--glass-bg-accent);
+  border-color: var(--primary); /* var(--primary) */
   box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(0, 240, 255, 0.15); /* cyan glow */
+    var(--shadow-3),
+    0 0 20px var(--glow-cyan); /* glow SLOT */
   transform: translateY(-5px) scale(1.01);
+}
+
+/* WIKI4AI-186: pinned document row — permanent subtle frame. `outline` is used
+   instead of box-shadow because the hover rule above owns box-shadow; the
+   filled pin icon carries the state so it never depends on colour alone. */
+.document-item-pinned {
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
 }
 
 /* ── Document Info (clickable title + slug) ─────────────────── */
@@ -300,9 +325,9 @@
 }
 
 .doc-title {
-  /* Syne font, rgba(255,255,255,0.8) */
+  /* Syne font, var(--glass-hover) */
   font-family: 'Syne', sans-serif;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
   font-weight: 600;
   text-decoration: none;
 }
@@ -311,11 +336,11 @@
   text-decoration: underline;
 }
 
-/* ── Document Slug — Outfit font, rgba(255,255,255,0.4), 12px */
+/* ── Document Slug — Outfit font, var(--glass-hover), 12px */
 
 .doc-slug {
   font-family: 'Outfit', sans-serif;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -338,7 +363,7 @@
 .btn-delete {
   background: none;
   border: none;
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 1.25rem;
   padding: 0.25rem 0.5rem;
@@ -355,7 +380,7 @@
 }
 
 .btn-delete:hover:not(:disabled) {
-  color: #ef4444; /* brighter red */
+  color: var(--color-error-text); /* brighter red */
   background-color: rgba(239, 68, 68, 0.15);
 }
 
@@ -393,12 +418,12 @@
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 50px; /* pill shape */
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-family: 'Outfit', sans-serif;
   font-size: 0.9rem;
   letter-spacing: 0.5px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
   position: relative;
   overflow: hidden;
 }
@@ -411,27 +436,35 @@
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 100%);
+  background: linear-gradient(180deg, var(--glass-hover) 0%, transparent 100%);
   border-radius: 50px 50px 0 0;
   pointer-events: none;
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: var(--glass-strong);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
-
+/* WIKI4AI-206: komentár „cyan at 8% opacity" bol klam — `--glow-cyan` je
+   SLOT s alfa 0.4 (glass-dark) / 0.25 (glass-light) a ako VYPLN zalia text.
+   Merane: `--primary` text na tejto vyplni bol 3.83:1 (glass-dark) a
+   3.82:1 (glass-light), teda pod 4.5. Rovnaky recept ako primarna akcia:
+   gradient + atrament, MIN 4.64:1 (glass-light) / 7.47:1 (glass-dark) /
+   5.56:1 (nexaverse). `--pill-active-*` tokeny su jedine miesto, kde sa
+   identity lisia (DIZ-1). */
 .tab.active {
-  background: rgba(0, 240, 255, 0.08); /* cyan at 8% opacity */
-  border-color: var(--primary);
-  color: var(--primary);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  background-color: var(--primary);
+  background-image: var(--pill-active-bg);
+  border-color: var(--pill-active-border);
+  color: var(--pill-active-color);
   font-weight: 600;
 }
 
 .tab.active:hover {
-  background: rgba(0, 240, 255, 0.12);
+  background-color: var(--primary-strong);
+  background-image: var(--pill-active-bg);
+  color: var(--pill-active-color);
 }
 
 /* Tab link (for Graph tab) */
@@ -442,22 +475,22 @@
 }
 
 .tab[href]:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
+  background: var(--glass-strong);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
 }
-
+/* Graph tab je <a>, inak by tento blok vrátil 3.8:1 spat. */
 .tab[href].active {
-  background: rgba(0, 240, 255, 0.08);
-  border-color: var(--primary);
-  color: var(--primary);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  background-color: var(--primary);
+  background-image: var(--pill-active-bg);
+  border-color: var(--pill-active-border);
+  color: var(--pill-active-color);
 }
 
 /* ── Tab Content Fade Animation ─────────────────────────────── */
 
 .tab-content {
-  animation: tabFade 0.4s ease-out;
+  animation: tabFade var(--dur-slow) var(--ease-soft);
 }
 
 @keyframes tabFade {
@@ -483,7 +516,7 @@
 }
 
 .graph-preview:hover {
-  box-shadow: 0 4px 12px rgba(0, 240, 255, 0.06);
+  box-shadow: 0 4px 12px var(--glow-cyan);
   transform: translateY(-2px);
 }
 
@@ -501,11 +534,7 @@
 .graph-redirect {
   text-decoration: none;
   display: block;
-}
-
-/* ── Loading and Empty States ─────────────────────────────── */
-
-.loading-state, .empty-state {
+}.loading-state{
   text-align: center;
   padding: 3rem;
   color: var(--text-muted);
@@ -514,7 +543,7 @@
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--border-default);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -523,12 +552,6 @@
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.error {
-  color: var(--color-error-text);
-  text-align: center;
-  padding: 2rem;
 }
 
 /* ── Search Bar (WIKI4AI-81: scoped to .project-search-* — no icon here,
@@ -545,10 +568,9 @@
 .project-search-input {
   width: 100%;
   padding: 0.75rem 2.5rem 0.75rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   font-size: 0.95rem;
-  outline: none;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
   background: var(--dark-2);
   color: var(--text-primary);
@@ -581,8 +603,8 @@
 .subprojects-section {
   margin: 1rem 0;
   padding: 1rem 1.25rem;
-  background: var(--glass-bg, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  background: var(--glass-bg, var(--glass-bg));
+  border: 1px solid var(--glass-border, var(--glass-border));
   border-radius: 16px;
 }
 
@@ -596,11 +618,11 @@
 .subprojects-header h2 {
   font-size: 1.05rem;
   margin: 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
 }
 
 .subprojects-count {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-weight: normal;
 }
 
@@ -635,21 +657,21 @@
   gap: 0.75rem;
   padding: 0.45rem 0.6rem;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
 }
 
 .subproject-entry:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--glass-strong);
 }
 
 .subproject-link {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
   text-decoration: none;
   font-family: 'Outfit', sans-serif;
 }
 
 .subproject-link:hover {
-  color: #a78bfa;
+  color: var(--accent);
 }
 
 /* Semantic search status (WIKI4AI-36) */
@@ -658,7 +680,7 @@
   margin-top: 0.5rem;
   padding: 0.15rem 0.5rem;
   font-size: 0.72rem;
-  color: #86efac;
+  color: var(--color-success-text);
   background: rgba(34, 197, 94, 0.12);
   border: 1px solid rgba(34, 197, 94, 0.35);
   border-radius: 999px;
@@ -668,7 +690,7 @@
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
   font-size: 0.85rem;
-  color: #fcd34d;
+  color: var(--color-warning-text);
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.35);
   border-radius: 6px;
@@ -679,7 +701,7 @@
   padding: 0.1rem 0.45rem;
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
-  color: #c4b5fd;
+  color: var(--accent);
   background: rgba(139, 92, 246, 0.14);
   border: 1px solid rgba(139, 92, 246, 0.35);
   border-radius: 999px;
@@ -701,7 +723,7 @@
 .doc-create-visibility .form-hint {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 /* Lock icon next to a private document's title in the list */

@@ -20,6 +20,34 @@ public class VaultMasterPasswordService {
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
 
     /**
+     * WIKI4AI-197 (D1): what {@code vault_master_password_hash} is set to once the
+     * user's vault is owned by the v2 key hierarchy.
+     *
+     * The v1 verifier has to stop working at that point — it verifies a SHA-256 of the
+     * password, which is exactly the value a v2 client no longer sends — but it must
+     * not become empty. {@link #isPasswordSet} reads "blank or null" as "no master
+     * password yet", and the current frontend answers that with the setup screen; the
+     * user would then be invited to set a master password again, which overwrites the
+     * salt and orphans every entry in the vault.
+     *
+     * So the replacement is a value that keeps {@code isPasswordSet} true and makes
+     * {@link #verifyPassword} false. That is what the absence of a colon does: the
+     * verifier bails out on a stored hash with no separator, so the old client gets a
+     * 401 and says "incorrect password" out loud instead of walking the user into a
+     * reset. It cannot be replayed or brute-forced into anything, because there is no
+     * hash behind it.
+     */
+    public static final String V2_MANAGED_SENTINEL = "v2-managed";
+
+    /**
+     * WIKI4AI-197 (D1): whether this stored value is the v2 sentinel rather than a
+     * real v1 verifier.
+     */
+    public boolean isV2Managed(String storedHash) {
+        return V2_MANAGED_SENTINEL.equals(storedHash);
+    }
+
+    /**
      * Hash a master password using PBKDF2.
      * Returns format: base64(salt):base64(hash)
      */

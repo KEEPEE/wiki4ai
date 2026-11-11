@@ -3,6 +3,7 @@ package com.wiki4ai.config;
 import com.wiki4ai.exception.RateLimitExceededException;
 import com.wiki4ai.model.ApiToken;
 import com.wiki4ai.service.ApiTokenService;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,14 +43,22 @@ import java.util.concurrent.ConcurrentHashMap;
  *       actor the token acts as travels in the authentication details. This is what
  *       makes revocation real: before this branch existed, deleting a token row
  *       revoked nothing because only the JWT signature was checked.</li>
- *   <li><b>everything else → the legacy branch, unchanged.</b> Signature verification
- *       through {@link JwtUtil} and {@code ROLE_USER}, exactly as before, including
- *       infinite-expiry tokens from {@link JwtUtil#generateInfiniteToken}. No database
- *       lookup, no new failure mode. Such a token is never revocable and never
- *       expires, so using one now leaves a deduplicated {@code log.warn} behind
- *       (WIKI4AI-138) that names the account it belongs to (WIKI4AI-167). Logging is
- *       the only addition: the status codes, the authorities and the filter chain
- *       behave exactly as they did.</li>
+ *   <li><b>everything else → the JWT branch.</b> Verified through
+ *       {@link JwtUtil#parseAccessToken}: a valid signature, {@code type} exactly
+ *       {@code ACCESS}, an {@code exp} that exists and lies ahead, and a non-blank
+ *       {@code sub}. Authorities are {@code ROLE_USER}, as before. WIKI4AI-197 tightened
+ *       this from "the signature checks out" to the four rules above, which retires two
+ *       credential shapes that used to work here: a {@code REFRESH} token, which is a
+ *       7-day credential meant to be exchanged rather than used, and an infinite-expiry
+ *       token from {@link JwtUtil#generateInfiniteToken}, which had no {@code exp} at
+ *       all and therefore could never be retired. Both were permanent and neither was
+ *       revocable — deleting their row in {@code api_tokens} changed nothing, because
+ *       nothing read that row. Still no database lookup on this path, and a token that
+ *       is accepted leaves a deduplicated {@code log.warn} behind (WIKI4AI-138) naming
+ *       the account it belongs to (WIKI4AI-167): a clear-text JWT has no revocation
+ *       path, so rotating it to a {@code w4a_} token is the only way it ever stops
+ *       being used. Logging is the only addition to the accepted case; the status
+ *       codes, the authorities and the filter chain behave as they did.</li>
  * </ul>
  * The stateful lookup is cached in {@link ApiTokenService} (60 s TTL) and
  * {@code last_used_at} is written throttled (30 s window), so authenticating a
@@ -163,47 +172,66 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        // ── Legacy branch: JWT, verified by signature only — unchanged ─────────
+        // ── Legacy branch: JWT, verified by signature AND by its claims ─────────
+        // WIKI4AI-197 (REV-2 P0 #6). This branch used to ask two questions in two
+        // calls — validateToken() and then getUsernameFromToken() — parsing and
+        // signature-verifying the same token twice per request. It now asks one
+        // question once: "is this a usable access token", answered by
+        // JwtUtil#parseAccessToken with the type, exp and sub rules explained there.
+        //
+        // What changes for a caller, and why each change is the point:
+        //   - a REFRESH token no longer authenticates. It is a 7-day credential whose
+        //     only job is to be exchanged at POST /api/v1/auth/refresh; accepted as
+        //     access it silently made the 24-hour access lifetime a 7-day one.
+        //   - a token with no type claim no longer authenticates. "Absent means
+        //     allowed" is how a credential minted for something else gets in.
+        //   - a token with no exp claim no longer authenticates. Those were the named
+        //     API tokens of generateInfiniteToken: permanent, and deleting their row in
+        //     api_tokens revoked nothing. A credential that cannot expire cannot be
+        //     retired.
+        //
+        // The 401 body is now the same fixed string in both paths. It used to append
+        // e.getMessage(), which put jjwt's own text — "JWT signature does not match",
+        // "Expired JWT token", occasionally an exception naming a class — in the
+        // response of an unauthenticated request. The status code is the contract; the
+        // library's wording is not, and it is not the client's business which of the
+        // several reasons applied.
+        Optional<Claims> accessClaims;
         try {
-            // Validate the token
-            boolean isValid = jwtUtil.validateToken(token);
-            if (isValid) {
-                // Get username from token
-                String username = jwtUtil.getUsernameFromToken(token);
-
-                // Create authentication with ROLE_USER authority
-                List<SimpleGrantedAuthority> authorities = Collections.singletonList(
-                        new SimpleGrantedAuthority("ROLE_USER"));
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(username, null, authorities);
-
-                // Set the authentication in SecurityContextHolder
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                // WIKI4AI-138: this token authenticates, but it is a clear-text JWT
-                // with no expiry and no revocation path. Say so in the log — at most
-                // once per account per window. Nothing about the request changes: the
-                // authentication is already in place, the username is already read
-                // above for the authentication itself, and the method below cannot
-                // throw, so a warning can never become a 401 or a 500.
-                logLegacyTokenDeprecation(token, username);
-            } else {
-                // Invalid token - clear context and return 401
-                SecurityContextHolder.clearContext();
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"error\": \"Invalid or expired JWT token\"}");
-                return;
-            }
-        } catch (Exception e) {
-            // Any other exception during validation - clear context and return 401
+            accessClaims = jwtUtil.parseAccessToken(token);
+        } catch (Exception unexpected) {
+            // Defensive: parseAccessToken is specified to return empty, never to throw.
+            // If it ever does, the answer is still a 401 and nothing else — a filter
+            // must not let an exception become a 500 for an unauthenticated caller.
             SecurityContextHolder.clearContext();
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\": \"Token validation failed: " + e.getMessage() + "\"}");
+            writeUnauthorized(response, "Invalid or expired JWT token");
             return;
         }
+
+        if (accessClaims.isEmpty()) {
+            SecurityContextHolder.clearContext();
+            writeUnauthorized(response, "Invalid or expired JWT token");
+            return;
+        }
+
+        // The subject is the account. parseAccessToken already proved it non-blank, so
+        // no second parse and no null check is needed here.
+        String username = accessClaims.get().getSubject();
+
+        List<SimpleGrantedAuthority> authorities = Collections.singletonList(
+                new SimpleGrantedAuthority("ROLE_USER"));
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(username, null, authorities);
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        // WIKI4AI-138: this token authenticates, but it is a clear-text JWT with no
+        // revocation path. Say so in the log — at most once per account per window.
+        // Nothing about the request changes: the authentication is already in place,
+        // the username is already read above for the authentication itself, and the
+        // method below cannot throw, so a warning can never become a 401 or a 500.
+        logLegacyTokenDeprecation(token, username);
 
         // Continue the filter chain
         filterChain.doFilter(request, response);
@@ -214,13 +242,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
      * is actually being used (WIKI4AI-138), and name the account it belongs to
      * (WIKI4AI-167).
      * <p>
-     * Why it is worth logging: a legacy token is a JWT that {@link JwtUtil} verifies
-     * by signature alone. It has no {@code exp} claim when it was issued by
-     * {@link JwtUtil#generateInfiniteToken}, and deleting its row in {@code api_tokens}
-     * revokes nothing, because nothing reads that row. The only way such a token ever
-     * stops being used is someone rotating it to a {@code w4a_} token, and that needs
-     * the deployment to know the legacy one is still live — and <b>whose</b> it is,
-     * because rotating it is something the owner of that account has to do.
+     * Why it is worth logging: a legacy token is a JWT that authenticates on signature
+     * and claims alone, and deleting its row in {@code api_tokens} revokes nothing,
+     * because nothing on this path reads that row. It can therefore outlive the account
+     * that was issued it for as long as its {@code exp} allows. The only way such a
+     * token ever stops being used is someone rotating it to a {@code w4a_} token, and
+     * that needs the deployment to know the legacy one is still live — and <b>whose</b>
+     * it is, because rotating it is something the owner of that account has to do.
+     * <p>
+     * The wording of the message changed in WIKI4AI-197. It used to read "is not
+     * revocable and never expires"; the second half is no longer true, because this
+     * branch now requires an {@code exp} claim, so a token that reaches this line does
+     * expire. "Is not revocable" is the part that is still a reason to rotate.
      * <p>
      * What is logged is the token's <b>display prefix</b> — the first few characters
      * of a JWT, which are its public JSON header — plus the account name from the
@@ -278,7 +311,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            log.warn("Legacy API token {} used by account {} is not revocable and never expires; "
+            log.warn("Legacy API token {} used by account {} is not revocable; "
                             + "rotate it to a w4a_ token.", prefix, account);
 
             // Bounded memory: first drop the keys whose window has passed, and only if
@@ -470,5 +503,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         /** Request attribute under which the same details are exposed to controllers. */
         public static final String REQUEST_ATTRIBUTE = "wiki4ai.apiToken";
+
+        /**
+         * The details this request carries when it authenticated with a hashed
+         * {@code w4a_} token, and empty when it authenticated with a JWT
+         * (WIKI4AI-197, REV-2 P0 #6).
+         * <p>
+         * This is the one question several rules now need: <i>is the caller a credential
+         * or a human session?</i> A JWT is a self-contained session with no row behind it;
+         * a {@code w4a_} token is a row that can be revoked, throttled and scoped. Rules
+         * about minting, rotating and escalating therefore branch on exactly this, and
+         * every place that asks it should ask it here rather than re-deriving it from the
+         * principal's type or from a request attribute that may be absent.
+         * <p>
+         * Reads {@code Authentication#getDetails} rather than the request attribute so it
+         * works the same in a controller, a service and an authorization manager, and does
+         * not depend on the filter having set the attribute on this particular dispatch.
+         */
+        public static java.util.Optional<ApiTokenAuthenticationDetails> from(
+                org.springframework.security.core.Authentication authentication) {
+            if (authentication == null) {
+                return java.util.Optional.empty();
+            }
+            Object details = authentication.getDetails();
+            return details instanceof ApiTokenAuthenticationDetails apiDetails
+                    ? java.util.Optional.of(apiDetails)
+                    : java.util.Optional.empty();
+        }
     }
 }

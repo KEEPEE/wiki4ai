@@ -80,7 +80,7 @@ class ProjectServiceTest {
         @Test
         @DisplayName("Should return all projects ordered by creation date descending")
         void shouldReturnAllProjectsOrdered() {
-            // given — mock returns data already sorted (as repository would)
+            // given — the repository hands rows over unordered; the service does the sorting (WIKI4AI-184)
             Project newer = Project.builder()
                     .id(2L)
                     .name("Newer")
@@ -96,7 +96,7 @@ class ProjectServiceTest {
                     .updatedAt(LocalDateTime.of(2024, 1, 1, 0, 0))
                     .build();
 
-            when(projectRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(newer, older));
+            when(projectRepository.findAll()).thenReturn(List.of(newer, older));
 
             // when
             List<ProjectDTO> result = projectService.getAllProjects();
@@ -111,7 +111,7 @@ class ProjectServiceTest {
         @DisplayName("Should return empty list when no projects exist")
         void shouldReturnEmptyListWhenNoProjects() {
             // given
-            when(projectRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of());
+            when(projectRepository.findAll()).thenReturn(List.of());
 
             // when
             List<ProjectDTO> result = projectService.getAllProjects();

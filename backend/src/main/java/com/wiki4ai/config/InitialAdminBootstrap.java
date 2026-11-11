@@ -5,6 +5,7 @@ import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.wiki4ai.service.ReservedUsernames;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -59,6 +60,21 @@ public class InitialAdminBootstrap implements CommandLineRunner {
         if (rawPassword == null || rawPassword.isBlank()) {
             log.warn("Initial admin bootstrap SKIPPED: admin.initial.password (env ADMIN_INITIAL_PASSWORD) is not set. "
                     + "The instance starts uninitialized — create the first ADMIN account through the WebUI setup flow (POST /api/v1/auth/setup).");
+            return;
+        }
+
+        // WIKI4AI-197 (REV-2 P0 #4): a username write is a username write, even when it
+        // comes from an environment variable. Bootstrapping an ADMIN named 'anonymous'
+        // would produce the worst version of this hole — an account the permission layer
+        // reads as unauthenticated while it holds the ADMIN role. Skipped rather than
+        // thrown, matching the two skips above: the instance then starts uninitialized
+        // and the operator creates the first account through the setup flow, which
+        // rejects the name with a message the operator actually sees.
+        if (ReservedUsernames.isReserved(username)) {
+            log.error("Initial admin bootstrap SKIPPED: admin.initial.username='{}' is a reserved "
+                    + "name (it is the marker for an unauthenticated caller). The instance starts "
+                    + "uninitialized — set a different ADMIN_INITIAL_USERNAME, or create the first "
+                    + "ADMIN through the WebUI setup flow.", username);
             return;
         }
 

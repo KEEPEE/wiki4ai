@@ -88,6 +88,36 @@ public class Project {
     @Column(nullable = false, length = 10)
     private String visibility;
 
+    /**
+     * Whether this project is pinned to the top of the list (WIKI4AI-184). The flag
+     * is a display concern only: it never affects visibility or permissions, and it
+     * is deliberately NOT part of {@code ProjectUpdateDTO} — the name there is
+     * {@code @NotBlank}, so a pin-only PUT would be rejected. Pinning goes through
+     * {@code POST /projects/{slug}/pin} and is written by a JPQL UPDATE so that
+     * {@code @PreUpdate} does not move {@code updatedAt}: pinning a project is not
+     * editing it, and {@code updated_desc} is one of the sort keys.
+     * <p>
+     * {@code updatable = false} (WIKI4AI-197): {@code updateProject} saves the whole entity
+     * back, and without this that UPDATE would also carry the {@code pinned} value as it was
+     * at load time, silently reverting a pin made in between.
+     */
+    @Column(name = "pinned", nullable = false, updatable = false)
+    @Builder.Default
+    private boolean pinned = false;
+
+    /**
+     * Position inside the manual ordering (WIKI4AI-184), dense 0..n-1 across all
+     * projects and maintained by the reorder endpoint. Only meaningful for
+     * {@code sort=manual} — every other sort key ignores it, which is what keeps the
+     * pre-WIKI4AI-184 behaviour intact for clients that send no parameters. Ties are
+     * broken by {@code id}, so the order is total even if two rows share a value.
+     * Written by JPQL UPDATE, never by load-and-save, so {@code updatedAt} stays put.
+     * {@code updatable = false} for the same reason as {@link #pinned}.
+     */
+    @Column(name = "sort_order", nullable = false, updatable = false)
+    @Builder.Default
+    private int sortOrder = 0;
+
     /** Maximum allowed hierarchy depth (root project = level 1). */
     public static final int MAX_HIERARCHY_DEPTH = 5;
 
@@ -164,6 +194,23 @@ public class Project {
      */
     public void setVisibility(String visibility) {
         this.visibility = visibility;
+    }
+
+    /**
+     * Set the pinned flag (WIKI4AI-184). Exists for tests and for the service layer;
+     * the production write path is the JPQL UPDATE in {@code ProjectRepository}, which
+     * keeps {@code updatedAt} untouched.
+     */
+    public void setPinned(boolean pinned) {
+        this.pinned = pinned;
+    }
+
+    /**
+     * Set the manual position (WIKI4AI-184). Same note as {@link #setPinned(boolean)}:
+     * the reorder endpoint writes it with a JPQL UPDATE.
+     */
+    public void setSortOrder(int sortOrder) {
+        this.sortOrder = sortOrder;
     }
 
     @PrePersist

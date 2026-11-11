@@ -22,6 +22,16 @@
         <springdoc.version>2.5.0</springdoc.version>
         <!-- Override Flyway version for modular PostgreSQL support -->
         <flyway.version>10.15.2</flyway.version>
+        <!--
+            WIKI4AI-197: Testcontainers 1.19.7, which spring-boot-dependencies 3.2.5
+            manages, talks to the daemon at API version 1.32. The dev host runs Docker
+            Engine 29, whose minimum accepted API version is 1.44 — it answers 400 "client
+            version 1.32 is too old", Testcontainers concludes there is no Docker, and the
+            Postgres test silently skips. 1.21.3 is the line that works against a modern
+            daemon. Override rather than a dependency version, so the BOM stays consistent
+            across the three testcontainers artifacts.
+        -->
+        <testcontainers.version>1.21.3</testcontainers.version>
     </properties>
 
     <dependencies>
@@ -137,6 +147,35 @@
             <scope>test</scope>
         </dependency>
 
+        <!--
+            WIKI4AI-197: Testcontainers, for the one Postgres test in the suite.
+
+            The rest of the suite runs on H2 with Flyway switched off, so its schema is
+            generated from the entities and no migration file is ever executed. That is
+            fast, and it is also blind: V29's CHECK constraints, its trigger and the
+            INTEGER-versus-int2 question are all invisible to it. Version and BOM come
+            from spring-boot-dependencies (testcontainers 1.19.7).
+
+            The test that needs this is annotated disabledWithoutDocker, because the CI
+            test-backend job has no docker service. See VaultV2SchemaPostgresTests for
+            what runs where.
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <!-- KeePassJava2 for KDBX import -->
         <dependency>
             <groupId>org.linguafranca.pwdb</groupId>
@@ -157,6 +196,87 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+
+            <!--
+                WIKI4AI-197: the Spring test-context cache has to hold every context
+                this suite creates, or the suite turns red for a reason that has
+                nothing to do with the change under test.
+
+                Every Spring context here shares one named in-memory H2
+                (application-test.properties: jdbc:h2:mem:testdb) and runs with
+                ddl-auto: create-drop. So when the context cache is full, evicting its
+                least-recently-used entry CLOSES that context, and closing it runs
+                Hibernate's drop phase against the SHARED database: every table is
+                gone for every other context still open. The next test class then
+                fails with "Table \"USERS\" not found (this database is empty)" —
+                in whichever class the eviction happens to land on, which is why the
+                failure moved between runs and why it reads like a flake.
+
+                DefaultContextCache's default is 32. This suite was already at 31
+                distinct contexts; VaultV2SchemaPostgresTests adds one more, and the
+                33rd context evicted the first. Raising the limit means nothing is
+                evicted and nothing is dropped mid-run.
+
+                The property is spring.test.context.cache.maxSize. ContextCacheUtils
+                reads it from the JVM system properties, and the kebab-case spelling
+                spring.test.context.cache.max-size — the name used before Spring
+                Framework 6.1 — is silently ignored here, which cost one debugging
+                round. It is set here rather than on a command line so that every
+                runner, CI included, gets the same suite.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                        WIKI4AI-202: DO NOT REMOVE THIS <includes> BLOCK.
+
+                        Surefire's own default includes are **/Test*.java, **/*Test.java,
+                        **/*Tests.java and **/*TestCase.java. *IT.java is not one of them,
+                        so a class named *IT is compiled, sits in target/test-classes and
+                        is never executed — silently, in any runner, with a green build.
+                        Five such classes (InitialAdminBootstrapIT, AdminControllerIT,
+                        AuthControllerIT, AuthControllerUpdateProfileIT,
+                        PermissionControllerIT) had never run once in the life of this
+                        repository; two of them did not even load their Spring context.
+
+                        Why the fix is an include here and NOT a failsafe plugin:
+                        .gitlab-ci.yml:32 runs `mvn -q test`, not `mvn verify`. Failsafe
+                        binds *IT to the integration-test/verify phases, so those classes
+                        would still never run in CI — the vacuum would only be renamed.
+                        The goal is that they actually execute, not that the file naming
+                        matches a convention nobody here enforces.
+
+                        The four default patterns are repeated verbatim because <includes>
+                        REPLACES the defaults rather than adding to them: listing only
+                        *IT.java would drop the other 2103 tests. They are spelled out
+                        rather than relied on so that the next *IT class added to this
+                        suite is picked up automatically instead of rotting like these
+                        five did.
+                    -->
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <systemPropertyVariables>
+                        <spring.test.context.cache.maxSize>128</spring.test.context.cache.maxSize>
+                        <!--
+                            WIKI4AI-197: the Docker API version docker-java asks the
+                            daemon for. Testcontainers 1.21.3 still defaults to 1.32,
+                            and Docker Engine 29 (the dev host) rejects anything below
+                            1.44 with "client version 1.32 is too old" — Testcontainers
+                            then reports no Docker, and VaultV2SchemaPostgresTests
+                            skips. 1.52 is the ceiling Engine 29 advertises. Where no
+                            daemon is reachable at all (the CI test-backend job) the
+                            property is inert and the class skips by design.
+                        -->
+                        <api.version>1.52</api.version>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

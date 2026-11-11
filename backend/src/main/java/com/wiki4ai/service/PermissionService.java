@@ -32,6 +32,12 @@ public class PermissionService {
     private final ProjectPermissionRepository projectPermissionRepository;
     private final ProjectRepository projectRepository;
     private final UserRepository userRepository;
+    /**
+     * The ADMIN bypass in {@link #checkPermission} goes through this rather than reading
+     * the role directly, so a token cannot use its owner's administrative role as a
+     * skeleton key for every project (WIKI4AI-197, REV-2 P0 #5).
+     */
+    private final EffectiveAdmin effectiveAdmin;
 
     // ── Core permission checks ────────────────────────────────────────────────
 
@@ -89,14 +95,22 @@ public class PermissionService {
     }
 
     /**
-     * Check if a user has the ADMIN role.
-     * Returns false if the user is not found or an error occurs.
+     * Whether this caller bypasses project-level permissions as an administrator.
+     * <p>
+     * WIKI4AI-197 (REV-2 P0 #5): this used to ask only whether the <i>account</i> had the
+     * ADMIN role. The bypass is enormous — it short-circuits every project grant in
+     * {@link #checkPermission} — so a credential that merely belongs to an administrator
+     * inherited system-wide write access regardless of the scopes it was issued. The rule
+     * is now ADMIN role <b>and</b> a credential allowed to carry it; see
+     * {@link EffectiveAdmin} for why both halves matter.
+     * <p>
+     * The exception guard is kept: a "no" here is not an error, it means fall through to
+     * the project-level grants, and a database hiccup must not turn a readable project
+     * into a 500.
      */
     private boolean isAdminRole(String username) {
         try {
-            User user = userRepository.findByUsername(username)
-                    .orElse(null);
-            return user != null && Role.ADMIN.equals(user.getRole());
+            return effectiveAdmin.hasAuthority(username);
         } catch (Exception e) {
             // If we can't verify the role, fall through to project-level checks
             return false;

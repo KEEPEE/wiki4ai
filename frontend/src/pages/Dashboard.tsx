@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProjects } from '../hooks/useProjects';
 import { useDebounce } from '../hooks/useDebounce';
 import type { Project, ProjectDTO, Visibility } from '../types/project';
@@ -15,7 +16,26 @@ import { ToastContainer, type ToastItem } from '../components/Toast';
 import { EditIcon, TrashIcon, LockIcon } from '../components/icons';
 // WIKI4AI-100: shared Public/Private visibility toggle
 import VisibilityToggle from '../components/VisibilityToggle';
+// WIKI4AI-186: pin a project to the top of the list
+import PinButton from '../components/PinButton';
+import { usePinToggle, isForbiddenError } from '../hooks/usePinToggle';
+import { comparePinned } from '../utils/pinSort';
+// WIKI4AI-187: sort menu + server-side filters + drag&drop ordering
+import SortSelect from '../components/SortSelect';
+import FilterChips, { type ActiveFilterChip } from '../components/FilterChips';
+import DragHandle from '../components/DragHandle';
+import { useSortPreference } from '../hooks/useSortPreference';
+import { useDragReorder } from '../hooks/useDragReorder';
+import {
+  DEFAULT_PROJECT_SORT,
+  PROJECT_SORT_STORAGE_KEY,
+  hasActiveFilter,
+  type VisibilityFilter,
+} from '../utils/listSort';
+import type { ReorderBody } from '../utils/dragOrder';
+import { projectApi } from '../services/projectApi';
 import './Dashboard.css';
+import { useDialog } from '../hooks/useDialog';
 
 /**
  * Recursive subproject row rendered inside a parent project card (WIKI4AI-31).
@@ -117,22 +137,34 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
   };
 
   // Handle backdrop click to close
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
     if (e.target === e.currentTarget) {
       onCancel();
     }
   };
 
+  /* Modal je mounted iba kym je otvoreny, preto `open === true`.
+   * useDialog zaruva showModal() (top layer, focus trap, ::backdrop)
+   * a pri unmounte close() — to vrati focus prvku pred modalom. */
+  const dialogRef = useDialog<HTMLDialogElement>(true);
+
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="delete-modal">
-      <div className="modal-content modal-delete" role="dialog" aria-labelledby="delete-modal-title">
+    <dialog
+      ref={dialogRef}
+      className="modal-backdrop"
+      onClick={handleBackdropClick}
+      onCancel={onCancel}
+      aria-labelledby="delete-modal-title"
+      data-testid="delete-modal"
+    >
+      <div className="modal-content modal-delete">
         <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>×</button>
         <h3 id="delete-modal-title" data-testid="delete-modal-title">{t('dashboard.deleteProjectTitle')}</h3>
         <p className="delete-warning" data-testid="delete-warning-text">
           {t('dashboard.deleteWarningStart')} &ldquo;<strong>{project.name}</strong>&rdquo;?{' '}
           {t('dashboard.deleteWarningEnd')}
         </p>
-        {deleteError && <p className="error">{deleteError}</p>}
+        {deleteError && <p className="state-error">{deleteError}</p>}
         <div className="form-actions form-actions-delete">
           <button
             type="button"
@@ -148,7 +180,7 @@ const DeleteConfirmationDialog: React.FC<DeleteConfirmationDialogProps> = ({ pro
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };
 
@@ -187,21 +219,34 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
   };
 
   // Handle backdrop click to close
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
     if (e.target === e.currentTarget) {
       onCancel();
     }
   };
 
+  /* Modal je mounted iba kym je otvoreny, preto `open === true`.
+   * useDialog zaruva showModal() (top layer, focus trap, ::backdrop)
+   * a pri unmounte close() — to vrati focus prvku pred modalom. */
+  const dialogRef = useDialog<HTMLDialogElement>(true);
+
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="edit-modal">
-      <div className="modal-content" role="dialog" aria-labelledby="edit-modal-title">
+    <dialog
+      ref={dialogRef}
+      className="modal-backdrop"
+      onClick={handleBackdropClick}
+      onCancel={onCancel}
+      aria-labelledby="edit-modal-title"
+      data-testid="edit-modal"
+    >
+      <div className="modal-content">
         <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')}>×</button>
         <h3 id="edit-modal-title">{t('dashboard.editProjectTitle')}</h3>
         <form onSubmit={handleSave}>
           <label htmlFor="edit-name">{t('dashboard.projectName')}</label>
           <input
             id="edit-name"
+            className="form-input"
             type="text"
             value={editName}
             onChange={(e) => {
@@ -215,13 +260,14 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
           <label htmlFor="edit-description">{t('dashboard.description')}</label>
           <textarea
             id="edit-description"
+            className="form-textarea"
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
             rows={3}
             data-testid="edit-description-input"
           />
 
-          {saveError && <p className="error">{saveError}</p>}
+          {saveError && <p className="state-error">{saveError}</p>}
 
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={isSaving} data-testid="edit-save-button">
@@ -233,7 +279,7 @@ const EditProjectModal: React.FC<EditProjectModalProps> = ({ project, onSave, on
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 };
 
@@ -286,15 +332,27 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
   };
 
   // Handle backdrop click to close
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDialogElement>) => {
     if (e.target === e.currentTarget) {
       onCancel();
     }
   };
 
+  /* Modal je mounted iba kym je otvoreny, preto `open === true`.
+   * useDialog zaruva showModal() (top layer, focus trap, ::backdrop)
+   * a pri unmounte close() — to vrati focus prvku pred modalom. */
+  const dialogRef = useDialog<HTMLDialogElement>(true);
+
   return (
-    <div className="modal-backdrop" onClick={handleBackdropClick} data-testid="create-modal">
-      <div className="modal-content" role="dialog" aria-labelledby="create-modal-title">
+    <dialog
+      ref={dialogRef}
+      className="modal-backdrop"
+      onClick={handleBackdropClick}
+      onCancel={onCancel}
+      aria-labelledby="create-modal-title"
+      data-testid="create-modal"
+    >
+      <div className="modal-content">
         <button type="button" className="modal-close" onClick={onCancel} aria-label={t('common.close')} data-testid="create-modal-close">×</button>
         <h3 id="create-modal-title">{t('dashboard.createNewProject')}</h3>
         {/* WIKI4AI-88: visible labels (login pattern) instead of placeholder-only */}
@@ -302,6 +360,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
           <label htmlFor="create-name">{t('dashboard.projectName')}</label>
           <input
             id="create-name"
+            className="form-input"
             ref={nameInputRef}
             type="text"
             value={name}
@@ -316,6 +375,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
           <label htmlFor="create-description">{t('dashboard.description')}</label>
           <textarea
             id="create-description"
+            className="form-textarea"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
@@ -336,7 +396,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
             </p>
           </div>
 
-          {error && <p className="error" data-testid="create-error">{error}</p>}
+          {error && <p className="state-error" data-testid="create-error">{error}</p>}
 
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={isCreating} data-testid="create-submit-button">
@@ -348,13 +408,25 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onCreate, onCan
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 };
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { t, i18n } = useTranslation();
+
+  // WIKI4AI-187: sort and filters are resolved by the BACKEND. The three values
+  // below are query parameters, not list mutations: changing one re-fetches
+  // `GET /projects?sort=…&q=…&visibility=…`. The sort choice is a user
+  // preference and survives a reload (localStorage); the filters do not — a
+  // stale hidden filter is the classic way to "lose" a project from the grid.
+  const { sort, setSort } = useSortPreference(PROJECT_SORT_STORAGE_KEY, DEFAULT_PROJECT_SORT);
+  const [visibility, setVisibility] = useState<VisibilityFilter>('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
+  const trimmedQuery = debouncedSearchQuery.trim();
+
   const {
     projects,
     isLoading,
@@ -365,7 +437,30 @@ const Dashboard: React.FC = () => {
     isCreating,
     isUpdating,
     isDeleting,
-  } = useProjects();
+  } = useProjects({ sort, q: trimmedQuery, visibility });
+
+  // WIKI4AI-186: pinning a project to the top. The list is re-sorted locally
+  // the moment the click happens (optimistic) and the pin response replaces
+  // the guessed state with the server's `pinned`/`sortOrder`; on failure —
+  // typically 403 when the user lacks MANAGE — the card rolls back and a Toast
+  // explains it. The backend already returns pinned projects first, so a later
+  // refetch agrees with what the UI shows.
+  const queryClient = useQueryClient();
+  const projectPinApi = useMemo(
+    () => ({ pin: projectApi.pinProject, unpin: projectApi.unpinProject }),
+    [],
+  );
+  // After a successful pin the list is refetched so the final order is exactly
+  // the server's (`pinned DESC` + its own sort key), not our optimistic guess.
+  const refreshProjects = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    [queryClient],
+  );
+  const {
+    list: orderedProjects,
+    togglePin: toggleProjectPin,
+    isPending: isProjectPinPending,
+  } = usePinToggle(projects, projectPinApi, { onSettled: refreshProjects });
 
   // WIKI4AI-88: the create form is now a modal (CreateProjectModal) — its
   // field state lives inside the component; only the open flag stays here.
@@ -376,10 +471,6 @@ const Dashboard: React.FC = () => {
 
   // Delete state
   const [deletingProject, setDeletingProject] = useState<{ id: number; name: string } | null>(null);
-
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   // Toast state
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -394,6 +485,27 @@ const Dashboard: React.FC = () => {
   const dismissToast = useCallback((id: number) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
+
+  // WIKI4AI-186: pin/unpin a project card. The reordering already happened
+  // optimistically inside `usePinToggle`; here we only report the outcome, and
+  // a rejection (403 = missing MANAGE) has already been rolled back there.
+  const handleToggleProjectPin = useCallback(
+    async (project: Project) => {
+      const wasPinned = !!project.pinned;
+      try {
+        await toggleProjectPin(project);
+        addToast(t(wasPinned ? 'pin.unpinnedProject' : 'pin.pinnedProject', { name: project.name }), 'success');
+      } catch (err) {
+        addToast(
+          isForbiddenError(err)
+            ? t('pin.forbiddenProject')
+            : t('pin.failed', { message: err instanceof Error ? err.message : String(err) }),
+          'error',
+        );
+      }
+    },
+    [addToast, t, toggleProjectPin],
+  );
 
   const handleCardClick = (slug: string) => {
     navigate(`/projects/${slug}`);
@@ -459,23 +571,22 @@ const Dashboard: React.FC = () => {
   // Stats calculation
   const totalDocs = projects.reduce((sum, p) => sum + (p.documentCount || 0), 0);
 
-  // Filtered projects based on search query
-  const filteredProjects = useMemo(() => {
-    if (!debouncedSearchQuery.trim()) {
-      return projects;
-    }
-    const query = debouncedSearchQuery.toLowerCase().trim();
-    return projects.filter((p) => {
-      const nameMatch = p.name.toLowerCase().includes(query);
-      const descMatch = (p.description || '').toLowerCase().includes(query);
-      return nameMatch || descMatch;
-    });
-  }, [projects, debouncedSearchQuery]);
+  // ── WIKI4AI-187: manual order (drag & drop) ───────────────────────────────
+  //
+  // `comparePinned` is the manual comparator (pinned first, then the opaque
+  // `sortOrder`). For `sort=manual` the backend already returns exactly that
+  // order, so applying it here is an idempotent confirmation of it — and it is
+  // what keeps the pinned and unpinned blocks apart for the drop logic (see
+  // `utils/dragOrder`: a pinned card may only move inside the pinned block).
+  const manualOrdered = useMemo(
+    () => (sort === 'manual' ? [...orderedProjects].sort(comparePinned) : orderedProjects),
+    [orderedProjects, sort],
+  );
 
   // Hierarchy grouping for the tree view (WIKI4AI-31): parentSlug -> children.
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Project[]>();
-    for (const p of projects) {
+    for (const p of manualOrdered) {
       if (p.parentSlug) {
         const list = map.get(p.parentSlug) ?? [];
         list.push(p);
@@ -483,16 +594,82 @@ const Dashboard: React.FC = () => {
       }
     }
     return map;
-  }, [projects]);
+  }, [manualOrdered]);
 
   // Root projects for the tree view. A subproject whose parent is missing
   // (defensive edge case) is treated as a root so it never disappears from the UI.
   const rootProjects = useMemo(() => {
-    const slugs = new Set(projects.map((p) => p.slug));
-    return projects.filter((p) => !p.parentSlug || !slugs.has(p.parentSlug));
-  }, [projects]);
+    const slugs = new Set(manualOrdered.map((p) => p.slug));
+    return manualOrdered.filter((p) => !p.parentSlug || !slugs.has(p.parentSlug));
+  }, [manualOrdered]);
 
-  const isSearching = debouncedSearchQuery.trim().length > 0;
+  const isSearching = trimmedQuery.length > 0;
+  // A filter changes what the list means, and a drop writes the manual order of
+  // the WHOLE list — so while any filter is active DnD is off and the page says
+  // why, instead of silently reordering rows the user is not looking at.
+  const filterActive = hasActiveFilter(trimmedQuery, visibility);
+  const dndEnabled = sort === 'manual' && !filterActive;
+
+  /** Send one drop to the reorder endpoint; a success gets a quiet Toast. */
+  const sendProjectReorder = useCallback(
+    async (project: Project, body: ReorderBody) => {
+      await projectApi.reorderProject(project.slug, body);
+      addToast(t('listSort.toastReordered'), 'success');
+    },
+    [addToast, t],
+  );
+
+  /** 403 = missing MANAGE (the endpoint requires it), anything else is raw. */
+  const handleReorderError = useCallback(
+    (err: unknown) => {
+      addToast(
+        isForbiddenError(err)
+          ? t('listSort.reorderForbiddenProject')
+          : t('listSort.toastReorderFailed', {
+              message: err instanceof Error ? err.message : String(err),
+            }),
+        'error',
+      );
+    },
+    [addToast, t],
+  );
+
+  // The drag operates on the cards that are actually rendered (roots — children
+  // are nested inside their parent card and are not drop targets).
+  const dnd = useDragReorder<Project>({
+    list: rootProjects,
+    enabled: dndEnabled,
+    reorder: sendProjectReorder,
+    onReordered: refreshProjects,
+    onError: handleReorderError,
+  });
+
+  // While a search is active children are rendered as their own cards (a parent
+  // that does not match must not swallow a child that does).
+  const renderedProjects = isSearching ? manualOrdered : dnd.displayList;
+
+  /** Chips describing the active filters, each with its own × (requirement 2). */
+  const activeFilters: ActiveFilterChip[] = [];
+  if (trimmedQuery) {
+    activeFilters.push({
+      id: 'q',
+      label: t('listSort.filterQuery', { q: trimmedQuery }),
+      onClear: () => setSearchQuery(''),
+    });
+  }
+  if (visibility) {
+    activeFilters.push({
+      id: 'visibility',
+      label: t('listSort.filterVisibility', {
+        value: t(visibility === 'public' ? 'listSort.visibilityPublic' : 'listSort.visibilityPrivate'),
+      }),
+      onClear: () => setVisibility(''),
+    });
+  }
+  const clearAllFilters = () => {
+    setSearchQuery('');
+    setVisibility('');
+  };
 
   return (
     <div className="dashboard">
@@ -523,8 +700,9 @@ const Dashboard: React.FC = () => {
         + {t('dashboard.newProject')}
       </button>
 
-      {/* Search Bar */}
-      {projects.length > 0 && (
+      {/* Search Bar — also kept while a filter returns nothing, otherwise the
+          user could not see or edit the filter that emptied the grid. */}
+      {(projects.length > 0 || filterActive) && (
         <div className="dashboard-search-bar">
           <svg className="dashboard-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -551,10 +729,51 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Results Count */}
-      {projects.length > 0 && debouncedSearchQuery.trim() && (
+      {/* WIKI4AI-187: sort menu + visibility filter — both are server
+          parameters, changing either re-fetches the list (requirement 1, 2). */}
+      {(projects.length > 0 || filterActive) && (
+        <div className="list-toolbar" data-testid="project-toolbar">
+          <SortSelect value={sort} onChange={setSort} labelKey="listSort.projectsLabel" />
+          <label className="list-toolbar-field" data-testid="visibility-filter-label">
+            <span className="list-toolbar-label">{t('listSort.visibilityLabel')}</span>
+            <select
+              className="list-toolbar-select"
+              data-testid="visibility-filter"
+              value={visibility}
+              onChange={(e) => setVisibility(e.target.value as VisibilityFilter)}
+            >
+              <option value="">{t('listSort.visibilityAll')}</option>
+              <option value="public">{t('listSort.visibilityPublic')}</option>
+              <option value="private">{t('listSort.visibilityPrivate')}</option>
+            </select>
+          </label>
+        </div>
+      )}
+
+      {/* Active filters as removable chips + one "clear all" */}
+      <FilterChips filters={activeFilters} onClearAll={clearAllFilters} />
+
+      {/* Why drag & drop is off right now (requirement 3) */}
+      {projects.length > 0 && !dndEnabled && (
+        <p className="dnd-status" data-testid="dnd-status" role="status">
+          {filterActive ? (
+            t('listSort.lockedFilter')
+          ) : (
+            <>
+              {t('listSort.lockedSort')}{' '}
+              <button type="button" onClick={() => setSort('manual')} data-testid="dnd-switch-manual">
+                {t('listSort.switchToManual')}
+              </button>
+            </>
+          )}
+        </p>
+      )}
+
+      {/* Results Count — the server did the filtering, so the list length IS
+          the number of matches (the unfiltered total is not known here). */}
+      {projects.length > 0 && filterActive && (
         <p className="results-count" data-testid="results-count">
-          {t('dashboard.showingResults', { shown: filteredProjects.length, total: projects.length })}
+          {t('listSort.matchCount', { shown: projects.length })}
         </p>
       )}
 
@@ -569,7 +788,7 @@ const Dashboard: React.FC = () => {
       {/* Error State */}
       {error && !isLoading && (
         <div className="error-state">
-          <p className="error">{error.message}</p>
+          <p className="state-error">{error.message}</p>
           <button onClick={() => window.location.reload()} className="btn-secondary">
             {t('dashboard.retry')}
           </button>
@@ -579,8 +798,10 @@ const Dashboard: React.FC = () => {
       {/* Projects Grid */}
       {!isLoading && (
         <div className="projects-grid">
-          {projects.length === 0 ? (
-            <div className="empty-state">
+          {/* "No projects yet" only when nothing is filtered — an empty result
+              set from a filter is the "no matches" state, not an empty wiki. */}
+          {projects.length === 0 && !filterActive ? (
+            <div className="state-empty">
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
               </svg>
@@ -591,21 +812,35 @@ const Dashboard: React.FC = () => {
                 </button>
               )}
             </div>
-          ) : filteredProjects.length === 0 ? (
-            <div className="empty-state">
+          ) : renderedProjects.length === 0 ? (
+            <div className="state-empty">
               <svg style={{ width: 64, height: 64 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <p className="empty-text">{t('dashboard.noMatches')}</p>
             </div>
           ) : (
-            (isSearching ? filteredProjects : rootProjects).map((project) => (
+            renderedProjects.map((project, index) => (
               <div
                 key={project.id}
-                className="project-card"
+                className={`project-card${project.pinned ? ' project-card-pinned' : ''}${
+                  dnd.isDragging(index) ? ' is-dragging' : ''
+                }${dnd.isOver(index) ? (dnd.dropEdge === 'above' ? ' drop-above' : ' drop-below') : ''}`}
+                data-pinned={project.pinned ? 'true' : undefined}
+                /* WIKI4AI-187: the card is the drop target (the handle is the
+                   drag source) and the drag image — `[data-dnd-row]`. */
+                data-dnd-row
+                data-dnd-enabled={dndEnabled ? 'true' : 'false'}
+                data-testid={`project-card-${project.slug}`}
                 onClick={() => handleCardClick(project.slug)}
                 role="link"
                 tabIndex={0}
+                onDragOver={(e) => dnd.dragOver(index, e)}
+                onDrop={(e) => {
+                  e.preventDefault(); // without this the browser never fires drop
+                  e.stopPropagation();
+                  void dnd.drop(index);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     handleCardClick(project.slug);
@@ -613,6 +848,24 @@ const Dashboard: React.FC = () => {
                 }}
               >
                 <div className="card-header">
+                  {/* WIKI4AI-187: drag handle. Locked unless the list is in the
+                      manual, unfiltered order — a click on a locked handle
+                      switches to it (requirement 3). */}
+                  <DragHandle
+                    testId={`drag-handle-project-${project.slug}`}
+                    enabled={dndEnabled}
+                    title={
+                      dndEnabled
+                        ? t('listSort.dragHint')
+                        : filterActive
+                          ? t('listSort.lockedFilter')
+                          : t('listSort.switchToManual')
+                    }
+                    ariaLabel={t('listSort.dragAria', { name: project.name })}
+                    onDragStart={(e) => dnd.startDrag(index, e)}
+                    onDragEnd={dnd.cancelDrag}
+                    onActivate={() => setSort('manual')}
+                  />
                   <h3>
                     {project.name}
                     {/* WIKI4AI-100: lock badge on own private projects (other
@@ -623,6 +876,18 @@ const Dashboard: React.FC = () => {
                       </span>
                     )}
                   </h3>
+                  {/* WIKI4AI-186: pin to top. Deliberately outside the
+                      hover-only .card-actions cluster — a pinned card must keep
+                      its filled pin visible without hovering. */}
+                  <PinButton
+                    pinned={!!project.pinned}
+                    onToggle={() => handleToggleProjectPin(project)}
+                    name={project.name}
+                    kind="project"
+                    className="card-pin"
+                    disabled={isProjectPinPending(project.slug)}
+                    data-testid={`pin-project-${project.slug}`}
+                  />
                   {/* WIKI4AI-88: in-flow actions cluster — reserved space between
                       title and badge, so hover actions never overlap the badge */}
                   <div className="card-actions">

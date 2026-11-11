@@ -29,11 +29,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * classpath, not from a source path, so they hold wherever the tests run.
  *
  * <h2>The allocation, because it is the part a later story can break</h2>
- * V1..V24 were taken. WIKI4AI-155 got <b>V25</b>. V26 is reserved and must not appear.
+ * V1..V24 were taken. WIKI4AI-155 got <b>V25</b> and WIKI4AI-184 got <b>V26</b>
+ * ({@code V26__add_pinning_and_sort_order}). V27 is reserved and must not appear.
  * An existing migration is never rewritten: a Flyway version that has already run on .219 is
  * in {@code flyway_schema_history}, and changing its text makes the next start fail on a
  * checksum. The assertions below therefore check both that V25 exists and that V1..V24 still
  * say what they were written to say.
+ * <p>
+ * WIKI4AI-184 moved the boundary of this test from 25 to 26 — it did not touch V25 itself.
+ * The assertions on V25 are unchanged; only the allocation bookkeeping grew by one version.
+ * The content of V26 is asserted in {@link PinningSortOrderMigrationTest}.
  */
 @DisplayName("V25: resources + reservations, and the migrations around it untouched")
 class ResourcesMigrationTest {
@@ -45,7 +50,7 @@ class ResourcesMigrationTest {
     private static final String V23 = "db/migration/V23__add_actor_inbox_marker.sql";
     private static final String V24 = "db/migration/V24__create_inbox_indexes.sql";
 
-    /** The versions this project has allocated. V25 is this story; V26 is reserved. */
+    /** The versions this project has allocated. V26 is WIKI4AI-184; V27 is reserved. */
     private static final List<String> ALLOCATED = List.of(
             "V1__create_schema",
             "V2__add_role_column",
@@ -71,7 +76,8 @@ class ResourcesMigrationTest {
             "V22__create_work_item_comments",
             "V23__add_actor_inbox_marker",
             "V24__create_inbox_indexes",
-            "V25__create_resources_and_reservations");
+            "V25__create_resources_and_reservations",
+            "V26__add_pinning_and_sort_order");
 
     private static String read(String resource) {
         try (InputStream stream = ResourcesMigrationTest.class.getClassLoader()
@@ -292,7 +298,7 @@ class ResourcesMigrationTest {
     class Allocation {
 
         @Test
-        void everyAllocatedMigrationUpToV25IsOnTheClasspath() {
+        void everyAllocatedMigrationUpToV26IsOnTheClasspath() {
             for (String name : ALLOCATED) {
                 assertThat(exists("db/migration/" + name + ".sql"))
                         .as(name)
@@ -301,24 +307,34 @@ class ResourcesMigrationTest {
         }
 
         @Test
-        void v26IsNotUsed() {
-            // V26 is reserved. A migration named V26__* would take a version a later story
-            // has been told to expect. The classpath is not a directory listing, so the
-            // reserved names are probed directly.
+        void v26IsThePinningAndSortOrderMigration() {
+            // WIKI4AI-184 took V26. The name is asserted here (and its content in
+            // PinningSortOrderMigrationTest) so a second story cannot quietly claim the
+            // same version with a different file name.
+            assertThat(exists("db/migration/V26__add_pinning_and_sort_order.sql")).isTrue();
             assertThat(exists("db/migration/V26__create_resources_and_reservations.sql")).isFalse();
             assertThat(exists("db/migration/V26.sql")).isFalse();
-            assertThat(exists("db/migration/V26__resources.sql")).isFalse();
-            assertThat(exists("db/migration/V26__create_resources.sql")).isFalse();
-            assertThat(exists("db/migration/V26__create_reservations.sql")).isFalse();
         }
 
         @Test
-        void noMigrationIsNumberedAfterV25() {
+        void v27IsNotUsed() {
+            // V27 is the reserved version now. A migration named V27__* would take a
+            // version a later story has been told to expect. The classpath is not a
+            // directory listing, so the reserved names are probed directly.
+            assertThat(exists("db/migration/V27__add_pinning_and_sort_order.sql")).isFalse();
+            assertThat(exists("db/migration/V27.sql")).isFalse();
+            assertThat(exists("db/migration/V27__resources.sql")).isFalse();
+            assertThat(exists("db/migration/V27__create_resources.sql")).isFalse();
+            assertThat(exists("db/migration/V27__create_reservations.sql")).isFalse();
+        }
+
+        @Test
+        void noMigrationIsNumberedAfterV26() {
             Pattern compiled = Pattern.compile("^V(\\d+)__");
             for (String name : ALLOCATED) {
                 Matcher matcher = compiled.matcher(name);
                 assertThat(matcher.find()).isTrue();
-                assertThat(Integer.parseInt(matcher.group(1))).isLessThanOrEqualTo(25);
+                assertThat(Integer.parseInt(matcher.group(1))).isLessThanOrEqualTo(26);
             }
         }
 

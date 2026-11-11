@@ -12,6 +12,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Menu, MenuItem, MenuDivider, MenuRadioItem, MenuSectionLabel } from '../components/Menu';
 import './AdminUsers.css';
+import { useDialog } from '../hooks/useDialog';
 
 // ── WIKI4AI-86: SVG icons (no emoji — the container has no emoji font) ────
 
@@ -66,6 +67,12 @@ export default function AdminUsersPage() {
 
   // Delete confirmation dialog state
   const [deleteConfirmUser, setDeleteConfirmUser] = useState<AdminUserDTO | null>(null);
+
+  /* WIKI4AI-194 (DIZ-3 item 5): `.modal-overlay` bol TRETÍ nazov
+   * toho istého vzoru (Dashboard a ProjectSettings `.modal-backdrop`).
+   * Zjednotené na native <dialog> — focus trap, Escape, ::backdrop.
+   * Trieda `.modal-overlay` ostáva, lebo ju má CSS. */
+  const deleteDialogRef = useDialog<HTMLDialogElement>(!!deleteConfirmUser);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Show toast notification for 3 seconds
@@ -237,9 +244,20 @@ export default function AdminUsersPage() {
 
       {/* Delete Confirmation Dialog */}
       {deleteConfirmUser && (
-        <div className="modal-overlay" data-testid="delete-confirm-overlay" onClick={() => setDeleteConfirmUser(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2 className="modal-title">{t('admin.confirmDeleteTitle')}</h2>
+        <dialog
+          ref={deleteDialogRef}
+          className="modal-overlay"
+          aria-labelledby="admin-delete-user-title"
+          data-testid="delete-confirm-overlay"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDeleteConfirmUser(null);
+          }}
+          onCancel={() => setDeleteConfirmUser(null)}
+        >
+          <div className="modal-content">
+            <h2 className="modal-title" id="admin-delete-user-title">
+              {t('admin.confirmDeleteTitle')}
+            </h2>
             <p className="modal-text">
               {t('admin.deleteUserConfirm', { username: deleteConfirmUser.username, trans: true })}
             </p>
@@ -262,7 +280,7 @@ export default function AdminUsersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </dialog>
       )}
 
       {/* Create User Form */}
@@ -275,7 +293,7 @@ export default function AdminUsersPage() {
           </div>
         )}
         {createError && (
-          <div className="error-message" role="alert" data-testid="create-error">
+          <div className="state-error" role="alert" data-testid="create-error">
             {createError}
           </div>
         )}
@@ -360,7 +378,7 @@ export default function AdminUsersPage() {
         <h2 className="section-title">{t('admin.allUsers', { count: users.length })}</h2>
 
         {loadError && (
-          <div className="error-message" role="alert" data-testid="load-error">
+          <div className="state-error" role="alert" data-testid="load-error">
             {loadError}
           </div>
         )}
@@ -372,15 +390,15 @@ export default function AdminUsersPage() {
           </div>
         ) : (
           <div className="table-wrapper">
-            <table className="admin-table" data-testid="users-table">
+            <table className="data-table" data-testid="users-table">
               <thead>
                 <tr>
-                  <th>{t('admin.headerId')}</th>
-                  <th>{t('admin.username')}</th>
-                  <th>{t('admin.email')}</th>
-                  <th>{t('admin.role')}</th>
-                  <th>{t('admin.created')}</th>
-                  <th>{t('admin.actions')}</th>
+                  <th scope="col">{t('admin.headerId')}</th>
+                  <th scope="col">{t('admin.username')}</th>
+                  <th scope="col">{t('admin.email')}</th>
+                  <th scope="col">{t('admin.role')}</th>
+                  <th scope="col">{t('admin.created')}</th>
+                  <th scope="col">{t('admin.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -394,7 +412,7 @@ export default function AdminUsersPage() {
                       {/* WIKI4AI-86: role is read-only here; changes happen in the
                           kebab menu (no more native select popup in the table). */}
                       <td data-testid={`user-role-${u.id}`}>
-                        <span className={`admin-role-badge role-${u.role.toLowerCase()}`}>{u.role}</span>
+                        <span className={`tag tag-${u.role.toLowerCase()}`}>{u.role}</span>
                       </td>
                       <td className="cell-date">
                         {new Date(u.createdAt).toLocaleDateString(i18n.language === 'sk' ? 'sk-SK' : 'en-GB')}

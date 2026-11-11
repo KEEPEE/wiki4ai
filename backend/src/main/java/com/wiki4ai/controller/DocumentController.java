@@ -8,6 +8,7 @@ import com.wiki4ai.dto.DocumentSummaryDTO;
 import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
+import com.wiki4ai.dto.ReorderRequestDTO;
 import com.wiki4ai.service.DocumentService;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,9 +18,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -80,22 +78,88 @@ public class DocumentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @Operation(summary = "Zoznam dokumentov v projekte (paginovaný)", description = "Vráti paginovaný zoznam dokumentov v rámci projektu. Podporuje parametre page a size pre navigáciu medzi stránkami. Odozva neobsahuje 'content' pole pre menšiu veľkosť response.")
+    @Operation(summary = "Zoznam dokumentov v projekte (paginovaný, filter + poradie)", description = """
+            Vráti paginovaný zoznam dokumentov v rámci projektu. Podporuje `page` a `size` pre navigáciu
+            a parametre z WIKI4AI-184: `sort` = manual | name_asc | name_desc | created_asc | created_desc |
+            updated_desc (default) a `q` = case-insensitive filter na názov aj obsah.
+            Vždy sú pripnuté (pinned) dokumenty na vrchu a poradie je stabilné aj medzi stránkami.
+            Odozva neobsahuje 'content' pole pre menšiu veľkosť response.""")
     @ApiResponse(responseCode = "200", description = "Paginovaný zoznam dokumentov úspešne načítaný")
+    @ApiResponse(responseCode = "400", description = "Neplatná hodnota parametra sort")
     @GetMapping
     public ResponseEntity<Page<DocumentSummaryDTO>> getDocuments(
             @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
             @Parameter(description = "Číslo stránky (0-indexed, default 0)") @RequestParam(required = false, defaultValue = "0") int page,
-            @Parameter(description = "Veľkosť stránky (default 50, max 100)") @RequestParam(required = false, defaultValue = "50") int size) {
+            @Parameter(description = "Veľkosť stránky (default 50, max 100)") @RequestParam(required = false, defaultValue = "50") int size,
+            @Parameter(description = "Poradie: manual | name_asc | name_desc | created_asc | created_desc | updated_desc")
+            @RequestParam(required = false) String sort,
+            @Parameter(description = "Case-insensitive filter na názov a obsah dokumentu")
+            @RequestParam(required = false) String q) {
 
         Long projectId = resolveProjectId(projectSlug);
         String username = getCurrentUsername();
 
-        // Clamp size to reasonable bounds
+        // Clamp size to reasonable bounds. The ordering is built by the service from
+        // `sort` (WIKI4AI-184) — it has to be, because the sort must reach the database
+        // for the pages to be stable.
         int pageSize = Math.min(Math.max(size, 1), 100);
-        Pageable pageable = PageRequest.of(page, pageSize, Sort.by("updatedAt").descending());
 
-        return ResponseEntity.ok(documentService.getDocumentsByProjectPaginated(projectId, pageable, username));
+        return ResponseEntity.ok(
+                documentService.getDocumentsByProjectPaginated(projectId, page, pageSize, sort, q, username));
+    }
+
+    // ── Pin to top + manual order (WIKI4AI-184) ───────────────────────────────
+    //
+    // Dedicated POST endpoints, consistent with the project ones. Neither pin nor
+    // reorder bumps the document's optimistic-locking version, so an editor working on
+    // the same document is not pushed into a 409 by a sidebar drag.
+
+    @Operation(summary = "Pripnutie dokumentu na vrch", description = """
+            Pripne dokument na vrch zoznamu v rámci projektu (WIKI4AI-184). Pri prvom pripnutí
+            získa aj pozíciu nad súčasnou prvou položkou manuálneho poradia projektu.
+            `version` ani `updated_at` sa nemení. Vyžaduje UPDATE oprávnenie v projekte.""")
+    @ApiResponse(responseCode = "200", description = "Dokument pripnutý")
+    @ApiResponse(responseCode = "403", description = "Chýba UPDATE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Dokument alebo projekt nebol nájdený")
+    @PostMapping("/{docSlug}/pin")
+    public ResponseEntity<DocumentDTO> pinDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
+        Long projectId = resolveProjectId(projectSlug);
+        return ResponseEntity.ok(documentService.pinDocument(projectId, docSlug, getCurrentUsername()));
+    }
+
+    @Operation(summary = "Odopnutie dokumentu", description = """
+            Odoberie dokument z vrchu zoznamu (WIKI4AI-184). Manuálna pozícia zostáva zachovaná.
+            `version` ani `updated_at` sa nemení. Vyžaduje UPDATE oprávnenie v projekte.""")
+    @ApiResponse(responseCode = "200", description = "Dokument odopnutý")
+    @ApiResponse(responseCode = "403", description = "Chýba UPDATE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Dokument alebo projekt nebol nájdený")
+    @PostMapping("/{docSlug}/unpin")
+    public ResponseEntity<DocumentDTO> unpinDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug) {
+        Long projectId = resolveProjectId(projectSlug);
+        return ResponseEntity.ok(documentService.unpinDocument(projectId, docSlug, getCurrentUsername()));
+    }
+
+    @Operation(summary = "Zmena poradia dokumentu", description = """
+            Presunie dokument v manuálnom poradí projektu (WIKI4AI-184). Práve jedno z telies:
+            `{"beforeSlug": "..."}`, `{"afterSlug": "..."}` alebo `{"position": N}`.
+            Poradie dokumentov projektu sa prečísla husto 0..n-1. `version` sa nenavyšuje,
+            takže prebiehajúca editácia obsahu neskončí 409. Vyžaduje UPDATE oprávnenie.""")
+    @ApiResponse(responseCode = "200", description = "Dokument presunutý, vráti sa s novou pozíciou")
+    @ApiResponse(responseCode = "400", description = "Telo neobsahuje práve jeden selektor (beforeSlug/afterSlug/position)")
+    @ApiResponse(responseCode = "403", description = "Chýba UPDATE oprávnenie")
+    @ApiResponse(responseCode = "404", description = "Dokument alebo kotva (beforeSlug/afterSlug) nebol nájdený")
+    @PostMapping("/{docSlug}/reorder")
+    public ResponseEntity<DocumentDTO> reorderDocument(
+            @Parameter(description = "Slug projektu") @PathVariable String projectSlug,
+            @Parameter(description = "Slug dokumentu") @PathVariable String docSlug,
+            @RequestBody ReorderRequestDTO request) {
+        Long projectId = resolveProjectId(projectSlug);
+        return ResponseEntity.ok(
+                documentService.reorderDocument(projectId, docSlug, request, getCurrentUsername()));
     }
 
     @Operation(summary = "Detail dokumentu podľa slugu", description = "Vráti detail dokumentu na základe jeho URL-friendly slugu.")

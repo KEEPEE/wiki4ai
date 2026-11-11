@@ -10,10 +10,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
@@ -26,9 +28,37 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Integration tests for AuthController using real database (H2).
  * Tests register endpoint with valid/invalid data, and login with correct/incorrect credentials.
+ * <p>
+ * <b>WIKI4AI-202 — this class had never run.</b> Surefire's default includes cover
+ * {@code Test*}, {@code *Test}, {@code *Tests} and {@code *TestCase}; {@code *IT} is not
+ * one of them, so all 15 tests here were compiled and silently dropped on every build.
+ * Two annotations were missing underneath that, and both only became visible once the
+ * class actually executed:
+ * <ul>
+ *   <li><b>{@code @AutoConfigureMockMvc}</b> — the class autowires {@link MockMvc}, but
+ *   {@code @SpringBootTest} alone does not register that bean (it creates a mock
+ *   {@code WebApplicationContext}, not a {@code MockMvc}). Every test errored with
+ *   {@code No qualifying bean of type 'org.springframework.test.web.servlet.MockMvc'}
+ *   before a single assertion ran. {@code @WebMvcTest} was the other option and is the
+ *   wrong one here: this class asserts on rows written to the database, which needs the
+ *   real service and repository beans, not a sliced web context.</li>
+ *   <li><b>{@code security.enabled=true}</b> — {@link AuthController} is
+ *   {@code @ConditionalOnProperty(security.enabled=true)} and the test profile turns
+ *   security off, so without this the controller bean does not exist and every request
+ *   is a 404. Same pairing as {@code AuthControllerMeTest} and
+ *   {@code AuthRefreshEndpointIntegrationTest}.</li>
+ *   <li><b>{@code auth.registration.open=true}</b> — WIKI4AI-70 made self-registration
+ *   close as soon as the first account exists. The two duplicate-key tests seed an
+ *   account through the repository first, so under the default policy the request is
+ *   refused 403 by the registration gate before the uniqueness check is ever reached,
+ *   and the 409 they assert is unreachable. Those tests are about the uniqueness rule,
+ *   so the class opts into open registration rather than weakening the assertion.</li>
+ * </ul>
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = {"security.enabled=true", "auth.registration.open=true"})
 class AuthControllerIT {
 
     @Autowired

@@ -72,6 +72,51 @@ public class User {
     private String vaultSalt;
 
     /**
+     * WIKI4AI-197 (D1): server-generated random salt for the v2 key hierarchy, Base64.
+     *
+     * Write-once. The v2 key derivation is only sound while this value never changes
+     * after a wrapped key exists: re-deriving the KEK from a new salt makes every
+     * DEK already wrapped under the old one unrecoverable. VaultV2Service therefore
+     * writes it with {@code WHERE vault_v2_salt IS NULL} and never updates it again.
+     *
+     * The salt itself is not the protection. What matters is that the v2 KDF takes the
+     * RAW master password, never the SHA-256 of it that v1 sends to this server — a KEK
+     * derived from that digest would be recomputable server-side, which is exactly what
+     * v2 is meant to stop.
+     */
+    @Column(name = "vault_v2_salt", length = 64)
+    private String vaultV2Salt;
+
+    /**
+     * WIKI4AI-197 (D1): the parameters the client needs to reproduce the KEK, as a
+     * JSON string, e.g. {@code {"alg":"PBKDF2-HMAC-SHA256","iter":600000,"dkLen":256}}.
+     *
+     * Stored next to the salt rather than hardcoded, so a later change of the work
+     * factor does not silently invalidate an existing wrapped key.
+     */
+    @Column(name = "vault_v2_kdf", length = 255)
+    private String vaultV2Kdf;
+
+    /**
+     * WIKI4AI-197 (D1): the random data-encryption key (DEK) that actually encrypts
+     * vault entries, wrapped under the KEK derived from the user's raw password.
+     *
+     * The server stores and returns this blob but cannot open it: opening it needs the
+     * password, which the server never receives in the v2 flow. Changing the master
+     * password later means re-wrapping this one value, not re-encrypting the vault.
+     */
+    @Column(name = "vault_v2_wrapped_key")
+    private String vaultV2WrappedKey;
+
+    /**
+     * WIKI4AI-197 (D1): fingerprint of the DEK, recorded on every v2 entry so the
+     * server can tell a row encrypted under this user's key from one encrypted under
+     * another. It is an identifier, not a secret and not a key.
+     */
+    @Column(name = "vault_v2_key_id", length = 64)
+    private String vaultV2KeyId;
+
+    /**
      * One-to-one relationship with RefreshToken.
      * A user has at most one active refresh token.
      */

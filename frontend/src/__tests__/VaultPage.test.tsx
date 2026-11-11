@@ -56,25 +56,32 @@ vi.mock('../services/vaultApi', () => ({
   },
 }))
 
-// Mock VaultContext - vault is unlocked with config ready
-const mockVaultConfig = {
-  masterPassword: 'test-password',
-  salt: new Uint8Array(16),
+// Mock VaultContext - vault is unlocked with its keys ready. D2 replaced `config`
+// (which held h and a salt) with `keys` (a v2 key, its id, and the v1 read keys).
+const mockVaultKeys = {
+  userId: 7,
+  keyId: 'a'.repeat(64),
+  v2Key: new Uint8Array(32).fill(1),
+  v1Keys: [] as Uint8Array[],
+}
+
+const mockVaultState = {
+  isUnlocked: true,
+  isLoading: false,
+  keys: mockVaultKeys,
+  hasMasterPasswordSet: true,
+  needsReinit: false,
+  error: null,
+  migrationReport: null,
+  unlock: vi.fn(),
+  setupVault: vi.fn(),
+  lock: vi.fn(),
+  checkStatus: vi.fn(),
+  dismissMigrationReport: vi.fn(),
 }
 
 vi.mock('../contexts/VaultContext', () => ({
-  useVault: vi.fn(() => ({
-    isUnlocked: true,
-    isLoading: false,
-    config: mockVaultConfig,
-    keyBytes: null as Uint8Array | null, // Changed from CryptoKey to raw bytes
-    hasMasterPasswordSet: true,
-    error: null,
-    unlock: vi.fn(),
-    setupVault: vi.fn(),
-    lock: vi.fn(),
-    checkStatus: vi.fn(),
-  })),
+  useVault: vi.fn(() => ({ ...mockVaultState })),
 }))
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -1332,79 +1339,64 @@ describe('VaultPage', () => {
       expect(callArgs.data.notes).toBeUndefined();
     });
 
-    it('should encrypt entry data before saving to vault', async () => {
+    it('refuses to edit an entry it could not decrypt', async () => {
+      // The old behaviour: the form prefilled '[decryption failed]' and Save wrote it
+      // out as the entry's new password. A row that would not open is now a state, and
+      // Edit says so instead of offering to overwrite what it cannot see.
       const user = userEvent.setup();
 
       const { useVaultEntries } = await import('../hooks/useVaultEntries');
-      const { vaultApi } = await import('../services/vaultApi');
-      const { deriveKey, encrypt, bytesToBase64 } = await import('../services/encryptionService');
-
       vi.mocked(useVaultEntries).mockReturnValue({
-        entries: [], isLoading: false, error: null, refetch: vi.fn(),
-        createEntry: vi.fn().mockImplementation(async (entry) => {
-          const key = await deriveKey(mockVaultConfig.masterPassword, mockVaultConfig.salt);
-
-          // Backend persists a single shared IV per entry, so all fields must use the same one.
-          const iv = crypto.getRandomValues(new Uint8Array(12));
-
-          const usernameJson = entry.data.username ? JSON.stringify(entry.data.username) : null;
-          const passwordJson = JSON.stringify(entry.data.password);
-          const notesJson = entry.data.notes ? JSON.stringify(entry.data.notes) : null;
-
-          const passwordEncrypted = await encrypt(passwordJson, key, iv);
-          const usernameEncrypted = usernameJson ? await encrypt(usernameJson, key, iv) : null;
-          const notesEncrypted = notesJson ? await encrypt(notesJson, key, iv) : null;
-
-          const dto = {
-            title: entry.title,
-            url: entry.url,
-            groupPath: entry.groupPath,
-            usernameEncrypted: usernameEncrypted ? { ciphertext: bytesToBase64(usernameEncrypted.ciphertext), iv: bytesToBase64(iv) } : undefined,
-            passwordEncrypted: { ciphertext: bytesToBase64(passwordEncrypted.ciphertext), iv: bytesToBase64(iv) },
-            notesEncrypted: notesEncrypted ? { ciphertext: bytesToBase64(notesEncrypted.ciphertext), iv: bytesToBase64(iv) } : undefined,
-          };
-
-          return vaultApi.create(dto as any);
-        }),
-        updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+        entries: [
+          {
+            id: 1, title: 'Locked', url: undefined, groupPath: '/',
+            data: { password: '' }, createdAt: '', updatedAt: '', isReadable: false,
+          },
+        ],
+        isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
       } as any);
-
-      vi.mocked(vaultApi.create).mockResolvedValue({
-        id: 99, title: 'Test Entry', url: undefined, groupPath: undefined,
-        usernameEncrypted: null, passwordEncrypted: { ciphertext: 'Y2lwaGVy', iv: 'aXZieXRlcw==' }, notesEncrypted: null,
-        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-      });
-
-      const mockEntries = [
-        { title: 'Test Entry', username: 'user@test.com', password: 'plaintext-secret' },
-      ];
-      vi.mocked(vaultApi.importFromKdbx).mockResolvedValue(mockEntries as any);
 
       renderWithProviders(<VaultPage />);
 
-      await user.click(screen.getByText('Import KDBX'));
+      await user.click(screen.getByTestId('vault-edit-entry-1'));
 
-      const fileInput = screen.getByLabelText(/file/i) as HTMLInputElement;
-      await user.upload(fileInput, createTestFile());
-
-      const passwordInput = screen.getByLabelText(/password/i);
-      await user.type(passwordInput, 'password');
-
-      const submitButton3 = screen.getByTestId('vault-import-submit-button');
-      await user.click(submitButton3);
-
-      // Wait for the async encryption and API call to complete
-      await waitFor(() => {
-        expect(vaultApi.create).toHaveBeenCalled();
-      });
-
-      const createCall = (vaultApi.create as any).mock.calls[0][0];
-
-      // Verify encrypted data was sent, not plaintext
-      expect(createCall.passwordEncrypted).toBeDefined();
-      expect(typeof createCall.passwordEncrypted.ciphertext).toBe('string');
-      expect(createCall.passwordEncrypted.ciphertext).not.toBe('plaintext-secret');
-      expect(createCall.passwordEncrypted.ciphertext.length).toBeGreaterThan(10);
+      expect(screen.getByTestId('vault-entry-unreadable')).toBeInTheDocument();
+      expect(screen.queryByTestId('vault-form-title-input')).not.toBeInTheDocument();
     });
-  })
-})
+
+    it('reports what the first-unlock re-encryption did, and lets it be dismissed', async () => {
+      const user = userEvent.setup();
+
+      const { useVault } = await import('../contexts/VaultContext');
+      vi.mocked(useVault).mockReturnValue({
+        ...mockVaultState,
+        migrationReport: {
+          v1Rows: 3,
+          migrated: 2,
+          skipped: [{ id: 9, reason: 'undecryptable' }],
+        },
+      } as never);
+
+      const { useVaultEntries } = await import('../hooks/useVaultEntries');
+      vi.mocked(useVaultEntries).mockReturnValue({
+        entries: [], isLoading: false, error: null, refetch: vi.fn(), createEntry: vi.fn(), updateEntry: vi.fn(), deleteEntry: vi.fn(), isCreating: false, isUpdating: false, isDeleting: false,
+      } as any);
+
+      const { rerender } = renderWithProviders(<VaultPage />);
+
+      const banner = screen.getByTestId('vault-migration-banner');
+      expect(banner.textContent).toContain('2 of 3');
+      expect(banner.textContent).toContain('could not be decrypted');
+
+      await user.click(screen.getByTestId('vault-migration-dismiss'));
+      expect(mockVaultState.dismissMigrationReport).toHaveBeenCalled();
+
+      // The context clears the report on dismiss; with the context mocked, the next
+      // render is what proves the banner is conditional rather than always shown.
+      vi.mocked(useVault).mockReturnValue({ ...mockVaultState, migrationReport: null } as never);
+      rerender(<VaultPage />);
+
+      expect(screen.queryByTestId('vault-migration-banner')).not.toBeInTheDocument();
+    });
+  });
+});

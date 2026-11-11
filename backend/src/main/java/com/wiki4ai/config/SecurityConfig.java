@@ -55,26 +55,64 @@ public class SecurityConfig {
                 // Permit all authentication endpoints without authentication
                 auth.requestMatchers("/api/v1/auth/**").permitAll();
                 // Permit health check and actuator endpoints without authentication
-                auth.requestMatchers("/api/health", "/actuator/**", "/h2-console/**").permitAll();
+                //
+                // /h2-console/** is gone (WIKI4AI-197, REV-2 P0 #9). It was permitAll, so
+                // the H2 web console sat outside JWT auth in the deployed stack: a login
+                // form that connects to any JDBC URL a visitor types. The console is now
+                // also disabled in the postgres profile, and these two are deliberately
+                // both changed — permitAll alone would still leave the servlet reachable
+                // to anything that can reach the port, and disabling it alone would leave
+                // a rule advertising a door that is no longer there.
+                auth.requestMatchers("/api/health", "/actuator/**").permitAll();
                 // Permit OPTIONS preflight requests for CORS
                 auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                 // Permit public read-only project endpoints (list and get by slug) without authentication
                 auth.requestMatchers(HttpMethod.GET, "/api/v1/projects").permitAll();
                 auth.requestMatchers(HttpMethod.GET, "/api/v1/projects/**").permitAll();
-                // When security is enabled: require valid JWT token for ALL other endpoints
+                // When security is enabled: require a valid credential for ALL other
+                // endpoints, and for a hashed API token also require the scope that
+                // matches the method (WIKI4AI-197, REV-2 P0 #5).
+                //
+                // The manager subsumes authenticated(): it refuses a null,
+                // unauthenticated or anonymous caller itself before it looks at any
+                // scope. Keeping both rules as separate matchers would have been the
+                // more obvious spelling and the more fragile one — request matchers are
+                // evaluated in order and the first match wins, so a later
+                // anyRequest().authenticated() would simply never be consulted.
+                //
                 // When security is disabled (test mode): permit all requests
                 if (securityEnabled) {
-                    auth.anyRequest().authenticated();
+                    auth.anyRequest().access(new ApiTokenScopeAuthorizationManager());
                 } else {
                     auth.anyRequest().permitAll();
                 }
             })
             // For unauthenticated access to protected endpoints, return 401 instead of 403
-            .exceptionHandling(ex -> ex.authenticationEntryPoint(
-                    (request, response, exception) -> {
-                        response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+            .exceptionHandling(ex -> ex
+                    .authenticationEntryPoint(
+                            (request, response, exception) -> {
+                                response.setStatus(org.springframework.http.HttpStatus.UNAUTHORIZED.value());
+                                response.setContentType("application/json");
+                                response.getWriter().write("{\"message\":\"Authentication required\"}");
+                            })
+                    // A denial decided in the filter chain — today that means a scope
+                    // refusal by ApiTokenScopeAuthorizationManager — never reaches a
+                    // controller, so GlobalExceptionHandler cannot shape its body and
+                    // Spring's default handler would answer 403 with nothing in it at all.
+                    // An agent holding a bare 403 cannot tell a missing scope from a
+                    // missing project permission grant, and the two have different
+                    // remedies: be issued a token with another scope, versus ask to be
+                    // added to the project. So the reason the manager computed on the
+                    // request is put in the body, in the shape the rest of the API uses.
+                    .accessDeniedHandler((request, response, exception) -> {
+                        Object reason = request.getAttribute(
+                                ApiTokenScopeAuthorizationManager.DENIAL_REASON_ATTRIBUTE);
+                        String message = reason != null ? reason.toString() : "Access denied";
+                        response.setStatus(org.springframework.http.HttpStatus.FORBIDDEN.value());
                         response.setContentType("application/json");
-                        response.getWriter().write("{\"message\":\"Authentication required\"}");
+                        response.getWriter().write(
+                                "{\"error\":\"Forbidden\",\"message\":\""
+                                        + message.replace("\\", "\\\\").replace("\"", "\\\"") + "\"}");
                     }));
 
         // Only add JWT filter when security is enabled and filter is available

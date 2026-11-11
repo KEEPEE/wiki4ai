@@ -5,24 +5,35 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ProjectDTO } from '../types/project';
-import { projectApi } from '../services/projectApi';
+import { projectApi, type ProjectListQuery } from '../services/projectApi';
 
-const PROJECTS_QUERY_KEY = ['projects'] as const;
+/**
+ * WIKI4AI-187: the sort/filter choice is part of the cache key, so switching to
+ * `?sort=manual` or typing a filter fetches a new list instead of re-ordering
+ * the old one client-side. TanStack hashes the key structurally, so a fresh
+ * object literal per render is fine.
+ *
+ * Every mutation still invalidates `['projects']`, which prefix-matches all
+ * parameterised keys — a create/delete refreshes whatever list is on screen.
+ */
+const projectsQueryKey = (query: ProjectListQuery) =>
+  ['projects', { sort: query.sort ?? '', q: query.q ?? '', visibility: query.visibility ?? '' }] as const;
 
-export function useProjects() {
+export function useProjects(query: ProjectListQuery = {}) {
   const queryClient = useQueryClient();
 
   // Fetch all projects using React Query
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: PROJECTS_QUERY_KEY,
-    queryFn: () => projectApi.getAllProjects(),
+    queryKey: projectsQueryKey(query),
+    queryFn: () => projectApi.getAllProjects(query),
   });
 
   // Create project mutation with cache invalidation
   const createMutation = useMutation({
     mutationFn: (dto: ProjectDTO) => projectApi.createProject(dto),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+      // Prefix key: invalidates every parameterised list (`['projects', {...}]`).
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
@@ -31,7 +42,8 @@ export function useProjects() {
     mutationFn: ({ id, dto }: { id: number; dto: ProjectDTO }) =>
       projectApi.updateProject(id, dto),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+      // Prefix key: invalidates every parameterised list (`['projects', {...}]`).
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
@@ -39,7 +51,8 @@ export function useProjects() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => projectApi.deleteProject(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+      // Prefix key: invalidates every parameterised list (`['projects', {...}]`).
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 

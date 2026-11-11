@@ -124,15 +124,15 @@ export default function ResourcesPage() {
                 {rows.length === 0 ? (
                   <p className="resource-empty-ledger">{t('resources.noReservations')}</p>
                 ) : (
-                  <table className="resource-table">
+                  <table className="data-table resource-table">
                     <thead>
                       <tr>
-                        <th>{t('resources.colReservation')}</th>
-                        <th>{t('resources.colActor')}</th>
-                        <th>{t('resources.colItem')}</th>
-                        <th>{t('resources.colSlots')}</th>
-                        <th>{t('resources.colTtl')}</th>
-                        <th>{t('resources.colAction')}</th>
+                        <th scope="col">{t('resources.colReservation')}</th>
+                        <th scope="col">{t('resources.colActor')}</th>
+                        <th scope="col">{t('resources.colItem')}</th>
+                        <th scope="col">{t('resources.colSlots')}</th>
+                        <th scope="col">{t('resources.colTtl')}</th>
+                        <th scope="col">{t('resources.colAction')}</th>
                       </tr>
                     </thead>
                     <tbody>

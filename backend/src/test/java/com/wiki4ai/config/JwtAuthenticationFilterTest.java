@@ -2,6 +2,8 @@ package com.wiki4ai.config;
 
 import com.wiki4ai.service.ApiTokenService;
 import com.wiki4ai.service.TokenRateLimiter;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -69,9 +71,27 @@ class JwtAuthenticationFilterTest {
         SecurityContextHolder.clearContext();
     }
 
+    /**
+     * Claims a mocked {@link JwtUtil} can hand back for a token it decided to accept.
+     * <p>
+     * WIKI4AI-197 replaced the filter's two calls ({@code validateToken} then
+     * {@code getUsernameFromToken}) with one ({@code parseAccessToken}, returning
+     * {@code Optional<Claims>}), so a stub now has to produce claims rather than a
+     * boolean plus a string. They are built with the real jjwt builder rather than
+     * mocked, because {@code getSubject()} on a mock {@code Claims} would be one more
+     * stub to keep in sync — and the filter reads exactly one field out of them.
+     * <p>
+     * Only the subject is set. The type and expiry rules are {@code JwtUtil}'s
+     * responsibility and are covered by {@code JwtUtilTest} against real tokens; this
+     * file tests the filter's branch and its status codes.
+     */
+    private static Claims accessClaimsOf(String subject) {
+        return Jwts.claims().subject(subject).build();
+    }
+
     @Test
     void doFilterInternal_withInvalidToken_shouldReturn401() throws Exception {
-        when(jwtUtil.validateToken("invalid-token")).thenReturn(false);
+        when(jwtUtil.parseAccessToken("invalid-token")).thenReturn(Optional.empty());
 
         request.addHeader("Authorization", "Bearer invalid-token");
         FilterChain chain = new MockFilterChain();
@@ -119,7 +139,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void doFilterInternal_withExpiredToken_shouldReturn401() throws Exception {
-        when(jwtUtil.validateToken("expired-token")).thenReturn(false);
+        when(jwtUtil.parseAccessToken("expired-token")).thenReturn(Optional.empty());
 
         request.addHeader("Authorization", "Bearer expired-token");
         FilterChain chain = new MockFilterChain();
@@ -132,7 +152,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void doFilterInternal_withTamperedToken_shouldReturn401() throws Exception {
-        when(jwtUtil.validateToken("tampered-token")).thenReturn(false);
+        when(jwtUtil.parseAccessToken("tampered-token")).thenReturn(Optional.empty());
 
         request.addHeader("Authorization", "Bearer tampered-token");
         FilterChain chain = new MockFilterChain();
@@ -156,7 +176,7 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void doFilterInternal_withNullToken_shouldReturn401() throws Exception {
-        when(jwtUtil.validateToken("null")).thenReturn(false);
+        when(jwtUtil.parseAccessToken("null")).thenReturn(Optional.empty());
 
         request.addHeader("Authorization", "Bearer null");
         FilterChain chain = new MockFilterChain();
@@ -348,8 +368,8 @@ class JwtAuthenticationFilterTest {
         @DisplayName("Legacy JWT behaviour is unchanged and never touches the token service")
         void legacyJwt_shouldStayUnchanged() throws Exception {
             String legacyJwt = "header.payload.signature";
-            when(jwtUtil.validateToken(legacyJwt)).thenReturn(true);
-            when(jwtUtil.getUsernameFromToken(legacyJwt)).thenReturn("legacy_user");
+            when(jwtUtil.parseAccessToken(legacyJwt))
+                    .thenReturn(Optional.of(accessClaimsOf("legacy_user")));
 
             request.addHeader("Authorization", "Bearer " + legacyJwt);
             FilterChain chain = new MockFilterChain();
@@ -369,7 +389,7 @@ class JwtAuthenticationFilterTest {
         @Test
         @DisplayName("An invalid legacy JWT still returns 401 with the original message")
         void invalidLegacyJwt_shouldStillReturn401() throws Exception {
-            when(jwtUtil.validateToken("bad.jwt.value")).thenReturn(false);
+            when(jwtUtil.parseAccessToken("bad.jwt.value")).thenReturn(Optional.empty());
 
             request.addHeader("Authorization", "Bearer bad.jwt.value");
             FilterChain chain = new MockFilterChain();
@@ -489,8 +509,8 @@ class JwtAuthenticationFilterTest {
         @DisplayName("The legacy JWT branch is never rate limited")
         void legacyJwt_shouldNeverBeRateLimited() throws Exception {
             String legacyJwt = "header.payload.signature";
-            when(jwtUtil.validateToken(legacyJwt)).thenReturn(true);
-            when(jwtUtil.getUsernameFromToken(legacyJwt)).thenReturn("legacy_user");
+            when(jwtUtil.parseAccessToken(legacyJwt))
+                    .thenReturn(Optional.of(accessClaimsOf("legacy_user")));
 
             // Far more requests than the hashed-token budget allows.
             for (int i = 0; i < LIMIT + 5; i++) {
@@ -568,7 +588,7 @@ class JwtAuthenticationFilterTest {
         private static final String W4A_TOKEN = "w4a_0123456789abcdefghijABCDEFGHIJKL";
 
         /** Stable fragment of the message, so assertions do not restate the sentence. */
-        private static final String WARNING_MARKER = "is not revocable and never expires";
+        private static final String WARNING_MARKER = "is not revocable";
 
         private ApiTokenService apiTokenService;
         private Logger filterLogger;
@@ -614,8 +634,8 @@ class JwtAuthenticationFilterTest {
 
         /** Any non-{@code w4a_} string is accepted by the mocked JwtUtil. */
         private void stubValidLegacyJwt() {
-            when(jwtUtil.validateToken(anyString())).thenReturn(true);
-            when(jwtUtil.getUsernameFromToken(anyString())).thenReturn("legacy_user");
+            when(jwtUtil.parseAccessToken(anyString()))
+                    .thenReturn(Optional.of(accessClaimsOf("legacy_user")));
         }
 
         /** One request carrying {@code token}, answered by the filter. */
@@ -766,7 +786,7 @@ class JwtAuthenticationFilterTest {
         @Test
         @DisplayName("A rejected legacy token is still 401, still silent, still untracked")
         void invalidLegacyToken_shouldStay401AndSilent() throws Exception {
-            when(jwtUtil.validateToken(LEGACY_TOKEN)).thenReturn(false);
+            when(jwtUtil.parseAccessToken(LEGACY_TOKEN)).thenReturn(Optional.empty());
 
             MockFilterChain chain = new MockFilterChain();
             request.addHeader("Authorization", "Bearer " + LEGACY_TOKEN);
@@ -809,7 +829,7 @@ class JwtAuthenticationFilterTest {
      * information the migration to {@code w4a_} tokens needs. This class is the
      * regression net for that: it proves the warning separates accounts.
      * <p>
-     * A real {@link JwtUtil} and real {@link JwtUtil#generateInfiniteToken} tokens are
+     * A real {@link JwtUtil} and real {@link JwtUtil#generateToken} tokens are
      * used here, not the mocked one the rest of this file uses. The premise of the bug
      * is a property of real JWTs, so the test has to carry real JWTs: it asserts the
      * shared prefix itself, and it exercises the real {@code sub} extraction rather
@@ -831,7 +851,7 @@ class JwtAuthenticationFilterTest {
                 "wiki4ai-167-per-account-dedup-secret-0123";
 
         /** Stable fragment of the message, so assertions do not restate the sentence. */
-        private static final String WARNING_MARKER = "is not revocable and never expires";
+        private static final String WARNING_MARKER = "is not revocable";
 
         /** base64url of {@code {"alg":"HS…"}} — the first eight characters of any JWT. */
         private static final String SHARED_JWT_HEADER_PREFIX = "eyJhbGci";
@@ -861,8 +881,16 @@ class JwtAuthenticationFilterTest {
 
             // generateInfiniteToken: no 'exp' claim. This is precisely how a named API
             // token was issued before WIKI4AI-135, so these are real legacy tokens.
-            tokenAlice = realJwtUtil.generateInfiniteToken(ACCOUNT_ALICE);
-            tokenBob = realJwtUtil.generateInfiniteToken(ACCOUNT_BOB);
+            // WIKI4AI-197 flipped this from generateInfiniteToken to generateToken, and
+            // the flip is the expected one from the REV-2 plan. The filter now requires an
+            // 'exp' claim, so an infinite token — which has none — would be refused with a
+            // 401 and this class would be asserting a warning that can never be reached.
+            // What the class is actually about is untouched: these are still real legacy
+            // JWTs (not w4a_ tokens), they still share the same eight-character header
+            // prefix, and the 'sub' extraction is still the real one. Only the claim that
+            // makes the token acceptable at all had to be added.
+            tokenAlice = realJwtUtil.generateToken(ACCOUNT_ALICE);
+            tokenBob = realJwtUtil.generateToken(ACCOUNT_BOB);
 
             apiTokenService = mock(ApiTokenService.class);
             perAccountFilter = new JwtAuthenticationFilter(realJwtUtil, apiTokenService);
@@ -1041,9 +1069,10 @@ class JwtAuthenticationFilterTest {
             // The mocked JwtUtil isolates the key itself: same eight characters, two
             // different subjects. Under the old key these were one entry.
             JwtUtil stubbed = mock(JwtUtil.class);
-            when(stubbed.validateToken(anyString())).thenReturn(true);
-            when(stubbed.getUsernameFromToken("aaaaaaaaaa.one.jwt")).thenReturn(ACCOUNT_ALICE);
-            when(stubbed.getUsernameFromToken("aaaaaaaaaa.two.jwt")).thenReturn(ACCOUNT_BOB);
+            when(stubbed.parseAccessToken("aaaaaaaaaa.one.jwt"))
+                    .thenReturn(Optional.of(accessClaimsOf(ACCOUNT_ALICE)));
+            when(stubbed.parseAccessToken("aaaaaaaaaa.two.jwt"))
+                    .thenReturn(Optional.of(accessClaimsOf(ACCOUNT_BOB)));
 
             JwtAuthenticationFilter stubbedFilter = new JwtAuthenticationFilter(stubbed, apiTokenService);
 
@@ -1065,8 +1094,13 @@ class JwtAuthenticationFilterTest {
         @DisplayName("A legacy token with no subject still warns, once, as an unknown account")
         void missingSubject_shouldStillWarnOnceAndNeverBreak() throws Exception {
             JwtUtil stubbed = mock(JwtUtil.class);
-            when(stubbed.validateToken(anyString())).thenReturn(true);
-            when(stubbed.getUsernameFromToken(anyString())).thenReturn(null);
+            // Deliberately stubbed. The REAL parseAccessToken now refuses a token with
+            // no subject, so this scenario can only reach the filter through a mock —
+            // and that is the point of the test: whatever the account label ends up
+            // being, the deprecation helper must not throw and must not turn a request
+            // into a failure. It pins the helper's robustness, not the parser's rule.
+            when(stubbed.parseAccessToken(anyString()))
+                    .thenReturn(Optional.of(Jwts.claims().build()));
 
             JwtAuthenticationFilter stubbedFilter = new JwtAuthenticationFilter(stubbed, apiTokenService);
 

@@ -12,6 +12,9 @@ import { useDocuments, useSearchDocuments } from '../hooks/useDocuments'
 vi.mock('../services/documentApi', () => ({
   documentApi: {
     getByProject: vi.fn(),
+    // WIKI4AI-187: the list hook reads the page envelope (items + total) so it
+    // can tell whether drag & drop covers the whole project.
+    getByProjectPage: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
@@ -42,7 +45,7 @@ describe('useDocuments', () => {
       ]
 
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getByProject).mockResolvedValue(mockDocs)
+      vi.mocked(documentApi.getByProjectPage).mockResolvedValue({ items: mockDocs, total: 2 })
 
       const { result } = renderHook(() => useDocuments('test-project'), { wrapper })
 
@@ -51,16 +54,35 @@ describe('useDocuments', () => {
       })
 
       expect(result.current.documents).toEqual(mockDocs)
+      // WIKI4AI-187: the total is exposed too (the page window may be smaller).
+      expect(result.current.documentsTotal).toBe(2)
+    })
+
+    it('passes the sort/filter query through to the list endpoint', async () => {
+      const { documentApi } = await import('../services/documentApi')
+      vi.mocked(documentApi.getByProjectPage).mockResolvedValue({ items: [], total: 0 })
+
+      const { result } = renderHook(
+        () => useDocuments('test-project', { sort: 'manual', q: 'guide' }),
+        { wrapper },
+      )
+
+      await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+      expect(documentApi.getByProjectPage).toHaveBeenCalledWith('test-project', {
+        sort: 'manual',
+        q: 'guide',
+      })
     })
 
     it('should not fetch when projectSlug is empty', async () => {
       const { documentApi } = await import('../services/documentApi')
-      vi.mocked(documentApi.getByProject).mockResolvedValue([])
+      vi.mocked(documentApi.getByProjectPage).mockResolvedValue({ items: [], total: 0 })
 
       renderHook(() => useDocuments(''), { wrapper })
 
       // Should not call API for empty slug
-      expect(documentApi.getByProject).not.toHaveBeenCalled()
+      expect(documentApi.getByProjectPage).not.toHaveBeenCalled()
     })
   })
 

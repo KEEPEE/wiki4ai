@@ -146,6 +146,7 @@ describe('VaultEntryForm', () => {
       data: { username: 'devuser', password: 'old-pass' },
       createdAt: '',
       updatedAt: '',
+      isReadable: true,
     }
 
     it('should show "Edit Entry" title in edit mode', () => {

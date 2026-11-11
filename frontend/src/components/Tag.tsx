@@ -12,7 +12,6 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import './Tag.css';
 
 interface TagProps {
   label: string;
@@ -27,8 +26,31 @@ const Tag: React.FC<TagProps> = ({ label, variant = 'default', onClick }) => {
   const { t } = useTranslation();
   const className = `tag ${variant === 'admin' ? 'tag-admin' : variant === 'user' ? 'tag-user' : ''}`;
 
+  /* WIKI4AI-194 (DIZ-3 item 8): stlacitelny stitok MUSI byt tlacidlo.
+   * Dovtorska verzia mala vzdy role="img" — aj ked `onClick` bol, teda
+   * mysel sa dal stlacit mysiou ale nie klavesnicou (2.1.1) a citacka z
+   * neho vyhlasila obrazok. Bez onClick zostava role="img" a
+   * cursor: default, a prave vtedy CSS nesmie tvorit hover afordanciu. */
+  const interactive = typeof onClick === 'function';
+
   return (
-    <span className={className} role="img" aria-label={t('tag.label', { label })} onClick={onClick}>
+    <span
+      className={className}
+      role={interactive ? 'button' : 'img'}
+      aria-label={t('tag.label', { label })}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+    >
       {label}
     </span>
   );

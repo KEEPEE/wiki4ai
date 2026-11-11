@@ -5,18 +5,30 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateDocumentDto, UpdateDocumentDto } from '../types/document';
-import { documentApi } from '../services/documentApi';
+import { documentApi, type DocumentListQuery } from '../services/documentApi';
 
-const DOCUMENTS_QUERY_KEY = (projectSlug: string) => ['documents', projectSlug] as const;
+/**
+ * WIKI4AI-187: sort/filter are part of the cache key and are resolved by the
+ * backend, not in the browser. The key stays prefixed with `['documents', slug]`
+ * so the existing invalidations (pin, create, delete) keep matching every
+ * parameterised variant of the list.
+ */
+const documentsQueryKey = (projectSlug: string, query: DocumentListQuery) =>
+  ['documents', projectSlug, { sort: query.sort ?? '', q: query.q ?? '', size: query.size ?? 100 }] as const;
+const DOCUMENTS_QUERY_PREFIX = (projectSlug: string) => ['documents', projectSlug] as const;
 const SEARCH_DOCUMENTS_QUERY_KEY = (projectSlug: string, keyword: string) => ['documents', 'search', projectSlug, keyword] as const;
 
-export function useDocuments(projectSlug: string) {
+export function useDocuments(projectSlug: string, query: DocumentListQuery = {}) {
   const queryClient = useQueryClient();
 
-  // Fetch all documents for a project using React Query
+  // Fetch all documents for a project using React Query.
+  // `getByProjectPage` (not `getByProject`) because drag & drop has to know
+  // whether the loaded window is the whole project or only its first 100 rows —
+  // the backend clamps `size` at 100, and only the page envelope carries the
+  // total. See `ProjectDetail` → `dndTruncated`.
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: DOCUMENTS_QUERY_KEY(projectSlug),
-    queryFn: () => documentApi.getByProject(projectSlug),
+    queryKey: documentsQueryKey(projectSlug, query),
+    queryFn: () => documentApi.getByProjectPage(projectSlug, query),
     enabled: !!projectSlug,
   });
 
@@ -24,7 +36,7 @@ export function useDocuments(projectSlug: string) {
   const createMutation = useMutation({
     mutationFn: (data: CreateDocumentDto) => documentApi.create(projectSlug, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
@@ -33,7 +45,7 @@ export function useDocuments(projectSlug: string) {
     mutationFn: ({ docSlug, data }: { docSlug: string; data: UpdateDocumentDto }) =>
       documentApi.update(projectSlug, docSlug, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
@@ -41,7 +53,7 @@ export function useDocuments(projectSlug: string) {
   const deleteMutation = useMutation({
     mutationFn: (docSlug: string) => documentApi.delete(projectSlug, docSlug),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
@@ -49,7 +61,7 @@ export function useDocuments(projectSlug: string) {
   const uploadMutation = useMutation({
     mutationFn: (file: File) => documentApi.upload(projectSlug, file),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
@@ -58,7 +70,7 @@ export function useDocuments(projectSlug: string) {
     mutationFn: ({ docSlug, targetDocumentId }: { docSlug: string; targetDocumentId: number }) =>
       documentApi.addLink(projectSlug, docSlug, targetDocumentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
@@ -67,12 +79,14 @@ export function useDocuments(projectSlug: string) {
     mutationFn: ({ docSlug, targetDocumentId }: { docSlug: string; targetDocumentId: number }) =>
       documentApi.removeLink(projectSlug, docSlug, targetDocumentId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_KEY(projectSlug) });
+      queryClient.invalidateQueries({ queryKey: DOCUMENTS_QUERY_PREFIX(projectSlug) });
     },
   });
 
   return {
-    documents: data ?? [],
+    documents: data?.items ?? [],
+    /** Total in the project, not just the loaded page (WIKI4AI-187, DnD hint). */
+    documentsTotal: data?.total ?? 0,
     isLoading,
     error,
     refetch,

@@ -3,9 +3,12 @@ package com.wiki4ai.controller;
 import com.wiki4ai.dto.ChangeRoleRequestDTO;
 import com.wiki4ai.dto.CreateUserRequestDTO;
 import com.wiki4ai.dto.IntegrityReportDTO;
+import com.wiki4ai.dto.ProjectOrderEntryDTO;
+import com.wiki4ai.dto.ProjectOrderUpdateRequestDTO;
 import com.wiki4ai.dto.UserDTO;
 import com.wiki4ai.service.AdminService;
 import com.wiki4ai.service.IntegrityService;
+import com.wiki4ai.service.ProjectOrderAdminService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,10 +35,13 @@ public class AdminController {
 
     private final AdminService adminService;
     private final IntegrityService integrityService;
+    private final ProjectOrderAdminService projectOrderAdminService;
 
-    public AdminController(AdminService adminService, IntegrityService integrityService) {
+    public AdminController(AdminService adminService, IntegrityService integrityService,
+                           ProjectOrderAdminService projectOrderAdminService) {
         this.adminService = adminService;
         this.integrityService = integrityService;
+        this.projectOrderAdminService = projectOrderAdminService;
     }
 
     /**
@@ -225,5 +232,79 @@ public class AdminController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
             }
         }
+    }
+
+    // ── Global project order (WIKI4AI-200) ────────────────────────────────────
+    //
+    // Since WIKI4AI-200 every user arranges their OWN dashboard, and the global
+    // projects.pinned / projects.sort_order columns became the default a user inherits
+    // until they customise something. These two endpoints are what makes "inherits a
+    // default" mean something: they are the only way to arrange the order a freshly
+    // registered account sees. They never read or write user_project_order, so arranging
+    // the default does not overwrite what individual users have already chosen.
+
+    /**
+     * Show the GLOBAL project order — the default every user who has customised nothing
+     * inherits. Admin only.
+     */
+    @GetMapping("/projects-order")
+    @Operation(
+            summary = "Get the global project order",
+            description = "Returns every project in the global manual order (pinned first, then "
+                    + "sort_order, then id). This is the default a user who has pinned or dragged "
+                    + "nothing inherits; it is not any individual user's view. Admin access required."
+    )
+    @ApiResponse(responseCode = "200", description = "Global project order returned")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    public ResponseEntity<?> getGlobalProjectOrder() {
+        try {
+            List<ProjectOrderEntryDTO> order = projectOrderAdminService.getGlobalOrder();
+            return ResponseEntity.ok(order);
+        } catch (SecurityException e) {
+            return adminOrderError(e);
+        }
+    }
+
+    /**
+     * Write the GLOBAL project order. Partial per entry: a null {@code pinned} or
+     * {@code sortOrder} leaves that value alone, and a project absent from the payload
+     * keeps both. Admin only.
+     */
+    @PutMapping("/projects-order")
+    @Operation(
+            summary = "Set the global project order",
+            description = "Writes the global pinned flag and manual position of the listed projects. "
+                    + "Users who have customised nothing see the result; users who have pinned or "
+                    + "dragged something keep their own view. Admin access required."
+    )
+    @ApiResponse(responseCode = "200", description = "The resulting global project order")
+    @ApiResponse(responseCode = "400", description = "Empty payload, or an entry without a slug")
+    @ApiResponse(responseCode = "401", description = "Authentication required - no valid JWT token provided")
+    @ApiResponse(responseCode = "403", description = "Admin access required - current user does not have ADMIN role")
+    @ApiResponse(responseCode = "404", description = "A slug does not resolve to a project")
+    public ResponseEntity<?> setGlobalProjectOrder(
+            @RequestBody ProjectOrderUpdateRequestDTO request) {
+        try {
+            List<ProjectOrderEntryDTO> order = projectOrderAdminService.setGlobalOrder(request);
+            return ResponseEntity.ok(order);
+        } catch (SecurityException e) {
+            return adminOrderError(e);
+        }
+    }
+
+    /**
+     * The 401-vs-403 split every admin endpoint in this class makes: an absent or
+     * unresolvable identity is an authentication failure, a wrong role is an
+     * authorization one. Same wording rule as the endpoints above.
+     */
+    private ResponseEntity<Map<String, String>> adminOrderError(SecurityException e) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", e.getMessage());
+        if (e.getMessage() != null && (e.getMessage().contains("Authentication required")
+                || e.getMessage().contains("not found in database"))) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+        }
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 }

@@ -333,3 +333,95 @@ describe('Layout', () => {
     })
   })
 })
+
+/**
+ * WIKI4AI-195 (DIZ-4 items 4, 8, 11) — prístupnosť shellu.
+ *
+ * Pred týmto krokom: skip link NEEXISTOVAL vôbec (2.4.1 Bypass Blocks),
+ * Escape mobilný sidebar nezatvoril, off-canvas sidebar bol tabovateľný
+ * aj keď bol mimo obrazovky (2.4.3), logo odkaz nemal prístupný názov a
+ * dekoratívá lupa sa volala ako nepomenovaný grafický prvok.
+ */
+describe('Layout — shell a11y (WIKI4AI-195, DIZ-4 items 4, 8, 11)', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    seedAuthenticatedSession()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    vi.unstubAllGlobals()
+  })
+
+  it('skip link je PRVÝ focusovateľný prvok a ukazuje na existujúci #main-content', async () => {
+    renderLayout()
+    const skip = await screen.findByTestId('skip-link')
+    const focusable = Array.from(
+      document.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input, [tabindex]'),
+    )
+    expect(focusable[0], 'skip link musí byť prvý, inak neobíde navigáciu').toBe(skip)
+    expect(skip.getAttribute('href')).toBe('#main-content')
+    expect(document.getElementById('main-content')).not.toBeNull()
+  })
+
+  /* jsdom NEMÁ fragment navigáciu — klik na href="#…" v ňom nepresunie
+     focus, na rozdiel od prehliadača. Testuje sa preto mechanizmus, nie
+     následok: cieľ existuje a je focusovateľný. Bez tabIndex=-1 by
+     prehliadač presunul len scroll a 2.4.1 by splnené nebolo. */
+  it('cieľ skip linku existuje a je focusovateľný (tabIndex=-1)', async () => {
+    renderLayout()
+    const skip = await screen.findByTestId('skip-link')
+    const target = document.getElementById('main-content')
+    expect(target).not.toBeNull()
+    expect(target).toHaveAttribute('tabindex', '-1')
+    target?.focus()
+    expect(document.activeElement).toBe(target)
+    expect(skip.getAttribute('href')).toBe('#' + target?.id)
+  })
+
+  it('Escape zavrie mobilný sidebar', async () => {
+    const user = userEvent.setup()
+    renderLayout()
+    const toggle = await screen.findByTestId('nav-menu-toggle')
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'false'))
+  })
+
+  it('off-canvas sidebar je inert, kým nie je otvorený (WCAG 2.4.3)', async () => {
+    const narrow = {
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList
+    vi.spyOn(window, 'matchMedia').mockImplementation(() => narrow)
+
+    renderLayout()
+    const aside = await screen.findByRole('complementary', { name: /wiki/i })
+    expect(aside, 'úzke okno + zatvorený sidebar musí byť inert').toHaveAttribute('inert')
+
+    await userEvent.click(await screen.findByTestId('nav-menu-toggle'))
+    await waitFor(() =>
+      expect(screen.getByRole('complementary', { name: /wiki/i })).not.toHaveAttribute('inert'),
+    )
+  })
+
+  it('logo odkaz má prístupný názov — SVG sama ho nedá (DIZ-4 item 11)', async () => {
+    renderLayout()
+    const logo = await screen.findByTestId('nav-logo')
+    /* Obsahuje len <WikiLogo/> (SVG), teda bez aria-label by mal prázdny
+       názov a čítačka by vyhlásila nepomenovaný link. */
+    expect(logo.textContent, 'odkaz obsahuje len SVG').toBe('')
+    /* Pristupny nazov odkazu bez textoveho childa prichadza vyhradne z
+     * aria-label — testuje sa priamo, bez dom-accessibility-api. */
+    expect(logo.getAttribute('aria-label')).toMatch(/Wiki4AI/)
+    expect(i18n.t('layout.nav.homeAria')).toMatch(/Wiki4AI/)
+  })
+
+  it('dekoratívna lupa vyhľadávania je aria-hidden', async () => {
+    renderLayout()
+    const form = await screen.findByTestId('global-search-form')
+    expect(form.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+  })
+})

@@ -1,6 +1,147 @@
 /**
- * WIKI4AI-85: top-nav auth link styling (anonymous state).
- * Replaces the old hardcoded inline background (#3b82f6) with theme variables.
+ * WIKI4AI-185: shell layout — glass-admin (tm-607) sidebar + topbar + obsah.
+ *
+ * Pozor na dve väzby, inak sa rozpadnú iné stránky:
+ *  • `main > header` musí zostať priamy vzťah (meria sa --w4a-nav-height,
+ *    spotrebitelia: DocumentEditor.css, GraphView.css).
+ *  • `.main-content` nesmie mať padding-top, inak `calc(100vh - var(--w4a-nav-height))`
+ *    presunie obsah pod dolný okraj viewportu a objaví sa duplicitný scroll.
+ *    Preto je padding-top 0 a výšku „hlavičky“ drží samotný `.navbar`.
+ */
+
+/* ── Skip link — WIKI4AI-195 (DIZ-4 item 4, WCAG 2.4.1 Bypass Blocks) ──
+ * Off-screen, ale nie `display: none` ani `visibility: hidden` — to by prvok
+ * vyradilo z tab rádu a skip link by sa nedal dosiahnuť. Posunutie mimo
+ * viewportu ho necháva focusovateľné; pri `:focus-visible` dosunie dnu.
+ * Hranica je `--border-input` (3.43:1), nie `--glass-border` (1.36:1), lebo
+ * na svetlom pozadí je orámovanie jediná hrana tohto prvku. */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 1rem;
+  z-index: 10001;
+  padding: 0.75rem 1.25rem;
+  transform: translateY(-140%);
+  background: var(--surface-3);
+  border: 1px solid var(--border-input);
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform var(--transition-fast);
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
+.w4a-shell {
+  min-height: 100vh;
+}
+
+/* --- obsah vedľa sidebaru ------------------------------------------------- */
+
+.main-content {
+  margin-left: var(--sidebar-w);
+  /* WIKI4AI-185: žiadny padding-top — pozri poznámku vyššie. */
+  padding: 0 30px 32px;
+  min-height: 100vh;
+  max-width: 1600px;
+  transition: margin-left var(--transition-slow);
+}
+
+/* --- topbar (glass header) ------------------------------------------------ */
+
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  /* Výška = padding + obsah; presne táto hodnota ide do --w4a-nav-height. */
+  padding: 14px 0;
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+  transition: background var(--transition-slow), border-color var(--transition-slow);
+}
+
+/* Tenká svetelná hrana hore = sklo (glass recept z predlohy) */
+.navbar-topline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--top-line), transparent);
+  pointer-events: none;
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.navbar-brand {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-primary);
+}
+
+/* Prepínač tém je primárne v sidebari; v topbare sa ukáže len tam, kde je
+   sidebar skrytý (mobil) alebo kde sidebar nie je vôbec (anonymous). */
+.navbar-theme-mobile {
+  display: none;
+}
+
+/* --- hamburger (mobil) ---------------------------------------------------- */
+
+.menu-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.menu-toggle:hover {
+  background: var(--glass-hover);
+}
+
+.menu-toggle:focus-visible {
+  box-shadow: var(--focus-ring-shadow);
+}
+
+/* --- backdrop off-canvas sidebaru ----------------------------------------- */
+
+.sidebar-backdrop {
+  display: none;
+}
+
+/* --- anonymous auth odkazy (WIKI4AI-85) -----------------------------------
+ * Pôvodne součásť top-nav; ostávajú funkčné, len sa presunuli do new navbar.
  */
 
 .nav-anonymous {
@@ -21,7 +162,6 @@
 }
 
 .nav-auth-link:focus-visible {
-  outline: none;
   box-shadow: var(--focus-ring-shadow);
 }
 
@@ -45,6 +185,52 @@
 }
 
 .nav-auth-register:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--glass-hover);
   border-color: var(--border-hover);
+}
+
+/* --- responsive (predloha: 1200 / 900) ------------------------------------ */
+
+@media (max-width: 1200px) {
+  .main-content {
+    padding: 0 24px 28px;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    margin-left: 0;
+    padding: 0 16px 24px;
+  }
+
+  .menu-toggle {
+    display: flex;
+  }
+
+  .navbar-theme-mobile {
+    display: inline-flex;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-slow);
+  }
+
+  .sidebar-backdrop-show {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Hľadanie si na mobilu vezme celý riadok (predloha: .search-box order 3) */
+  .global-search-bar {
+    order: 3;
+    flex: 1 1 100%;
+  }
 }

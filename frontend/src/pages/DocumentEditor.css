@@ -42,9 +42,8 @@
   flex: 1;
   font-size: 1.25rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
   border: none;
-  outline: none;
   padding: 0.5rem;
   background: transparent;
 }
@@ -74,7 +73,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.3rem 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   border: 1px solid var(--glass-border);
   border-radius: 50px;
   backdrop-filter: blur(10px);
@@ -102,8 +101,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.1);
-  transition: .4s;
+  background: var(--glass-hover);
+  transition: var(--transition-slow);
   border-radius: 34px;
   border: 1px solid var(--glass-border);
 }
@@ -115,15 +114,23 @@
   width: 12px;
   left: 3px;
   bottom: 2px;
-  background-color: white;
-  transition: .4s;
+  /* DIZ-3 item 12 (WIKI4AI-194): `white` bola jedina farba, ktorá v
+   * glass-light zostala biela — na svetlej identite bol knob takmer
+   * neviditelny. Volba NIE je --on-accent: ten je fixne #ffffff a jeho
+   * vlastný komentár v tokens.css dokumentuje strop 1.41:1 na akcentnej
+   * výplni, teda práve to, čomu sa vyhnúť. --text-strong sa mení s
+   * identitou (biela v glass-dark/nexaverse, takmer čierna v glass-light)
+   * a track je len polopriehľadný akcent nad povrchom, takže kontrast
+   * sleduje povrch. */
+  background-color: var(--text-strong);
+  transition: var(--transition-slow);
   border-radius: 50%;
 }
 
 input:checked + .toggle-slider {
-  background: rgba(0, 240, 255, 0.2);
+  background: var(--glow-cyan);
   border-color: var(--primary);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+  box-shadow: 0 0 10px var(--glow-cyan);
 }
 
 input:checked + .toggle-slider:before {
@@ -141,23 +148,38 @@ input:checked + .toggle-slider:before {
   -webkit-appearance: none;
   appearance: none;
   background-color: transparent;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  /* DIZ-3 item 12 (WIKI4AI-194): chevron ako data URL mal zalatu farbu
+   * %239ca3af — siva, ktora v ziadnej identite nie je token a na svetlej
+   * identite takmer zmizla. .form-select uz v DIZ-3 item 4 presiel na
+   * dva gradienty, ktore kreslia sipku z `--text-muted`; tento compactny
+   * variant (35 px pill v editor toolbare) pouzije ten isty trik len v
+   * mensom meradle, aby toolbar nenarastol. */
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
-  background-position: right 6px center;
+  /* Druhá polovica je o 5 px ďalej — presne vlastnú šírku, inak sa štvorce
+   * prekrývajú a zo šípky je čiara. (V `.form-select` je to 6 px rozostup
+   * pri 6 px štvorcoch, tam je meradlo väčšie.) */
+  background-position:
+    right 9px center,
+    right 4px center;
   border: 1px solid var(--glass-border);
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-family: 'Outfit', sans-serif;
   font-size: 0.75rem;
   padding: 2px 18px 2px 6px;
   border-radius: 4px;
   cursor: pointer;
-  outline: none;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 .autosave-dropdown:hover {
-  color: white;
-  border-color: rgba(255, 255, 255, 0.3);
+  /* DIZ-3 item 12: pomenovana farba `white` → token. Na hover sa dropdown
+   * len zdvihne, nema akcentnu vypln, preto --text-strong nie --on-accent. */
+  color: var(--text-strong);
+  border-color: var(--border-hover);
 }
 
 /* Compact save status indicator */
@@ -166,11 +188,11 @@ input:checked + .toggle-slider:before {
   font-family: 'Outfit', sans-serif;
   display: flex;
   align-items: center;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 .save-status-compact.saving {
-  color: #00f0ff !important;
+  color: var(--primary) !important;
 }
 
 .save-status-compact.saved {
@@ -178,7 +200,7 @@ input:checked + .toggle-slider:before {
 }
 
 .save-status-compact.unsaved {
-  color: #fbbf24 !important;
+  color: var(--color-warning-text) !important;
 }
 
 .save-status-compact.error {
@@ -207,39 +229,45 @@ input:checked + .toggle-slider:before {
 /* View mode toggle buttons — glassmorphism pill style */
 .view-mode-btn {
   padding: 0.4rem 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
   border-radius: 50px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-family: 'Outfit', sans-serif;
   font-size: 0.8rem;
   font-weight: 400;
   letter-spacing: 0.5px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 /* Inactive hover state */
 .view-mode-btn:hover:not(.active) {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.8);
+  background: var(--glass-strong);
+  border-color: var(--border-hover);
+  color: var(--text-secondary);
 }
 
-/* Active state — cyan neon glow */
+/* Active state — DIZ-3 item 12 (WIKI4AI-194)
+ * --glow-cyan NIE JE farba, je to SLOT: `--primary` zaliaty na alpha .4.
+ * Pouzit ho ako VYPLN celeho pill-tlacidla bol omyl — vypln bola vzdy
+ * 40 % priesvitna bez ohladu na to, aku paletu si identita zvoli, a v
+ * glass-light bola takmer neviditelna. Aktivny stav nesi to, co aktivitu
+ * riesi vsade inde v dizajnovom jazyku: akcentna sklo-na-vypln + akcentne
+ * oramovanie. Glow zostava len ako jemny vonkajsi tieň, nie ako vypln. */
 .view-mode-btn.active {
-  background: rgba(0, 240, 255, 0.08) !important;
+  background: var(--glass-bg-accent) !important;
   border-color: var(--primary) !important;
   color: var(--primary) !important;
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 0 15px var(--glow-cyan);
 }
 
 /* Active hover — slightly stronger glow */
 .view-mode-btn.active:hover {
-  background: rgba(0, 240, 255, 0.12) !important;
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+  background: var(--glow-cyan) !important;
+  box-shadow: 0 0 20px var(--glow-cyan);
 }
 
 /* ── Save status indicator — dot + text with neon per state ───── */
@@ -252,15 +280,15 @@ input:checked + .toggle-slider:before {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--glass-border);
-  transition: all 0.3s ease;
+  transition: all var(--transition-slow);
 }
 
 /* Saving state — cyan pulse animation */
 .save-status.saving {
-  background: rgba(0, 240, 255, 0.1) !important;
-  color: #00f0ff !important;
-  border-bottom-color: rgba(0, 240, 255, 0.3) !important;
-  box-shadow: inset 0 -1px 0 rgba(0, 240, 255, 0.2);
+  background: var(--glow-cyan) !important;
+  color: var(--primary) !important;
+  border-bottom-color: var(--glow-cyan) !important;
+  box-shadow: inset 0 -1px 0 var(--glow-cyan);
 }
 
 .save-status.saving::before {
@@ -270,8 +298,8 @@ input:checked + .toggle-slider:before {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: #00f0ff;
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--glow-cyan);
   animation: cyan-pulse 1.5s ease-in-out infinite;
 }
 
@@ -290,15 +318,22 @@ input:checked + .toggle-slider:before {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: var(--color-success-text);
-  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5);
+  /* DIZ-3 item 12 (WIKI4AI-194): rgba(16,185,129,.5) bol emerald z inej
+   * identity — v glass-light je success farba ina, takze glow nesedel s
+   * bodkou vedla neho. currentColor viaze glow na ten isty token ako
+   * bodku; rovnaky vzor uz .save-status-compact::before pouziva. */
+  color: var(--color-success-text);
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
 }
 
 /* Unsaved state — amber/yellow */
 .save-status.unsaved {
-  background: rgba(245, 158, 11, 0.08) !important;
-  color: #fbbf24 !important;
-  border-bottom-color: rgba(245, 158, 11, 0.2) !important;
+  /* DIZ-3 item 12: obe rgba sú presne hodnoty --color-warning-* tokenov,
+   * len zaliate do CSS. Token sa meni s identitou, rgba nie. */
+  background: var(--color-warning-bg) !important;
+  color: var(--color-warning-text) !important;
+  border-bottom-color: var(--color-warning-border) !important;
 }
 
 .save-status.unsaved::before {
@@ -308,8 +343,9 @@ input:checked + .toggle-slider:before {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: #fbbf24;
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+  color: var(--color-warning-text);
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
 }
 
 /* Error state — red glow */
@@ -327,8 +363,9 @@ input:checked + .toggle-slider:before {
   height: 8px;
   margin-right: 8px;
   border-radius: 50%;
-  background: var(--color-error-text);
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+  color: var(--color-error-text);
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
 }
 
 @keyframes cyan-pulse {
@@ -414,13 +451,12 @@ input:checked + .toggle-slider:before {
   font-family: 'Outfit', sans-serif;
   font-size: 14px;
   line-height: 1.8;
-  outline: none;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--text-secondary);
 }
 
 .markdown-input::placeholder {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
 }
 
 /* Neon cursor — caret color + custom glow */
@@ -431,13 +467,13 @@ input:checked + .toggle-slider:before {
 /* Custom neon cursor effect via text-indent hack (webkit only) */
 @supports (-webkit-text-fill-color: transparent) {
   .markdown-input {
-    -webkit-text-fill-color: rgba(255, 255, 255, 0.7);
+    -webkit-text-fill-color: var(--glass-hover);
   }
 }
 
 /* Focus state — neon glow border + shadow */
 .markdown-input:focus {
-  box-shadow: inset 0 0 15px rgba(0, 240, 255, 0.1), 0 0 15px rgba(0, 240, 255, 0.2);
+  box-shadow: inset 0 0 15px var(--glow-cyan), 0 0 15px var(--glow-cyan);
 }
 
 /* ── Preview pane — glassmorphism markdown viewer ──────────────── */
@@ -476,54 +512,39 @@ input:checked + .toggle-slider:before {
   color: var(--text-muted);
 }
 
-/* ── Button styles — glassmorphism with neon hover ─────────────── */
-
-.btn-primary {
-  padding: 0.5rem 1rem;
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  color: rgba(255, 255, 255, 0.7);
-  border-radius: 50px;
-  cursor: pointer;
-  font-family: 'Syne', sans-serif;
-  font-size: 0.8rem;
-  letter-spacing: 1px;
-  transition: all 0.3s ease;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: rgba(0, 240, 255, 0.1);
-  border-color: var(--primary);
-  color: var(--primary);
-  box-shadow: 0 0 15px rgba(0, 240, 255, 0.3), 0 0 8px var(--glow-cyan);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* ── Save button — gradient background + dark text + neon hover ─ */
+/* ── Save button — WIKI4AI-194 (DIZ-3 item 2) + WIKI4AI-195 (DIZ-4 item 2)
+ *
+ * V TSX je `btn-ghost save-btn`: editorová verzia `.btn-primary` bola
+ * vlastná sklenená pilulka a podľa plánu sa menuje na `.btn-ghost`.
+ * `.save-btn` z nej robí primárnu akciu plochou `--primary` výplňou.
+ *
+ * Gradient `--primary → --accent` je PREČ (Opus DIZ-4 item 2): končil na
+ * #c2603f a text na ňom mal 3.33:1 — 1.4.3 failure. Opus dáva dve cesty,
+ * zrušiť gradient alebo končiť `--primary-deep`; deep je zamietnutý, lebo
+ * v glass-dark má `--primary-deep` + `--text-inverse` len 4.41:1, pod 4.5
+ * pre 0.8rem/600 text. Plochá výplň = 5.25 / 8.65 / 14.34:1.
+ *
+ * `!important` sú preč — primitívum `.btn` žije v `styles/components.css`
+ * a všetky kópie `.btn-primary` v stránkach sú vymazané, takže nič
+ * nebojí o cascade. */
 
 .save-btn {
-  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%) !important;
-  border: none !important;
-  color: #0a0a12 !important; /* dark text on gradient */
-  border-radius: 50px !important; /* pill shape */
-  padding: 10px 24px !important;
-  font-family: 'Syne', sans-serif !important;
-  font-weight: 600 !important;
-  font-size: 0.8rem !important;
-  letter-spacing: 1px !important;
-  cursor: pointer !important;
-  transition: all 0.3s ease !important;
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: var(--text-inverse);
+  border-radius: 50px;
+  padding: 10px 24px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 1px;
 }
 
 .save-btn:hover:not(:disabled) {
-  box-shadow: 0 0 25px var(--glow-cyan), 0 0 50px rgba(0, 240, 255, 0.15) !important;
-  transform: translateY(-2px) scale(1.03) !important;
+  background-color: var(--primary-strong);
+  border-color: var(--primary-strong);
+  color: var(--text-inverse);
+  transform: translateY(-2px);
 }
 
 .save-btn:disabled {
@@ -531,23 +552,8 @@ input:checked + .toggle-slider:before {
   cursor: not-allowed;
 }
 
-.btn-primary.saving {
+.save-btn.saving {
   animation: pulse 1.5s infinite;
-}
-
-.btn-secondary {
-  padding: 0.5rem 1rem;
-  background-color: rgba(255, 255, 255, 0.06);
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: background-color var(--transition-base);
-}
-
-.btn-secondary:hover {
-  background-color: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes pulse {
@@ -575,7 +581,7 @@ input:checked + .toggle-slider:before {
 }
 
 .preview-pane code {
-  background-color: rgba(255, 255, 255, 0.06);
+  background-color: var(--glass-strong);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -583,7 +589,7 @@ input:checked + .toggle-slider:before {
 }
 
 .preview-pane pre {
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: var(--glass-strong);
   padding: 1rem;
   border-radius: 6px;
   overflow-x: auto;
@@ -600,7 +606,7 @@ input:checked + .toggle-slider:before {
   margin: 1rem 0;
   padding: 0.5rem 1rem;
   color: var(--text-muted);
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--glass-bg);
 }
 
 .preview-pane ul,
@@ -647,7 +653,7 @@ input:checked + .toggle-slider:before {
   background: var(--dark-2);
   border-top: 1px solid var(--glass-border);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
   flex-shrink: 0; /* WIKI4AI-79: fixed-height chrome — only .editor-body may shrink */
 }
 
@@ -699,9 +705,9 @@ input:checked + .toggle-slider:before {
   margin: 0 24px 8px;
   padding: 10px 16px;
   border-radius: 8px;
-  background: #fff3cd;
-  border: 1px solid #ffe69c;
-  color: #664d03;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  color: var(--color-warning-text);
   font-size: 14px;
 }
 

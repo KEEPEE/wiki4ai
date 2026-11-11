@@ -27,7 +27,7 @@
   font-size: 2rem;
   font-weight: 700;
   color: var(--text-primary);
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -69,7 +69,7 @@
   border: 1px solid rgba(255, 71, 87, 0.35);
   border-radius: 8px;
   background: rgba(255, 71, 87, 0.08);
-  color: #ff8a94;
+  color: var(--color-error-text);
   font-size: 0.85rem;
 }
 
@@ -148,13 +148,18 @@
   height: 8px;
   border-radius: 999px;
   border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--glass-strong);
   overflow: hidden;
 }
 
 .metrics-share-bar-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--primary) 0%, #7ad7ff 100%);
+  /* WIKI4AI-208: `#7ad7ff` bolo jediné tvrdé číslo na dátovom povrchu a
+     CSS ratchet ho mal zapísané v budgete. `--chart-0` je v glass-dark
+     #34d399 (= staré --primary) a `--chart-7` #7dd3fc (= takmer
+     identické so starým #7ad7ff), takže v default identite je zmena
+     pixel-po-pixel — ale paleta teraz prepína s identitou. */
+  background: linear-gradient(90deg, var(--chart-0) 0%, var(--chart-7) 100%);
 }
 
 .metrics-share-value {
@@ -204,7 +209,7 @@
 
 .metrics-actor-lease {
   border-color: rgba(255, 71, 87, 0.35);
-  color: #ff8a94;
+  color: var(--color-error-text);
 }
 
 .metrics-actor-counts {

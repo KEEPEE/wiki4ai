@@ -2,9 +2,11 @@ package com.wiki4ai.controller;
 
 import com.wiki4ai.dto.ProjectDTO;
 import com.wiki4ai.exception.BadRequestException;
+import com.wiki4ai.model.Permission;
 import com.wiki4ai.service.ImageStorageService;
 import com.wiki4ai.service.ImageStorageService.ImageType;
 import com.wiki4ai.service.ImageStorageService.StoredImage;
+import com.wiki4ai.service.PermissionService;
 import com.wiki4ai.service.ProjectService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +20,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,9 +28,12 @@ import java.nio.file.NoSuchFileException;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -54,6 +60,13 @@ class ImageControllerTest {
 
     @MockBean
     private ProjectService projectService;
+
+    /**
+     * Mocked so the existing shape tests keep working; the two new tests below stub it to
+     * throw, which is how the missing CREATE check (WIKI4AI-197 commit 14) is asserted.
+     */
+    @MockBean
+    private PermissionService permissionService;
 
     private static final String PROJECT_SLUG = "my-project";
     private static final String STORED_NAME = UUID.randomUUID().toString() + ".png";
@@ -89,7 +102,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 201 with url, markdown snippet and metadata for a valid PNG")
         void shouldUploadValidPng() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
             given(imageStorageService.store(eq(PROJECT_SLUG), any(byte[].class), eq(ImageType.PNG)))
                     .willReturn(STORED_NAME);
 
@@ -109,7 +122,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 400 for an empty file")
         void shouldRejectEmptyFile() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
 
             MockMultipartFile file = new MockMultipartFile("file", "empty.png", "image/png", new byte[0]);
 
@@ -121,7 +134,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 400 for unsupported content (text disguised as image)")
         void shouldRejectUnsupportedType() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
 
             MockMultipartFile file = new MockMultipartFile(
                     "file", "notes.txt", "image/png", "# not an image".getBytes());
@@ -134,7 +147,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 413 when the file exceeds 10 MB")
         void shouldRejectOversizedFile() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
 
             byte[] big = new byte[(int) (ImageController.MAX_IMAGE_SIZE_BYTES + 1)];
             // PNG magic header so it would pass type detection if size were not enforced
@@ -152,12 +165,67 @@ class ImageControllerTest {
         @DisplayName("Should return 404 when the project does not exist")
         void shouldReturn404ForUnknownProject() throws Exception {
             willThrow(new EntityNotFoundException("Project not found with slug: no-such-project"))
-                    .given(projectService).getProjectBySlug("no-such-project");
+                    .given(projectService).getProjectBySlug(eq("no-such-project"), anyString());
 
             MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", pngBytes());
 
             mockMvc.perform(multipart("/api/v1/images/no-such-project").file(file))
                     .andExpect(status().isNotFound());
+        }
+
+        /**
+         * WIKI4AI-197 commit 14. An upload writes into the project; before this commit any
+         * authenticated account could drop files into any PUBLIC project it had no right to
+         * write to, because the only check was "does this project exist".
+         */
+        @Test
+        @DisplayName("Should return 403 when the caller lacks CREATE on the project")
+        void shouldRejectUploadWithoutCreate() throws Exception {
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
+            willThrow(new AccessDeniedException("User 'x' lacks CREATE permission on project 1"))
+                    .given(permissionService).checkPermission(anyString(), eq(1L), eq(Permission.CREATE));
+
+            MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", pngBytes());
+
+            mockMvc.perform(multipart("/api/v1/images/" + PROJECT_SLUG).file(file))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("CREATE")));
+        }
+
+        @Test
+        @DisplayName("An upload asks for CREATE on the resolved project id")
+        void shouldAskForCreateOnTheResolvedProject() throws Exception {
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
+            given(imageStorageService.store(eq(PROJECT_SLUG), any(byte[].class), eq(ImageType.PNG)))
+                    .willReturn(STORED_NAME);
+
+            MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", pngBytes());
+
+            mockMvc.perform(multipart("/api/v1/images/" + PROJECT_SLUG).file(file))
+                    .andExpect(status().isCreated());
+
+            verify(permissionService).checkPermission(anyString(), eq(1L), eq(Permission.CREATE));
+        }
+
+        /**
+         * WIKI4AI-197 commit 14: the one-argument {@code getProjectBySlug(slug)} overload
+         * means "anonymous caller", so every PRIVATE project — including the caller's own —
+         * was a 404. The controller must resolve the project with the caller.
+         */
+        @Test
+        @DisplayName("The project is resolved with the caller, never as anonymous-by-default")
+        void shouldResolveProjectWithTheCaller() throws Exception {
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
+            given(imageStorageService.store(eq(PROJECT_SLUG), any(byte[].class), eq(ImageType.PNG)))
+                    .willReturn(STORED_NAME);
+
+            MockMultipartFile file = new MockMultipartFile("file", "x.png", "image/png", pngBytes());
+
+            mockMvc.perform(multipart("/api/v1/images/" + PROJECT_SLUG).file(file))
+                    .andExpect(status().isCreated());
+
+            verify(projectService).getProjectBySlug(eq(PROJECT_SLUG), anyString());
+            verify(projectService, never()).getProjectBySlug(anyString());
         }
     }
 
@@ -168,7 +236,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 200 with image bytes and correct Content-Type")
         void shouldServeImage() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
             given(imageStorageService.load(eq(PROJECT_SLUG), eq(STORED_NAME)))
                     .willReturn(new StoredImage(pngBytes(), ImageType.PNG));
 
@@ -182,7 +250,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should serve SVG with image/svg+xml and a restrictive CSP header")
         void shouldServeSvgWithCsp() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
             byte[] svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>".getBytes();
             String storedSvg = UUID.randomUUID().toString() + ".svg";
             given(imageStorageService.load(eq(PROJECT_SLUG), eq(storedSvg)))
@@ -197,7 +265,7 @@ class ImageControllerTest {
         @Test
         @DisplayName("Should return 404 when the image does not exist")
         void shouldReturn404WhenMissing() throws Exception {
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
             willThrow(new NoSuchFileException(STORED_NAME))
                     .given(imageStorageService).load(eq(PROJECT_SLUG), eq(STORED_NAME));
 
@@ -212,12 +280,48 @@ class ImageControllerTest {
             // allowed extension (this is what blocks path traversal); the
             // controller surfaces that as 400. Traversal strings themselves are
             // covered by ImageStorageServiceTest#rejectsBadFilenames.
-            given(projectService.getProjectBySlug(PROJECT_SLUG)).willReturn(project());
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
             willThrow(new BadRequestException("Invalid image filename"))
                     .given(imageStorageService).load(eq(PROJECT_SLUG), eq("not-a-valid-uuid.png"));
 
             mockMvc.perform(get("/api/v1/images/" + PROJECT_SLUG + "/not-a-valid-uuid.png"))
                     .andExpect(status().isBadRequest());
+        }
+
+        /**
+         * WIKI4AI-197 commit 14: the owner of a PRIVATE project used to get 404 on his own
+         * images, because the project was resolved as if the caller were anonymous.
+         */
+        @Test
+        @DisplayName("The project is resolved with the caller, so a private project's owner gets 200")
+        void shouldResolveProjectWithTheCaller() throws Exception {
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
+            given(imageStorageService.load(eq(PROJECT_SLUG), eq(STORED_NAME)))
+                    .willReturn(new StoredImage(pngBytes(), ImageType.PNG));
+
+            mockMvc.perform(get("/api/v1/images/" + PROJECT_SLUG + "/" + STORED_NAME))
+                    .andExpect(status().isOk());
+
+            verify(projectService).getProjectBySlug(eq(PROJECT_SLUG), anyString());
+            verify(projectService, never()).getProjectBySlug(anyString());
+        }
+
+        /**
+         * Serving is deliberately NOT gated on MANAGE: an image URL lives inside document
+         * markdown, so anyone who may read the document must be able to render its images.
+         * The gate that applies is the project's visibility, asserted above.
+         */
+        @Test
+        @DisplayName("Serving an image asks for no project permission at all")
+        void shouldNotRequireAnyPermissionToServe() throws Exception {
+            given(projectService.getProjectBySlug(eq(PROJECT_SLUG), anyString())).willReturn(project());
+            given(imageStorageService.load(eq(PROJECT_SLUG), eq(STORED_NAME)))
+                    .willReturn(new StoredImage(pngBytes(), ImageType.PNG));
+
+            mockMvc.perform(get("/api/v1/images/" + PROJECT_SLUG + "/" + STORED_NAME))
+                    .andExpect(status().isOk());
+
+            verify(permissionService, never()).checkPermission(anyString(), any(), any());
         }
     }
 }

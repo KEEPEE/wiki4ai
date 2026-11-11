@@ -10,6 +10,7 @@ import com.wiki4ai.dto.DocumentUpdateDTO;
 import com.wiki4ai.dto.LinkCreateDTO;
 import com.wiki4ai.dto.MoveRequestDTO;
 import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.dto.ReorderRequestDTO;
 import com.wiki4ai.exception.BadRequestException;
 import com.wiki4ai.exception.ContentEditException;
 import com.wiki4ai.exception.DocumentVersionConflictException;
@@ -40,6 +41,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
@@ -183,7 +185,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             DocumentSummaryDTO doc = createSampleSummary();
             Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc));
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), anyInt(), anyInt(), any(), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -202,7 +204,7 @@ class DocumentControllerTest {
             // given
             mockProjectResolution("test-project");
             Page<DocumentSummaryDTO> emptyPage = new PageImpl<>(List.of());
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(emptyPage);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), anyInt(), anyInt(), any(), any(), any(String.class))).willReturn(emptyPage);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -222,7 +224,7 @@ class DocumentControllerTest {
             DocumentSummaryDTO doc2 = DocumentSummaryDTO.builder().id(2L).title("Doc 2").slug("doc-2").projectId(1L)
                     .linkedDocuments(List.of()).createdAt(now).updatedAt(now).build();
             Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc1, doc2), PageRequest.of(1, 10), 25);
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), anyInt(), anyInt(), any(), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents")
@@ -242,7 +244,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             DocumentSummaryDTO doc = createSampleSummary();
             Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc), PageRequest.of(0, 50), 1);
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), anyInt(), anyInt(), any(), any(), any(String.class))).willReturn(page);
 
             // when & then
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -258,7 +260,7 @@ class DocumentControllerTest {
             mockProjectResolution("test-project");
             DocumentSummaryDTO doc = createSampleSummary();
             Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(doc));
-            given(documentService.getDocumentsByProjectPaginated(eq(1L), any(), any(String.class))).willReturn(page);
+            given(documentService.getDocumentsByProjectPaginated(eq(1L), anyInt(), anyInt(), any(), any(), any(String.class))).willReturn(page);
 
             // when & then - verify content field is absent from list items
             mockMvc.perform(get("/api/v1/projects/test-project/documents"))
@@ -1762,6 +1764,171 @@ class DocumentControllerTest {
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.message").value(
                             "Project not found with slug 'non-existent-project'"));
+        }
+    }
+
+    // ── WIKI4AI-184: pin to top, manual order, sort/q on the document list ────
+    //
+    // HTTP contract only (the service is mocked): which parameter reaches which
+    // argument, how the reorder body is deserialized, and that a pin response carries
+    // pinned/sortOrder. The ordering and the "version does not move" guarantee are
+    // covered by PinningReorderIntegrationTests against a real database.
+
+    @Nested
+    @DisplayName("Documents - sort, q, pin, unpin, reorder (WIKI4AI-184)")
+    class PinningAndOrderingTests {
+
+        private DocumentDTO sampleWithOrder(boolean pinned, int sortOrder, long version) {
+            return DocumentDTO.builder()
+                    .id(1L)
+                    .title("Test Document")
+                    .slug("test-document")
+                    .content("Test content")
+                    .projectId(1L)
+                    .visibility("public")
+                    .pinned(pinned)
+                    .sortOrder(sortOrder)
+                    .version(version)
+                    .linkedDocuments(List.of())
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+        }
+
+        @Test
+        @DisplayName("GET documents should forward sort and q next to page and size")
+        void shouldForwardSortAndQ() throws Exception {
+            mockProjectResolution("test-project");
+            Page<DocumentSummaryDTO> page = new PageImpl<>(List.of(
+                    DocumentSummaryDTO.builder()
+                            .id(1L).title("Test Document").slug("test-document").projectId(1L)
+                            .pinned(true).sortOrder(0)
+                            .linkedDocuments(List.of())
+                            .createdAt(now).updatedAt(now)
+                            .build()));
+            given(documentService.getDocumentsByProjectPaginated(
+                    eq(1L), eq(2), eq(10), eq("manual"), eq("rocket"), any(String.class)))
+                    .willReturn(page);
+
+            mockMvc.perform(get("/api/v1/projects/test-project/documents")
+                            .param("page", "2")
+                            .param("size", "10")
+                            .param("sort", "manual")
+                            .param("q", "rocket"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[0].pinned").value(true))
+                    .andExpect(jsonPath("$.content[0].sortOrder").value(0));
+
+            verify(documentService).getDocumentsByProjectPaginated(
+                    eq(1L), eq(2), eq(10), eq("manual"), eq("rocket"), any(String.class));
+        }
+
+        @Test
+        @DisplayName("GET documents without parameters should keep the old defaults (page 0, size 50)")
+        void shouldKeepOldPaginationDefaults() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.getDocumentsByProjectPaginated(
+                    eq(1L), eq(0), eq(50), isNull(), isNull(), any(String.class)))
+                    .willReturn(Page.empty());
+
+            mockMvc.perform(get("/api/v1/projects/test-project/documents"))
+                    .andExpect(status().isOk());
+
+            verify(documentService).getDocumentsByProjectPaginated(
+                    eq(1L), eq(0), eq(50), isNull(), isNull(), any(String.class));
+        }
+
+        @Test
+        @DisplayName("GET documents with an unknown sort should return 400")
+        void unknownSortShouldReturn400() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.getDocumentsByProjectPaginated(
+                    eq(1L), anyInt(), anyInt(), eq("sideways"), isNull(), any(String.class)))
+                    .willThrow(new BadRequestException("Unknown sort 'sideways'"));
+
+            mockMvc.perform(get("/api/v1/projects/test-project/documents").param("sort", "sideways"))
+                    .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("POST /{docSlug}/pin should return the document with pinned=true")
+        void pinShouldReturnPinnedDocument() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.pinDocument(eq(1L), eq("test-document"), any(String.class)))
+                    .willReturn(sampleWithOrder(true, -1, 7L));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/pin"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.pinned").value(true))
+                    .andExpect(jsonPath("$.sortOrder").value(-1))
+                    // A pin must not move the optimistic-locking version another user's
+                    // content edit is guarding; the exact number is asserted in the
+                    // integration test.
+                    .andExpect(jsonPath("$.version").isNumber());
+
+            verify(documentService).pinDocument(eq(1L), eq("test-document"), any(String.class));
+        }
+
+        @Test
+        @DisplayName("POST /{docSlug}/unpin should return the document with pinned=false")
+        void unpinShouldReturnUnpinnedDocument() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.unpinDocument(eq(1L), eq("test-document"), any(String.class)))
+                    .willReturn(sampleWithOrder(false, 2, 7L));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/unpin"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.pinned").value(false))
+                    .andExpect(jsonPath("$.sortOrder").value(2));
+        }
+
+        @Test
+        @DisplayName("POST /{docSlug}/reorder should deserialize the anchor slug")
+        void reorderShouldDeserializeAnchorSlug() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.reorderDocument(
+                    eq(1L), eq("test-document"), any(ReorderRequestDTO.class), any(String.class)))
+                    .willReturn(sampleWithOrder(false, 0, 7L));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"afterSlug\": \"other-document\"}"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.sortOrder").value(0));
+
+            verify(documentService).reorderDocument(
+                    eq(1L), eq("test-document"),
+                    eq(ReorderRequestDTO.builder().afterSlug("other-document").build()),
+                    any(String.class));
+        }
+
+        @Test
+        @DisplayName("POST /{docSlug}/reorder with an empty body should return 400")
+        void reorderWithEmptyBodyShouldReturn400() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.reorderDocument(
+                    eq(1L), eq("test-document"), any(ReorderRequestDTO.class), any(String.class)))
+                    .willThrow(new BadRequestException(
+                            "Reorder requires exactly one of: beforeSlug, afterSlug, position (got 0)"));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/test-document/reorder")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(
+                            org.hamcrest.Matchers.containsString("exactly one")));
+        }
+
+        @Test
+        @DisplayName("POST /{docSlug}/pin of an unknown document should return 404")
+        void pinOfUnknownDocumentShouldReturn404() throws Exception {
+            mockProjectResolution("test-project");
+            given(documentService.pinDocument(eq(1L), eq("ghost"), any(String.class)))
+                    .willThrow(new EntityNotFoundException(
+                            "Document not found with slug 'ghost' in project 1"));
+
+            mockMvc.perform(post("/api/v1/projects/test-project/documents/ghost/pin"))
+                    .andExpect(status().isNotFound());
         }
     }
 }

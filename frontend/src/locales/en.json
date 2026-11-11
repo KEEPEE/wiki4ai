@@ -89,13 +89,60 @@
     "adding": "Adding...",
     "addLink": "Add link",
     "backlinks": "Backlinks",
-    "noBacklinks": "No backlinks"
+    "noBacklinks": "No backlinks",
+    "removeAria": "Remove link"
   },
   "tag": {
     "label": "Tag: {{label}}"
   },
   "toast": {
     "dismissAria": "Dismiss notification"
+  },
+  "pin": {
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "pinned": "Pinned",
+    "typeProject": "project",
+    "typeDocument": "document",
+    "pinAria": "Pin {{type}} {{name}} to the top",
+    "unpinAria": "Unpin {{type}} {{name}} from the top",
+    "pinnedProject": "Project {{name}} pinned to the top",
+    "unpinnedProject": "Project {{name}} unpinned",
+    "pinnedDocument": "Document {{name}} pinned to the top",
+    "unpinnedDocument": "Document {{name}} unpinned",
+    "forbiddenProject": "You don't have permission to pin this project",
+    "forbiddenDocument": "You don't have permission to pin this document",
+    "failed": "Failed to change the pin: {{message}}"
+  },
+  "listSort": {
+    "projectsLabel": "Sort projects",
+    "documentsLabel": "Sort documents",
+    "manual": "Custom order",
+    "nameAsc": "Name A-Z",
+    "nameDesc": "Name Z-A",
+    "createdAsc": "Oldest created",
+    "createdDesc": "Newest created",
+    "updatedDesc": "Newest updated",
+    "visibilityLabel": "Visibility",
+    "visibilityAll": "All",
+    "visibilityPublic": "Public",
+    "visibilityPrivate": "Private",
+    "activeFilters": "Active filters:",
+    "clearAll": "Clear filters",
+    "clearFilterAria": "Remove filter {{filter}}",
+    "filterQuery": "Text: {{q}}",
+    "filterVisibility": "Visibility: {{value}}",
+    "dragHint": "Drag to change the order",
+    "dragAria": "Drag handle for {{name}}",
+    "switchToManual": "Switch to custom order",
+    "lockedSort": "Drag & drop works only in the custom order.",
+    "lockedFilter": "Drag & drop is off while a filter is active - clear it to reorder.",
+    "truncated": "This project has {{total}} documents - only the first {{loaded}} are loaded, so only those can be reordered.",
+    "toastReordered": "New order saved",
+    "toastReorderFailed": "Failed to save the order: {{message}}",
+    "reorderForbiddenProject": "You don't have permission to change the order of projects",
+    "reorderForbiddenDocument": "You don't have permission to change the order of documents in this project",
+    "matchCount": "{{shown}} matching projects"
   },
   "dashboard": {
     "docsCount": "{{count}} docs",
@@ -219,7 +266,27 @@
     "resources": "Resources",
     "metrics": "Metrics",
     "newEvents": "New events: {{count}}",
-    "newEventsHint": "Open to see what arrived; the marker then clears."
+    "newEventsHint": "Open to see what arrived; the marker then clears.",
+    "nav": {
+      "sectionWiki": "Wiki",
+      "sectionCoordination": "Coordination",
+      "sectionAccount": "Account",
+      "dashboard": "Dashboard",
+      "search": "Search",
+      "menuToggle": "Open navigation",
+      "menuClose": "Close navigation",
+      "homeAria": "Wiki4AI — home"
+    },
+    "theme": {
+      "switchAria": "Color theme",
+      "glass-dark": "Glass dark",
+      "glass-darkHint": "Glass Admin — deep forest emerald + gold (default)",
+      "glass-light": "Glass light",
+      "glass-lightHint": "Glass Admin — light version",
+      "nexaverse": "Nexaverse",
+      "nexaverseHint": "Nexaverse — neon cyan / magenta"
+    },
+    "skipToContent": "Skip to main content"
   },
   "viewer": {
     "loadFailed": "Failed to load document",
@@ -257,7 +324,10 @@
     "reload": "Reload",
     "emptyPreview": "Start writing markdown for preview...",
     "wordsCount": "{{count}} words",
-    "charsCount": "{{count}} characters"
+    "charsCount": "{{count}} characters",
+    "tabHint": "Monaco captures Tab. Press {{key}} to make Tab move focus out of the editor — and again to return it.",
+    "tabHintMac": "⌃⇧M",
+    "tabHintWin": "Ctrl+M"
   },
   "markdown": {
     "insert": "Insert",

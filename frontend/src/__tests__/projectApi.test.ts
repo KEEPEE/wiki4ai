@@ -180,4 +180,109 @@ describe('projectApi', () => {
       )
     })
   })
+
+  // WIKI4AI-186: pin endpoints (story 184). POST, no body, slug in the path;
+  // the response carries the new `pinned`/`sortOrder` (sortOrder is opaque and
+  // may be negative — the UI must take it from here, not from a refetch).
+  describe('pinProject / unpinProject', () => {
+    it('POSTs /projects/{slug}/pin and returns the pinned project', async () => {
+      const updated = {
+        id: 1, name: 'Glass Admin', slug: 'glass-admin', documentCount: 2,
+        createdAt: '', updatedAt: '', pinned: true, sortOrder: -1,
+      }
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => updated })
+
+      const result = await projectApi.pinProject('glass-admin')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/glass-admin/pin',
+        expect.objectContaining({ method: 'POST' }),
+      )
+      expect(result.pinned).toBe(true)
+      expect(result.sortOrder).toBe(-1)
+    })
+
+    it('POSTs /projects/{slug}/unpin and returns the unpinned project', async () => {
+      const updated = {
+        id: 1, name: 'Glass Admin', slug: 'glass-admin', documentCount: 2,
+        createdAt: '', updatedAt: '', pinned: false, sortOrder: 4,
+      }
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => updated })
+
+      const result = await projectApi.unpinProject('glass-admin')
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/glass-admin/unpin',
+        expect.objectContaining({ method: 'POST' }),
+      )
+      expect(result.pinned).toBe(false)
+    })
+
+    it('rejects with a 403-prefixed message when MANAGE is missing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        json: async () => ({ message: 'Chýba MANAGE oprávnenie' }),
+      })
+
+      // The UI keys its "no permission" Toast off this exact shape.
+      await expect(projectApi.pinProject('glass-admin')).rejects.toThrow(/^403: /)
+    })
+  })
+
+  // ── WIKI4AI-187: sort/filter parameters + reorder ─────────────────────────
+  describe('getAllProjects with sort and filters (WIKI4AI-187)', () => {
+    it('sends only the parameters that are set', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
+
+      await projectApi.getAllProjects({ sort: 'manual', q: 'Ordering', visibility: 'public' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects?sort=manual&q=Ordering&visibility=public',
+        expect.objectContaining({ method: 'GET' }),
+      )
+    })
+
+    it('omits an empty search instead of asking for q=', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => [] })
+
+      await projectApi.getAllProjects({ sort: 'name_asc', q: '   ' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects?sort=name_asc',
+        expect.objectContaining({ method: 'GET' }),
+      )
+    })
+  })
+
+  describe('reorderProject (WIKI4AI-187)', () => {
+    it('POSTs the slug anchor body to the reorder endpoint', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 1, slug: 'beta', sortOrder: 0 }),
+      })
+
+      await projectApi.reorderProject('beta', { beforeSlug: 'alpha' })
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/projects/beta/reorder',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ beforeSlug: 'alpha' }),
+        }),
+      )
+    })
+
+    it('rejects with a 403-prefixed message when MANAGE is missing', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        json: async () => ({ message: 'Chýba MANAGE oprávnenie' }),
+      })
+
+      await expect(projectApi.reorderProject('beta', { position: 0 })).rejects.toThrow(/^403: /)
+    })
+  })
 })

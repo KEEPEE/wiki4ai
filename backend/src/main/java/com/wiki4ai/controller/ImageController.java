@@ -1,8 +1,11 @@
 package com.wiki4ai.controller;
 
+import com.wiki4ai.dto.ProjectDTO;
+import com.wiki4ai.model.Permission;
 import com.wiki4ai.service.ImageStorageService;
 import com.wiki4ai.service.ImageStorageService.ImageType;
 import com.wiki4ai.service.ImageStorageService.StoredImage;
+import com.wiki4ai.service.PermissionService;
 import com.wiki4ai.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -13,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,6 +38,13 @@ import java.util.Map;
  * /images/{projectSlug}/{uuid}.{ext}. A browser &lt;img src&gt; cannot send a
  * Bearer header, so the WebUI intercepts such sources and fetches them from
  * this GET endpoint with the JWT, converting the response to a blob URL.
+ *
+ * <p>Project-level rules (WIKI4AI-197 commit 14): both endpoints resolve the project
+ * through the visibility gate, so another user's PRIVATE project is a 404 here exactly as
+ * it is for the project and its documents — and, unlike before, the owner of that private
+ * project can actually reach his own images. Upload additionally requires CREATE on the
+ * project, the same bar document creation uses. Serving does not: an image URL is part of
+ * a document, so anyone who may read the document must be able to render it.</p>
  */
 @RestController
 @RequestMapping("/api/v1/images")
@@ -46,13 +57,41 @@ public class ImageController {
 
     private final ImageStorageService imageStorageService;
     private final ProjectService projectService;
+    private final PermissionService permissionService;
+
+    /**
+     * The caller behind this request, or {@code "anonymous"} when there is none.
+     * Same shape as the other project-scoped controllers.
+     */
+    private String getCurrentUsername() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
+            return auth.getName();
+        }
+        return "anonymous";
+    }
+
+    /**
+     * Resolve the project the way every other project endpoint does — visibility-aware
+     * (WIKI4AI-197 commit 14).
+     *
+     * <p>The one-argument {@code getProjectBySlug(slug)} overload passes {@code username =
+     * null}, which means "anonymous caller", which means every PRIVATE project is a 404 —
+     * including for its own owner. So uploads and image reads in a private project were
+     * broken for the one person allowed to do them, while every PUBLIC project was open to
+     * any authenticated account with no write check at all.</p>
+     */
+    private ProjectDTO requireVisibleProject(String projectSlug, String username) {
+        return projectService.getProjectBySlug(projectSlug, username);
+    }
 
     @Operation(summary = "Upload obrazku", description =
             "Nahraje obrazok (PNG/JPEG/WebP/GIF/SVG, max 10 MB) do projektu. MIME typ je detekovaný z magic bytes. " +
             "Vráti relatívnu URL /images/{projectSlug}/{uuid}.{ext} a markdown snippet pre vloženie do dokumentu.")
     @ApiResponse(responseCode = "201", description = "Obrazok úspešne nahraný")
     @ApiResponse(responseCode = "400", description = "Neplatný formát (nie je podporovaný obrazok) alebo prázdny súbor")
-    @ApiResponse(responseCode = "404", description = "Projekt nebol nájdený")
+    @ApiResponse(responseCode = "404", description = "Projekt nebol nájdený, alebo je súkromný a voliteľ nie je vlastník/ADMIN")
+    @ApiResponse(responseCode = "403", description = "Chýba CREATE oprávnenie v projekte")
     @ApiResponse(responseCode = "413", description = "Súbor je príliš veľký (max 10 MB)")
     @PostMapping(value = "/{projectSlug}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Map<String, Object>> uploadImage(
@@ -60,8 +99,15 @@ public class ImageController {
             @Parameter(description = "Obrazkový súbor (PNG/JPEG/WebP/GIF/SVG)") @RequestParam("file") MultipartFile file)
             throws IOException {
 
-        // Project must exist (404 via EntityNotFoundException handler)
-        projectService.getProjectBySlug(projectSlug);
+        String username = getCurrentUsername();
+
+        // Project must exist AND be visible to the caller (404 via EntityNotFoundException).
+        ProjectDTO project = requireVisibleProject(projectSlug, username);
+
+        // WIKI4AI-197 commit 14: an upload writes into the project, so it needs CREATE —
+        // the same bar POST /projects/{slug}/documents uses. Before this any authenticated
+        // account could fill any public project with files it had no right to add.
+        permissionService.checkPermission(username, project.getId(), Permission.CREATE);
 
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Invalid file format: uploaded file is empty.");
@@ -112,8 +158,17 @@ public class ImageController {
             @Parameter(description = "Názov nahraného súboru ({uuid}.{ext})") @PathVariable String filename)
             throws IOException {
 
-        // Project must exist (404 via EntityNotFoundException handler)
-        projectService.getProjectBySlug(projectSlug);
+        String username = getCurrentUsername();
+
+        // Project must exist AND be visible to the caller (404 via EntityNotFoundException).
+        //
+        // WIKI4AI-197 commit 14: this is deliberately the visibility gate and not a
+        // MANAGE/owner check. An image URL lives inside document markdown, so whoever may
+        // read the document must be able to render its images — demanding MANAGE here
+        // would blank every picture for an ordinary reader. The gate that matters is the
+        // project's: a private project's files are 404 for anyone who is not its owner or
+        // an ADMIN, which is the same rule the project itself and its documents follow.
+        requireVisibleProject(projectSlug, username);
 
         StoredImage image;
         try {

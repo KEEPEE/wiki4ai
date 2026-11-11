@@ -116,9 +116,17 @@ const DocumentLinks: React.FC<DocumentLinksProps> = ({ projectSlug, docSlug, onR
                 >
                   {link.title}
                 </a>
+                {/* DIZ-4 item 11 (WIKI4AI-195): tlacidlo obsahuje len
+                 * znak ✕, ktory je obsahom, teda aj prístupnym nazvom —
+                 * citacka z neho vyhlasi „Heavy Multiplication X“ a
+                 * `title` ako posledny zdroj nazvu nevyhryva. aria-label
+                 * davá skutocny nazov; title ostava tooltip pre mys.
+                 * `type="button"` je nevyhnutne, inak je z neho submit. */}
                 <button
+                  type="button"
                   onClick={() => handleRemoveLink(link.id)}
                   className="btn-link-remove"
+                  aria-label={t('doclinks.removeAria')}
                   title={t('doclinks.removeTitle')}
                 >
                   ✕

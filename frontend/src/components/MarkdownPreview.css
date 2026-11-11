@@ -5,14 +5,19 @@
 /* ── Main Container ─────────────────────────────────────────────── */
 
 .markdown-preview {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* WIKI4AI-208: tichá zóna. `--glass-bg` je alfa .03–.07, teda priehľadné
+     — dlhý text a kód stáli priamo na mlhe. `--prose-bg` je plne
+     nepriehľadné pozadie čitateľa (tokenované per-identita).
+     `backdrop-filter` sa RUŠÍ, lebo pod nepriehľadnou vrstvou nemá čo
+     rozmazať — ostáva len zbytočná GPU práca. Kód (`--surface-sunken`)
+     zostáva priesvitný, no už sa skladá cez nepriehľadný panel, nie
+     cez mlhu. */
+  background: var(--prose-bg);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   padding: 24px;
   margin: 1rem 0;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
   line-height: 1.7;
   font-size: 1rem;
 }
@@ -20,7 +25,7 @@
 /* ── Empty State ────────────────────────────────────────────────── */
 
 .markdown-preview__empty {
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--text-muted);
   font-style: italic;
   text-align: center;
   padding: 2rem 0;
@@ -32,7 +37,7 @@
   font-size: 2em;
   font-weight: 700;
   margin: 0.67em 0 0.5em;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
   border-bottom: 1px solid var(--glass-border);
   padding-bottom: 0.3em;
 }
@@ -41,7 +46,7 @@
   font-size: 1.5em;
   font-weight: 600;
   margin: 1em 0 0.4em;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--text-primary);
   border-bottom: 1px solid var(--glass-border);
   padding-bottom: 0.25em;
 }
@@ -50,28 +55,28 @@
   font-size: 1.25em;
   font-weight: 600;
   margin: 1em 0 0.3em;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--text-primary);
 }
 
 .markdown-preview h4 {
   font-size: 1.1em;
   font-weight: 600;
   margin: 1em 0 0.3em;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
 }
 
 .markdown-preview h5 {
   font-size: 1em;
   font-weight: 600;
   margin: 1em 0 0.3em;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 
 .markdown-preview h6 {
   font-size: 0.9em;
   font-weight: 600;
   margin: 1em 0 0.3em;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--text-secondary);
 }
 
 /* ── Paragraphs & Text ──────────────────────────────────────────── */
@@ -82,31 +87,44 @@
 
 .markdown-preview strong {
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
+  color: var(--text-primary);
 }
 
 .markdown-preview em {
   font-style: italic;
 }
 
-/* ── Links ──────────────────────────────────────────────────────── */
+/* ── Links — WIKI4AI-195 (DIZ-4 item 3, WCAG 1.4.1 Use of Color) ──
+ * --primary je od textu len 1.41:1 (light) / 1.76:1 (dark). Farba teda
+ * NEMOŽE byť jediným príznakom odkazu — underline je trvalý, nie len na
+ * hoveri. text-decoration-color z --glow-cyan ostáva dekoráciou: 1.4.11
+ * (3:1 pre negrafické prvky) sa vzťahuje na ovládacie prvky a ikony,
+ * nie na podčiarknutie textu — podčiarknutie samo stačí.
+ * text-underline-offset 3px: bez neho sa podčiarknutie zarýva do
+ * descendrov (g, p, ý) a je ťažko čitateľné. */
 
 .markdown-preview a {
-  color: var(--primary, #00f0ff);
-  text-decoration: none;
-  transition: opacity 0.2s ease;
+  color: var(--primary);
+  text-decoration: underline;
+  text-decoration-color: var(--glow-cyan);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--transition-base), color var(--transition-base);
 }
 
 .markdown-preview a:hover {
-  opacity: 0.8;
-  text-decoration: underline;
+  color: var(--primary-strong);
+  text-decoration-color: currentColor;
 }
 
 /* ── Code Blocks ────────────────────────────────────────────────── */
 
 .markdown-preview pre {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--glass-border);
+  /* WIKI4AI-194 (DIZ-3 item 1): čierny overlay dal v tmavých témach
+     čiernu dosku a v glass-light blátovú šedu. --surface-sunken je
+     tokenovaný povrch, ktorý prepína tému. */
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
   border-radius: 12px;
   padding: 16px 20px;
   margin: 1em 0;
@@ -117,7 +135,7 @@
   background: none;
   border: none;
   padding: 0;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 0.9em;
   line-height: 1.6;
@@ -126,24 +144,26 @@
 /* ── Inline Code ────────────────────────────────────────────────── */
 
 .markdown-preview code {
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 2px 6px;
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 0.9em;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
 }
 
 /* ── Blockquotes ────────────────────────────────────────────────── */
 
 .markdown-preview blockquote {
-  border-left: 4px solid var(--primary, #00f0ff);
+  border-left: 4px solid var(--primary);
   margin: 1em 0;
   padding: 0.5em 1em;
-  background: rgba(0, 240, 255, 0.05);
+  /* WIKI4AI-194 (DIZ-3 item 1): --glow-cyan je SLOT s alfa 0.4 — ako
+     výplň zalia blockquote emeraldom. Výplň má byť --glass-bg-accent. */
+  background: var(--glass-bg-accent);
   border-radius: 0 8px 8px 0;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary);
 }
 
 .markdown-preview blockquote p {
@@ -186,30 +206,44 @@
   font-size: 0.95em;
 }
 
+/* WIKI4AI-194 (DIZ-3 item 1) — najviditeľnejšia kozmetika v appke:
+ * thead mal rgba(0,0,0,.3), čo je v tmavých témach čierna doska a v
+ * glass-light blátová šeda. Hlavička je teraz totožná s primitívom
+ * .data-table (DIZ-3 item 3), aby Markdown tabuľka a AdminUsers tabuľka
+ * nemali dva rôzne štýly. */
 .markdown-preview thead {
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--surface-2);
 }
 
 .markdown-preview th {
   padding: 12px 16px;
   text-align: left;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
   font-weight: 600;
-  border-bottom: 2px solid var(--glass-border);
-  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-muted);
 }
 
 .markdown-preview td {
   padding: 10px 16px;
-  border-bottom: 1px solid var(--glass-border);
-  color: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-2);
 }
 
 .markdown-preview tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--glass-bg-hover);
+}
+
+.markdown-preview tbody tr:hover td {
+  color: var(--text-1);
 }
 
 /* ── Strikethrough (GFM) ────────────────────────────────────────── */
 
 .markdown-preview del {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }

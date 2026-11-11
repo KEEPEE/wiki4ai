@@ -49,8 +49,18 @@ interface PanelPosition {
 // ── Context ────────────────────────────────────────────────────────────────
 
 interface MenuContextValue {
-  /** Close the panel (used by items that navigate away). */
-  close: () => void;
+  /**
+   * Close the panel (used by items that navigate away).
+   *
+   * WIKI4AI-201: `restoreFocus: true` hands focus back to the trigger BEFORE the
+   * caller's handler runs. Needed whenever the action unmounts the panel — the
+   * focused menuitem is destroyed, so without this focus falls to <body> and any
+   * `<dialog>` opened by the handler records <body> as its invoker (see
+   * `hooks/useDialog.ts`). The WAI-ARIA menu-button pattern wants the same thing:
+   * after a menu item opens a modal and that modal is dismissed, focus returns to
+   * the button that opened the menu.
+   */
+  close: (opts?: { restoreFocus?: boolean }) => void;
 }
 
 const MenuContext = createContext<MenuContextValue | null>(null);
@@ -98,7 +108,13 @@ export function Menu({
   const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
-  const close = useCallback(() => setOpen(false), []);
+  // WIKI4AI-201: `restoreFocus` is synchronous and runs while the panel is still
+  // in the DOM, so the trigger (which lives OUTSIDE the portal panel) keeps focus
+  // when the panel unmounts in the commit that follows.
+  const close = useCallback((opts?: { restoreFocus?: boolean }) => {
+    setOpen(false);
+    if (opts?.restoreFocus) triggerRef.current?.focus();
+  }, []);
 
   // WIKI4AI-91: compute the panel's fixed position from the trigger's current
   // viewport rect. Drops down by default; flips up when there is not enough
@@ -288,7 +304,9 @@ export function MenuItem({ children, icon, danger, disabled, title, onClick, tes
       title={title}
       data-testid={testId}
       onClick={() => {
-        close();
+        // WIKI4AI-201: restore focus to the trigger first, then run the handler —
+        // a handler that opens a native dialog must see the trigger as its invoker.
+        close({ restoreFocus: true });
         onClick?.();
       }}
     >
@@ -320,7 +338,9 @@ export function MenuRadioItem({ children, selected, disabled, onClick, testId }:
       disabled={disabled}
       data-testid={testId}
       onClick={() => {
-        close();
+        // WIKI4AI-201: same handoff as MenuItem (role changes in the admin table
+        // close the panel too, so focus would otherwise fall to <body>).
+        close({ restoreFocus: true });
         onClick?.();
       }}
     >

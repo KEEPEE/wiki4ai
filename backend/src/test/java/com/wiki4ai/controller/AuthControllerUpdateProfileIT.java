@@ -9,12 +9,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Collections;
@@ -28,9 +30,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * Integration tests for AuthController PUT /me endpoint using real database (H2).
  * Tests profile update scenarios: email, username, password change, uniqueness validation, and auth.
+ * <p>
+ * <b>WIKI4AI-202 — this class had never run either</b>, for the same two reasons as
+ * {@code AuthControllerIT} (Surefire never included {@code *IT}, and underneath that the
+ * context could not start):
+ * <ul>
+ *   <li><b>{@code @AutoConfigureMockMvc}</b> — {@code @SpringBootTest} does not register a
+ *   {@link MockMvc} bean on its own, so all 12 tests errored on
+ *   {@code No qualifying bean of type 'org.springframework.test.web.servlet.MockMvc'}
+ *   before reaching an assertion.</li>
+ *   <li><b>{@code security.enabled=true}</b> — {@link AuthController} is
+ *   {@code @ConditionalOnProperty(security.enabled=true)} and the test profile turns
+ *   security off, so the controller under test was not even a bean and every request
+ *   would have been a 404. The class already authenticates with
+ *   {@code SecurityMockMvcRequestPostProcessors.authentication(...)}, which is what
+ *   {@code AuthControllerMeTest} does under the same property pairing.</li>
+ * </ul>
+ * No {@code auth.registration.open} here: this class never calls {@code /register}, and
+ * the profile-update path is not gated by the registration policy.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @ActiveProfiles("test")
+@TestPropertySource(properties = "security.enabled=true")
 class AuthControllerUpdateProfileIT {
 
     @Autowired

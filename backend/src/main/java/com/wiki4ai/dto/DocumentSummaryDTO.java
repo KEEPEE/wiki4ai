@@ -39,6 +39,18 @@ public class DocumentSummaryDTO {
      */
     private String visibility;
 
+    /**
+     * Whether the document is pinned to the top of its project's list (WIKI4AI-184).
+     * Read-only: pinning goes through POST .../documents/{docSlug}/pin.
+     */
+    private boolean pinned;
+
+    /**
+     * Position inside the manual ordering of its project (WIKI4AI-184). Read-only:
+     * assigned by the reorder endpoint. Only meaningful with sort=manual.
+     */
+    private int sortOrder;
+
     private List<Long> linkedDocuments;
 
     private java.time.LocalDateTime createdAt;

@@ -16,6 +16,8 @@ import { generateSlug } from '../utils/slugify';
 import { useTranslation } from 'react-i18next';
 // WIKI4AI-87: SVG icons (no emoji — the container has no emoji font)
 import { TagIcon, EyeIcon } from './icons';
+import { useChartPalette, useThemeColors } from '../theme/themeColors';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import './GraphView.css';
 
 export interface GraphViewProps {
@@ -23,17 +25,9 @@ export interface GraphViewProps {
   onNodeClick?: (docSlug: string) => void;
 }
 
-// Neon color palette for dark background — Nexaverse inspired
-const NODE_COLORS = [
-  '#00f0ff', // cyan neon
-  '#ff00d4', // magenta neon
-  '#9d4edd', // purple neon
-  '#0891b2', // teal
-  '#059669', // emerald
-  '#7c3aed', // violet
-  '#db2777', // pink
-  '#ffffff', // white
-];
+// WIKI4AI-185: paleta uzlov sa číta z CSS tokenov (themeColors.ts), nie z
+// hex konštánt — canvas nevie použiť var(), preto sa hodnoty prevádzajú na
+// stringy. V nexaverse je výsledok zhodný s pôvodným cyan/magenta/purple radom.
 
 // Maximum characters to show in the node label before truncating
 const MAX_LABEL_LENGTH = 40;
@@ -115,6 +109,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     graph.d3Force('link').distance(150);
   }, []);
 
+  // WIKI4AI-185: JS paleta viazaná na tému (canvas + force-graph props)
+  const colors = useThemeColors();
+  /* WIKI4AI-208: uzly idú z `--chart-0..8`, nie z akcentov témy. */
+  const nodePalette = useChartPalette();
+
   const graphData = useMemo(() => {
     if (documents.length === 0) {
       return { nodes: [], links: [] };
@@ -124,7 +123,7 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     const nodes: GraphNode[] = documents.map((doc, index) => ({
       id: doc.id,
       label: doc.title,
-      color: NODE_COLORS[index % NODE_COLORS.length],
+      color: nodePalette[index % nodePalette.length],
     }));
 
     // Create links from linkedDocuments references
@@ -141,20 +140,36 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
     }
 
     return { nodes, links };
-  }, [documents]);
+  }, [documents, nodePalette]);
+
+  /* WIKI4AI-195 (DIZ-4 item 11, WCAG 2.3.3): JS animácie sa CSS kill-switchu
+   * nedotknú, preto sa musí reduced-motion pýtať aj JS. `useMediaQuery`
+   * je ten istý hook, čo používa 2.4.3 inert v Layout.tsx. */
+  const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
   const isEmpty = graphData.nodes.length === 0;
 
   /**
-   * After the force simulation settles, zoom to fit all nodes in viewport.
-   * This ensures no nodes appear off-screen.
+   * Po ustálení force simulácie priblíž na všetky uzly — inak časť vyjede
+   * mimo viewport.
+   *
+   * SIGNATÚRA overená v zdroji nainštalovaného balíka, nie z pamäte:
+   *   force-graph/dist/force-graph.mjs:1295
+   *   zoomToFit(transitionDuration = 0, padding = 10, ...bboxArgs)
+   * Prvý parameter je DĹŽKA ANIMÁCIE, nie padding — starý komentár tvrdil
+   * opak a 400 bolo chápáné ako okraj. Správne: 400 ms animácia, 60 px okraj.
+   *
+   * WIKI4AI-195 (DIZ-4 item 11, WCAG 2.3.3 Animation from Interactions):
+   * CSS `prefers-reduced-motion` kill-switch v base.css rieši len CSS
+   * animácie a prechody. Toto je JS animácia — d3 zoom transition beží v
+   * requestAnimationFrame a CSS ju nevypne, takže by sa graf hýbal aj pri
+   * zapnutom reduced-motion. Duration preto ide do 0.
    */
   const handleEngineStop = useCallback(() => {
     if (graphRef.current && !isEmpty) {
-      // Use zoomToFit with padding so nodes are nicely centered and visible
-      graphRef.current.zoomToFit(400, 60);
+      graphRef.current.zoomToFit(reducedMotion ? 0 : 400, 60);
     }
-  }, [isEmpty]);
+  }, [isEmpty, reducedMotion]);
 
   /**
    * Track zoom level changes for dynamic arrow sizing.
@@ -226,9 +241,14 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       ctx.beginPath();
       ctx.moveTo(sx, sy);
       ctx.lineTo(lineEndX, lineEndY);
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.3)'; // cyan at 30% opacity
+      // WIKI4AI-185: primary témy + 30 % alpha (canvas nepozná rgba z tokena,
+      // preto globalAlpha namiesto farby s alfa kanálom)
+      ctx.save();
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = colors.primary;
       ctx.lineWidth = lineWidth;
       ctx.stroke();
+      ctx.restore();
 
       // Draw the directional arrowhead — neon cyan (primary color)
       const perpX = -ny; // perpendicular x
@@ -245,10 +265,10 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         ty - ny * arrowLength - perpY * arrowWidth
       );
       ctx.closePath();
-      ctx.fillStyle = '#00f0ff'; // var(--primary) neon cyan
+      ctx.fillStyle = colors.primary; // akcent témy (šípka)
       ctx.fill();
     },
-    [],
+    [colors],
   );
 
   /**
@@ -292,11 +312,11 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
       
       // Neon glow: use shadowBlur for cyan/magenta glow around each node
       ctx.shadowBlur = 15 / globalScale; // Scale glow with zoom
-      ctx.shadowColor = '#00f0ff'; // Cyan glow (var(--glow-cyan))
+      ctx.shadowColor = colors.glow; // glow akcent témy (--glow-cyan)
       
       ctx.beginPath();
       ctx.arc(node.x || 0, node.y || 0, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = node.color || '#00f0ff';
+      ctx.fillStyle = node.color || colors.primary;
       ctx.fill();
 
       // Draw label if toggle is on — dark theme styling (Nexaverse)
@@ -322,7 +342,10 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         const pillHeight = fontSize + paddingY * 2;
 
         // Semi-transparent dark pill background
-        ctx.fillStyle = 'rgba(10, 10, 18, 0.75)';
+        // WIKI4AI-185: pill pozadie = bg témy (v light téme svetlé)
+        ctx.save();
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = colors.bg;
         ctx.beginPath();
         // Rounded rectangle for the label background
         const cornerRadius = Math.min(pillHeight / 2, pillWidth / 4);
@@ -348,18 +371,21 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
         ctx.quadraticCurveTo(px, py, px + cornerRadius, py);
         ctx.closePath();
         ctx.fill();
+        ctx.restore();
 
-        // Draw text — white at 80% opacity (Nexaverse style)
-        const textColor = 'rgba(255, 255, 255, 0.8)';
-        ctx.fillStyle = textColor;
+        // Draw text — text témy pri 80 % opacity
+        ctx.save();
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = colors.text;
         ctx.fillText(label, node.x || 0, py + pillHeight / 2);
+        ctx.restore();
       }
 
       // Reset shadow for next draw operations
       ctx.shadowBlur = 0;
       ctx.shadowColor = 'transparent';
     },
-    [showLabels],
+    [showLabels, colors],
   );
 
   if (isEmpty) {
@@ -409,16 +435,25 @@ const GraphView: React.FC<GraphViewProps> = ({ documents, onNodeClick }) => {
             graphData={graphData as any}
             width={canvasSize.width}
             height={canvasSize.height}
-            nodeColor={(node: GraphNode) => node.color || '#00f0ff'}
+            nodeColor={(node: GraphNode) => node.color || colors.primary}
             nodeRelSize={6}
             nodeCanvasObject={drawNode}
             linkWidth={0}
             linkCanvasObject={drawLink}
-            backgroundColor="#0a0a12"
+            backgroundColor={colors.bg}
             onNodeHover={handleNodeHover}
             onNodeClick={handleNodeClick}
             onZoom={handleZoom}
             cooldownTicks={100}
+            /* WIKI4AI-195 (DIZ-4 item 11, WCAG 2.3.3): force simulácia je
+                najhlučnejšia animácia v appke — uzly sa rozhýbu a usadia pred
+                očami. `warmupTicks` preskočí ticky BEZ kreslenia, takže graf
+                sa objavi už usporiadaný a nikde sa nič nehýbe. Prop exists:
+                react-force-graph-2d.d.ts (warmupTicks, cooldownTicks).
+               Pozor: blokovy komentár obaleny zlorenou zatkou (JSX child
+               syntax) tu NEMOZE byt — parser ho berie ako spread a padne TS1005.
+               Medzi atributmi je platny len cisty blokovy komentar. */
+            warmupTicks={reducedMotion ? 300 : 0}
             onEngineStop={handleEngineStop}
           />
 

@@ -31,7 +31,7 @@
 }
 
 .graph-edge {
-  stroke: rgba(255, 255, 255, 0.1);
+  stroke: var(--glass-hover);
   stroke-width: 2;
 }
 
@@ -45,7 +45,7 @@
 }
 
 .graph-node:hover {
-  fill: #00d4e6; /* slightly darker cyan */
+  fill: var(--primary); /* slightly darker cyan */
   filter: drop-shadow(0 0 8px var(--glow-cyan));
 }
 

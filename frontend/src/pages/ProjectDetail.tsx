@@ -6,6 +6,7 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useQueryClient } from '@tanstack/react-query';
 import { useProjects } from '../hooks/useProjects';
 import { useDocuments, useSearchDocuments } from '../hooks/useDocuments';
 import { useEmbeddingStatus } from '../hooks/useEmbeddingStatus';
@@ -18,6 +19,24 @@ import type { Project, Visibility } from '../types/project';
 import { FolderIcon, DownloadIcon, ClockIcon, SettingsIcon, LockIcon } from '../components/icons';
 // WIKI4AI-100: shared Public/Private visibility toggle
 import VisibilityToggle from '../components/VisibilityToggle';
+// WIKI4AI-186: pin projects/documents to the top + Toast feedback
+import PinButton from '../components/PinButton';
+import { usePinToggle, isForbiddenError } from '../hooks/usePinToggle';
+import { comparePinned } from '../utils/pinSort';
+// WIKI4AI-187: sort menu + drag&drop ordering of the document list
+import SortSelect from '../components/SortSelect';
+import FilterChips, { type ActiveFilterChip } from '../components/FilterChips';
+import DragHandle from '../components/DragHandle';
+import { useSortPreference } from '../hooks/useSortPreference';
+import { useDragReorder } from '../hooks/useDragReorder';
+import {
+  DEFAULT_DOCUMENT_SORT,
+  DOCS_SORT_STORAGE_KEY,
+} from '../utils/listSort';
+import type { ReorderBody } from '../utils/dragOrder';
+import { ToastContainer, type ToastItem } from '../components/Toast';
+import { documentApi } from '../services/documentApi';
+import type { Document } from '../types/document';
 import './ProjectDetail.css';
 
 type TabType = 'documents' | 'graph';
@@ -38,8 +57,17 @@ const ProjectDetail: React.FC = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { projects, isLoading: loadingProjects, createProject, isCreating: isCreatingSubproject } = useProjects();
+  // WIKI4AI-187: the sort menu is a backend parameter (`?sort=`), persisted per
+  // user in localStorage. `size: 100` is the backend's maximum page — drag &
+  // drop can only reorder what is loaded, so the list asks for as much as the
+  // API allows and says so when the project is bigger (see `dndTruncated`).
+  const { sort: docSort, setSort: setDocSort } = useSortPreference(
+    DOCS_SORT_STORAGE_KEY,
+    DEFAULT_DOCUMENT_SORT,
+  );
   const {
     documents,
+    documentsTotal,
     isLoading: loadingDocuments,
     createDocument,
     deleteDocument,
@@ -47,7 +75,82 @@ const ProjectDetail: React.FC = () => {
     isCreating,
     isDeleting,
     isUploading,
-  } = useDocuments(slug ?? '');
+  } = useDocuments(slug ?? '', { sort: docSort, size: 100 });
+
+  // WIKI4AI-186: pinning for this page. Both lists use the same optimistic
+  // helper: the click re-sorts immediately, the pin response (which does NOT
+  // bump the document `version` nor `updatedAt`) becomes the new state, and a
+  // rejection — typically 403 for a missing MANAGE/UPDATE permission — rolls
+  // the item back and only shows a Toast.
+  const queryClient = useQueryClient();
+  // After a successful pin the affected list is refetched, so the final order
+  // is exactly the server's (`pinned DESC` + its own sort key).
+  const refreshProjects = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['projects'] }),
+    [queryClient],
+  );
+  const refreshDocuments = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: ['documents', slug] }),
+    [queryClient, slug],
+  );
+
+  const projectPinApi = useMemo(
+    () => ({ pin: projectApi.pinProject, unpin: projectApi.unpinProject }),
+    [],
+  );
+  const {
+    list: orderedProjects,
+    togglePin: toggleProjectPin,
+    isPending: isProjectPinPending,
+  } = usePinToggle(projects, projectPinApi, { onSettled: refreshProjects });
+
+  const documentPinApi = useMemo(
+    () => ({
+      pin: (docSlug: string) => documentApi.pinDocument(slug ?? '', docSlug),
+      unpin: (docSlug: string) => documentApi.unpinDocument(slug ?? '', docSlug),
+    }),
+    [slug],
+  );
+  const {
+    list: orderedDocuments,
+    togglePin: toggleDocumentPin,
+    isPending: isDocumentPinPending,
+    withOverrides,
+  } = usePinToggle<Document>(documents, documentPinApi, { onSettled: refreshDocuments });
+
+  // WIKI4AI-186: pin feedback as Toast (the page used bare `alert()` for the
+  // destructive actions; a pin is not destructive so it gets a quiet Toast).
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const addToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToasts((prev) => [...prev, { id: Date.now() + Math.random(), message, type }]);
+  }, []);
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const pinErrorMessage = useCallback(
+    (err: unknown, kind: 'project' | 'document') =>
+      isForbiddenError(err)
+        ? t(kind === 'project' ? 'pin.forbiddenProject' : 'pin.forbiddenDocument')
+        : t('pin.failed', { message: err instanceof Error ? err.message : String(err) }),
+    [t],
+  );
+
+  const handleToggleDocumentPin = useCallback(
+    async (doc: Document) => {
+      const wasPinned = !!doc.pinned;
+      try {
+        await toggleDocumentPin(doc);
+        addToast(t(wasPinned ? 'pin.unpinnedDocument' : 'pin.pinnedDocument', { name: doc.title }), 'success');
+      } catch (err) {
+        addToast(pinErrorMessage(err, 'document'), 'error');
+      }
+    },
+    [addToast, pinErrorMessage, t, toggleDocumentPin],
+  );
+
+  // `handleToggleProjectPin` needs the resolved `project`, so it is declared
+  // below, next to it.
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -106,8 +209,20 @@ const ProjectDetail: React.FC = () => {
   // Export state
   const [isExporting, setIsExporting] = useState(false);
 
-  // Find the project by slug
-  const project = projects.find((p) => p.slug === slug);
+  // Find the project by slug. WIKI4AI-186: taken from `orderedProjects` so the
+  // header pin reflects the optimistic state, not a stale fetch.
+  const project = orderedProjects.find((p) => p.slug === slug);
+
+  const handleToggleProjectPin = useCallback(async () => {
+    if (!project) return;
+    const wasPinned = !!project.pinned;
+    try {
+      await toggleProjectPin(project);
+      addToast(t(wasPinned ? 'pin.unpinnedProject' : 'pin.pinnedProject', { name: project.name }), 'success');
+    } catch (err) {
+      addToast(pinErrorMessage(err, 'project'), 'error');
+    }
+  }, [addToast, pinErrorMessage, project, t, toggleProjectPin]);
 
   // Breadcrumb ancestor chain (root first), built by walking parentSlug (WIKI4AI-31).
   const ancestors = useMemo<Project[]>(() => {
@@ -146,8 +261,73 @@ const ProjectDetail: React.FC = () => {
     }
   };
 
-  // Determine which documents to display: search results if searching, otherwise all documents
-  const displayDocuments = hasSearched ? searchResults : documents;
+  // Determine which documents to display: search results if searching, otherwise all documents.
+  // WIKI4AI-186: the plain list is ordered pinned-first exactly like the server
+  // list; search results keep their relevance order but still carry the pin state.
+  const displayDocuments = hasSearched ? withOverrides(searchResults) : orderedDocuments;
+
+  // ── WIKI4AI-187: manual order (drag & drop) ───────────────────────────────
+  //
+  // Same rules as the project grid: `comparePinned` confirms the manual order
+  // the server returned (pinned first, then the opaque sortOrder) and keeps the
+  // pinned block separate, because a pinned document may only move inside it.
+  const manualDocuments = useMemo(
+    () =>
+      docSort === 'manual' && !hasSearched
+        ? [...displayDocuments].sort(comparePinned)
+        : displayDocuments,
+    [displayDocuments, docSort, hasSearched],
+  );
+
+  /**
+   * The backend clamps `size` to 100, so a bigger project is only partially
+   * loaded and only that part can be reordered — the message keeps that honest
+   * instead of letting a drop look like it did nothing.
+   */
+  const dndTruncated = documentsTotal > manualDocuments.length;
+  // The document search box is the hybrid (semantic) search endpoint, i.e. a
+  // server-side filter: while it is active the list on screen is a result set,
+  // not the manual order, so a drop would write an order nobody is looking at.
+  const dndEnabled = docSort === 'manual' && !hasSearched;
+
+  const sendDocumentReorder = useCallback(
+    async (doc: Document, body: ReorderBody) => {
+      await documentApi.reorderDocument(slug ?? '', doc.slug ?? generateSlug(doc.title), body);
+      addToast(t('listSort.toastReordered'), 'success');
+    },
+    [addToast, slug, t],
+  );
+
+  const handleDocumentReorderError = useCallback(
+    (err: unknown) => {
+      addToast(
+        isForbiddenError(err)
+          ? t('listSort.reorderForbiddenDocument')
+          : t('listSort.toastReorderFailed', {
+              message: err instanceof Error ? err.message : String(err),
+            }),
+        'error',
+      );
+    },
+    [addToast, t],
+  );
+
+  const docDnd = useDragReorder<Document>({
+    list: manualDocuments,
+    enabled: dndEnabled,
+    reorder: sendDocumentReorder,
+    onReordered: refreshDocuments,
+    onError: handleDocumentReorderError,
+  });
+
+  const docFilters: ActiveFilterChip[] = [];
+  if (hasSearched) {
+    docFilters.push({
+      id: 'q',
+      label: t('listSort.filterQuery', { q: debouncedSearchQuery.trim() }),
+      onClear: () => setSearchQuery(''),
+    });
+  }
 
   const handleCreateDocument = async () => {
     if (!newTitle.trim()) return;
@@ -327,6 +507,9 @@ const ProjectDetail: React.FC = () => {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* WIKI4AI-186: pin/unpin feedback */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Drag & Drop Overlay */}
       {isDragOver && (
         <div className="drag-overlay">
@@ -364,8 +547,20 @@ const ProjectDetail: React.FC = () => {
         <span className="current">{project.name}</span>
       </nav>
 
-      <header className="detail-header">
-        <h1>{project.name}</h1>
+      <header className={`detail-header${project.pinned ? ' detail-header-pinned' : ''}`}>
+        <div className="detail-title-row">
+          <h1>{project.name}</h1>
+          {/* WIKI4AI-186: pin this project to the top of the dashboard grid */}
+          <PinButton
+            pinned={!!project.pinned}
+            onToggle={handleToggleProjectPin}
+            name={project.name}
+            kind="project"
+            className="header-pin"
+            disabled={isProjectPinPending(project.slug)}
+            data-testid={`pin-project-${project.slug}`}
+          />
+        </div>
         {project.description && <p className="description">{project.description}</p>}
         <div className="header-actions">
           <button onClick={() => setShowCreateForm(!showCreateForm)} className="btn-primary" disabled={activeTab !== 'documents'}>
@@ -431,6 +626,7 @@ const ProjectDetail: React.FC = () => {
             data-testid="subproject-create-form"
           >
             <input
+              className="form-input"
               type="text"
               placeholder={t('project.subprojectNamePlaceholder')}
               value={newSubprojectName}
@@ -439,7 +635,7 @@ const ProjectDetail: React.FC = () => {
               autoFocus
               data-testid="subproject-name-input"
             />
-            {subprojectError && <p className="error" data-testid="subproject-error">{subprojectError}</p>}
+            {subprojectError && <p className="state-error" data-testid="subproject-error">{subprojectError}</p>}
             <div className="form-actions">
               <button type="submit" className="btn-primary" disabled={isCreatingSubproject || !newSubprojectName.trim()}>
                 {isCreatingSubproject ? t('project.creating') : t('project.createSubproject')}
@@ -513,6 +709,7 @@ const ProjectDetail: React.FC = () => {
         <div key={`form-${Date.now()}`} className="tab-content">
           <form onSubmit={(e) => { e.preventDefault(); handleCreateDocument(); }} className="create-form">
             <input
+              className="form-input"
               type="text"
               placeholder={t('project.docNamePlaceholder')}
               value={newTitle}
@@ -529,7 +726,7 @@ const ProjectDetail: React.FC = () => {
               />
               <p className="form-hint">{t('project.docVisibilityHint')}</p>
             </div>
-            {createError && <p className="error">{createError}</p>}
+            {createError && <p className="state-error">{createError}</p>}
             <div className="form-actions">
               <button type="submit" className="btn-primary" disabled={isCreating}>
                 {isCreating ? t('project.creating') : t('common.create')}
@@ -542,9 +739,13 @@ const ProjectDetail: React.FC = () => {
         </div>
       )}
 
-      {/* Documents List */}
+      {/* Documents List — WIKI4AI-187: the tab key used to be
+          `docs-${Date.now()}`, which remounted the whole tab on EVERY render —
+          that destroys the row a drag is hovering over (and the focus of the
+          search input while typing). A stable key keeps the nodes drag&drop is
+          bound to alive. */}
       {activeTab === 'documents' && (
-        <div key={`docs-${Date.now()}`} className="tab-content">
+        <div key="docs-tab" className="tab-content">
           <div className="documents-list">
             <h2>{t('project.documentsHeading', { count: hasSearched ? searchResults.length : documents.length })}</h2>
 
@@ -571,6 +772,43 @@ const ProjectDetail: React.FC = () => {
               )}
             </div>
 
+            {/* WIKI4AI-187: sort menu — sent to the backend as ?sort= (the
+                server owns the ordering, the UI only renders it). */}
+            <div className="list-toolbar" data-testid="document-toolbar">
+              <SortSelect value={docSort} onChange={setDocSort} labelKey="listSort.documentsLabel" />
+            </div>
+
+            <FilterChips filters={docFilters} onClearAll={() => setSearchQuery('')} />
+
+            {/* Why the handles are locked right now (requirement 3) */}
+            {!dndEnabled && !loadingDocuments && (
+              <p className="dnd-status" data-testid="dnd-status" role="status">
+                {hasSearched ? (
+                  t('listSort.lockedFilter')
+                ) : (
+                  <>
+                    {t('listSort.lockedSort')}{' '}
+                    <button
+                      type="button"
+                      onClick={() => setDocSort('manual')}
+                      data-testid="dnd-switch-manual"
+                    >
+                      {t('listSort.switchToManual')}
+                    </button>
+                  </>
+                )}
+              </p>
+            )}
+
+            {/* The page window is capped at 100 documents by the backend, so a
+                bigger project can only be reordered inside what is loaded. */}
+            {dndEnabled && dndTruncated && (
+              <p className="dnd-status" data-testid="dnd-truncated" role="status">
+                {t('listSort.truncated', { total: documentsTotal, loaded: manualDocuments.length })}
+              </p>
+            )}
+
+
             {/* Semantic search availability hint (WIKI4AI-36) */}
             {hasSearched && embeddingStatus && !embeddingStatus.available && (
               <div className="semantic-unavailable-banner" role="status" data-testid="semantic-unavailable-banner">
@@ -588,15 +826,51 @@ const ProjectDetail: React.FC = () => {
             ) : searching ? (
               <div className="loading-state"><div className="spinner" /><p>{t('project.searching')}</p></div>
             ) : hasSearched && searchResults.length === 0 ? (
-              <p className="empty-state">{t('project.noDocMatches')}</p>
+              <p className="state-empty">{t('project.noDocMatches')}</p>
             ) : !hasSearched && displayDocuments.length === 0 ? (
-              <p className="empty-state">{t('project.emptyDocs')}</p>
+              <p className="state-empty">{t('project.emptyDocs')}</p>
             ) : (
               <ul className="document-items">
-                {displayDocuments.map((doc) => {
+                {docDnd.displayList.map((doc, index) => {
                   const slug = doc.slug || generateSlug(doc.title);
                   return (
-                    <li key={doc.id} className="document-item">
+                    <li
+                      key={doc.id}
+                      className={`document-item${doc.pinned ? ' document-item-pinned' : ''}${
+                        docDnd.isDragging(index) ? ' is-dragging' : ''
+                      }${docDnd.isOver(index) ? (docDnd.dropEdge === 'above' ? ' drop-above' : ' drop-below') : ''}`}
+                      data-pinned={doc.pinned ? 'true' : undefined}
+                      /* WIKI4AI-187: the row is the drop target and the drag image */
+                      data-dnd-row
+                      data-dnd-enabled={dndEnabled ? 'true' : 'false'}
+                      data-testid={`document-item-${slug}`}
+                      onDragOver={(e) => docDnd.dragOver(index, e)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        // The page also has a .md file-drop zone; a reorder drop
+                        // must not reach it as if it carried a file.
+                        e.stopPropagation();
+                        void docDnd.drop(index);
+                      }}
+                    >
+                      {/* WIKI4AI-187: drag handle — the drag source, so the row
+                          itself stays a link. Locked unless the list shows the
+                          manual, unfiltered order; clicking it switches there. */}
+                      <DragHandle
+                        testId={`drag-handle-doc-${slug}`}
+                        enabled={dndEnabled}
+                        title={
+                          dndEnabled
+                            ? t('listSort.dragHint')
+                            : hasSearched
+                              ? t('listSort.lockedFilter')
+                              : t('listSort.switchToManual')
+                        }
+                        ariaLabel={t('listSort.dragAria', { name: doc.title })}
+                        onDragStart={(e) => docDnd.startDrag(index, e)}
+                        onDragEnd={docDnd.cancelDrag}
+                        onActivate={() => setDocSort('manual')}
+                      />
                       <div className="doc-info" onClick={() => handleViewDocument(slug)}>
                         <span className="doc-title">
                           {doc.title}
@@ -620,6 +894,16 @@ const ProjectDetail: React.FC = () => {
                       </div>
                       <div className="doc-meta">
                         <span className="doc-date">{formatDate(doc.updatedAt)}</span>
+                        {/* WIKI4AI-186: pin the document to the top of this project */}
+                        <PinButton
+                          pinned={!!doc.pinned}
+                          onToggle={() => handleToggleDocumentPin(doc)}
+                          name={doc.title}
+                          kind="document"
+                          className="pin-button-sm"
+                          disabled={isDocumentPinPending(slug)}
+                          data-testid={`pin-doc-${slug}`}
+                        />
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteDocument(slug); }}
                           className="btn-delete"

@@ -55,6 +55,19 @@ public class ProjectDTO {
      */
     private String visibility;
 
+    /**
+     * Whether the project is pinned to the top of the list (WIKI4AI-184). Read-only
+     * here: pinning goes through POST /projects/{slug}/pin, because this DTO is also
+     * a request body whose {@code name} is {@code @NotBlank}.
+     */
+    private boolean pinned;
+
+    /**
+     * Position inside the manual ordering (WIKI4AI-184). Read-only: assigned by the
+     * reorder endpoint. Only meaningful when the list was requested with sort=manual.
+     */
+    private int sortOrder;
+
     private java.time.LocalDateTime createdAt;
 
     private java.time.LocalDateTime updatedAt;

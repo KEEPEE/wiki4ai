@@ -6,9 +6,10 @@
 /* ── Main Container ─────────────────────────────────────────────── */
 
 .plantuml-diagram {
-  background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  /* WIKI4AI-208: to isté ako Mermaid — diagram potrebuje nepriehľadné
+     pozadie, nie sklo. (Kroki SVG má vlastné biele pozadie, no okolo
+     neho by mlha presvitovala cez okraj.) */
+  background: var(--diagram-bg);
   border: 1px solid var(--glass-border);
   border-radius: 16px;
   padding: 24px;
@@ -39,14 +40,14 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .plantuml-diagram__spinner {
   width: 24px;
   height: 24px;
-  border: 3px solid rgba(0, 240, 255, 0.15);
+  border: 3px solid var(--glow-cyan);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: plantuml-spin 0.8s linear infinite;
@@ -65,7 +66,7 @@
   border: 1px solid rgba(255, 59, 48, 0.3);
   border-radius: 12px;
   padding: 16px 20px;
-  color: #ff6b6b;
+  color: var(--color-error-text);
   font-size: 0.9rem;
   width: 100%;
 }
@@ -73,7 +74,7 @@
 .plantuml-diagram__error strong {
   display: block;
   margin-bottom: 4px;
-  color: #ff453a;
+  color: var(--color-error-text);
   font-weight: 600;
 }
 
@@ -96,6 +97,6 @@
   overflow-x: auto;
   font-size: 0.8rem;
   line-height: 1.4;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--text-secondary);
   white-space: pre;
 }

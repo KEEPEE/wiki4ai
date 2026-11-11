@@ -2033,18 +2033,25 @@ def calendar_create_event_type(name: str, color: Optional[str] = None) -> dict:
 
 # ─── Vault Crypto Helpers ─────────────────────────────────────────────────────
 # Vault entries are end-to-end encrypted: username/password/notes are encrypted
-# HERE, in this MCP server process, with a key derived from the user's master
-# password + a salt synced from the backend. The backend only ever stores and
-# returns opaque ciphertext for those three fields - it never sees plaintext.
+# HERE, in this MCP server process. The backend only ever stores and returns
+# opaque ciphertext for those three fields - it never sees plaintext.
 # title/url/groupPath are NOT encrypted (plain columns), so they can be listed
 # and searched without the master password.
 #
+# Two crypto versions coexist while the vault is being migrated (WIKI4AI-197):
+# `crypto_version` is a per-row column, so one vault is legitimately a mix of v1
+# and v2 rows. This module therefore READS both and WRITES v2 (see
+# _vault_v2_write_body). A row decides which key opens it, never the client.
+#
 # The crypto here must byte-for-byte match the webui's implementation
-# (frontend/src/services/encryptionService.ts + cryptoApi.ts) so that entries
-# created via MCP decrypt correctly in the browser, and vice versa:
+# (frontend/src/services/encryptionService.ts, cryptoApi.ts, vaultCrypto.ts,
+# vaultEntryCodec.ts) so that entries created via MCP decrypt correctly in the
+# browser, and vice versa.
+#
+# v1 (read-only since D2b - the backend refuses v1 writes once a vault has a v2
+# key, and this module never produces v1 bytes for a v2 row):
 #   1. The raw master password is first hashed with SHA-256 (hex-encoded) -
-#      this hash, not the raw password, is what's sent to the backend for
-#      verify/set AND what's fed into PBKDF2 below.
+#      this hash, `h`, not the raw password, is what v1's KDF consumes.
 #   2. PBKDF2-HMAC-SHA256, 100_000 iterations, 32-byte key, salted with the
 #      Base64 salt from GET /vault/master-password/salt.
 #   3. AES-256-GCM, 12-byte random IV. The backend persists a single IV per
@@ -2053,9 +2060,29 @@ def calendar_create_event_type(name: str, color: Optional[str] = None) -> dict:
 #   4. Each field's plaintext is JSON-encoded before encryption (so a bare
 #      string becomes `"like this"`) and JSON-decoded after decryption -
 #      matching JSON.stringify()/JSON.parse() on the frontend.
+#   `h` used to be sent to POST /vault/master-password/verify on every call. It
+#   no longer is: a server holding h and the salt can derive K1 and read the
+#   whole vault, which is the thing v2 exists to remove.
+#
+# v2 (the only thing this module writes):
+#   master password ──PBKDF2(server salt, 600k)──▶ KEK ──AES-GCM──▶ DEK ──▶ fields
+#   1. The KEK is derived from the RAW password, never from h. The server holds
+#      the salt but not the password, so it cannot compute the KEK.
+#   2. The DEK is random, stored sealed (wrapped) in users.vault_v2_wrapped_key,
+#      and is what encrypts the entry fields. key_id = hex(SHA-256(DEK)).
+#   3. The password is verified locally by unwrapping the DEK: the GCM tag is
+#      the check, so no verifier round trip and no h on the wire.
+#   4. One IV per field, folded inside the blob (`iv || ciphertext || tag`,
+#      Base64), and an AAD naming the row, the user, the field and the key, so
+#      a ciphertext cannot be replayed between fields or rows.
+#   5. The plaintext keeps v1's JSON wrapper (`JSON.stringify`), because the
+#      migration carries v1 bytes through unchanged - see _vault_json_string for
+#      the exact escaping rules, which differ from json.dumps' defaults.
 
+import hashlib as _vault_hashlib
 import json as _vault_json
 import secrets as _vault_secrets
+import uuid as _vault_uuid
 
 try:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -2090,60 +2117,164 @@ def _vault_derive_key(master_password_hash: str, salt_b64: str) -> bytes:
     )
 
 
-def _vault_get_key(master_password: str) -> bytes:
-    """Verify the master password against the backend and derive the vault encryption key.
+def _vault_describe_auth_error(error: MCPToolError, what: str) -> MCPToolError:
+    """Turn a 401 from a vault GET into a message that names the real cause.
 
-    Raises MCPToolError with a clear, actionable message if the vault has not
-    been set up yet or the master password is incorrect.
+    Two failures wear the same status code:
+      1. Spring Security rejecting the request before the controller runs, because
+         this MCP session has no/invalid/expired JWT. That answer always carries a
+         JSON body ({"message": ...} or {"error": ...}).
+      2. A vault endpoint answering 401 itself, which it does with an empty body.
+    Collapsing both into "incorrect master password" sends people hunting a wrong
+    password when the session is simply not logged in.
+    """
+    if error.status_code == 401 and error.details:
+        return MCPToolError(
+            "Not authenticated with the Wiki4AI backend (missing, invalid or expired "
+            "JWT token for this MCP session) while trying to " + what + ". "
+            "Backend said: " + str(error.details)
+        )
+    return error
+
+
+def _vault_v2_params() -> dict:
+    """GET /vault/v2/params: salt, KDF, sealed DEK and key fingerprint."""
+    try:
+        params = _api_request("GET", "/v1/vault/v2/params")
+    except MCPToolError as e:
+        raise _vault_describe_auth_error(e, "read the vault v2 parameters") from e
+    if not isinstance(params, dict):
+        raise MCPToolError("GET /vault/v2/params returned an unexpected response")
+    return params
+
+
+def _vault_v1_salt() -> Optional[str]:
+    """The v1 encryption salt, or None when this user's vault predates salt syncing.
+
+    Still needed to READ v1 rows while the migration runs. Not needed to write
+    them: MCP writes v2.
+    """
+    try:
+        response = _api_request("GET", "/v1/vault/master-password/salt")
+    except MCPToolError as e:
+        if e.status_code == 404:
+            return None
+        raise
+    return response.get("salt") if isinstance(response, dict) else None
+
+
+def _vault_current_user_id() -> int:
+    """The caller's user id, which is a component of the v2 AAD.
+
+    The AAD binds a ciphertext to its owner, so a client has to know who it is
+    before it can open its own rows. The JWT already says so; GET /auth/me is how
+    the frontend learns the same thing.
+    """
+    try:
+        profile = _api_request("GET", "/v1/auth/me")
+    except MCPToolError as e:
+        raise _vault_describe_auth_error(e, "read the current user profile") from e
+    user_id = profile.get("id") if isinstance(profile, dict) else None
+    if not isinstance(user_id, int):
+        raise MCPToolError(
+            "Could not read the current user's id from GET /auth/me, and the vault v2 "
+            "AAD needs it to open an entry. This MCP session is probably not "
+            "authenticated with a valid JWT token."
+        )
+    return user_id
+
+
+def _vault_verify_v1_password(v1_key: Optional[bytes]) -> None:
+    """Check the master password against a v1 row, for a vault with no v2 key.
+
+    A vault initialised for v2 authenticates by unwrapping its DEK, and the GCM
+    tag is the check. Before that there is no sealed key to open, so the only
+    local check left is decrypting something the password already protects - the
+    same thing the frontend does on that path.
+
+    POST /vault/master-password/verify is deliberately not called: it takes h, and
+    a server holding h plus the salt can derive K1 and read every v1 row it stores.
+    """
+    if v1_key is None:
+        raise MCPToolError(
+            "This vault has no vault v2 key and no v1 encryption salt stored for this "
+            "user, so the master password cannot be checked locally. Open the vault "
+            "once in the webui (Vault page) to initialise its v2 key."
+        )
+
+    entries = _api_request("GET", "/v1/vault/entries")
+    candidates = [
+        entry
+        for entry in (entries if isinstance(entries, list) else [])
+        if (entry.get("cryptoVersion") or 1) != 2
+        and (entry.get("passwordEncrypted") or {}).get("ciphertext")
+    ]
+    if not candidates:
+        raise MCPToolError(
+            "This vault has no vault v2 key and no v1 entry to check the master "
+            "password against. Open the vault once in the webui (Vault page) to "
+            "initialise its v2 key - MCP writes v2, and a v2 write needs that key."
+        )
+    for entry in candidates:
+        if _vault_decrypt_field(entry["passwordEncrypted"], v1_key) is not None:
+            return
+    raise MCPToolError(
+        "Incorrect vault master password. If the password is right, these rows may be "
+        "encrypted with a v1 salt other than the one the server stores: v1 preferred a "
+        "salt from browser storage, so a browser whose copy disagreed wrote rows only "
+        "it can open. Re-open the vault in that browser."
+    )
+
+
+def _vault_get_context(master_password: str) -> dict:
+    """The keys that open this user's vault rows: the v2 DEK and/or the v1 key.
+
+    `crypto_version` is a per-row column, so one vault is legitimately a mix of v1
+    and v2 rows for as long as the migration runs. The row decides which key opens
+    it, which is why both are resolved here.
+
+    Nothing here sends the master password or h to the backend:
+
+      * v2 - the KEK comes from the raw password, and the GCM tag on the wrapped
+        DEK is the password check.
+      * v1 - K1 comes from an h computed locally, and the password is checked by
+        decrypting a row instead of asking the server.
+
+    Raises MCPToolError with an actionable message when the vault has no key this
+    client can reach, or when the master password is wrong.
     """
     if not master_password:
         raise MCPToolError("master_password is required for this operation")
 
-    password_hash = _vault_password_hash(master_password)
+    params = _vault_v2_params()
+    user_id = _vault_current_user_id()
 
-    try:
-        _api_request("POST", "/v1/vault/master-password/verify", {"masterPasswordHash": password_hash})
-    except MCPToolError as e:
-        if e.status_code == 401:
-            # Two very different failures both surface as HTTP 401 here:
-            #   1. Spring Security rejects the request before it reaches the controller
-            #      because of no/invalid/expired JWT - e.g. {"message": "Authentication
-            #      required"} (missing token) or {"error": "Invalid or expired JWT token"}
-            #      (malformed/expired token). Both have a JSON body.
-            #   2. VaultController.verifyMasterPassword() itself returns a *bodyless* 401
-            #      when the password hash doesn't match - the only 401 this endpoint ever
-            #      emits with an empty body.
-            # Collapsing both into "Incorrect vault master password" is misleading when
-            # the real problem is that this MCP session isn't authenticated at all - so
-            # treat "got a JSON body" as "auth-layer rejection", not "wrong password".
-            if e.details:
-                raise MCPToolError(
-                    "Not authenticated with the Wiki4AI backend (missing, invalid or "
-                    "expired JWT token for this MCP session) - this is a login/session "
-                    "problem, not necessarily a wrong master password. "
-                    f"Backend said: {e.details}"
-                )
+    v2 = None
+    if params.get("initialized") and params.get("salt") and params.get("wrappedKey"):
+        iterations, key_bytes = _vault_v2_parse_kdf(params.get("kdf"))
+        kek = _vault_derive_kek(master_password, params["salt"], iterations, key_bytes)
+        dek = _vault_unwrap_dek(kek, params["wrappedKey"])
+        if dek is None:
+            # The tag is the verifier: a KEK derived from the wrong password opens
+            # nothing, and there is nothing else in the vault that would either.
             raise MCPToolError("Incorrect vault master password")
-        raise
+        v2 = {"dek": dek, "key_id": params.get("keyId") or _vault_fingerprint(dek)}
 
-    try:
-        salt_response = _api_request("GET", "/v1/vault/master-password/salt")
-    except MCPToolError as e:
-        if e.status_code == 404:
-            raise MCPToolError(
-                "Vault master password verified, but no encryption salt is stored for this "
-                "user (pre-dates salt syncing). Set up the vault again via the webui "
-                "(Vault page) to fix this."
-            )
-        raise
+    salt_b64 = _vault_v1_salt()
+    v1_key = (
+        _vault_derive_key(_vault_password_hash(master_password), salt_b64) if salt_b64 else None
+    )
 
-    return _vault_derive_key(password_hash, salt_response["salt"])
+    if v2 is None:
+        _vault_verify_v1_password(v1_key)
+
+    return {"user_id": user_id, "v2": v2, "v1_key": v1_key}
 
 
 def _vault_encrypt_field(value: str, key: bytes, iv: bytes) -> dict:
     """Encrypt one vault field value into the wire format the backend expects: {ciphertext, iv} (Base64)."""
     _vault_require_crypto()
-    plaintext = _vault_json.dumps(value).encode("utf-8")
+    plaintext = _vault_field_plaintext(value)
     ciphertext = AESGCM(key).encrypt(iv, plaintext, None)
     return {
         "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
@@ -2160,9 +2291,331 @@ def _vault_decrypt_field(field: Optional[dict], key: bytes) -> Optional[str]:
         ciphertext = base64.b64decode(field["ciphertext"])
         iv = base64.b64decode(field["iv"])
         plaintext = AESGCM(key).decrypt(iv, ciphertext, None)
-        return _vault_json.loads(plaintext.decode("utf-8"))
+        return _vault_field_text(plaintext)
     except Exception:
         return None
+
+
+# ─── Vault v2: the plaintext encoding ────────────────────────────────────────
+#
+# v1 and v2 both store `JSON.stringify(value)` as the plaintext bytes. v2 keeps
+# the wrapper rather than switching to a bare UTF-8 string for one reason: the
+# migration has to prove it moved the bytes unchanged, and re-serialising does
+# not give the same bytes for every value. So this has to be JSON.stringify,
+# not json.dumps - the two differ:
+#
+#   * json.dumps defaults to ensure_ascii=True, which writes "é" as "\u00e9" -
+#     the same characters, different bytes, and a row the browser reads as
+#     something else than it wrote.
+#   * json.dumps(ensure_ascii=False) leaves a lone surrogate as the character
+#     itself, which UTF-8 cannot encode at all. JSON.stringify (ES2019
+#     well-formed stringification) escapes it as "\udXXX", so it survives.
+#
+# Everything else - the short escapes for \b \f \n \r \t, \u00XX for the other
+# control characters, DEL and U+2028 left raw - json.dumps(ensure_ascii=False)
+# already agrees with JSON.stringify about, so only the surrogate case needs
+# handling here. tests/fixtures/vault_v2_golden.json pins the result for both
+# languages.
+
+_VAULT_JSON_ESCAPES = {
+    '"': '\\"',
+    "\\": "\\\\",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\n": "\\n",
+    "\r": "\\r",
+    "\t": "\\t",
+}
+
+
+def _vault_json_string(value: str) -> str:
+    """JSON.stringify for a single string, character for character."""
+    out = ['"']
+    for char in value:
+        code = ord(char)
+        replacement = _VAULT_JSON_ESCAPES.get(char)
+        if replacement is not None:
+            out.append(replacement)
+        elif code < 0x20:
+            out.append("\\u%04x" % code)
+        elif 0xD800 <= code <= 0xDFFF:
+            # A lone surrogate: UTF-16 half a pair that never got its partner.
+            # Well-formed JSON.stringify escapes exactly these.
+            out.append("\\u%04x" % code)
+        else:
+            out.append(char)
+    out.append('"')
+    return "".join(out)
+
+
+def _vault_field_plaintext(value: str) -> bytes:
+    """The exact bytes v1 and v2 store for a field value."""
+    return _vault_json_string(value).encode("utf-8")
+
+
+def _vault_field_text(plaintext: bytes) -> str:
+    """Mirror of the frontend's decodeFieldText: bytes to displayable text.
+
+    Lossy on purpose, in the same place the browser is lossy: TextDecoder
+    replaces ill-formed UTF-8 with U+FFFD rather than failing, and a value that
+    is not JSON is shown as-is instead of being dropped.
+    """
+    try:
+        text = plaintext.decode("utf-8")
+    except UnicodeDecodeError:
+        text = plaintext.decode("utf-8", errors="replace")
+    try:
+        parsed = _vault_json.loads(text)
+    except ValueError:
+        return text
+    return parsed if isinstance(parsed, str) else text
+
+
+# ─── Vault v2: key hierarchy, AAD, field format ──────────────────────────────
+#
+# Transcription of frontend/src/services/vaultCrypto.ts. That module is the
+# definition; this one follows it.
+
+_VAULT_V2_AAD_DOMAIN = "w4ai-vault"
+_VAULT_V2_AAD_VERSION = "2"
+_VAULT_V2_DEK_BYTES = 32
+# Fallback if the server ever omits `kdf`; the server's stored value wins, so
+# raising the work factor later does not strand this client.
+_VAULT_V2_DEFAULT_ITERATIONS = 600_000
+_VAULT_V2_DEFAULT_KEY_BYTES = 32
+
+
+def _vault_v2_parse_kdf(kdf_json: Optional[str]) -> tuple:
+    """Read (iterations, key_bytes) out of the server's kdf JSON.
+
+    Mirrors parseV2KdfParams: an unparseable value falls back to the known
+    default instead of failing an unlock.
+    """
+    iterations = _VAULT_V2_DEFAULT_ITERATIONS
+    key_bytes = _VAULT_V2_DEFAULT_KEY_BYTES
+    if not kdf_json:
+        return iterations, key_bytes
+    try:
+        parsed = _vault_json.loads(kdf_json)
+    except ValueError:
+        return iterations, key_bytes
+    if not isinstance(parsed, dict):
+        return iterations, key_bytes
+    iter_value = parsed.get("iter")
+    if isinstance(iter_value, int) and iter_value > 0:
+        iterations = iter_value
+    bits = parsed.get("dkLen")
+    if isinstance(bits, int) and bits > 0:
+        key_bytes = bits // 8
+    return iterations, key_bytes
+
+
+def _vault_derive_kek(raw_password: str, salt_b64: str, iterations: int, key_bytes: int) -> bytes:
+    """KEK = PBKDF2-HMAC-SHA256(raw password, server salt, iterations).
+
+    The raw password, not h. That single input is the difference between v1 and
+    v2: the server stores the salt, so with h it could derive the key itself.
+    """
+    salt = base64.b64decode(salt_b64)
+    return _vault_hashlib.pbkdf2_hmac(
+        "sha256", raw_password.encode("utf-8"), salt, iterations, dklen=key_bytes
+    )
+
+
+def _vault_fingerprint(key: bytes) -> str:
+    """key_id = hex(SHA-256(key)), 64 lowercase hex characters. Not a secret."""
+    return _vault_hashlib.sha256(key).hexdigest()
+
+
+def _vault_wrap_dek(kek: bytes, dek: bytes, iv: Optional[bytes] = None) -> str:
+    """Seal the DEK under the KEK: base64(iv(12) || ciphertext || tag).
+
+    No AAD here, unlike the entry fields: this blob is the only thing the KEK
+    ever encrypts and it lives in its own column.
+    """
+    _vault_require_crypto()
+    iv = iv or _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+    sealed = AESGCM(kek).encrypt(iv, dek, None)
+    return base64.b64encode(iv + sealed).decode("ascii")
+
+
+def _vault_unwrap_dek(kek: bytes, wrapped_b64: str) -> Optional[bytes]:
+    """Open the sealed DEK, or None.
+
+    None is the password check: if the KEK derived from this password cannot
+    open the wrapped key, the password is wrong and nothing else would decrypt
+    either. There is no separate verifier to ask.
+    """
+    _vault_require_crypto()
+    try:
+        packed = base64.b64decode(wrapped_b64, validate=True)
+    except Exception:
+        return None
+    if len(packed) <= _VAULT_IV_LENGTH:
+        return None
+    try:
+        dek = AESGCM(kek).decrypt(packed[:_VAULT_IV_LENGTH], packed[_VAULT_IV_LENGTH:], None)
+    except Exception:
+        return None
+    return dek if len(dek) == _VAULT_V2_DEK_BYTES else None
+
+
+def _vault_v2_aad(user_id: int, entry_uuid: str, field: str, key_id: str) -> bytes:
+    """AAD = "w4ai-vault" | 2 | user_id | entry_uuid | field | key_id, NUL-separated.
+
+    Binds a ciphertext to its row, its user, its field and its key, so moving a
+    password blob into another entry or another field fails the tag instead of
+    silently showing someone else's secret.
+    """
+    parts = [
+        _VAULT_V2_AAD_DOMAIN,
+        _VAULT_V2_AAD_VERSION,
+        str(user_id),
+        entry_uuid.lower(),
+        field,
+        key_id,
+    ]
+    return "\u0000".join(parts).encode("utf-8")
+
+
+def _vault_encrypt_v2_field(
+    value: str,
+    dek: bytes,
+    user_id: int,
+    entry_uuid: str,
+    field: str,
+    key_id: str,
+    iv: Optional[bytes] = None,
+) -> str:
+    """Seal one field under the DEK, with its own IV and its own AAD."""
+    _vault_require_crypto()
+    iv = iv or _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+    sealed = AESGCM(dek).encrypt(
+        iv, _vault_field_plaintext(value), _vault_v2_aad(user_id, entry_uuid, field, key_id)
+    )
+    return base64.b64encode(iv + sealed).decode("ascii")
+
+
+def _vault_decrypt_v2_field(
+    packed_b64: Optional[str], dek: bytes, user_id: int, entry_uuid: str, field: str, key_id: str
+) -> Optional[str]:
+    """Open one v2 field. None covers absent, unparseable and tag-mismatch alike."""
+    if not packed_b64:
+        return None
+    _vault_require_crypto()
+    try:
+        packed = base64.b64decode(packed_b64, validate=True)
+    except Exception:
+        return None
+    if len(packed) <= _VAULT_IV_LENGTH:
+        return None
+    try:
+        plaintext = AESGCM(dek).decrypt(
+            packed[:_VAULT_IV_LENGTH],
+            packed[_VAULT_IV_LENGTH:],
+            _vault_v2_aad(user_id, entry_uuid, field, key_id),
+        )
+    except Exception:
+        return None
+    return _vault_field_text(plaintext)
+
+
+def _vault_new_entry_uuid() -> str:
+    """A client-side uuid for a row that has no id before the INSERT.
+
+    The v2 AAD is computed before the encryption, so the row identity has to
+    exist before the row does. Lowercase, hyphenated - the form the backend
+    parses and the frontend generates.
+    """
+    return str(_vault_uuid.uuid4())
+
+# Which column holds each field, per crypto version. A row's `crypto_version`
+# picks the pair; nothing else gets to guess.
+_VAULT_V1_COLUMNS = {
+    "username": "usernameEncrypted",
+    "password": "passwordEncrypted",
+    "notes": "notesEncrypted",
+}
+_VAULT_V2_COLUMNS = {
+    "username": "usernameV2",
+    "password": "passwordV2",
+    "notes": "notesV2",
+}
+
+# A field is in exactly one of these three states, and conflating the first two
+# is the bug this module is here to fix: "no ciphertext" and "ciphertext I could
+# not open" both used to come back as None, and the update path then omitted the
+# field, and the backend's full-snapshot PUT read an omitted field as "cleared".
+# That is how editing a password through MCP deleted the user's notes.
+_VAULT_FIELD_ABSENT = "absent"
+_VAULT_FIELD_READABLE = "readable"
+_VAULT_FIELD_UNREADABLE = "unreadable"
+
+
+def _vault_row_is_v2(entry: dict) -> bool:
+    """Whether this row's secrets live in the v2 columns."""
+    return (entry.get("cryptoVersion") or 1) == 2
+
+
+def _vault_read_field(entry: dict, field: str, ctx: dict) -> tuple:
+    """Open one field of one row, and say honestly whether it could be opened.
+
+    Returns ``(value, status)``:
+
+      * ``(_VAULT_FIELD_ABSENT, "absent")`` - the row holds no ciphertext for this
+        field, so the value really is empty.
+      * ``(value, "readable")`` - these bytes opened under this row's key.
+      * ``(None, "unreadable")`` - there IS a ciphertext and this client cannot
+        open it: a v2 row with no v2 key, or a v1 row written under a salt this
+        client never saw (v1 took its salt from browser storage first).
+
+    The third state is not a value and must never be turned into one.
+    """
+    if _vault_row_is_v2(entry):
+        packed = entry.get(_VAULT_V2_COLUMNS[field])
+        if not packed:
+            return None, _VAULT_FIELD_ABSENT
+        v2 = ctx.get("v2")
+        entry_uuid = entry.get("entryUuid")
+        key_id = entry.get("keyId")
+        if not v2 or not entry_uuid or not key_id:
+            return None, _VAULT_FIELD_UNREADABLE
+        value = _vault_decrypt_v2_field(
+            packed, v2["dek"], ctx["user_id"], entry_uuid, field, key_id
+        )
+        return (value, _VAULT_FIELD_READABLE) if value is not None else (None, _VAULT_FIELD_UNREADABLE)
+
+    blob = entry.get(_VAULT_V1_COLUMNS[field])
+    if not blob or not blob.get("ciphertext"):
+        return None, _VAULT_FIELD_ABSENT
+    key = ctx.get("v1_key")
+    if key is None:
+        return None, _VAULT_FIELD_UNREADABLE
+    value = _vault_decrypt_field(blob, key)
+    return (value, _VAULT_FIELD_READABLE) if value is not None else (None, _VAULT_FIELD_UNREADABLE)
+
+
+def _vault_unreadable_reason(entry: dict, ctx: dict) -> str:
+    """Why a row could not be opened, in as many words as the state actually says."""
+    if _vault_row_is_v2(entry):
+        if not ctx.get("v2"):
+            return (
+                "this entry is encrypted with vault crypto v2 and this vault has no "
+                "v2 key yet - open it in the webui (Vault page) to initialise one"
+            )
+        if not entry.get("entryUuid") or not entry.get("keyId"):
+            return "this entry is missing the row identity its v2 ciphertext is sealed to"
+        return (
+            "this entry's v2 ciphertext did not open under this vault's v2 key - it "
+            "was sealed under a different key"
+        )
+    if ctx.get("v1_key") is None:
+        return "this entry is encrypted with vault crypto v1 and no v1 salt is stored for this user"
+    return (
+        "this entry's v1 ciphertext did not open with this master password and the "
+        "server's v1 salt - v1 rows may have been written with a salt that only lived "
+        "in another browser's storage"
+    )
 
 
 def _vault_entry_metadata(entry: dict) -> dict:
@@ -2172,24 +2625,195 @@ def _vault_entry_metadata(entry: dict) -> dict:
         "title": entry.get("title"),
         "url": entry.get("url"),
         "groupPath": entry.get("groupPath"),
+        # Which columns hold this row's secrets. Useful before unlocking: a v2 row
+        # needs the v2 key, a v1 row the v1 salt, and a mixed vault needs both.
+        "cryptoVersion": entry.get("cryptoVersion") or 1,
         "createdAt": entry.get("createdAt"),
         "updatedAt": entry.get("updatedAt"),
     }
 
 
-def _vault_decrypt_entry(entry: dict, key: bytes) -> dict:
-    """Full decrypted view of a vault entry, including plaintext username/password/notes."""
-    return {
-        "id": entry.get("id"),
-        "title": entry.get("title"),
-        "url": entry.get("url"),
-        "groupPath": entry.get("groupPath"),
-        "username": _vault_decrypt_field(entry.get("usernameEncrypted"), key),
-        "password": _vault_decrypt_field(entry.get("passwordEncrypted"), key),
-        "notes": _vault_decrypt_field(entry.get("notesEncrypted"), key),
-        "createdAt": entry.get("createdAt"),
-        "updatedAt": entry.get("updatedAt"),
-    }
+def _vault_decrypt_entry(entry: dict, ctx: dict) -> dict:
+    """Full decrypted view of a vault entry, in whichever format that row is in.
+
+    `isReadable` is a state, not a string. The webui used to put the literal
+    '[decryption failed]' in the password field, the edit form prefilled it, and
+    saving wrote it back as the user's new password - a failed read became a
+    write. A flag cannot be saved by accident.
+    """
+    view = _vault_entry_metadata(entry)
+    view["entryUuid"] = entry.get("entryUuid")
+    for field in ("username", "password", "notes"):
+        value, status = _vault_read_field(entry, field, ctx)
+        view[field] = value if status == _VAULT_FIELD_READABLE else None
+    view["isReadable"] = view["password"] is not None
+    if not view["isReadable"]:
+        view["warning"] = "Could not open this entry's secrets: " + _vault_unreadable_reason(entry, ctx)
+    return view
+
+
+# ─── Vault v2 writes ─────────────────────────────────────────────────────────
+#
+# The backend's create/update takes a FULL SNAPSHOT of the entry: an omitted
+# encrypted field is not "left alone", it is cleared. So a partial edit has to
+# carry the other fields over, and the old code carried them over by decrypting
+# and re-encrypting - which silently dropped any field it could not decrypt, and
+# wrote the result back as v1 under the v1 key even on a v2 row. Both failures
+# destroyed data the user never touched.
+#
+# Two rules decide every write here:
+#   I1 - a v2 row is never written with v1 bytes.
+#   I2 - a v2 row is never re-sealed under a different key.
+# and one rule keeps the user's data:
+#   a field this client cannot open is an ERROR, never an empty value.
+
+
+def _vault_unreadable_fields(entry: dict, ctx: dict, values: dict) -> list:
+    """Every field this write would silently lose, named before anything is sent.
+
+    Only the fields the caller did NOT supply can be lost: a supplied value
+    replaces whatever was there. Checking all three up front means one error that
+    lists them all, rather than one per retry.
+    """
+    blocked = []
+    for field in ("username", "password", "notes"):
+        if values.get(field) is not None:
+            continue
+        if _vault_read_field(entry, field, ctx)[1] == _VAULT_FIELD_UNREADABLE:
+            blocked.append(field)
+    return blocked
+
+
+def _vault_unreadable_write_error(entry: dict, fields: list, ctx: dict) -> MCPToolError:
+    """Why refusing the write beats dropping the field."""
+    listed = ", ".join(fields)
+    plural = "s" if len(fields) > 1 else ""
+    return MCPToolError(
+        f"Refusing to update entry {entry.get('id')}: its {listed} field{plural} "
+        f"{'are' if len(fields) > 1 else 'is'} encrypted and could not be opened "
+        f"({_vault_unreadable_reason(entry, ctx)}). The update endpoint replaces the "
+        f"whole entry, so leaving {'them' if len(fields) > 1 else 'it'} out would "
+        f"clear {'them' if len(fields) > 1 else 'it'} rather than keep {'them' if len(fields) > 1 else 'it'}. "
+        "Pass an explicit value for each, or fix the key first - nothing was written."
+    )
+
+
+def _vault_merged_value(entry: Optional[dict], field: str, ctx: dict, new_value: Optional[str]) -> Optional[str]:
+    """Resolve one field of a write: an explicit value wins, otherwise the row's own.
+
+    Raises when the row's own value exists but cannot be opened, because the only
+    other options are writing an empty value over it (data loss) or lying about
+    having kept it.
+    """
+    if new_value is not None:
+        return new_value
+    if entry is None:
+        return None
+    value, status = _vault_read_field(entry, field, ctx)
+    if status == _VAULT_FIELD_UNREADABLE:
+        raise _vault_unreadable_write_error(entry, [field], ctx)
+    return value
+
+
+def _vault_v2_write_body(
+    meta: dict, values: dict, ctx: dict, entry_uuid: str, current: Optional[dict] = None
+) -> dict:
+    """Seal a full-snapshot write into the v2 columns.
+
+    `values` maps username/password/notes to a new value, to None (keep what the
+    row holds) or to "" (clear it - the frontend omits empty fields too, and the
+    backend writes NULL for an absent column).
+
+    A field that is being kept on a row that is ALREADY v2 under this vault's key
+    is carried over byte for byte instead of decrypted and re-encrypted: the AAD
+    names the same row, user, field and key, so the existing blob is still valid.
+    Nothing can be lost in a translation that never happens, and a field the user
+    did not touch keeps its exact bytes.
+    """
+    v2 = ctx["v2"]
+    key_id = v2["key_id"]
+    carry_existing = (
+        current is not None
+        and _vault_row_is_v2(current)
+        and current.get("entryUuid") == entry_uuid
+        and (current.get("keyId") or key_id) == key_id
+    )
+
+    body = dict(meta)
+    body.update({"cryptoVersion": 2, "keyId": key_id, "entryUuid": entry_uuid})
+
+    for field in ("username", "password", "notes"):
+        new_value = values.get(field)
+        if new_value is None and carry_existing:
+            existing = current.get(_VAULT_V2_COLUMNS[field])
+            if existing:
+                body[_VAULT_V2_COLUMNS[field]] = existing
+                continue
+        merged = _vault_merged_value(current, field, ctx, new_value)
+        if not merged:
+            continue
+        body[_VAULT_V2_COLUMNS[field]] = _vault_encrypt_v2_field(
+            merged, v2["dek"], ctx["user_id"], entry_uuid, field, key_id
+        )
+
+    if not body.get(_VAULT_V2_COLUMNS["password"]):
+        raise MCPToolError(
+            "This entry has no password to preserve - a password value is required. "
+            "Nothing was written."
+        )
+    return body
+
+
+def _vault_v1_write_body(meta: dict, values: dict, ctx: dict, current: Optional[dict] = None) -> dict:
+    """The legacy write, for a vault that has no v2 key yet.
+
+    Once a vault has a v2 key the backend refuses a v1-shaped write outright (409),
+    and this module never produces one: it would be a row its owner cannot read.
+    The v1 columns share a single IV per row, so all three fields are encrypted
+    with the same one.
+    """
+    key = ctx.get("v1_key")
+    if key is None:
+        raise MCPToolError(
+            "This vault has no v2 key and no v1 salt, so there is nothing to write "
+            "with. Open the vault once in the webui (Vault page)."
+        )
+
+    iv = _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+    body = dict(meta)
+    for field in ("username", "password", "notes"):
+        merged = _vault_merged_value(current, field, ctx, values.get(field))
+        if not merged:
+            continue
+        body[_VAULT_V1_COLUMNS[field]] = _vault_encrypt_field(merged, key, iv)
+
+    if not body.get(_VAULT_V1_COLUMNS["password"]):
+        raise MCPToolError(
+            "This entry has no password to preserve - a password value is required. "
+            "Nothing was written."
+        )
+    return body
+
+
+def _vault_write_body(
+    meta: dict, values: dict, ctx: dict, current: Optional[dict] = None, entry_uuid: Optional[str] = None
+) -> dict:
+    """Build the request body for a create or an update, in the only format MCP writes.
+
+    v2 whenever this vault has a v2 key - including for a row that is still v1,
+    which the backend converts in the same write. v1 only for a vault that has no
+    v2 key at all, where v1 is the format its owner reads.
+    """
+    if current is not None:
+        blocked = _vault_unreadable_fields(current, ctx, values)
+        if blocked:
+            raise _vault_unreadable_write_error(current, blocked, ctx)
+
+    if ctx.get("v2"):
+        return _vault_v2_write_body(
+            meta, values, ctx, entry_uuid or _vault_new_entry_uuid(), current
+        )
+    return _vault_v1_write_body(meta, values, ctx, current)
 
 
 # ─── Vault Tools ──────────────────────────────────────────────────────────────
@@ -2203,11 +2827,19 @@ def vault_status() -> dict:
     confirming it is a one-time, high-stakes action best done in the webui
     (Vault page -> Set up Vault), which has proper confirm-password UX.
 
+    `v2Initialized` says which format this vault is written in: true means every
+    write is v2, false means the vault is still v1 and its first unlock in the
+    webui will give it a v2 key.
+
     Returns:
-        Dict with "hasMasterPasswordSet" (bool).
+        Dict with "hasMasterPasswordSet" (bool) and "v2Initialized" (bool).
     """
     is_set = _api_request("GET", "/v1/vault/master-password/status")
-    return {"hasMasterPasswordSet": bool(is_set)}
+    params = _vault_v2_params()
+    return {
+        "hasMasterPasswordSet": bool(is_set),
+        "v2Initialized": bool(params.get("initialized")),
+    }
 
 
 def vault_list_entries() -> list[dict]:
@@ -2252,23 +2884,32 @@ def vault_search_entries(query: str, group_path: Optional[str] = None) -> list[d
 def vault_get_entry(entry_id: int, master_password: str) -> dict:
     """Get a single vault entry WITH its decrypted username/password/notes.
 
-    Requires the vault master password (same one used to unlock the webui vault)
-    to derive the decryption key. Decryption happens locally in this MCP server
-    process - the backend never sees the plaintext.
+    Requires the vault master password (the same one that unlocks the webui vault).
+    It is used locally: v2 rows are opened with the DEK unwrapped from the sealed
+    key, v1 rows with a key derived from a locally computed hash. Neither the
+    password nor its hash is sent to the backend.
+
+    A row says which format it is in (`crypto_version`), and a vault is a mix of
+    both while the migration runs, so this reads either. When the secrets cannot be
+    opened, `isReadable` is false and a `warning` says why - the values come back
+    null rather than as a placeholder string, because a placeholder can be saved
+    back by accident and a flag cannot.
 
     Args:
         entry_id: Numeric ID of the entry (from vault_list_entries/vault_search_entries).
         master_password: The vault master password.
 
     Returns:
-        Dict with id, title, url, groupPath, username, password, notes (plaintext), createdAt, updatedAt.
+        Dict with id, title, url, groupPath, cryptoVersion, entryUuid, username,
+        password, notes (plaintext), createdAt, updatedAt, and isReadable
+        (+ warning when the secrets could not be opened).
 
     Example:
         vault_get_entry(42, "my-master-password")
     """
-    key = _vault_get_key(master_password)
+    ctx = _vault_get_context(master_password)
     entry = _api_request("GET", f"/v1/vault/entries/{entry_id}")
-    return _vault_decrypt_entry(entry, key)
+    return _vault_decrypt_entry(entry, ctx)
 
 
 def vault_create_entry(
@@ -2282,8 +2923,11 @@ def vault_create_entry(
 ) -> dict:
     """Add a new password entry to the vault, encrypted client-side (here) before sending.
 
-    The resulting entry is immediately visible and decryptable in the webui
-    vault with the same master password - MCP and webui share one vault.
+    The resulting entry is immediately visible and decryptable in the webui vault
+    with the same master password - MCP and webui share one vault. Once the vault
+    has a v2 key the row is written as v2 (its own IV per field, its AAD naming the
+    row); a vault that has no v2 key yet is still written as v1, because that is
+    the format its owner reads and the only one the backend accepts for it.
 
     Args:
         title: Entry title (e.g., "GitHub"), required. Stored in plaintext.
@@ -2295,27 +2939,21 @@ def vault_create_entry(
         group_path: Optional folder path (e.g., "/Work"). Stored in PLAINTEXT.
 
     Returns:
-        Dict with id, title, url, groupPath, createdAt, updatedAt (no plaintext credentials echoed back).
+        Dict with id, title, url, groupPath, cryptoVersion, createdAt, updatedAt
+        (no plaintext credentials echoed back).
 
     Example:
         vault_create_entry("GitHub", "s3cr3t!", "my-master-password", username="me@example.com")
     """
-    key = _vault_get_key(master_password)
-    # One IV shared across all fields of this entry - the backend schema only
-    # persists a single IV per entry (see VaultEntry.iv), not one per field.
-    iv = _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
+    if not password:
+        raise MCPToolError("password is required to create a vault entry")
 
-    body = {
-        "title": title,
-        "url": url,
-        "groupPath": group_path,
-        "passwordEncrypted": _vault_encrypt_field(password, key, iv),
-    }
-    if username:
-        body["usernameEncrypted"] = _vault_encrypt_field(username, key, iv)
-    if notes:
-        body["notesEncrypted"] = _vault_encrypt_field(notes, key, iv)
-
+    ctx = _vault_get_context(master_password)
+    body = _vault_write_body(
+        {"title": title, "url": url, "groupPath": group_path},
+        {"username": username, "password": password, "notes": notes},
+        ctx,
+    )
     created = _api_request("POST", "/v1/vault/entries", body)
     return _vault_entry_metadata(created)
 
@@ -2332,9 +2970,21 @@ def vault_update_entry(
 ) -> dict:
     """Edit an existing vault entry. Only pass the fields you want to change.
 
-    The backend stores a full snapshot per entry (not a diff), so this tool
-    first fetches and decrypts the current entry, merges in your changes, and
-    re-submits the whole thing - any field left as None keeps its current value.
+    The backend stores a full snapshot per entry (not a diff), so this tool fetches
+    the current row first and re-submits the whole thing. What that means in
+    practice, and what it used to get wrong:
+
+      * A field left as None keeps its current value. On a v2 row that value is
+        carried over byte for byte - not decrypted and re-encrypted - so a field
+        you did not touch cannot change.
+      * A field whose ciphertext cannot be opened is an ERROR, not an empty value.
+        The write is refused and nothing is written. Silently dropping the fields
+        this client could not decrypt is how updating a password through MCP used
+        to delete the entry's username and notes.
+      * Pass "" (empty string) to clear an optional field.
+      * A v1 row in a vault that has a v2 key is converted to v2 by this write,
+        which the backend does in the same transaction; the result reports
+        cryptoVersion 2.
 
     Args:
         entry_id: Numeric ID of the entry to edit.
@@ -2343,36 +2993,30 @@ def vault_update_entry(
             Leave as None to keep the entry's current value for that field.
 
     Returns:
-        Dict with id, title, url, groupPath, createdAt, updatedAt.
+        Dict with id, title, url, groupPath, cryptoVersion, createdAt, updatedAt.
 
     Example:
         vault_update_entry(42, "my-master-password", password="new-s3cr3t!")
     """
-    key = _vault_get_key(master_password)
+    ctx = _vault_get_context(master_password)
     current = _api_request("GET", f"/v1/vault/entries/{entry_id}")
-    decrypted = _vault_decrypt_entry(current, key)
 
-    new_title = title if title is not None else decrypted["title"]
-    new_username = username if username is not None else decrypted["username"]
-    new_password = password if password is not None else decrypted["password"]
-    new_notes = notes if notes is not None else decrypted["notes"]
-    new_url = url if url is not None else decrypted["url"]
-    new_group_path = group_path if group_path is not None else decrypted["groupPath"]
-
-    if not new_password:
-        raise MCPToolError("This entry has no password to preserve - a password value is required")
-
-    iv = _vault_secrets.token_bytes(_VAULT_IV_LENGTH)
-    body = {
-        "title": new_title,
-        "url": new_url,
-        "groupPath": new_group_path,
-        "passwordEncrypted": _vault_encrypt_field(new_password, key, iv),
+    meta = {
+        "title": title if title is not None else current.get("title"),
+        "url": url if url is not None else current.get("url"),
+        "groupPath": group_path if group_path is not None else current.get("groupPath"),
     }
-    if new_username:
-        body["usernameEncrypted"] = _vault_encrypt_field(new_username, key, iv)
-    if new_notes:
-        body["notesEncrypted"] = _vault_encrypt_field(new_notes, key, iv)
+    body = _vault_write_body(
+        meta,
+        {"username": username, "password": password, "notes": notes},
+        ctx,
+        current=current,
+        # The row's own uuid, whichever version it is in: the v2 AAD is sealed to
+        # it, the column is not updatable, and the backend keeps the value it
+        # already has on an update. Encrypting with a fresh uuid would produce a
+        # row whose own ciphertext nothing can open - including this client.
+        entry_uuid=current.get("entryUuid"),
+    )
 
     updated = _api_request("PUT", f"/v1/vault/entries/{entry_id}", body)
     return _vault_entry_metadata(updated)

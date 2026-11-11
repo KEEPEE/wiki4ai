@@ -54,7 +54,7 @@
   font-weight: 700;
   font-size: 42px;
   line-height: 1;
-  background: linear-gradient(135deg, #00f0ff 0%, #ffffff 50%, #ff00d4 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -67,14 +67,14 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 3px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
 }
 
 /* Divider — vertical line with subtle opacity */
 .stat-divider {
   width: 1px;
   height: 2rem;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--glass-hover);
 }
 
 /* ── Create New Button ────────────────────────────────────────── */
@@ -84,8 +84,13 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.625rem 1.25rem;
-  background: var(--primary);
-  color: var(--dark-1);
+  /* WIKI4AI-206: `--dark-1` nie je ink — je to tmava skalu identity,
+     ktora je v glass-light takmer biela (#e2e8db) a na `--primary`
+     #047857 davala 4.39:1, tesne pod 4.5. Spravny token je
+     `--text-inverse` (5.25:1). Gradient + ink = MIN 4.64:1. */
+  background-color: var(--primary);
+  background-image: var(--action-gradient);
+  color: var(--text-inverse);
   border: none;
   border-radius: 8px;
   font-size: 0.9rem;
@@ -96,8 +101,9 @@
 }
 
 .btn-create-new:hover {
-  background: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 12px var(--glow-cyan);
+  background-color: var(--primary-strong);
+  background-image: var(--action-gradient-hover);
+  box-shadow: var(--action-glow);
   transform: translateY(-1px);
 }
 
@@ -113,7 +119,7 @@
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  animation: slideDown 0.2s ease-out;
+  animation: slideDown var(--dur-med) var(--ease-soft);
 }
 
 @keyframes slideDown {
@@ -138,7 +144,7 @@
 .create-form textarea {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-default);
   border-radius: 8px;
   margin-bottom: 1rem;
   font-size: 0.95rem;
@@ -150,7 +156,6 @@
 
 .create-form input:focus,
 .create-form textarea:focus {
-  outline: none;
   border-color: var(--primary);
   box-shadow: var(--focus-ring-shadow);
 }
@@ -185,30 +190,29 @@
   width: 100%;
   /* WIKI4AI-81: left padding clears the magnifier (x 16–34) with a 10px gap */
   padding: 12px 20px 12px 44px;
-  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
+  border: 1px solid var(--glass-border); /* var(--glass-border) */
   border-radius: 50px; /* pill shape */
   font-size: 0.95rem;
   box-sizing: border-box;
   transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base);
-  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
+  background: var(--glass-bg); /* var(--glass-bg) */
+  color: var(--text-secondary); /* Nexaverse body text opacity */
 }
 
 .dashboard-search-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--text-muted);
 }
 
 /* Hover stav (pred focus) — Nexaverse hover efekt */
 .dashboard-search-input:hover:not(:focus) {
-  border-color: rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-hover);
+  background: var(--glass-strong);
 }
 
 /* Focus stav — neon cyan glow */
 .dashboard-search-input:focus {
-  outline: none; /* odstrániť default browser outline */
-  border-color: var(--primary); /* #00f0ff cyan */
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); /* neon glow — Nexaverse feel */
+  border-color: var(--primary); /* var(--primary) cyan */
+  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow — Nexaverse feel */
 }
 
 .dashboard-search-clear {
@@ -245,9 +249,21 @@
   gap: 1.5rem;
 }
 
-/* Project Card — glassmorphism style with glossy shine overlay */
+/* Prázdný stav je súčasťou mriežky — musí sa natiahnuť cez všetky
+ * stĺpce, inak by visel v jednom 320px stĺpci. Čisto layout: vzhľad
+ * dáva primitívum `.state-empty` v `styles/components.css`
+ * (WIKI4AI-194, DIZ-3 item 11). */
+.projects-grid .state-empty {
+  grid-column: 1 / -1;
+}
+
+/* Project Card — glassmorphism so sa susedné karty nesplývajú s pozadím.
+ * WIKI4AI-193 (DIZ-2): karta je `--surface-1` s akcentným gradientom,
+ * inset vlas hore (`--shadow-inset-hairline`) a vrstvený tieň
+ * (`--shadow-card`). Bez tieňa a vlasu by sa pri plnej mlhe/orboch susedné
+ * karty preliate do jednolitej farby — audit forum4Ai P2-9. */
 .project-card {
-  background: var(--glass-bg);
+  background: linear-gradient(160deg, var(--glass-bg-accent) 0%, transparent 55%), var(--surface-1);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--glass-border);
@@ -258,6 +274,7 @@
   cursor: pointer;
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-card), var(--shadow-inset-hairline);
   transition: background-color var(--transition-base),
               border-color var(--transition-base),
               box-shadow var(--transition-base),
@@ -272,27 +289,48 @@
   left: 0;
   right: 0;
   height: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 100%);
+  background: linear-gradient(180deg, var(--glass-highlight) 0%, transparent 100%);
+  opacity: 0.5;
   pointer-events: none;
   z-index: 0;
 }
 
 .project-card:hover {
-  background-color: rgba(0, 240, 255, 0.08);
+  background-color: var(--glass-bg-hover);
   border-color: var(--primary);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4), 0 0 30px rgba(0, 200, 220, 0.2);
+  /* hover glow ide cez `--glow-cyan` SLOT — v glass témach je to emerald,
+     nie cyan, a to je zámer (slot, nie farba). */
+  box-shadow: var(--shadow-hover), var(--shadow-inset-hairline);
   /* WIKI4AI-88: calmer hover lift — translateY(-10px) scale(1.02) was jumpy */
   transform: translateY(-3px);
 }
 
+/* WIKI4AI-195 (DIZ-4 item 1): duplicitné pravidlo zjednotené a prepnuté na
+   token — karta je `tabindex="0"`, takže ju globálny `:where([tabindex])`
+   pokryje, ale trieda musí ostať, lebo `.project-card` má vlastný `:hover`
+   transform a prísnejšie pravidlo tu slúži ako vzor pre ostatné karty. */
 .project-card:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-ring-offset);
 }
 
-.project-card:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+/* WIKI4AI-186: pinned project — permanent subtle frame + accent glow, so the
+   card reads as pinned without hovering and without relying on colour alone
+   (the filled pin icon carries the same message). */
+.project-card-pinned {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--glow-cyan), var(--shadow-glow), var(--shadow-inset-hairline);
+}
+
+.project-card-pinned:hover {
+  box-shadow: inset 0 0 0 1px var(--glow-cyan), var(--shadow-hover), var(--shadow-inset-hairline);
+}
+
+/* The pin lives outside the hover-only .card-actions cluster and is therefore
+   always visible (muted when unpinned, accent + glow when pinned); it must not
+   stretch or shrink the title. */
+.project-card .card-pin {
+  flex: none;
 }
 
 .card-header {
@@ -320,12 +358,12 @@
 .badge {
   display: inline-block;
   padding: 4px 12px;
-  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  border: 1px solid rgba(0, 240, 255, 0.2); /* cyan pri 20% opacity */
+  background: var(--glass-bg); /* var(--glass-bg) */
+  border: 1px solid var(--glow-cyan); /* cyan pri 20% opacity */
   border-radius: 50px; /* pill shape */
   font-family: 'Outfit', sans-serif;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;
   white-space: nowrap;
@@ -333,9 +371,9 @@
 }
 
 .badge:hover {
-  border-color: var(--primary, #00f0ff); /* #00f0ff */
-  color: var(--primary, #00f0ff); /* #00f0ff */
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.15); /* neon glow */
+  border-color: var(--primary, var(--primary)); /* var(--primary) */
+  color: var(--primary, var(--primary)); /* var(--primary) */
+  box-shadow: 0 0 10px var(--glow-cyan); /* neon glow */
 }
 
 .description {
@@ -370,18 +408,6 @@
   color: var(--text-muted);
 }
 
-/* ── Empty State ──────────────────────────────────────────────── */
-
-.empty-state {
-  text-align: center;
-  padding: 4rem 2rem;
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
 .empty-text {
   color: var(--text-muted);
   font-size: 1.1rem;
@@ -399,7 +425,7 @@
 .spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255, 255, 255, 0.1);
+  border: 3px solid var(--border-default);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -417,76 +443,6 @@
 .error-state {
   text-align: center;
   padding: 2rem;
-}
-
-.error {
-  color: var(--color-error-text);
-  background: var(--color-error-bg);
-  padding: 1rem;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  font-size: 0.95rem;
-}
-
-/* ── Buttons ──────────────────────────────────────────────────── */
-
-.btn-primary,
-.btn-secondary {
-  padding: 0.625rem 1.25rem;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  font-weight: 500;
-  transition: background-color var(--transition-base), transform var(--transition-fast);
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: var(--dark-1);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #00d4e6; /* slightly darker cyan */
-  box-shadow: 0 0 12px var(--glow-cyan);
-}
-
-.btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--glass-bg);
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.btn-danger {
-  background: var(--color-error-text);
-  color: var(--dark-1);
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #ef4444; /* brighter red */
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
-}
-
-.btn-danger:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.btn-danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* ── Edit & Delete Buttons on Card — WIKI4AI-88 ─────────────── */
@@ -523,7 +479,7 @@
 }
 
 .edit-button:hover {
-  background: rgba(0, 240, 255, 0.1);
+  background: var(--glow-cyan);
   color: var(--text-primary);
   transform: scale(1.1);
 }
@@ -542,89 +498,6 @@
   opacity: 1;
 }
 
-/* ── Modal — glassmorphism s neon accent (Nexaverse štýl) ───── */
-
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(10, 10, 18, 0.85); /* #0a0a12 s 85% opacity */
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.2s ease-out;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.modal-content {
-  background: rgba(255, 255, 255, 0.03); /* var(--glass-bg) */
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--glass-border);
-  border-radius: 24px;
-  padding: 2rem;
-  width: 90%;
-  max-width: 500px;
-  position: relative;
-  box-shadow:
-    0 25px 50px rgba(0, 0, 0, 0.5),
-    0 0 30px rgba(0, 240, 255, 0.1); /* neon cyan glow */
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0.25rem;
-  line-height: 1;
-  transition: color var(--transition-base);
-}
-
-.modal-close:hover {
-  color: var(--text-primary);
-}
-
-/* Modal header/title — gradient text fill (cyan → white → magenta) */
-.modal-content h3,
-.create-form h3 {
-  margin-top: 0;
-  font-family: 'Syne', sans-serif;
-  font-weight: 600;
-  font-size: 1.25rem;
-  margin-bottom: 1.5rem;
-  padding-right: 2rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 .delete-warning {
   color: var(--text-secondary);
   font-size: 0.95rem;
@@ -639,117 +512,6 @@
 .form-actions-delete {
   flex-direction: row-reverse;
   justify-content: flex-end;
-}
-
-/* Form inputs v modaloch — glassmorphism štýl */
-.modal-content label,
-.create-form label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-.modal-content input,
-.modal-content textarea,
-.create-form input,
-.create-form textarea {
-  width: 100%;
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05); /* glassmorphism input bg */
-  border: 1px solid rgba(255, 255, 255, 0.08); /* var(--glass-border) */
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.7); /* Nexaverse body text opacity */
-  font-size: 0.95rem;
-  box-sizing: border-box;
-  transition: border-color var(--transition-base), box-shadow var(--transition-base);
-}
-
-.modal-content input:focus,
-.modal-content textarea:focus,
-.create-form input:focus,
-.create-form textarea:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 20px var(--glow-cyan); /* neon cyan glow */
-}
-
-/* Placeholder text — Nexaverse muted style */
-.modal-content input::placeholder,
-.modal-content textarea::placeholder,
-.create-form input::placeholder,
-.create-form textarea::placeholder {
-  color: rgba(255, 255, 255, 0.4);
-}
-
-/* ── Modal Buttons — glassmorphism s neon accent ─────────────── */
-
-.modal-content .btn-primary,
-.create-form .btn-primary {
-  background: linear-gradient(135deg, #00f0ff 0%, #9d4edd 100%); /* cyan → magenta gradient */
-  color: var(--dark-1);
-  border: none;
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
-}
-
-.modal-content .btn-primary:hover:not(:disabled),
-.create-form .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 0 20px var(--glow-cyan); /* neon glow hover */
-  transform: translateY(-1px);
-}
-
-.modal-content .btn-primary:active:not(:disabled),
-.create-form .btn-primary:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.modal-content .btn-secondary,
-.create-form .btn-secondary {
-  background: rgba(255, 255, 255, 0.03); /* glassmorphism bg */
-  color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition-base), transform var(--transition-fast);
-}
-
-.modal-content .btn-secondary:hover,
-.create-form .btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-
-/* Delete/Danger button — glassmorphism s neon red border */
-.modal-content .btn-danger,
-.create-form .btn-danger {
-  background: rgba(220, 38, 38, 0.2); /* danger bg */
-  color: var(--color-error-text);
-  border: 1px solid rgba(220, 38, 38, 0.4); /* neon red border */
-  border-radius: 8px;
-  padding: 0.625rem 1.25rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color var(--transition-base), transform var(--transition-fast), box-shadow var(--transition-base);
-}
-
-.modal-content .btn-danger:hover:not(:disabled),
-.create-form .btn-danger:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.3);
-  box-shadow: 0 0 15px rgba(220, 38, 38, 0.3); /* neon red glow */
-}
-
-.modal-content .btn-danger:active:not(:disabled),
-.create-form .btn-danger:active:not(:disabled) {
-  transform: scale(0.98);
 }
 
 /* ── Responsive ───────────────────────────────────────────────── */
@@ -790,11 +552,6 @@
   .card-actions {
     opacity: 1;
   }
-
-  .modal-content {
-    padding: 1.5rem;
-    width: 95%;
-  }
 }
 
 /* ==================== Subproject tree (WIKI4AI-31) ==================== */
@@ -802,7 +559,7 @@
 .subprojects-tree {
   margin-top: 0.75rem;
   padding-top: 0.5rem;
-  border-top: 1px solid var(--glass-border, rgba(255, 255, 255, 0.08));
+  border-top: 1px solid var(--glass-border, var(--glass-border));
 }
 
 .subproject-branch {
@@ -818,16 +575,16 @@
   margin-top: 0.25rem;
   border-radius: 10px;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .subproject-row:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--glass-strong);
   box-shadow: 0 0 12px rgba(124, 92, 255, 0.15);
 }
 
 .subproject-icon {
-  color: #7c5cff;
+  color: var(--accent);
   font-size: 0.9rem;
   flex-shrink: 0;
 }
@@ -835,7 +592,7 @@
 .subproject-name {
   font-family: 'Outfit', sans-serif;
   font-size: 0.92rem;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -851,7 +608,7 @@
   margin-left: auto;
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 0.8rem;
   padding: 0.15rem 0.4rem;
@@ -860,8 +617,8 @@
 }
 
 .subproject-toggle:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  background: var(--glass-hover);
 }
 
 /* ── WIKI4AI-100: visibility field (create modal) + lock badges ── */
@@ -880,7 +637,7 @@
 .visibility-hint {
   margin: 0.4rem 0 0;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--text-muted);
 }
 
 /* Lock badge next to a private project's name (card + subproject rows) */

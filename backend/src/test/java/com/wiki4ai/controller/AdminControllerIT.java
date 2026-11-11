@@ -49,6 +49,17 @@ class AdminControllerIT {
     private String adminToken;
     private String userToken;
 
+    /**
+     * The id regularuser actually got. This suite used to hardcode 2 on the assumption
+     * that the users identity counter starts at 1, which only holds while this class is
+     * the first to write to the shared in-memory test database. Spring caches test
+     * contexts, and any other integration test with the same context key that creates a
+     * user advances the counter - deleteAll() removes rows, it does not rewind a
+     * sequence. WIKI4AI-200 added such a class and the assumption broke, so the id is
+     * read here instead of assumed.
+     */
+    private Long regularUserId;
+
     @BeforeEach
     void setUp() {
         // Clean up before each test
@@ -78,7 +89,7 @@ class AdminControllerIT {
                 .password(encoder.encode("user123"))
                 .role(Role.USER)
                 .build();
-        userRepository.save(regularUser);
+        regularUserId = userRepository.save(regularUser).getId();
 
         // Generate JWT tokens for testing
         adminToken = jwtUtil.generateToken("admin");
@@ -519,20 +530,20 @@ class AdminControllerIT {
         @Test
         @DisplayName("Admin should change user role from USER to ADMIN - 200 OK")
         void adminShouldChangeUserRoleToAdmin() throws Exception {
-            // regularuser has id=2 (created after admin in setUp)
-            mockMvc.perform(put("/api/v1/admin/users/2/role")
+            // regularuser's id is captured in setUp, not assumed
+            mockMvc.perform(put("/api/v1/admin/users/" + regularUserId + "/role")
                             .header("Authorization", "Bearer " + adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"role": "ADMIN"}
                                     """))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(2))
+                    .andExpect(jsonPath("$.id").value(regularUserId.intValue()))
                     .andExpect(jsonPath("$.username").value("regularuser"))
                     .andExpect(jsonPath("$.role").value("ADMIN"));
 
             // Verify in DB
-            User updated = userRepository.findById(2L).orElseThrow();
+            User updated = userRepository.findById(regularUserId).orElseThrow();
             org.junit.jupiter.api.Assertions.assertEquals(Role.ADMIN, updated.getRole());
         }
 
@@ -573,7 +584,7 @@ class AdminControllerIT {
         @Test
         @DisplayName("Regular user should get 403 Forbidden when trying to change role")
         void regularUserShouldGetForbiddenOnChangeRole() throws Exception {
-            mockMvc.perform(put("/api/v1/admin/users/2/role")
+            mockMvc.perform(put("/api/v1/admin/users/" + regularUserId + "/role")
                             .header("Authorization", "Bearer " + userToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
@@ -586,7 +597,7 @@ class AdminControllerIT {
         @Test
         @DisplayName("No token should get 401 Unauthorized")
         void noTokenShouldGetUnauthorizedOnChangeRole() throws Exception {
-            mockMvc.perform(put("/api/v1/admin/users/2/role")
+            mockMvc.perform(put("/api/v1/admin/users/" + regularUserId + "/role")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("""
                                     {"role": "ADMIN"}
@@ -611,7 +622,7 @@ class AdminControllerIT {
         @Test
         @DisplayName("Missing role in request body should return 400 Bad Request")
         void missingRoleShouldReturnBadRequest() throws Exception {
-            mockMvc.perform(put("/api/v1/admin/users/2/role")
+            mockMvc.perform(put("/api/v1/admin/users/" + regularUserId + "/role")
                             .header("Authorization", "Bearer " + adminToken)
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{}"))
@@ -681,7 +692,7 @@ class AdminControllerIT {
         @Test
         @DisplayName("No token should get 401 Unauthorized")
         void noTokenShouldGetUnauthorizedOnDelete() throws Exception {
-            mockMvc.perform(delete("/api/v1/admin/users/2"))
+            mockMvc.perform(delete("/api/v1/admin/users/" + regularUserId))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath("$.message").value("Authentication required"));
         }

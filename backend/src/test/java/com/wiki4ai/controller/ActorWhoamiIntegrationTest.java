@@ -181,7 +181,15 @@ class ActorWhoamiIntegrationTest {
         @Test
         @DisplayName("A legacy JWT answers 200 with no actor — never 400, never 500")
         void legacyJwtAnswersWithoutActor() throws Exception {
-            String legacyJwt = jwtUtil.generateInfiniteToken(ALICE);
+            // WIKI4AI-197 changed which JWT shape reaches this assertion, not what the
+            // assertion checks. generateInfiniteToken mints a token with no 'exp' claim,
+            // and the access-token parser now requires one, so an infinite token is
+            // refused with a 401 before whoami is ever reached. generateToken mints the
+            // same credential with an 'exp' — still a plain JWT on the legacy branch,
+            // still not a w4a_ token, still carrying no actor. The behaviour under test
+            // ("a JWT-authenticated caller has no actor, and whoami says so with 200,
+            // never 400 or 500") is exactly what it was.
+            String legacyJwt = jwtUtil.generateToken(ALICE);
 
             mockMvc.perform(get("/api/v1/actors/whoami")
                             .header("Authorization", "Bearer " + legacyJwt))

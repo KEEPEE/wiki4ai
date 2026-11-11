@@ -31,7 +31,7 @@
   font-weight: 700;
   text-align: center;
   margin-bottom: 1rem;
-  background: linear-gradient(135deg, var(--primary) 0%, #ffffff 50%, var(--secondary) 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--text-strong) 50%, var(--secondary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -84,6 +84,5 @@
 }
 
 .not-found-home:focus-visible {
-  outline: none;
   box-shadow: var(--focus-ring-shadow);
 }

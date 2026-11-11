@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 import { login as apiLogin, register as apiRegister, getAuthStatus, getMe, type UserInfo } from '../services/authApi';
 import { applyUserLanguage, DEFAULT_LANGUAGE } from '../i18n';
 import { clearStoredTokenSecrets } from '../utils/tokenStorage';
+// WIKI4AI-200: a cached server response is a response somebody fetched, and the
+// identity doing the fetching is now part of what the endpoint returns.
+import { clearServerCache } from '../utils/queryClient';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'wiki4ai_access_token';
@@ -182,6 +185,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // named-token menu and the plaintext the deprecated quick-generate flow used
     // to persist are both dropped here (logout, expired token, failed refresh).
     clearStoredTokenSecrets();
+    // WIKI4AI-200: every path out of an identity drops the React Query cache too.
+    // Since per-user project ordering, GET /api/v1/projects returns the CALLER's pins
+    // and positions, so the same URL legitimately means a different body for a
+    // different user — and the query key is only {sort, q, visibility}. With a 5-minute
+    // staleTime, the next account to sign in could otherwise be served the previous
+    // account's dashboard. Same reasoning as the token secrets above: leaving
+    // server state behind is what makes a logout not be a logout.
+    clearServerCache();
     setUser(null);
     setAccessToken(null);
     setRefreshToken(null);
@@ -203,6 +214,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const response = await apiLogin(username, password);
       saveAuthState(response.accessToken, response.refreshToken, response.user);
+      // WIKI4AI-200: a fresh identity starts with an empty cache. logout() clears it on
+      // the way out, but a login is the half that matters: whatever is in the cache was
+      // fetched by whoever was here before — an anonymous visitor, or the account this
+      // one replaced without going through logout. The projects list is the concrete
+      // case, since its pins and positions are now the caller's own.
+      clearServerCache();
       // WIKI4AI-73: the login response carries the user's language preference —
       // switch the UI immediately, no extra roundtrip.
       applyUserLanguage(response.user.language);
