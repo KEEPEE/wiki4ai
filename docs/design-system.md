@@ -172,9 +172,14 @@ Sľub „všetky farby len v `tokens.css`“ je implementovaný ako **ratchet**:
 `HARD_COLOR_BUDGET` v `designTokens.test.ts` má per-súbor maximum výskytov.
 Nový súbor musí mať 0, migrácia smie hodnotu **len znižovať**.
 
-**Nameraný stav (WIKI4AI-199, 2026-11-09): 98 farebných hodnôt mimo
-`tokens.css` v 27 súboroch** — a súčet budgetu je presne 98, teda ratchet je
-v tesnej zhode so skutočnosťou (žiadny voľný priestor na regresiu). Rozpad:
+**Budget po WIKI4AI-208: 89 farebných hodnôt mimo `tokens.css` v 27 súboroch**
+— a súčet budgetu je presne 89, teda ratchet je v tesnej zhode so
+skutočnosťou (žiadny voľný priestor na regresiu). Oproti meraniu WIKI4AI-199
+(2026-11-09), ktoré malo 98 hodnôt, klesli `pages/MetricsPage.css` 4 → 3
+(`#7ad7ff` na dátovom povrchu nahradený `--chart-7`) a
+`components/Toast.css` 8 → 0 (tien ide cez `--glass-shadow`, stavy cez
+`--color-*-border` + `--{ok,error,info}-glow`, teda bez jediného nového čísla).
+Rozpad merania WIKI4AI-199:
 **64 chromatických** `rgba()` (nesú odtieň, takže neprejdú identitou),
 **29 neutrálnych** alfa `rgba(0,0,0,x)` / `rgba(255,255,255,x)` (tiene,
 scrimy), **4 hex** literály (`#7ad7ff` 2× v gradientoch, `#0000` 2× v
@@ -263,14 +268,14 @@ končil na `#c2603f` s pomerom 3.33:1 (1.4.3 failure).
 
 ## 9. Známe slabé miesta systému (otvorené k WIKI4AI-199)
 
-1. **98 tvrdých farieb mimo tokenov** — z toho 64 chromatických. Chromatické
+1. **89 tvrdých farieb mimo tokenov** (pri meraní WIKI4AI-199 ich bolo 98) —
+   z toho 64 chromatických. Chromatické
    literály sa **neprekreslia** pri zmene identity. Konkrétne:
    `rgba(52, 211, 153, 0.6)` (emerald glass-dark accent) je natvrdo v
    `pages/BoardPage.css:254` a `pages/WorkItemDetailPage.css:492`;
    `rgba(0, 229, 255, 0.3)` (nexaverse cyan) v
    `components/DocumentLinks.css:94`; `rgba(0, 200, 220, 0.15)` v
-   `pages/VaultPage.css:283`; `#7ad7ff` v `pages/MetricsPage.css:157` a
-   `pages/ResourcesPage.css:135`. V glass identitách tieto prvky svietia
+   `pages/VaultPage.css:289`; `#7ad7ff` v `pages/ResourcesPage.css:135`. V glass identitách tieto prvky svietia
    nexaverse farbou a naopak.
 2. **Sémantické stavové farby sú natvrdo per stránka** — Tailwind paleta
    (`rgba(239,68,68)` red-500, `rgba(245,158,11)` amber-500,

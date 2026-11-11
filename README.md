@@ -29,7 +29,7 @@ Everything runs in a single `docker compose up`: a React SPA behind nginx, a Spr
 | **Hybrid search** | Text + semantic search across all projects, fused with Reciprocal Rank Fusion; per-project and global endpoints |
 | **User management** | Two roles — `USER` and `ADMIN` — with admin user creation, role changes and deletion |
 | **First-run setup flow** | A fresh instance shows a setup form instead of login: the first account becomes the admin, and public registration closes automatically afterwards |
-| **i18n** | English (default) and Slovak, switchable per user in the profile |
+| **i18n** | English (default) and Slovak, switchable per user from the user menu in the top bar |
 | **MCP server for AI agents** | 52 tools over stdio or SSE — projects, documents, search, wiki links, images, calendar, a per-user encrypted vault, and the coordination families: work items, inbox, resources, reservations and actors |
 | **Agent coordination board** | A shared `/board` where work items flow through eight states (Backlog, Ready, Claimed, Running, Review, Done, Blocked, Cancelled) with atomic claims, lease TTLs and handoffs between agents — plus a "waiting for you" queue of blockers flagged `needs_human`; auto-refreshes every 10 s |
 | **Agent identity & audit** | Actors with handles and kinds, project roles with enforcement, throttled heartbeat presence, and per-change attribution — every document change carries the signature of who made it, human or agent |
@@ -157,17 +157,27 @@ This starts the complete stack: the frontend (nginx + React SPA), the Spring Boo
 2. **Complete the first-run setup.** On an empty instance the app shows a **First-time setup** form instead of the login page — create your admin account (username ≥ 2 chars, password ≥ 8 chars). Afterwards the setup endpoint closes and public self-registration is disabled by default.
 
    ![First-time setup](docs/screenshots/first-run-setup.png)
-3. **You're in.** Your wiki starts with a complete **"wiki4ai" documentation project seeded automatically** — nine documents covering getting started, architecture, data model, search & embeddings, the WebUI guide, the MCP server and deployment & operations. A fresh install is never an empty shell: read the manual from inside the product.
+3. **You're in.** Your wiki starts with a complete **"wiki4ai" documentation project seeded automatically** — eleven documents covering getting started, the backend API reference, architecture, data model, search & embeddings, the WebUI guide, the MCP server, deployment & operations, the calendar and agent coordination. A fresh install is never an empty shell: read the manual from inside the product.
 
 Add more users any time as admin under **Admin → Users** (role `USER` or `ADMIN`). To keep public self-signup open on your instance, set `AUTH_REGISTRATION_OPEN=true` on the backend service.
+
+![Admin user management — create users, change roles, delete accounts](docs/screenshots/admin-users.png)
+
+Language is a per-user setting in the account menu, not a server-wide switch — one person can read the UI in English while the next reads it in Slovak:
+
+![Language switch in the account menu — English and Slovak](docs/screenshots/profile-language.png)
 
 ![Global hybrid search with semantic results](docs/screenshots/search.png)
 
 ## Fresh instance ships with documentation
 
-A first install is never an empty shell. On first boot the backend seeds a complete **"wiki4ai" documentation project** — nine documents covering getting started, architecture, data model, search & embeddings, the WebUI guide, the MCP server and deployment & operations — so you can read the manual from inside the product before writing your first page. For self-hosted teams that is the difference between "a wiki to fill" and "a wiki that already explains itself".
+A first install is never an empty shell. On first boot the backend seeds a complete **"wiki4ai" documentation project** — eleven documents covering getting started, the backend API reference, architecture, data model, search & embeddings, the WebUI guide, the MCP server, deployment & operations, the calendar and agent coordination — so you can read the manual from inside the product before writing your first page. For self-hosted teams that is the difference between "a wiki to fill" and "a wiki that already explains itself".
 
-![Dashboard of a fresh instance with the seeded documentation project](docs/screenshots/dashboard-demo.png)
+![The dashboard of a working instance — project and document counters, search, sort menu and per-user ordering](docs/screenshots/dashboard-demo.png)
+
+Projects nest up to five levels deep, and the dashboard draws that hierarchy instead of flattening it: a parent card carries its subprojects as indented `↳` rows, each with its own document count and lock badge.
+
+![Dashboard with a parent project card and its subprojects nested underneath](docs/screenshots/projects-subprojects.png)
 
 The small reliability details matter just as much: an unknown address renders a real **Page not found** page instead of a blank screen, `/admin` resolves to the user-management screen, and the API answers with proper `404`/`405`/`403`/`422`/`409` statuses and human-readable messages instead of opaque server errors.
 
@@ -250,7 +260,7 @@ The full stack is six containers on one Docker network; three are required, thre
 | `wiki4ai-db` | `pgvector/pgvector:pg16` | — (internal :5432) | PostgreSQL 16 + pgvector — the single source of truth | Yes |
 | `wiki4ai-backend` | CI-built `backend:<image-tag>` | `8080` | Spring Boot REST API; Flyway migrations on startup; issues JWTs | Yes |
 | `wiki4ai-frontend` | CI-built `frontend:<image-tag>` | `80` (remap freely) | React SPA served by nginx, which also proxies `/api/v1` and `/plantuml/` | Yes |
-| `wiki4ai-mcp` | CI-built `mcp:<image-tag>` | `8095` | MCP server (SSE) exposing the wiki to AI agents | No — WebUI unaffected without it |
+| `wiki4ai-mcp` | CI-built `mcp:<image-tag>` | `8099` (container `8095`) | MCP server (SSE) exposing the wiki to AI agents | No — WebUI unaffected without it |
 | `wiki4ai-embedding` | CI-built `embedding:<image-tag>` | `8030` | Qwen3-Embedding-0.6B int8 ONNX sidecar powering semantic search | No — search becomes text-only |
 | `wiki4ai-kroki` | `yuzutech/kroki` | — (internal :8000) | Stateless PlantUML renderer; reached only via the nginx `/plantuml/` proxy | No — PlantUML blocks show an error card |
 
@@ -265,7 +275,7 @@ Images are built by CI on every push to `main` and tagged with the **git short S
 
 Optional: `EMBEDDING_BASE_URL`, `UPLOAD_DIR` (bind-mount for uploaded images), `MCP_JWT_TOKEN` (gate the MCP endpoint), `ADMIN_INITIAL_USERNAME` / `ADMIN_INITIAL_PASSWORD` (non-interactive admin bootstrap, honored only while no account exists), `AUTH_REGISTRATION_OPEN` (keep public self-signup open).
 
-**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. The agent coordination layer ships as migrations V15–V25, adding seven tables (actors, project actors, work items, work item events, work item comments, resources, reservations) on top of the existing schema. V26 is purely additive: `pinned` + `sort_order` on `projects` and `documents` (both `NOT NULL` with a constant default, so existing rows need no rewrite), plus a deterministic backfill that reproduces the ordering each list already showed. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
+**Upgrades.** Pull the new image tag and re-run `docker compose up -d`. Database migrations are applied automatically by Flyway *before* the backend starts accepting traffic — you never run them by hand. The agent coordination layer ships as migrations V15–V25, adding seven tables (actors, project actors, work items, work item events, work item comments, resources, reservations) on top of the existing schema. V26 is purely additive: `pinned` + `sort_order` on `projects` and `documents` (both `NOT NULL` with a constant default, so existing rows need no rewrite), plus a deterministic backfill that reproduces the ordering each list already showed. V27 adds the embedding job queue, V28 the per-user project-ordering table, and V29 the vault crypto-v2 columns — it also relaxes two `NOT NULL` constraints so v1 and v2 ciphertext can coexist until an entry is re-saved. None of the three rewrites or drops existing data. Note that Flyway migrations are forward-only: rolling back an image does not roll back the schema, so take a backup before upgrading.
 
 **Backups.** Everything lives in one PostgreSQL volume (`pgdata`) plus the `UPLOAD_DIR` bind mount for images. The repo ships `scripts/wiki4ai-db-backup.sh` and `scripts/wiki4ai-db-restore.sh` (pg_dump-based).
 
@@ -276,7 +286,7 @@ The full operational reference — configuration table, JWT rotation, registrati
 ```
 wiki4ai/
 ├── backend/     # Spring Boot 3 (Java 17+) — REST API at /api/v1, Flyway, OpenAPI/Swagger UI
-│   └── src/main/resources/seed/   # first-run documentation seed (9 docs + images)
+│   └── src/main/resources/seed/   # first-run documentation seed (11 docs + images)
 ├── frontend/    # React 18 + TypeScript + Vite SPA (Monaco editor, Tailwind)
 ├── mcp-server/  # Python 3.12 + FastMCP — 52 tools, stdio or SSE transport
 ├── embedding/   # Qwen3-Embedding-0.6B int8 ONNX sidecar (port 8030)
@@ -285,9 +295,9 @@ wiki4ai/
 └── scripts/                    # db backup/restore helpers, pipeline helpers
 ```
 
-**CI.** This project is developed with a GitLab CI pipeline (test → build & push → deploy) that is intentionally not part of this public repository — the three test commands below are the same gates it runs.
+**CI.** The public repository ships a GitHub Actions workflow (`.github/workflows/ci.yml`) that runs the four test gates below on every push to `main` and on pull requests — `backend (mvn test)`, `frontend (vitest)`, `mcp-server (pytest)` and `embedding (pytest)`. The image build/push and deploy stages live in the project's GitLab pipeline, which is not part of this public repository.
 
-**Run the tests** (the same three gates CI runs):
+**Run the tests** (the same four gates CI runs):
 
 ```bash
 # Backend — JUnit via Maven
@@ -298,6 +308,9 @@ cd frontend && npm ci && npx tsc --noEmit -p tsconfig.app.json && npm run test:r
 
 # MCP server — pytest
 cd mcp-server && pip install -r requirements.txt pytest && python -m pytest tests/ -q
+
+# Embedding sidecar — pytest (FastAPI TestClient)
+cd embedding && pip install -r requirements.txt pytest httpx && python -m pytest tests/ -q
 ```
 
 **Local development without Docker:**

@@ -2,7 +2,7 @@
 
 All notable changes to Wiki4AI are documented here. The format follows Keep a Changelog and this project uses Semantic Versioning.
 
-The entries below are derived from the commit history (496 commits since 2026-05-16), grouped by release phase.
+The entries below are derived from the commit history (373 commits in this repository since 2026-05-16), grouped by release phase.
 
 
 ## November 2026
@@ -47,7 +47,7 @@ Two campaigns landed since October. A hardening sweep closed the security and co
 
 ### Changed
 
-- Colours live **only** in `frontend/src/styles/tokens.css`; a guard test caps hard-coded colour values at 98 across 27 files and fails the build when the budget grows undocumented.
+- Colours live **only** in `frontend/src/styles/tokens.css`; a guard test caps hard-coded colour values at 89 across 27 files and fails the build when the budget grows undocumented.
 - The default theme is `glass-dark`. Saved preferences for `dark` and `light` map onto the new identities instead of breaking.
 - Compose publishes only the two ports that need publishing, and `ddl-auto` is no longer overridden with `update` — Flyway owns the schema (`WIKI4AI-197`).
 
