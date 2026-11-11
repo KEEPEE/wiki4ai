@@ -28,9 +28,9 @@ Heslá ber z vaultu (SSH .219), nikdy ich nepis do skriptov ani dokumentov.
 ## Prihlásenie
 
 Dev je od 31. 10. 2026 kópiou **produkčných dát** — prihlasuje sa **produkčným
-účtom** (vault entry 91, pole username/password). Pôvodný dev účet
-`admin/REDACTED-BOOTSTRAP-PW` zanikol: bootstrap `ADMIN_INITIAL_PASSWORD` sa pri
-existujúcich používateľoch nepoužije.
+účtom** (vault entry 91, pole username/password). Pôvodný dev bootstrap účet
+`admin` (dočasné heslo, už neplatí) zanikol: bootstrap `ADMIN_INITIAL_PASSWORD`
+sa pri existujúcich používateľoch nepoužije.
 
 ## Obnova prod dát na dev
 
