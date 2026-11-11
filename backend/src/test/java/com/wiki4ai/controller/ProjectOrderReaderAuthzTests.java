@@ -13,6 +13,7 @@ import com.wiki4ai.repository.ProjectRepository;
 import com.wiki4ai.repository.UserProjectOrderRepository;
 import com.wiki4ai.repository.UserRepository;
 import com.wiki4ai.service.ProjectService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -127,16 +128,36 @@ class ProjectOrderReaderAuthzTests {
 
     @BeforeEach
     void startFromAnEmptyWiki() {
-        documentRepository.deleteAll();
-        userProjectOrderRepository.deleteAll();
-        projectPermissionRepository.deleteAll();
-        projectRepository.deleteAll();
-        userRepository.deleteAll();
+        clearWikiRows();
 
         newUser("owner", Role.USER);
         newUser("reader", Role.USER);
         newUser("stranger", Role.USER);
         readerToken = jwtUtil.generateToken("reader");
+    }
+
+    @AfterEach
+    void leaveNoRowsBehind() {
+        clearWikiRows();
+    }
+
+    /**
+     * Row-level cleanup, in defined order to respect foreign keys.
+     *
+     * <p>The H2 database is shared by name across the whole JVM and Spring caches its test
+     * contexts, so the rows written here outlive the class unless it removes them itself.
+     * Cleaning up only before itself left {@code owner}, {@code reader} and {@code stranger}
+     * plus their projects for whatever ran next, and {@code AdminControllerIT} — which asserts
+     * absolute user counts — cannot delete a user who still owns a project, because
+     * {@code project.owner_id} holds it. That is the order-dependent failure this fixes; the
+     * teardown half is what makes the suite independent of the order surefire picks.</p>
+     */
+    private void clearWikiRows() {
+        documentRepository.deleteAll();
+        userProjectOrderRepository.deleteAll();
+        projectPermissionRepository.deleteAll();
+        projectRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     // =======================================================================

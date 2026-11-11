@@ -6,6 +6,7 @@ import com.wiki4ai.config.JwtUtil;
 import com.wiki4ai.model.Role;
 import com.wiki4ai.model.User;
 import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -14,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -44,6 +46,9 @@ class AdminControllerIT {
     private UserRepository userRepository;
 
     @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     private String adminToken;
@@ -62,14 +67,10 @@ class AdminControllerIT {
 
     @BeforeEach
     void setUp() {
-        // Clean up before each test
-        List<User> all = userRepository.findAll();
-        for (User u : all) {
-            try {
-                userRepository.delete(u);
-            } catch (Exception ignored) {
-            }
-        }
+        // The assertions in this class are absolute counts of the admin user list, so the
+        // users table has to be genuinely empty before each test, not merely empty of the
+        // rows this class can delete.
+        emptySharedDatabase();
 
         BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
@@ -94,6 +95,50 @@ class AdminControllerIT {
         // Generate JWT tokens for testing
         adminToken = jwtUtil.generateToken("admin");
         userToken = jwtUtil.generateToken("regularuser");
+    }
+
+    @AfterEach
+    void tearDown() {
+        // Leave nothing behind either: the next class shares this database by name.
+        emptySharedDatabase();
+    }
+
+    /**
+     * Row-level cleanup of the whole schema.
+     *
+     * <p>Every Spring context in this suite shares one named in-memory H2
+     * ({@code jdbc:h2:mem:testdb} with {@code DB_CLOSE_DELAY=-1}) and contexts are cached for
+     * the life of the JVM, so rows written by an earlier test class are still here when this
+     * class starts. Two classes in particular write users and projects and clean up only
+     * before themselves, never after: {@code ProjectOrderReaderAuthzTests} (leaves
+     * {@code owner}, {@code reader}, {@code stranger}) and {@code PermissionControllerIT}
+     * (leaves an {@code admin}).</p>
+     *
+     * <p>The loop this replaces deleted users one at a time and swallowed the failure. A user
+     * who owns a project cannot be removed while the project row still points at it through
+     * {@code project.owner_id}, so the leftover survived and this class saw three users instead
+     * of two. Which leftover arrived depends on the order surefire happened to pick, which is
+     * why the same defect surfaced twice in two shapes: pipeline 2453 failed five assertions on
+     * the user count, pipeline 2451 errored forty times on the unique username index when the
+     * leftover was already named {@code admin}. Deleting every table with referential integrity
+     * switched off gives this class the same empty start state regardless of what ran first,
+     * and it does not weaken a single assertion.</p>
+     */
+    private void emptySharedDatabase() {
+        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
+        try {
+            // TABLE_TYPE is filtered rather than matched so the query does not depend on
+            // whether this H2 reports a plain table as TABLE or as BASE TABLE.
+            List<String> tables = jdbcTemplate.queryForList(
+                    "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES"
+                            + " WHERE TABLE_SCHEMA = 'PUBLIC' AND TABLE_TYPE <> 'VIEW'",
+                    String.class);
+            for (String table : tables) {
+                jdbcTemplate.execute("DELETE FROM " + table);
+            }
+        } finally {
+            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
+        }
     }
 
     @Nested

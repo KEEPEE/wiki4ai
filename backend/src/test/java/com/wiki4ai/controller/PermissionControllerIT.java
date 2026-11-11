@@ -10,6 +10,7 @@ import com.wiki4ai.model.User;
 import com.wiki4ai.repository.ProjectPermissionRepository;
 import com.wiki4ai.repository.ProjectRepository;
 import com.wiki4ai.repository.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -93,10 +94,7 @@ class PermissionControllerIT {
 
     @BeforeEach
     void setUp() {
-        // Clean up in defined order to respect foreign keys
-        projectPermissionRepo.deleteAll();
-        projectRepository.deleteAll();
-        userRepository.deleteAll();
+        cleanState();
 
         // Create users
         adminUser = User.builder().username("admin").email("admin@test.com").password("$2a$10.hashed").build();
@@ -132,6 +130,29 @@ class PermissionControllerIT {
                 .build();
         readerPerm.setProject(testProject);
         projectPermissionRepo.save(readerPerm);
+    }
+
+    @AfterEach
+    void cleanUp() {
+        cleanState();
+    }
+
+    /**
+     * Row-level cleanup, in defined order to respect foreign keys.
+     *
+     * <p>The H2 database is shared by name across the whole JVM and Spring caches its test
+     * contexts, so this class has to remove its own rows when it finishes and not only before
+     * it starts. It used to clean up only before itself and therefore left an {@code admin}
+     * user, a project and two grants behind. {@code AdminControllerIT} asserts absolute user
+     * counts and could not delete that leftover (a user who owns a project is held by
+     * {@code project.owner_id}), so depending on which of the two classes surefire happened to
+     * run first it either listed three users instead of two or could not insert its own admin
+     * at all — five assertion failures in pipeline 2453, forty errors in 2451.</p>
+     */
+    private void cleanState() {
+        projectPermissionRepo.deleteAll();
+        projectRepository.deleteAll();
+        userRepository.deleteAll();
     }
 
     @Nested
